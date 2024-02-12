@@ -14,3 +14,6 @@ server = { path = "server" }
 
 [workspace]
 members = [ ".", "db", "server" ]
+
+[profile.release]
+debug = true

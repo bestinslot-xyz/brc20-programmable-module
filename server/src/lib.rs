@@ -8,7 +8,7 @@ use rouille::try_or_400;
 
 use serde_json::Value;
 
-use std::sync::Mutex;
+use std::sync::{ Mutex, MutexGuard };
 
 use db::DB;
 
@@ -17,6 +17,8 @@ use types::{ BlockResJSON, BlockRes, TxInfo, get_serializeable_execution_result,
 
 mod evm;
 use evm::{ get_evm, modify_evm_with_tx_env };
+
+use crate::types::SerializableExecutionResult;
 
 pub fn start_server(db_mutex: Mutex<DB>) {
   println!("Starting server!");
@@ -164,6 +166,73 @@ pub fn start_server(db_mutex: Mutex<DB>) {
         *last_block_gas_used = 0;
 
         Response::json::<Value>(&Value::Null)
+      } else if method == "custom_finaliseBlockWithTxes" {
+        let mut waiting_tx_cnt = waiting_tx_cnt_mutex.lock().unwrap();
+        let mut last_ts = last_ts_mutex.lock().unwrap();
+        let mut last_block_hash = last_block_hash_mutex.lock().unwrap();
+        let mut last_block_gas_used = last_block_gas_used_mutex.lock().unwrap();
+
+        let timestamp = U256::from(params.get("timestamp").unwrap().as_u64().unwrap());
+        let hash = B256::from_slice(hex::decode(params.get("hash").unwrap().as_str().unwrap().to_string().split_at(2).1).unwrap().as_slice());
+        let txes = params.get("txes").unwrap().as_array().unwrap();
+
+        if *waiting_tx_cnt != 0 {
+          return Response::text("there are waiting txes, either finalise block or clear caches!!").with_status_code(400);
+        }
+
+        let mut db = db_mutex.lock().unwrap();
+
+        *last_block_gas_used = 0;
+        let mut serializeable_resses: Vec<SerializableExecutionResult> = Vec::new();
+        for tx in txes {
+          let from = tx.get("from").unwrap().as_str().unwrap().parse().unwrap();
+          let to = tx.get("to").unwrap().as_str().map(|x| x.parse().unwrap());
+          let data = Bytes::from(hex::decode(tx.get("data").unwrap().as_str().unwrap().to_string().split_at(2).1).unwrap());
+          let txinfo = TxInfo { from, to, data };
+
+          let (result, nonce, txhash) = add_tx_to_block_wo_mutex(&mut db, timestamp, &txinfo);
+          *last_block_gas_used += result.gas_used();
+
+          let serializeable_res = get_serializeable_execution_result(result, txhash, nonce);
+          serializeable_resses.push(serializeable_res);
+        }
+
+        finalise_block(&db, timestamp, hash, *last_block_gas_used, txes.len() as u64);
+
+        *waiting_tx_cnt = 0;
+        *last_ts = U256::ZERO;
+        *last_block_hash = B256::ZERO;
+        *last_block_gas_used = 0;
+
+        Response::json(&serializeable_resses)
+      } else if method == "custom_commit_to_db" {
+        let waiting_tx_cnt = waiting_tx_cnt_mutex.lock().unwrap();
+        if *waiting_tx_cnt != 0 {
+          return Response::text("there are waiting txes, first finalise the block or clear the cache!!").with_status_code(400);
+        }
+
+        let db = db_mutex.lock().unwrap();
+        let mut rwtxn = db.get_write_txn().unwrap();
+
+        db.commit_changes_to_db_with_txn(&mut rwtxn);
+        rwtxn.commit().unwrap();
+        
+        Response::json::<Value>(&Value::Null)
+      } else if method == "clear_caches" {
+        let mut waiting_tx_cnt = waiting_tx_cnt_mutex.lock().unwrap();
+        let mut last_ts = last_ts_mutex.lock().unwrap();
+        let mut last_block_hash = last_block_hash_mutex.lock().unwrap();
+        let mut last_block_gas_used = last_block_gas_used_mutex.lock().unwrap();
+        let db = db_mutex.lock().unwrap();
+
+        db.clear_caches();
+        
+        *waiting_tx_cnt = 0;
+        *last_ts = U256::ZERO;
+        *last_block_hash = B256::ZERO;
+        *last_block_gas_used = 0;
+        
+        Response::json::<Value>(&Value::Null)
       } else {
         Response::text("Faulty Command").with_status_code(400)
       }
@@ -194,7 +263,7 @@ fn get_block_by_number(db: &DB, number: U256) -> Option<BlockRes> {
 }
 
 fn get_latest_block_height(db: &DB) -> U256 {
-  println!("Getting latest block height");
+  // println!("Getting latest block height");
   let last_block_info = db.get_latest_block_hash().unwrap();
   if last_block_info.is_none() { return U256::ZERO; }
   db.get_latest_block_hash().unwrap().unwrap().0
@@ -205,8 +274,8 @@ fn mine_block(db: &DB, block_cnt: u64, timestamp: U256, hash: B256) {
   println!("Mining blocks from {} to {}", number, number + U256::from(block_cnt) - U256::from(1));
   let mut rwtxn = db.get_write_txn().unwrap();
   for _ in 0..block_cnt {
-    db.set_block_hash_with_txn(number, hash, &mut rwtxn).unwrap();
-    db.set_block_timestamps_with_txn(number, timestamp, &mut rwtxn).unwrap();
+    db.set_block_hash(number, hash).unwrap();
+    db.set_block_timestamp(number, timestamp).unwrap();
     db.set_block_gas_used_with_txn(number, U256::ZERO, &mut rwtxn).unwrap();
     db.set_block_mine_tm_with_txn(number, U256::ZERO, &mut rwtxn).unwrap();
     number += U256::from(1);
@@ -234,11 +303,34 @@ fn add_tx_to_block(db_mutex: &Mutex<DB>, timestamp: U256, tx_info: &TxInfo) -> (
     tx_info.to.map(|x| TransactTo::Call(x)).unwrap_or(TransactTo::Create(CreateScheme::Create)), 
     tx_info.data.clone());
   
-  let output = evm.transact().unwrap();
-  evm.context.evm.db.commit(output.state, &txhash, &number);
+  let output = evm.transact_commit().unwrap();
   *db_mutex_guard = evm.context.evm.db;
 
-  (output.result, nonce, txhash)
+  (output, nonce, txhash)
+}
+fn add_tx_to_block_wo_mutex(db_mutex_guard: &mut MutexGuard<'_, DB>, timestamp: U256, tx_info: &TxInfo) -> (ExecutionResult, u64, String) {
+  let mut db = core::mem::take(&mut **db_mutex_guard);
+
+  let number = get_latest_block_height(&db) + U256::from(1);
+  let block_info: BlockEnv = BlockEnv {
+    number,
+    coinbase: "0x0000000000000000000000000000000000003Ca6".parse().unwrap(),
+    timestamp,
+    ..Default::default()
+  };
+
+  let nonce = db.basic(tx_info.from).unwrap().map(|x| x.nonce).unwrap_or(0);
+  let txhash = get_tx_hash(&tx_info, &nonce);
+  let mut evm = get_evm(&block_info, db);
+  evm = modify_evm_with_tx_env(evm,
+    tx_info.from, 
+    tx_info.to.map(|x| TransactTo::Call(x)).unwrap_or(TransactTo::Create(CreateScheme::Create)), 
+    tx_info.data.clone());
+  
+  let output = evm.transact_commit().unwrap();
+  **db_mutex_guard = evm.context.evm.db;
+
+  (output, nonce, txhash)
 }
 
 fn finalise_block(db: &DB, timestamp: U256, hash: B256, total_gas_used: u64, block_tx_cnt: u64) -> () {
@@ -248,11 +340,11 @@ fn finalise_block(db: &DB, timestamp: U256, hash: B256, total_gas_used: u64, blo
   println!("Finalising block {}, tx cnt: {}", number, block_tx_cnt);
 
   let mut rwtxn = db.get_write_txn().unwrap();
-  db.set_block_timestamps_with_txn(number, timestamp, &mut rwtxn).unwrap();
+  db.set_block_timestamp(number, timestamp).unwrap();
   db.set_block_gas_used_with_txn(number, U256::from(total_gas_used), &mut rwtxn).unwrap();
   let total_time_took = U256::from(start_time.elapsed().as_nanos());
   db.set_block_mine_tm_with_txn(number, total_time_took, &mut rwtxn).unwrap();
-  db.set_block_hash_with_txn(number, hash, &mut rwtxn).unwrap();
+  db.set_block_hash(number, hash).unwrap();
   rwtxn.commit().unwrap();
 }
 
