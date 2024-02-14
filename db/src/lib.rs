@@ -6,7 +6,7 @@ use std::path::Path;
 use std::borrow::Cow;
 use std::fs;
 
-use std::sync::Mutex;
+// use std::sync::Mutex;
 
 use core::fmt;
 
@@ -31,11 +31,11 @@ pub struct DB {
   db_block_gas_used_map: Option<Database<U256ED, U256ED>>,
   db_block_mine_tm_map: Option<Database<U256ED, U256ED>>,
   code_cache: Map<B256, Bytecode>,
-  account_memory_cache: Mutex<Map<Address, Map<U256, CacheVal<U256>>>>,
-  account_cache: Mutex<Map<Address, CacheVal<AccountInfo>>>,
-  block_hash_cache: Mutex<Map<U256, CacheVal<B256>>>,
-  block_timestamp_cache: Mutex<Map<U256, CacheVal<U256>>>,
-  latest_block_hash: Mutex<Option<(U256, B256)>>
+  account_memory_cache: Map<Address, Map<U256, CacheVal<U256>>>,
+  account_cache: Map<Address, CacheVal<AccountInfo>>,
+  block_hash_cache: Map<U256, CacheVal<B256>>,
+  block_timestamp_cache: Map<U256, CacheVal<U256>>,
+  latest_block_hash: Option<(U256, B256)>
 }
 
 impl DB {
@@ -117,11 +117,11 @@ impl DB {
       db_block_gas_used_map: Some(db_block_gas_used_map),
       db_block_mine_tm_map: Some(db_block_mine_tm_map),
       code_cache: Map::new(),
-      account_memory_cache: Mutex::new(Map::new()),
-      account_cache: Mutex::new(Map::new()),
-      block_hash_cache: Mutex::new(Map::new()),
-      block_timestamp_cache: Mutex::new(Map::new()),
-      latest_block_hash: Mutex::new(None),
+      account_memory_cache: Map::new(),
+      account_cache: Map::new(),
+      block_hash_cache: Map::new(),
+      block_timestamp_cache: Map::new(),
+      latest_block_hash: None,
     })
   }
 
@@ -129,12 +129,11 @@ impl DB {
     Ok(self.env.as_ref().unwrap().write_txn()?)
   }
 
-  pub fn read_from_account_memory_map(&self, account: Address, mem_loc: U256) -> Result<Option<U256>, Box<dyn Error>> {
-    let mut account_memory_cache = self.account_memory_cache.lock().unwrap();
-    if !account_memory_cache.contains_key(&account) {
-      account_memory_cache.insert(account, Map::new());
+  pub fn read_from_account_memory_map(&mut self, account: Address, mem_loc: U256) -> Result<Option<U256>, Box<dyn Error>> {
+    if !self.account_memory_cache.contains_key(&account) {
+      self.account_memory_cache.insert(account, Map::new());
     }
-    let acc = account_memory_cache.get_mut(&account).unwrap();
+    let acc = self.account_memory_cache.get_mut(&account).unwrap();
     if acc.contains_key(&mem_loc) {
       return Ok(acc.get(&mem_loc).unwrap().get_current());
     }
@@ -149,12 +148,11 @@ impl DB {
     Ok(ret.map(|x| x.0))
   }
 
-  pub fn set_account_memory_map(&self, account: Address, mem_loc: U256, value: U256) -> Result<(), Box<dyn Error>> {
-    let mut account_memory_cache = self.account_memory_cache.lock().unwrap();
-    if !account_memory_cache.contains_key(&account) {
-      account_memory_cache.insert(account, Map::new());
+  pub fn set_account_memory_map(&mut self, account: Address, mem_loc: U256, value: U256) -> Result<(), Box<dyn Error>> {
+    if !self.account_memory_cache.contains_key(&account) {
+      self.account_memory_cache.insert(account, Map::new());
     }
-    let acc = account_memory_cache.get_mut(&account).unwrap();
+    let acc = self.account_memory_cache.get_mut(&account).unwrap();
     if acc.contains_key(&mem_loc) {
       let cached_val = acc.get_mut(&mem_loc).unwrap();
       cached_val.set_current(&Some(value));
@@ -173,12 +171,11 @@ impl DB {
     Ok(())
   }
 
-  pub fn remove_from_account_memory_map(&self, account: Address) -> Result<(), Box<dyn Error>> {
-    let mut account_memory_cache = self.account_memory_cache.lock().unwrap();
-    if !account_memory_cache.contains_key(&account) {
-      account_memory_cache.insert(account, Map::new());
+  pub fn remove_from_account_memory_map(&mut self, account: Address) -> Result<(), Box<dyn Error>> {
+    if !self.account_memory_cache.contains_key(&account) {
+      self.account_memory_cache.insert(account, Map::new());
     }
-    let acc = account_memory_cache.get_mut(&account).unwrap();
+    let acc = self.account_memory_cache.get_mut(&account).unwrap();
 
     for elem in acc.iter_mut() {
       elem.1.set_current(&None);
@@ -223,26 +220,24 @@ impl DB {
     Ok(())
   }
 
-  pub fn read_from_account_map(&self, account: Address) -> Result<Option<AccountInfo>, Box<dyn Error>> {
-    let mut account_cache = self.account_cache.lock().unwrap();
-    if account_cache.contains_key(&account) {
-      return Ok(account_cache.get(&account).unwrap().get_current());
+  pub fn read_from_account_map(&mut self, account: Address) -> Result<Option<AccountInfo>, Box<dyn Error>> {
+    if self.account_cache.contains_key(&account) {
+      return Ok(self.account_cache.get(&account).unwrap().get_current());
     }
 
     let rtxn = self.env.as_ref().unwrap().read_txn()?;
     let ret: Option<AccountInfoED> = self.db_account_map.unwrap().get(&rtxn, &AddressED::from_addr(account))?;
 
     if ret.is_some() {
-      account_cache.insert(account, CacheVal::new_not_changed(&ret.as_ref().unwrap().0));
+      self.account_cache.insert(account, CacheVal::new_not_changed(&ret.as_ref().unwrap().0));
     }
 
     Ok(ret.map(|x| x.0))
   }
 
-  pub fn set_account_map(&self, account: Address, value: AccountInfo) -> Result<(), Box<dyn Error>> {
-    let mut account_cache = self.account_cache.lock().unwrap();
-    if account_cache.contains_key(&account) {
-      let cached_val = account_cache.get_mut(&account).unwrap();
+  pub fn set_account_map(&mut self, account: Address, value: AccountInfo) -> Result<(), Box<dyn Error>> {
+    if self.account_cache.contains_key(&account) {
+      let cached_val = self.account_cache.get_mut(&account).unwrap();
       cached_val.set_current(&Some(value));
       return Ok(());
     }
@@ -251,18 +246,17 @@ impl DB {
     let ret: Option<AccountInfoED> = self.db_account_map.unwrap().get(&rtxn, &AddressED::from_addr(account))?;
 
     if ret.is_some() {
-      account_cache.insert(account, CacheVal::new_changed(&ret.unwrap().0, &Some(value)));
+      self.account_cache.insert(account, CacheVal::new_changed(&ret.unwrap().0, &Some(value)));
     } else {
-      account_cache.insert(account, CacheVal::new_created(&value));
+      self.account_cache.insert(account, CacheVal::new_created(&value));
     }
 
     Ok(())
   }
 
-  pub fn remove_from_account_map(&self, account: Address) -> Result<(), Box<dyn Error>> {
-    let mut account_cache = self.account_cache.lock().unwrap();
-    if account_cache.contains_key(&account) {
-      let cached_val = account_cache.get_mut(&account).unwrap();
+  pub fn remove_from_account_map(&mut self, account: Address) -> Result<(), Box<dyn Error>> {
+    if self.account_cache.contains_key(&account) {
+      let cached_val = self.account_cache.get_mut(&account).unwrap();
       cached_val.set_current(&None);
       return Ok(());
     }
@@ -271,7 +265,7 @@ impl DB {
     let ret: Option<AccountInfoED> = self.db_account_map.unwrap().get(&rtxn, &AddressED::from_addr(account))?;
 
     if ret.is_some() {
-      account_cache.insert(account, CacheVal::new_changed(&ret.unwrap().0, &None));
+      self.account_cache.insert(account, CacheVal::new_changed(&ret.unwrap().0, &None));
     } else {
       panic!("REMOVED NON EXISTING ACCOUNT!!") // TODO: check if this really cannot happen!!
       // account_cache.insert(account, CacheVal::new_created(&None));
@@ -280,27 +274,24 @@ impl DB {
     Ok(())
   }
 
-  pub fn read_from_block_hashes(&self, number: U256) -> Result<Option<B256>, Box<dyn Error>> {
-    let mut block_hash_cache = self.block_hash_cache.lock().unwrap();
-    if block_hash_cache.contains_key(&number) {
-      return Ok(block_hash_cache.get(&number).unwrap().get_current());
+  pub fn read_from_block_hashes(&mut self, number: U256) -> Result<Option<B256>, Box<dyn Error>> {
+    if self.block_hash_cache.contains_key(&number) {
+      return Ok(self.block_hash_cache.get(&number).unwrap().get_current());
     }
 
     let rtxn = self.env.as_ref().unwrap().read_txn()?;
     let ret: Option<B256ED> = self.db_block_hash_map.unwrap().get(&rtxn, &U256ED::from_u256(number))?;
     
     if ret.is_some() {
-      block_hash_cache.insert(number, CacheVal::new_not_changed(&ret.as_ref().unwrap().0));
+      self.block_hash_cache.insert(number, CacheVal::new_not_changed(&ret.as_ref().unwrap().0));
     }
 
     Ok(ret.map(|x| x.0))
   }
 
-  pub fn set_block_hash(&self, number: U256, value: B256) -> Result<(), Box<dyn Error>> {
-    let mut block_hash_cache = self.block_hash_cache.lock().unwrap();
-    let mut latest_block_hash = self.latest_block_hash.lock().unwrap();
-    if block_hash_cache.contains_key(&number) {
-      let cached_val = block_hash_cache.get_mut(&number).unwrap();
+  pub fn set_block_hash(&mut self, number: U256, value: B256) -> Result<(), Box<dyn Error>> {
+    if self.block_hash_cache.contains_key(&number) {
+      let cached_val = self.block_hash_cache.get_mut(&number).unwrap();
       cached_val.set_current(&Some(value));
       return Ok(());
     }
@@ -309,60 +300,57 @@ impl DB {
     let ret: Option<B256ED> = self.db_block_hash_map.unwrap().get(&rtxn, &U256ED::from_u256(number))?;
 
     if ret.is_some() {
-      block_hash_cache.insert(number, CacheVal::new_changed(&ret.unwrap().0, &Some(value)));
+      self.block_hash_cache.insert(number, CacheVal::new_changed(&ret.unwrap().0, &Some(value)));
     } else {
-      block_hash_cache.insert(number, CacheVal::new_created(&value));
+      self.block_hash_cache.insert(number, CacheVal::new_created(&value));
     }
 
-    if latest_block_hash.is_none() {
-      *latest_block_hash = Some((number, value));
+    if self.latest_block_hash.is_none() {
+      self.latest_block_hash = Some((number, value));
     } else {
-      let old_number = latest_block_hash.unwrap().0;
+      let old_number = self.latest_block_hash.unwrap().0;
       if number > old_number {
-        println!("Updating latest block hash with block number {}", number);
-        *latest_block_hash = Some((number, value));
+        // println!("Updating latest block hash with block number {}", number);
+        self.latest_block_hash = Some((number, value));
       }
     }
 
     Ok(())
   }
 
-  pub fn get_latest_block_hash(&self) -> Result<Option<(U256, B256)>, Box<dyn Error>> {
-    let mut latest_block_hash = self.latest_block_hash.lock().unwrap();
-    if latest_block_hash.is_some() {
-      return Ok(*latest_block_hash)
+  pub fn get_latest_block_hash(&mut self) -> Result<Option<(U256, B256)>, Box<dyn Error>> {
+    if self.latest_block_hash.is_some() {
+      return Ok(self.latest_block_hash)
     }
 
     let rtxn = self.env.as_ref().unwrap().read_txn()?;
     let ret: Option<(U256ED, B256ED)> = self.db_block_hash_map.unwrap().last(&rtxn)?;
 
     if ret.is_some() {
-      *latest_block_hash = ret.map(|x| (x.0.0, x.1.0))
+      self.latest_block_hash = ret.map(|x| (x.0.0, x.1.0))
     }
 
-    Ok(*latest_block_hash)
+    Ok(self.latest_block_hash)
   }
 
-  pub fn read_from_block_timestamps(&self, number: U256) -> Result<Option<U256>, Box<dyn Error>> {
-    let mut block_timestamp_cache = self.block_timestamp_cache.lock().unwrap();
-    if block_timestamp_cache.contains_key(&number) {
-      return Ok(block_timestamp_cache.get(&number).unwrap().get_current());
+  pub fn read_from_block_timestamps(&mut self, number: U256) -> Result<Option<U256>, Box<dyn Error>> {
+    if self.block_timestamp_cache.contains_key(&number) {
+      return Ok(self.block_timestamp_cache.get(&number).unwrap().get_current());
     }
     
     let rtxn = self.env.as_ref().unwrap().read_txn()?;
     let ret: Option<U256ED> = self.db_block_timestamp_map.unwrap().get(&rtxn, &U256ED::from_u256(number))?;
 
     if ret.is_some() {
-      block_timestamp_cache.insert(number, CacheVal::new_not_changed(&ret.as_ref().unwrap().0));
+      self.block_timestamp_cache.insert(number, CacheVal::new_not_changed(&ret.as_ref().unwrap().0));
     }
 
     Ok(ret.map(|x| x.0))
   }
 
-  pub fn set_block_timestamp(&self, number: U256, value: U256) -> Result<(), Box<dyn Error>> {
-    let mut block_timestamp_cache = self.block_timestamp_cache.lock().unwrap();
-    if block_timestamp_cache.contains_key(&number) {
-      let cached_val = block_timestamp_cache.get_mut(&number).unwrap();
+  pub fn set_block_timestamp(&mut self, number: U256, value: U256) -> Result<(), Box<dyn Error>> {
+    if self.block_timestamp_cache.contains_key(&number) {
+      let cached_val = self.block_timestamp_cache.get_mut(&number).unwrap();
       cached_val.set_current(&Some(value));
       return Ok(());
     }
@@ -371,9 +359,9 @@ impl DB {
     let ret: Option<U256ED> = self.db_block_timestamp_map.unwrap().get(&rtxn, &U256ED::from_u256(number))?;
 
     if ret.is_some() {
-      block_timestamp_cache.insert(number, CacheVal::new_changed(&ret.unwrap().0, &Some(value)));
+      self.block_timestamp_cache.insert(number, CacheVal::new_changed(&ret.unwrap().0, &Some(value)));
     } else {
-      block_timestamp_cache.insert(number, CacheVal::new_created(&value));
+      self.block_timestamp_cache.insert(number, CacheVal::new_created(&value));
     }
 
     Ok(())
@@ -403,14 +391,10 @@ impl DB {
     Ok(())
   }
 
-  pub fn commit_changes_to_db_with_txn(&self, parent_wtxn: &mut RwTxn) { // TODO: save changes for reorg!!
+  pub fn commit_changes_to_db(&mut self) { // TODO: save changes for reorg!!
     // persist changes to DB
-    let mut account_memory_cache = self.account_memory_cache.lock().unwrap();
-    let mut account_cache = self.account_cache.lock().unwrap();
-    let mut block_hash_cache = self.block_hash_cache.lock().unwrap();
-    let mut block_timestamp_cache = self.block_timestamp_cache.lock().unwrap();
-    let mut latest_block_hash = self.latest_block_hash.lock().unwrap();
-    for acc in account_memory_cache.iter() {
+    let mut wtxn = self.get_write_txn().unwrap();
+    for acc in self.account_memory_cache.iter() {
       let account = acc.0;
       for mem_slot in acc.1.iter() {
         if !mem_slot.1.is_changed() { continue }
@@ -419,70 +403,68 @@ impl DB {
         let value = mem_slot.1.get_current();
 
         if value.is_some() {
-          self.db_account_memory_map.unwrap().put(parent_wtxn, &U512ED::from_addr_u256(*account, *mem_loc), &U256ED::from_u256(value.unwrap())).unwrap();
+          self.db_account_memory_map.unwrap().put(&mut wtxn, &U512ED::from_addr_u256(*account, *mem_loc), &U256ED::from_u256(value.unwrap())).unwrap();
         } else {
-          self.db_account_memory_map.unwrap().delete(parent_wtxn, &U512ED::from_addr_u256(*account, *mem_loc)).unwrap();
+          self.db_account_memory_map.unwrap().delete(&mut wtxn, &U512ED::from_addr_u256(*account, *mem_loc)).unwrap();
         }
       }
     }
-    for mem_slot in account_cache.iter() {
+
+    for mem_slot in self.account_cache.iter() {
       if !mem_slot.1.is_changed() { continue }
       
       let account = mem_slot.0;
       let value = mem_slot.1.get_current();
 
       if value.is_some() {
-        self.db_account_map.unwrap().put(parent_wtxn, &AddressED::from_addr(*account), &AccountInfoED::from_account_info(value.unwrap())).unwrap();
+        self.db_account_map.unwrap().put(&mut wtxn, &AddressED::from_addr(*account), &AccountInfoED::from_account_info(value.unwrap())).unwrap();
       } else {
-        self.db_account_map.unwrap().delete(parent_wtxn, &AddressED::from_addr(*account)).unwrap();
+        self.db_account_map.unwrap().delete(&mut wtxn, &AddressED::from_addr(*account)).unwrap();
       }
     }
-    for mem_slot in block_hash_cache.iter() {
+
+    for mem_slot in self.block_hash_cache.iter() {
       if !mem_slot.1.is_changed() { continue }
       
       let number = mem_slot.0;
       let value = mem_slot.1.get_current();
 
       if value.is_some() {
-        self.db_block_hash_map.unwrap().put(parent_wtxn, &U256ED::from_u256(*number), &B256ED::from_b256(value.unwrap())).unwrap();
+        self.db_block_hash_map.unwrap().put(&mut wtxn, &U256ED::from_u256(*number), &B256ED::from_b256(value.unwrap())).unwrap();
       } else {
-        self.db_block_hash_map.unwrap().delete(parent_wtxn, &U256ED::from_u256(*number)).unwrap();
+        self.db_block_hash_map.unwrap().delete(&mut wtxn, &U256ED::from_u256(*number)).unwrap();
       }
     }
-    for mem_slot in block_timestamp_cache.iter() {
+    
+    for mem_slot in self.block_timestamp_cache.iter() {
       if !mem_slot.1.is_changed() { continue }
       
       let number = mem_slot.0;
       let value = mem_slot.1.get_current();
 
       if value.is_some() {
-        self.db_block_timestamp_map.unwrap().put(parent_wtxn, &U256ED::from_u256(*number), &U256ED::from_u256(value.unwrap())).unwrap();
+        self.db_block_timestamp_map.unwrap().put(&mut wtxn, &U256ED::from_u256(*number), &U256ED::from_u256(value.unwrap())).unwrap();
       } else {
-        self.db_block_timestamp_map.unwrap().delete(parent_wtxn, &U256ED::from_u256(*number)).unwrap();
+        self.db_block_timestamp_map.unwrap().delete(&mut wtxn, &U256ED::from_u256(*number)).unwrap();
       }
     }
+    wtxn.commit().unwrap();
 
 
     // clear caches
-    account_memory_cache.clear();
-    account_cache.clear();
-    block_hash_cache.clear();
-    block_timestamp_cache.clear();
-    *latest_block_hash = None;
+    self.account_memory_cache.clear();
+    self.account_cache.clear();
+    self.block_hash_cache.clear();
+    self.block_timestamp_cache.clear();
+    self.latest_block_hash = None;
   }
 
-  pub fn clear_caches(&self) {
-    let mut account_memory_cache = self.account_memory_cache.lock().unwrap();
-    let mut account_cache = self.account_cache.lock().unwrap();
-    let mut block_hash_cache = self.block_hash_cache.lock().unwrap();
-    let mut block_timestamp_cache = self.block_timestamp_cache.lock().unwrap();
-    let mut latest_block_hash = self.latest_block_hash.lock().unwrap();
-
-    account_memory_cache.clear();
-    account_cache.clear();
-    block_hash_cache.clear();
-    block_timestamp_cache.clear();
-    *latest_block_hash = None;
+  pub fn clear_caches(&mut self) {
+    self.account_memory_cache.clear();
+    self.account_cache.clear();
+    self.block_hash_cache.clear();
+    self.block_timestamp_cache.clear();
+    self.latest_block_hash = None;
   }
 }
 
@@ -498,11 +480,11 @@ impl Default for DB {
       db_block_gas_used_map: None,
       db_block_mine_tm_map: None,
       code_cache: Map::new(),
-      account_memory_cache: Mutex::new(Map::new()),
-      account_cache: Mutex::new(Map::new()),
-      block_hash_cache: Mutex::new(Map::new()),
-      block_timestamp_cache: Mutex::new(Map::new()),
-      latest_block_hash: Mutex::new(None),
+      account_memory_cache: Map::new(),
+      account_cache: Map::new(),
+      block_hash_cache: Map::new(),
+      block_timestamp_cache: Map::new(),
+      latest_block_hash: None,
     }
   }
 }
@@ -546,11 +528,9 @@ impl DatabaseTrait for DB {
 
 impl DatabaseCommit for DB {
   fn commit(&mut self, changes: Map<Address, Account>) {
-    // println!("commit {:?}", changes);
-    let mut wtxn = self.get_write_txn().unwrap();
     for (address, account) in changes {
       if !account.is_touched() { continue; }
-      if account.is_selfdestructed() { // TODO: check if working correctly!!
+      if account.is_selfdestructed() { // TODO: check if working correctly!! (NOTE: wait for CANCUN update, after that selfdestruct will only work on newly created accounts)
         self.remove_from_account_map(address).unwrap();
         self.remove_from_account_memory_map(address).unwrap();
         continue;
@@ -563,7 +543,9 @@ impl DatabaseCommit for DB {
 
       let is_newly_created = account.is_created();
       if is_newly_created { // TODO: can contract change other than creation??
+        let mut wtxn = self.get_write_txn().unwrap();
         self.set_code_map_with_txn(account.info.code_hash, account.info.code.unwrap(), &mut wtxn).unwrap();
+        wtxn.commit().unwrap();
       }
 
       for (loc, slot) in account.storage {
@@ -571,7 +553,6 @@ impl DatabaseCommit for DB {
         self.set_account_memory_map(address, loc, slot.present_value()).unwrap();
       }
     }
-    wtxn.commit().unwrap();
   }
 }
 

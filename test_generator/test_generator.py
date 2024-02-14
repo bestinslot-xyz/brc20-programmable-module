@@ -531,6 +531,7 @@ data_call = {
 url_current_block_height = 'http://localhost:8000/current_block_height'
 url_get_block_info = 'http://localhost:8000/get_block_info?block_height='
 
+ress = []
 for i in range(len(codes)):
   code = codes[i]
   params = params_list[i]
@@ -555,3 +556,9 @@ for i in range(len(codes)):
   mineTm = js["result"]["mineTm"]
   ratio = float(mineTm) / float(gasUsed)
   print("ratio: ", ratio, " gasUsed: ", gasUsed, " mineTm: ", mineTm)
+  ress.append([params, ratio, gasUsed, mineTm])
+
+ress.sort(key=lambda x: x[1], reverse=True)
+for res in ress:
+  params, ratio, gasUsed, mineTm = res
+  print("params:", get(params[0]), params[1], "ratio:", ratio, "gasUsed:", gasUsed, "mineTm:", mineTm)

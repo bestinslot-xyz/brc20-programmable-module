@@ -6,4 +6,4 @@ edition = "2021"
 [dependencies]
 hashbrown = "0.14.3"
 heed = "0.11.0"
-revm = "4.0.0"
+revm = "5.0.0"
