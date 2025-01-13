@@ -1,10 +1,10 @@
 import psycopg2, requests, json, time
 
 conn = psycopg2.connect(
-    host="10.0.0.44",
+    host="127.0.0.1",
     database="postgres",
     user="postgres",
-    password="070ZxAGTuWr9CuL50imT38mtp")
+    password="password")
 conn.autocommit = True
 cur = conn.cursor()
 

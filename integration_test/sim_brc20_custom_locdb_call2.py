@@ -1,6 +1,5 @@
 import requests, json, time
-import sha3
-## pip install pysha3
+from hashlib import sha3_256 as sha3
 
 def get_evm_height():
   url = 'http://localhost:8000/current_block_height'
@@ -24,8 +23,7 @@ if current_block_height < initial_block_height:
   exit(1)
 
 def get_addr_data(btc_pkscript):
-  k = sha3.keccak_256()
-  k.update(bytes.fromhex(btc_pkscript))
+  k = sha3(bytes.fromhex(btc_pkscript))
   return k.hexdigest()[-40:].zfill(64)
 
 handled_block_cnt = 0

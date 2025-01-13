@@ -40,6 +40,7 @@ pub fn get_evm(block_info: &BlockEnv, db: DB) -> Evm<(), DB> {
 
   evm
 }
+
 pub fn modify_evm_with_tx_env(evm: Evm<(), DB> , caller: Address, transact_to: TransactTo, data: Bytes) -> Evm<(), DB> {
   evm.modify().modify_tx_env(|tx_env| {
     tx_env.caller = caller;

@@ -15,6 +15,7 @@ pub fn load_precompiles() -> Precompiles {
   ]);
   precompiles
 }
+
 pub fn identity_run(input: &[u8], gas_limit: u64) -> PrecompileResult {
   println!("Running identity precompile");
   let gas_used = 100000;
