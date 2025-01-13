@@ -1,6 +1,6 @@
 import requests, json, time
 
-def provider_send(method, params):
+def provider_send(method: str, params: dict):
   obj = {
     method: method,
     params: params,

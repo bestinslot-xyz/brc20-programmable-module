@@ -13,6 +13,7 @@ pub struct BlockResJSON{
   pub mine_tm: String,
   pub hash: String,
 }
+
 #[derive(Serialize)]
 pub struct SerializableExecutionResult {
   pub txhash: String,
