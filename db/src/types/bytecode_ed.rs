@@ -27,3 +27,20 @@ impl<'a> BytesDecode<'a> for BytecodeED {
         Ok(BytecodeED(Bytecode::new_raw(Bytes::from(bytes.to_vec()))))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use heed::{BytesDecode, BytesEncode};
+    use revm::primitives::{Bytecode, Bytes};
+
+    use crate::types::BytecodeED;
+
+    #[test]
+    fn test_bytecode_ed() {
+        let bytecode: Bytecode = Bytecode::new_raw(Bytes::from("Hello world"));
+        let bytecode_ed = BytecodeED::from_bytecode(bytecode);
+        let bytes = BytecodeED::bytes_encode(&bytecode_ed).unwrap();
+        let decoded = BytecodeED::bytes_decode(&bytes).unwrap();
+        assert_eq!(bytecode_ed.0, decoded.0);
+    }
+}

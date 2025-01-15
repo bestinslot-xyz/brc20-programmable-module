@@ -28,3 +28,20 @@ impl<'a, const N: usize> BytesDecode<'a> for BEncodeDecode<N> {
         Ok(BEncodeDecode(FixedBytes::from(arr)))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use heed::{BytesDecode, BytesEncode};
+    use revm::primitives::B256;
+
+    use crate::types::B256ED;
+
+    #[test]
+    fn test_b256_ed() {
+        let b256: B256 = B256::from([0u8; 32]);
+        let b256_ed = B256ED::from_b256(b256);
+        let bytes = B256ED::bytes_encode(&b256_ed).unwrap();
+        let decoded = B256ED::bytes_decode(&bytes).unwrap();
+        assert_eq!(b256_ed.0, decoded.0);
+    }
+}
