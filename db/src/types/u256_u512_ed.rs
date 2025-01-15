@@ -69,3 +69,29 @@ impl<const BITS: usize, const LIMBS: usize> fmt::Display for UintEncodeDecode<BI
         write!(f, "{}", self.0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use heed::{BytesDecode, BytesEncode};
+    use revm::primitives::ruint::aliases::U256;
+
+    use crate::types::U256ED;
+
+    #[test]
+    fn test_u256_ed() {
+        let u256: U256 = U256::from(0u64);
+        let u256_ed = U256ED::from_u256(u256);
+        let bytes = U256ED::bytes_encode(&u256_ed).unwrap();
+        let decoded = U256ED::bytes_decode(&bytes).unwrap();
+        assert_eq!(u256_ed.0, decoded.0);
+    }
+
+    #[test]
+    fn test_u512_ed() {
+        let u256: U256 = U256::from(0u64);
+        let u256_ed = U256ED::from_u256(u256);
+        let bytes = U256ED::bytes_encode(&u256_ed).unwrap();
+        let decoded = U256ED::bytes_decode(&bytes).unwrap();
+        assert_eq!(u256_ed.0, decoded.0);
+    }
+}

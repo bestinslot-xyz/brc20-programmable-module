@@ -61,3 +61,30 @@ impl<'a> BytesDecode<'a> for AccountInfoED {
         }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use heed::{BytesDecode, BytesEncode};
+    use revm::primitives::AccountInfo;
+    use revm::primitives::B256;
+    use revm::primitives::U256;
+
+    use crate::types::AccountInfoED;
+
+    #[test]
+    fn test_account_info_ed() {
+        // test by converting to bytes and decoding
+        let account_info = AccountInfoED::from_account_info(AccountInfo {
+            balance: U256::from(100),
+            nonce: 1,
+            code_hash: B256::from([1; 32]),
+            code: None,
+        });
+        let bytes = AccountInfoED::bytes_encode(&account_info).unwrap();
+        let decoded = AccountInfoED::bytes_decode(&bytes).unwrap();
+        assert_eq!(account_info.0.balance, decoded.0.balance);
+        assert_eq!(account_info.0.nonce, decoded.0.nonce);
+        assert_eq!(account_info.0.code_hash, decoded.0.code_hash);
+        assert_eq!(account_info.0.code, decoded.0.code);
+    }
+}

@@ -20,18 +20,39 @@ use types::{AccountInfoED, AddressED, BytecodeED, CacheVal, B256ED, U256ED, U512
 
 pub struct DB {
     env: Option<Env>,
+    // Account address to memory location
     db_account_memory_map: Option<Database<U512ED, U256ED>>,
-    db_code_map: Option<Database<B256ED, BytecodeED>>,
-    db_account_map: Option<Database<AddressED, AccountInfoED>>,
-    db_block_hash_map: Option<Database<U256ED, B256ED>>,
-    db_block_timestamp_map: Option<Database<U256ED, U256ED>>,
-    db_block_gas_used_map: Option<Database<U256ED, U256ED>>,
-    db_block_mine_tm_map: Option<Database<U256ED, U256ED>>,
-    code_cache: Map<B256, Bytecode>,
+    // In memory cache for account memory
     account_memory_cache: Map<Address, Map<U256, CacheVal<U256>>>,
+
+    // Code hash to bytecode
+    db_code_map: Option<Database<B256ED, BytecodeED>>,
+    // In memory cache for code
+    code_cache: Map<B256, Bytecode>,
+
+    // Account address to account info
+    db_account_map: Option<Database<AddressED, AccountInfoED>>,
+    // In memory cache for account info
     account_cache: Map<Address, CacheVal<AccountInfo>>,
+
+    // Block number to block hash
+    db_block_hash_map: Option<Database<U256ED, B256ED>>,
+    // In memory cache for block hash
     block_hash_cache: Map<U256, CacheVal<B256>>,
+    // TODO: add a block_hash_map_reverse to get block number from block hash
+
+    // Block number to block timestamp
+    db_block_timestamp_map: Option<Database<U256ED, U256ED>>,
+    // In memory cache for block timestamps
     block_timestamp_cache: Map<U256, CacheVal<U256>>,
+
+    // Block number to gas used
+    db_block_gas_used_map: Option<Database<U256ED, U256ED>>,
+
+    // Block number to mine timestamp
+    db_block_mine_tm_map: Option<Database<U256ED, U256ED>>,
+
+    // Cache for latest block number and block hash
     latest_block_hash: Option<(U256, B256)>,
 }
 
