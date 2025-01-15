@@ -1,7 +1,7 @@
 use std::{borrow::Cow, error::Error};
 
 use heed::{BytesDecode, BytesEncode};
-use revm::primitives::{ruint::aliases::U160, Address};
+use revm::primitives::Address;
 pub struct AddressED(pub Address);
 
 impl AddressED {
@@ -23,16 +23,9 @@ impl<'a> BytesDecode<'a> for AddressED {
     type DItem = AddressED;
 
     fn bytes_decode(bytes: &'a [u8]) -> Result<Self::DItem, Box<dyn Error>> {
-        let mut limbs = [0u64; 3];
-        for (i, limb) in limbs.iter_mut().enumerate() {
-            let start = i * 8;
-            let end = start + 8;
-            let bytes = &bytes[start..end];
-            *limb = u64::from_be_bytes([
-                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-            ]);
-        }
-        Ok(AddressED(Address::from(U160::from_limbs(limbs))))
+        let mut bytes_array = [0u8; 20];
+        bytes_array.copy_from_slice(bytes);
+        Ok(AddressED(Address::from(bytes_array)))
     }
 }
 
