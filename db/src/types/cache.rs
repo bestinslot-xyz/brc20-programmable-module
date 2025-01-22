@@ -6,7 +6,7 @@ enum CacheState {
 }
 
 pub struct CacheVal<T: Clone + Eq> {
-    // TODO: Make this a map from block hash -> value or a list of (block_hash,value) pairs to keep older values
+    // TODO: Make this a map from block hash -> value or a list of (block_number,value) pairs to keep older values
     old_val: Option<T>,
     current_val: Option<T>,
     state: CacheState,
@@ -22,6 +22,7 @@ impl<T: Clone + Eq> CacheVal<T> {
             state: CacheState::NotChanged,
         }
     }
+
     pub fn new_changed(old_value: &T, current_value: &Option<T>) -> Self {
         let old_val = Some(old_value.clone());
         let current_val = current_value.clone();
@@ -31,6 +32,7 @@ impl<T: Clone + Eq> CacheVal<T> {
             state: CacheState::Changed,
         }
     }
+
     pub fn new_created(current_value: &T) -> Self {
         let current_val = Some(current_value.clone());
         Self {
@@ -43,9 +45,11 @@ impl<T: Clone + Eq> CacheVal<T> {
     pub fn get_current(&self) -> Option<T> {
         self.current_val.clone()
     }
+
     pub fn get_old(&self) -> Option<T> {
         self.old_val.clone()
     }
+
     pub fn is_changed(&self) -> bool {
         if self.state == CacheState::NotChanged {
             return false;
@@ -61,6 +65,7 @@ impl<T: Clone + Eq> CacheVal<T> {
         }
         return true;
     }
+
     pub fn set_current(&mut self, value: &Option<T>) {
         self.current_val = value.clone();
         if self.state == CacheState::NotChanged {

@@ -2,6 +2,7 @@ use heed::{BytesDecode, BytesEncode};
 use revm::primitives::{FixedBytes, B256};
 use std::{borrow::Cow, error::Error};
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct BEncodeDecode<const N: usize>(pub FixedBytes<N>);
 pub type B256ED = BEncodeDecode<32>;
 
@@ -19,6 +20,7 @@ impl<'a, const N: usize> BytesEncode<'a> for BEncodeDecode<N> {
         Ok(Cow::Owned(bytes))
     }
 }
+
 impl<'a, const N: usize> BytesDecode<'a> for BEncodeDecode<N> {
     type DItem = BEncodeDecode<N>;
 

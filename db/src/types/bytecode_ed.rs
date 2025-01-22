@@ -4,6 +4,7 @@ use heed::{BytesDecode, BytesEncode};
 use revm::primitives::alloy_primitives::Bytes;
 use revm::primitives::Bytecode;
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct BytecodeED(pub Bytecode);
 
 impl BytecodeED {

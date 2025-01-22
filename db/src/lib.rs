@@ -15,42 +15,50 @@ use revm::primitives::{Account, AccountInfo, Address, Bytecode, B256};
 
 use hashbrown::HashMap as Map;
 
+mod cache;
+use cache::BlockCachedDatabase;
+
+mod test_utils;
+
 mod types;
 use types::{AccountInfoED, AddressED, BytecodeED, CacheVal, B256ED, U256ED, U512ED};
 
 pub struct DB {
     env: Option<Env>,
     // Account address to memory location
-    db_account_memory_map: Option<Database<U512ED, U256ED>>,
+    db_account_memory: Option<Database<U512ED, U256ED>>,
     // In memory cache for account memory
     account_memory_cache: Map<Address, Map<U256, CacheVal<U256>>>,
 
     // Code hash to bytecode
-    db_code_map: Option<Database<B256ED, BytecodeED>>,
+    db_code: Option<Database<B256ED, BytecodeED>>,
     // In memory cache for code
     code_cache: Map<B256, Bytecode>,
 
     // Account address to account info
-    db_account_map: Option<Database<AddressED, AccountInfoED>>,
+    db_account: Option<Database<AddressED, AccountInfoED>>,
     // In memory cache for account info
     account_cache: Map<Address, CacheVal<AccountInfo>>,
 
     // Block number to block hash
-    db_block_hash_map: Option<Database<U256ED, B256ED>>,
+    db_block_number_to_hash: Option<Database<U256ED, B256ED>>,
     // In memory cache for block hash
-    block_hash_cache: Map<U256, CacheVal<B256>>,
-    // TODO: add a block_hash_map_reverse to get block number from block hash
+    block_number_to_hash_cache: Map<U256, CacheVal<B256>>,
+    // Block hash to block number
+    db_block_hash_to_number: Option<Database<B256ED, U256ED>>,
+    // In memory cache for block_number_hash_map_reverse
+    block_hash_to_number_cache: Map<B256, CacheVal<U256>>,
 
     // Block number to block timestamp
-    db_block_timestamp_map: Option<Database<U256ED, U256ED>>,
+    db_block_number_to_timestamp: Option<Database<U256ED, U256ED>>,
     // In memory cache for block timestamps
-    block_timestamp_cache: Map<U256, CacheVal<U256>>,
+    block_number_to_timestamp_cache: Map<U256, CacheVal<U256>>,
 
     // Block number to gas used
-    db_block_gas_used_map: Option<Database<U256ED, U256ED>>,
+    db_block_number_to_gas_used: Option<Database<U256ED, U256ED>>,
 
     // Block number to mine timestamp
-    db_block_mine_tm_map: Option<Database<U256ED, U256ED>>,
+    db_block_number_to_mine_tm: Option<Database<U256ED, U256ED>>,
 
     // Cache for latest block number and block hash
     latest_block_hash: Option<(U256, B256)>,
@@ -99,6 +107,14 @@ impl DB {
                 env.create_database_with_txn(Some("block_hash"), &mut wtxn)?
             }
         };
+        let db_block_hash_to_number: Database<B256ED, U256ED> = {
+            let old_db = env.open_database::<B256ED, U256ED>(Some("block_hash_to_number"))?;
+            if old_db.is_some() {
+                old_db.unwrap()
+            } else {
+                env.create_database_with_txn(Some("block_hash_to_number"), &mut wtxn)?
+            }
+        };
         let db_block_timestamp_map: Database<U256ED, U256ED> = {
             let old_db = env.open_database::<U256ED, U256ED>(Some("block_ts"))?;
             if old_db.is_some() {
@@ -127,18 +143,20 @@ impl DB {
 
         Ok(Self {
             env: Some(env),
-            db_account_memory_map: Some(db_account_memory_map),
-            db_code_map: Some(db_code_map),
-            db_account_map: Some(db_account_map),
-            db_block_hash_map: Some(db_block_hash_map),
-            db_block_timestamp_map: Some(db_block_timestamp_map),
-            db_block_gas_used_map: Some(db_block_gas_used_map),
-            db_block_mine_tm_map: Some(db_block_mine_tm_map),
+            db_account_memory: Some(db_account_memory_map),
+            db_code: Some(db_code_map),
+            db_account: Some(db_account_map),
+            db_block_number_to_hash: Some(db_block_hash_map),
+            db_block_hash_to_number: Some(db_block_hash_to_number),
+            db_block_number_to_timestamp: Some(db_block_timestamp_map),
+            db_block_number_to_gas_used: Some(db_block_gas_used_map),
+            db_block_number_to_mine_tm: Some(db_block_mine_tm_map),
             code_cache: Map::new(),
             account_memory_cache: Map::new(),
             account_cache: Map::new(),
-            block_hash_cache: Map::new(),
-            block_timestamp_cache: Map::new(),
+            block_number_to_hash_cache: Map::new(),
+            block_hash_to_number_cache: Map::new(),
+            block_number_to_timestamp_cache: Map::new(),
             latest_block_hash: None,
         })
     }
@@ -162,7 +180,7 @@ impl DB {
 
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
         let ret: Option<U256ED> = self
-            .db_account_memory_map
+            .db_account_memory
             .unwrap()
             .get(&rtxn, &U512ED::from_addr_u256(account, mem_loc))?;
 
@@ -191,7 +209,7 @@ impl DB {
 
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
         let ret: Option<U256ED> = self
-            .db_account_memory_map
+            .db_account_memory
             .unwrap()
             .get(&rtxn, &U512ED::from_addr_u256(account, mem_loc))?;
 
@@ -226,7 +244,7 @@ impl DB {
 
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
         let olds_iter = self
-            .db_account_memory_map
+            .db_account_memory
             .unwrap()
             .range(&rtxn, &range)
             .unwrap();
@@ -251,7 +269,7 @@ impl DB {
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
 
         let ret: Option<BytecodeED> = self
-            .db_code_map
+            .db_code
             .unwrap()
             .get(&rtxn, &B256ED::from_b256(code_hash))?;
 
@@ -270,7 +288,7 @@ impl DB {
         bytecode: Bytecode,
         parent_wtxn: &mut RwTxn,
     ) -> Result<(), Box<dyn Error>> {
-        self.db_code_map.unwrap().put(
+        self.db_code.unwrap().put(
             parent_wtxn,
             &B256ED::from_b256(code_hash),
             &BytecodeED::from_bytecode(bytecode),
@@ -288,7 +306,7 @@ impl DB {
 
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
         let ret: Option<AccountInfoED> = self
-            .db_account_map
+            .db_account
             .unwrap()
             .get(&rtxn, &AddressED::from_addr(account))?;
 
@@ -313,7 +331,7 @@ impl DB {
 
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
         let ret: Option<AccountInfoED> = self
-            .db_account_map
+            .db_account
             .unwrap()
             .get(&rtxn, &AddressED::from_addr(account))?;
 
@@ -339,7 +357,7 @@ impl DB {
 
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
         let ret: Option<AccountInfoED> = self
-            .db_account_map
+            .db_account
             .unwrap()
             .get(&rtxn, &AddressED::from_addr(account))?;
 
@@ -355,43 +373,80 @@ impl DB {
     }
 
     pub fn read_from_block_hashes(&mut self, number: U256) -> Result<Option<B256>, Box<dyn Error>> {
-        if self.block_hash_cache.contains_key(&number) {
-            return Ok(self.block_hash_cache.get(&number).unwrap().get_current());
+        // Check if the caches for the block hash and block number match, otherwise read from DB
+        if self.block_number_to_hash_cache.contains_key(&number) {
+            let cached_hash = self.block_number_to_hash_cache.get(&number).unwrap();
+            let cached_number = self
+                .block_hash_to_number_cache
+                .get(&cached_hash.get_current().unwrap())
+                .unwrap();
+            if cached_number.get_current().unwrap() == number {
+                return Ok(cached_hash.get_current());
+            }
         }
 
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
         let ret: Option<B256ED> = self
-            .db_block_hash_map
+            .db_block_number_to_hash
             .unwrap()
             .get(&rtxn, &U256ED::from_u256(number))?;
 
         if ret.is_some() {
-            self.block_hash_cache
+            self.block_number_to_hash_cache
                 .insert(number, CacheVal::new_not_changed(&ret.as_ref().unwrap().0));
+            self.block_hash_to_number_cache
+                .insert(ret.as_ref().unwrap().0, CacheVal::new_not_changed(&number));
         }
 
         Ok(ret.map(|x| x.0))
     }
 
     pub fn set_block_hash(&mut self, number: U256, value: B256) -> Result<(), Box<dyn Error>> {
-        if self.block_hash_cache.contains_key(&number) {
-            let cached_val = self.block_hash_cache.get_mut(&number).unwrap();
-            cached_val.set_current(&Some(value));
+        if self.block_number_to_hash_cache.contains_key(&number)
+            && self.block_hash_to_number_cache.contains_key(&value)
+        {
+            let cached_hash = self.block_number_to_hash_cache.get_mut(&number).unwrap();
+            let old_hash = cached_hash.get_current();
+            if old_hash.is_some() {
+                let cached_number = self
+                    .block_hash_to_number_cache
+                    .get_mut(&old_hash.unwrap())
+                    .unwrap();
+                cached_number.set_current(&None);
+            }
+            cached_hash.set_current(&Some(value));
+            let cached_number = self.block_hash_to_number_cache.get_mut(&value).unwrap();
+            cached_number.set_current(&Some(number));
             return Ok(());
         }
 
+        // fill block_hash_cache
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
         let ret: Option<B256ED> = self
-            .db_block_hash_map
+            .db_block_number_to_hash
             .unwrap()
             .get(&rtxn, &U256ED::from_u256(number))?;
 
         if ret.is_some() {
-            self.block_hash_cache
+            self.block_number_to_hash_cache
                 .insert(number, CacheVal::new_changed(&ret.unwrap().0, &Some(value)));
         } else {
-            self.block_hash_cache
+            self.block_number_to_hash_cache
                 .insert(number, CacheVal::new_created(&value));
+        }
+
+        // fill block_hash_to_number_cache
+        let ret: Option<U256ED> = self
+            .db_block_hash_to_number
+            .unwrap()
+            .get(&rtxn, &B256ED::from_b256(value))?;
+
+        if ret.is_some() {
+            self.block_hash_to_number_cache
+                .insert(value, CacheVal::new_changed(&ret.unwrap().0, &Some(number)));
+        } else {
+            self.block_hash_to_number_cache
+                .insert(value, CacheVal::new_created(&number));
         }
 
         if self.latest_block_hash.is_none() {
@@ -413,7 +468,7 @@ impl DB {
         }
 
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
-        let ret: Option<(U256ED, B256ED)> = self.db_block_hash_map.unwrap().last(&rtxn)?;
+        let ret: Option<(U256ED, B256ED)> = self.db_block_number_to_hash.unwrap().last(&rtxn)?;
 
         if ret.is_some() {
             self.latest_block_hash = ret.map(|x| (x.0 .0, x.1 .0))
@@ -426,9 +481,9 @@ impl DB {
         &mut self,
         number: U256,
     ) -> Result<Option<U256>, Box<dyn Error>> {
-        if self.block_timestamp_cache.contains_key(&number) {
+        if self.block_number_to_timestamp_cache.contains_key(&number) {
             return Ok(self
-                .block_timestamp_cache
+                .block_number_to_timestamp_cache
                 .get(&number)
                 .unwrap()
                 .get_current());
@@ -436,12 +491,12 @@ impl DB {
 
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
         let ret: Option<U256ED> = self
-            .db_block_timestamp_map
+            .db_block_number_to_timestamp
             .unwrap()
             .get(&rtxn, &U256ED::from_u256(number))?;
 
         if ret.is_some() {
-            self.block_timestamp_cache
+            self.block_number_to_timestamp_cache
                 .insert(number, CacheVal::new_not_changed(&ret.as_ref().unwrap().0));
         }
 
@@ -449,23 +504,26 @@ impl DB {
     }
 
     pub fn set_block_timestamp(&mut self, number: U256, value: U256) -> Result<(), Box<dyn Error>> {
-        if self.block_timestamp_cache.contains_key(&number) {
-            let cached_val = self.block_timestamp_cache.get_mut(&number).unwrap();
+        if self.block_number_to_timestamp_cache.contains_key(&number) {
+            let cached_val = self
+                .block_number_to_timestamp_cache
+                .get_mut(&number)
+                .unwrap();
             cached_val.set_current(&Some(value));
             return Ok(());
         }
 
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
         let ret: Option<U256ED> = self
-            .db_block_timestamp_map
+            .db_block_number_to_timestamp
             .unwrap()
             .get(&rtxn, &U256ED::from_u256(number))?;
 
         if ret.is_some() {
-            self.block_timestamp_cache
+            self.block_number_to_timestamp_cache
                 .insert(number, CacheVal::new_changed(&ret.unwrap().0, &Some(value)));
         } else {
-            self.block_timestamp_cache
+            self.block_number_to_timestamp_cache
                 .insert(number, CacheVal::new_created(&value));
         }
 
@@ -476,7 +534,7 @@ impl DB {
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
 
         let ret: Option<U256ED> = self
-            .db_block_gas_used_map
+            .db_block_number_to_gas_used
             .unwrap()
             .get(&rtxn, &U256ED::from_u256(number))?;
         Ok(ret.map(|x| x.0))
@@ -488,7 +546,7 @@ impl DB {
         value: U256,
         parent_wtxn: &mut RwTxn,
     ) -> Result<(), Box<dyn Error>> {
-        self.db_block_gas_used_map.unwrap().put(
+        self.db_block_number_to_gas_used.unwrap().put(
             parent_wtxn,
             &U256ED::from_u256(number),
             &U256ED::from_u256(value),
@@ -500,7 +558,7 @@ impl DB {
         let rtxn = self.env.as_ref().unwrap().read_txn()?;
 
         let ret: Option<U256ED> = self
-            .db_block_mine_tm_map
+            .db_block_number_to_mine_tm
             .unwrap()
             .get(&rtxn, &U256ED::from_u256(number))?;
         Ok(ret.map(|x| x.0))
@@ -512,7 +570,7 @@ impl DB {
         value: U256,
         parent_wtxn: &mut RwTxn,
     ) -> Result<(), Box<dyn Error>> {
-        self.db_block_mine_tm_map.unwrap().put(
+        self.db_block_number_to_mine_tm.unwrap().put(
             parent_wtxn,
             &U256ED::from_u256(number),
             &U256ED::from_u256(value),
@@ -534,7 +592,7 @@ impl DB {
                 let value = mem_slot.1.get_current();
 
                 if value.is_some() {
-                    self.db_account_memory_map
+                    self.db_account_memory
                         .unwrap()
                         .put(
                             &mut wtxn,
@@ -543,7 +601,7 @@ impl DB {
                         )
                         .unwrap();
                 } else {
-                    self.db_account_memory_map
+                    self.db_account_memory
                         .unwrap()
                         .delete(&mut wtxn, &U512ED::from_addr_u256(*account, *mem_loc))
                         .unwrap();
@@ -560,7 +618,7 @@ impl DB {
             let value = mem_slot.1.get_current();
 
             if value.is_some() {
-                self.db_account_map
+                self.db_account
                     .unwrap()
                     .put(
                         &mut wtxn,
@@ -569,14 +627,14 @@ impl DB {
                     )
                     .unwrap();
             } else {
-                self.db_account_map
+                self.db_account
                     .unwrap()
                     .delete(&mut wtxn, &AddressED::from_addr(*account))
                     .unwrap();
             }
         }
 
-        for mem_slot in self.block_hash_cache.iter() {
+        for mem_slot in self.block_number_to_hash_cache.iter() {
             if !mem_slot.1.is_changed() {
                 continue;
             }
@@ -585,7 +643,7 @@ impl DB {
             let value = mem_slot.1.get_current();
 
             if value.is_some() {
-                self.db_block_hash_map
+                self.db_block_number_to_hash
                     .unwrap()
                     .put(
                         &mut wtxn,
@@ -594,14 +652,39 @@ impl DB {
                     )
                     .unwrap();
             } else {
-                self.db_block_hash_map
+                self.db_block_number_to_hash
                     .unwrap()
                     .delete(&mut wtxn, &U256ED::from_u256(*number))
                     .unwrap();
             }
         }
 
-        for mem_slot in self.block_timestamp_cache.iter() {
+        for mem_slot in self.block_hash_to_number_cache.iter() {
+            if !mem_slot.1.is_changed() {
+                continue;
+            }
+
+            let hash = mem_slot.0;
+            let value = mem_slot.1.get_current();
+
+            if value.is_some() {
+                self.db_block_hash_to_number
+                    .unwrap()
+                    .put(
+                        &mut wtxn,
+                        &B256ED::from_b256(*hash),
+                        &U256ED::from_u256(value.unwrap()),
+                    )
+                    .unwrap();
+            } else {
+                self.db_block_hash_to_number
+                    .unwrap()
+                    .delete(&mut wtxn, &B256ED::from_b256(*hash))
+                    .unwrap();
+            }
+        }
+
+        for mem_slot in self.block_number_to_timestamp_cache.iter() {
             if !mem_slot.1.is_changed() {
                 continue;
             }
@@ -610,7 +693,7 @@ impl DB {
             let value = mem_slot.1.get_current();
 
             if value.is_some() {
-                self.db_block_timestamp_map
+                self.db_block_number_to_timestamp
                     .unwrap()
                     .put(
                         &mut wtxn,
@@ -619,7 +702,7 @@ impl DB {
                     )
                     .unwrap();
             } else {
-                self.db_block_timestamp_map
+                self.db_block_number_to_timestamp
                     .unwrap()
                     .delete(&mut wtxn, &U256ED::from_u256(*number))
                     .unwrap();
@@ -627,19 +710,15 @@ impl DB {
         }
         wtxn.commit().unwrap();
 
-        // clear caches
-        self.account_memory_cache.clear();
-        self.account_cache.clear();
-        self.block_hash_cache.clear();
-        self.block_timestamp_cache.clear();
-        self.latest_block_hash = None;
+        self.clear_caches();
     }
 
     pub fn clear_caches(&mut self) {
         self.account_memory_cache.clear();
         self.account_cache.clear();
-        self.block_hash_cache.clear();
-        self.block_timestamp_cache.clear();
+        self.block_number_to_hash_cache.clear();
+        self.block_hash_to_number_cache.clear();
+        self.block_number_to_timestamp_cache.clear();
         self.latest_block_hash = None;
     }
 
@@ -665,18 +744,20 @@ impl Default for DB {
     fn default() -> Self {
         Self {
             env: None,
-            db_account_memory_map: None,
-            db_code_map: None,
-            db_account_map: None,
-            db_block_hash_map: None,
-            db_block_timestamp_map: None,
-            db_block_gas_used_map: None,
-            db_block_mine_tm_map: None,
+            db_account_memory: None,
+            db_code: None,
+            db_account: None,
+            db_block_number_to_hash: None,
+            db_block_hash_to_number: None,
+            db_block_number_to_timestamp: None,
+            db_block_number_to_gas_used: None,
+            db_block_number_to_mine_tm: None,
             code_cache: Map::new(),
             account_memory_cache: Map::new(),
             account_cache: Map::new(),
-            block_hash_cache: Map::new(),
-            block_timestamp_cache: Map::new(),
+            block_number_to_hash_cache: Map::new(),
+            block_hash_to_number_cache: Map::new(),
+            block_number_to_timestamp_cache: Map::new(),
             latest_block_hash: None,
         }
     }
