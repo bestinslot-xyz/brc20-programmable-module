@@ -1,8 +1,9 @@
 use std::{borrow::Cow, error::Error};
 
 use heed::{BytesDecode, BytesEncode};
-use revm::primitives::{AccountInfo, B256, U256};
+use revm::primitives::{AccountInfo, B256, U256, ruint::aliases::U64};
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct AccountInfoED(pub AccountInfo);
 
 impl AccountInfoED {
@@ -29,29 +30,9 @@ impl<'a> BytesDecode<'a> for AccountInfoED {
     type DItem = AccountInfoED;
 
     fn bytes_decode(bytes: &'a [u8]) -> Result<Self::DItem, Box<dyn Error>> {
-        let mut limbs = [0u64; 4];
-        for (i, limb) in limbs.iter_mut().enumerate() {
-            let start = i * 8;
-            let end = start + 8;
-            let bytes = &bytes[start..end];
-            *limb = u64::from_be_bytes([
-                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-            ]);
-        }
-        let balance = U256::from_limbs(limbs);
-        let nonce = u64::from_be_bytes([
-            bytes[32], bytes[33], bytes[34], bytes[35], bytes[36], bytes[37], bytes[38], bytes[39],
-        ]);
-        let mut limbs = [0u64; 4];
-        for (i, limb) in limbs.iter_mut().enumerate() {
-            let start = (8 - i) * 8;
-            let end = start + 8;
-            let bytes = &bytes[start..end];
-            *limb = u64::from_be_bytes([
-                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-            ]);
-        }
-        let code_hash_u = U256::from_limbs(limbs);
+        let balance = U256::from_be_bytes::<32>(bytes[0..32].try_into().unwrap());
+        let nonce = U64::from_be_bytes::<8>(bytes[32..40].try_into().unwrap()).try_into().unwrap();
+        let code_hash_u = U256::from_be_bytes::<32>(bytes[40..72].try_into().unwrap());
         let code_hash = B256::from(code_hash_u);
         Ok(AccountInfoED(AccountInfo {
             balance,

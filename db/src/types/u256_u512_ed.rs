@@ -8,7 +8,7 @@ use revm::primitives::{
 };
 use std::{borrow::Cow, error::Error, fmt};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct UintEncodeDecode<const BITS: usize, const LIMBS: usize>(pub Uint<BITS, LIMBS>);
 pub type U512ED = UintEncodeDecode<512, 8>;
 pub type U256ED = UintEncodeDecode<256, 4>;

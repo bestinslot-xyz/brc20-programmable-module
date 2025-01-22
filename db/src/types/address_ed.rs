@@ -2,6 +2,8 @@ use std::{borrow::Cow, error::Error};
 
 use heed::{BytesDecode, BytesEncode};
 use revm::primitives::Address;
+
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct AddressED(pub Address);
 
 impl AddressED {
