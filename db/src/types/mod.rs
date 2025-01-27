@@ -13,5 +13,5 @@ pub use u256_u512_ed::*;
 pub mod b256_ed;
 pub use b256_ed::*;
 
-pub mod cache;
-pub use cache::*;
+mod encode_decode;
+pub use encode_decode::*;

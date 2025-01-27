@@ -1,3 +1,2 @@
-
-mod db;
-pub use db::*;
+#[cfg(test)]
+pub mod db;

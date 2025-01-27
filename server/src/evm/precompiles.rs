@@ -4,9 +4,8 @@ use revm::precompile::{
 };
 use revm::primitives::specification::SpecId;
 
-pub fn load_precompiles() -> Precompiles {
-    let mut precompiles =
-        Precompiles::new(PrecompileSpecId::from_spec_id(SpecId::SHANGHAI)).clone(); // NOTE: also change get_evm while changing this
+pub fn load_precompiles(spec_id: SpecId) -> Precompiles {
+    let mut precompiles = Precompiles::new(PrecompileSpecId::from_spec_id(spec_id)).clone(); // NOTE: also change get_evm while changing this
     precompiles.extend([
         PrecompileWithAddress::from((
             "0x00000000000000000000000000000000000000ff"
