@@ -11,6 +11,8 @@ use db::DB;
 mod precompiles;
 use precompiles::load_precompiles;
 
+const CURRENT_SPEC: SpecId = SpecId::CANCUN;
+
 pub fn get_evm(block_info: &BlockEnv, db: DB) -> Evm<(), DB> {
     let mut env = Env::default();
     env.cfg.chain_id = 331337;
@@ -32,10 +34,10 @@ pub fn get_evm(block_info: &BlockEnv, db: DB) -> Evm<(), DB> {
     let mut evm = Evm::builder()
         .with_db(db)
         .with_env(Box::new(env))
-        .with_spec_id(SpecId::SHANGHAI) // NOTE: also change load_precompiles while changing this
+        .with_spec_id(CURRENT_SPEC)
         .build();
 
-    evm.handler.pre_execution.load_precompiles = Arc::new(load_precompiles);
+    evm.handler.pre_execution.load_precompiles = Arc::new(|| load_precompiles(CURRENT_SPEC));
 
     evm
 }

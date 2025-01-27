@@ -140,7 +140,7 @@ async function get_deploy_brc20_controller_tx() {
       'access/Ownable.sol': { content: Ownable_sol },
     },
     settings: {
-      evmVersion: "berlin",
+      evmVersion: "cancun",
       outputSelection: {
         '*': {
           '*': ['*']

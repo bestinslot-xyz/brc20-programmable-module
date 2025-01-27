@@ -1,7 +1,9 @@
 use std::{borrow::Cow, error::Error};
 
 use heed::{BytesDecode, BytesEncode};
-use revm::primitives::{AccountInfo, B256, U256, ruint::aliases::U64};
+use revm::primitives::{ruint::aliases::U64, AccountInfo, B256, U256};
+
+use super::{Decode, Encode};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct AccountInfoED(pub AccountInfo);
@@ -9,6 +11,36 @@ pub struct AccountInfoED(pub AccountInfo);
 impl AccountInfoED {
     pub fn from_account_info(a: AccountInfo) -> Self {
         Self(a)
+    }
+}
+
+impl Encode for AccountInfoED {
+    fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&self.0.balance.to_be_bytes::<32>());
+        bytes.extend_from_slice(&self.0.nonce.to_be_bytes());
+        bytes.extend_from_slice(&self.0.code_hash.0.to_vec());
+        Ok(bytes)
+    }
+}
+
+impl Decode for AccountInfoED {
+    fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn Error>>
+    where
+        Self: Sized,
+    {
+        let balance = U256::from_be_bytes::<32>(bytes[0..32].try_into().unwrap());
+        let nonce = U64::from_be_bytes::<8>(bytes[32..40].try_into().unwrap())
+            .try_into()
+            .unwrap();
+        let code_hash_u = U256::from_be_bytes::<32>(bytes[40..72].try_into().unwrap());
+        let code_hash = B256::from(code_hash_u);
+        Ok(AccountInfoED(AccountInfo {
+            balance,
+            nonce,
+            code_hash,
+            code: None,
+        }))
     }
 }
 
@@ -31,7 +63,9 @@ impl<'a> BytesDecode<'a> for AccountInfoED {
 
     fn bytes_decode(bytes: &'a [u8]) -> Result<Self::DItem, Box<dyn Error>> {
         let balance = U256::from_be_bytes::<32>(bytes[0..32].try_into().unwrap());
-        let nonce = U64::from_be_bytes::<8>(bytes[32..40].try_into().unwrap()).try_into().unwrap();
+        let nonce = U64::from_be_bytes::<8>(bytes[32..40].try_into().unwrap())
+            .try_into()
+            .unwrap();
         let code_hash_u = U256::from_be_bytes::<32>(bytes[40..72].try_into().unwrap());
         let code_hash = B256::from(code_hash_u);
         Ok(AccountInfoED(AccountInfo {
@@ -45,24 +79,22 @@ impl<'a> BytesDecode<'a> for AccountInfoED {
 
 #[cfg(test)]
 mod tests {
-    use heed::{BytesDecode, BytesEncode};
     use revm::primitives::AccountInfo;
     use revm::primitives::B256;
     use revm::primitives::U256;
 
-    use crate::types::AccountInfoED;
+    use crate::types::{AccountInfoED, Decode, Encode};
 
     #[test]
     fn test_account_info_ed() {
-        // test by converting to bytes and decoding
         let account_info = AccountInfoED::from_account_info(AccountInfo {
             balance: U256::from(100),
             nonce: 1,
             code_hash: B256::from([1; 32]),
             code: None,
         });
-        let bytes = AccountInfoED::bytes_encode(&account_info).unwrap();
-        let decoded = AccountInfoED::bytes_decode(&bytes).unwrap();
+        let bytes = account_info.encode().unwrap();
+        let decoded = AccountInfoED::decode(bytes).unwrap();
         assert_eq!(account_info.0.balance, decoded.0.balance);
         assert_eq!(account_info.0.nonce, decoded.0.nonce);
         assert_eq!(account_info.0.code_hash, decoded.0.code_hash);
