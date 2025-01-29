@@ -35,6 +35,7 @@ pub struct SerializableExecutionResult {
     #[serde(rename = "contractAddress")]
     pub contract_address: Option<String>,
 }
+
 #[derive(Serialize)]
 pub struct SerializeableLog {
     pub address: String,
@@ -43,12 +44,13 @@ pub struct SerializeableLog {
 }
 
 pub struct BlockRes {
-    pub number: U256,
+    pub number: u64,
     pub timestamp: U256,
     pub gas_used: U256,
     pub mine_tm: U256,
     pub hash: B256,
 }
+
 pub struct TxInfo {
     pub from: Address,
     pub to: Option<Address>,
@@ -75,6 +77,7 @@ pub fn get_serializeable_execution_result(
                 SuccessReason::Stop => "Stop".to_string(),
                 SuccessReason::Return => "Return".to_string(),
                 SuccessReason::SelfDestruct => "SelfDestruct".to_string(),
+                SuccessReason::EofReturnContract => "EofReturnContract".to_string(),
             },
             gas_used: gas_used.to_string(),
             gas_refunded: gas_refunded.to_string(),
@@ -148,6 +151,10 @@ pub fn get_serializeable_execution_result(
                 HaltReason::CallNotAllowedInsideStatic => "CallNotAllowedInsideStatic".to_string(),
                 HaltReason::OutOfFunds => "OutOfFunds".to_string(),
                 HaltReason::CallTooDeep => "CallTooDeep".to_string(),
+                HaltReason::EofAuxDataOverflow => "EofAuxDataOverflow".to_string(),
+                HaltReason::EofAuxDataTooSmall => "EofAuxDataTooSmall".to_string(),
+                HaltReason::EOFFunctionStackOverflow => "EOFFunctionStackOverflow".to_string(),
+                HaltReason::InvalidEXTCALLTarget => "InvalidEXTCALLTarget".to_string(),
             },
             gas_used: gas_used.to_string(),
             gas_refunded: "0".to_string(),

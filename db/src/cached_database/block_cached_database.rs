@@ -1,8 +1,9 @@
-use std::{collections::HashSet, hash::Hash};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+};
 
-use hashbrown::HashMap;
 use heed::{Database, Env, Result, RwTxn};
-use revm::primitives::U256;
 
 use crate::{
     cached_database::BytesWrapper,
@@ -52,25 +53,23 @@ where
     pub fn new(env: Env, name: &str, parent_wtxn: &mut RwTxn) -> Self {
         let db: Database<BytesWrapper, BytesWrapper> = {
             let old_db = env
-                .open_database::<BytesWrapper, BytesWrapper>(Some(name))
+                .open_database::<BytesWrapper, BytesWrapper>(&parent_wtxn, Some(name))
                 .unwrap();
             if old_db.is_some() {
                 old_db.unwrap()
             } else {
-                env.create_database_with_txn(Some(name), parent_wtxn)
-                    .unwrap()
+                env.create_database(parent_wtxn, Some(name)).unwrap()
             }
         };
         let cache_db = {
             let cache_name = format!("{}_cache", &name);
             let old_db = env
-                .open_database::<BytesWrapper, BytesWrapper>(Some(&cache_name))
+                .open_database::<BytesWrapper, BytesWrapper>(&parent_wtxn, Some(&cache_name))
                 .unwrap();
             if old_db.is_some() {
                 old_db.unwrap()
             } else {
-                env.create_database_with_txn(Some(&cache_name), parent_wtxn)
-                    .unwrap()
+                env.create_database(parent_wtxn, Some(&cache_name)).unwrap()
             }
         };
         let cache = HashMap::new();
@@ -117,7 +116,7 @@ where
     // block_number: U256 - the block number to set the value for
     // key: K - the key to set the value for
     // value: V - the value to set
-    pub fn set(&mut self, block_number: U256, key: K, value: V) -> Result<()> {
+    pub fn set(&mut self, block_number: u64, key: K, value: V) -> Result<()> {
         if self.cache.contains_key(&key) {
             let cache = self.cache.get_mut(&key).unwrap();
             cache.set(block_number, value);
@@ -157,7 +156,11 @@ where
     //
     // parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
     // latest_valid_block_number: U256 - the latest valid block number
-    pub fn reorg(&mut self, mut parent_wtxn: &mut RwTxn, latest_valid_block_number: U256) -> Result<()> {
+    pub fn reorg(
+        &mut self,
+        mut parent_wtxn: &mut RwTxn,
+        latest_valid_block_number: u64,
+    ) -> Result<()> {
         let mut keys = HashSet::new();
         {
             let rtxn = self.env.read_txn()?;
@@ -255,7 +258,7 @@ mod tests {
             code: None,
         });
         let address_ed = AddressED::from_addr(address);
-        let _ = db.set(U256::from(1), address_ed.clone(), account_info.clone());
+        let _ = db.set(1, address_ed.clone(), account_info.clone());
 
         let account_info = db.latest(&address_ed).unwrap();
         assert_eq!(account_info.0.balance, U256::from(100));
@@ -290,7 +293,7 @@ mod tests {
             code: None,
         });
         let address_ed = AddressED::from_addr(address);
-        let _ = db.set(U256::from(1), address_ed.clone(), account_info.clone());
+        let _ = db.set(1, address_ed.clone(), account_info.clone());
 
         let account_info = db.latest(&address_ed).unwrap();
         assert_eq!(account_info.0.balance, U256::from(100));
@@ -353,7 +356,7 @@ mod tests {
             code: None,
         });
         let address_ed = AddressED::from_addr(address);
-        let _ = db.set(U256::from(1), address_ed.clone(), account_info.clone());
+        let _ = db.set(1, address_ed.clone(), account_info.clone());
 
         let account_info = db.latest(&address_ed).unwrap();
         assert_eq!(account_info.0.balance, U256::from(100));
@@ -365,9 +368,9 @@ mod tests {
         wtxn.commit().unwrap();
 
         let mut wtxn = env.write_txn().unwrap();
-        db.reorg(&mut wtxn, U256::from(0)).unwrap();
+        db.reorg(&mut wtxn, 0).unwrap();
         wtxn.commit().unwrap();
-        
+
         db.clear_cache();
 
         let account_info = db.latest(&address_ed);
@@ -392,7 +395,7 @@ mod tests {
 
         for i in 1..=10 {
             let _ = db.set(
-                U256::from(i),
+                i,
                 address_ed.clone(),
                 AccountInfoED::from_account_info(AccountInfo {
                     balance: U256::from(100 + i),
@@ -407,7 +410,7 @@ mod tests {
         wtxn.commit().unwrap();
 
         let mut wtxn = env.write_txn().unwrap();
-        db.reorg(&mut wtxn, U256::from(5)).unwrap();
+        db.reorg(&mut wtxn, 5).unwrap();
         wtxn.commit().unwrap();
 
         let mut wtxn = env.write_txn().unwrap();

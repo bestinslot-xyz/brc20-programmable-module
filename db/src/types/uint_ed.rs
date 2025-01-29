@@ -9,6 +9,7 @@ use super::{Decode, Encode};
 
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash, Debug)]
 pub struct UintEncodeDecode<const BITS: usize, const LIMBS: usize>(pub Uint<BITS, LIMBS>);
+pub type U64ED = UintEncodeDecode<64, 1>;
 pub type U512ED = UintEncodeDecode<512, 8>;
 pub type U256ED = UintEncodeDecode<256, 4>;
 
@@ -27,6 +28,16 @@ impl U512ED {
 impl U256ED {
     pub fn from_u256(a: U256) -> Self {
         Self(a)
+    }
+}
+
+impl U64ED {
+    pub fn from_u64(a: u64) -> Self {
+        Self(Uint::from(a))
+    }
+
+    pub fn to_u64(&self) -> u64 {
+        self.0.as_limbs()[0]
     }
 }
 
@@ -63,7 +74,7 @@ impl<const BITS: usize, const LIMBS: usize> Decode for UintEncodeDecode<BITS, LI
 impl<'a, const BITS: usize, const LIMBS: usize> BytesEncode<'a> for UintEncodeDecode<BITS, LIMBS> {
     type EItem = UintEncodeDecode<BITS, LIMBS>;
 
-    fn bytes_encode(item: &'a Self::EItem) -> Result<Cow<'a, [u8]>, Box<dyn Error>> {
+    fn bytes_encode(item: &'a Self::EItem) -> Result<Cow<'a, [u8]>, Box<dyn Error + Send + Sync>> {
         let mut limbs = item.0.as_limbs().to_vec();
         limbs.reverse();
         let bytes = limbs
@@ -77,7 +88,7 @@ impl<'a, const BITS: usize, const LIMBS: usize> BytesEncode<'a> for UintEncodeDe
 impl<'a, const BITS: usize, const LIMBS: usize> BytesDecode<'a> for UintEncodeDecode<BITS, LIMBS> {
     type DItem = UintEncodeDecode<BITS, LIMBS>;
 
-    fn bytes_decode(bytes: &'a [u8]) -> Result<Self::DItem, Box<dyn Error>> {
+    fn bytes_decode(bytes: &'a [u8]) -> Result<Self::DItem, Box<dyn Error + Send + Sync>> {
         let mut limbs = [0u64; LIMBS];
         for (i, limb) in limbs.iter_mut().enumerate() {
             let start = (LIMBS - 1 - i) * 8;
@@ -106,8 +117,16 @@ mod tests {
     use crate::types::{Decode, Encode, U256ED, U512ED};
 
     #[test]
+    fn test_u64_ed() {
+        let u64_ed = U256ED::from_u256(U256::from(100u64));
+        let bytes = U256ED::encode(&u64_ed).unwrap();
+        let decoded = U256ED::decode(bytes).unwrap();
+        assert_eq!(u64_ed.0, decoded.0);
+    }
+
+    #[test]
     fn test_u256_ed() {
-        let u256: U256 = U256::from(0u64);
+        let u256: U256 = U256::from(100u64);
         let u256_ed = U256ED::from_u256(u256);
         let bytes = U256ED::encode(&u256_ed).unwrap();
         let decoded = U256ED::decode(bytes).unwrap();
@@ -116,7 +135,7 @@ mod tests {
 
     #[test]
     fn test_u512_ed() {
-        let u256: U256 = U256::from(0u64);
+        let u256: U256 = U256::from(100u64);
         let u256_ed = U256ED::from_u256(u256);
         let bytes = U256ED::encode(&u256_ed).unwrap();
         let decoded = U256ED::decode(bytes).unwrap();
@@ -125,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_u512_ed_from_addr() {
-        let address = Address::from([0u8; 20]);
+        let address = Address::from([100u8; 20]);
         let u256 = U256::from(1u64);
         let u512_ed = U512ED::from_addr_u256(address, u256);
         let bytes = U512ED::encode(&u512_ed).unwrap();

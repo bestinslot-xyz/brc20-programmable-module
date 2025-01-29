@@ -1,19 +1,22 @@
-use revm::primitives::alloy_primitives::Bytes;
-use revm::primitives::env::{BlobExcessGasAndPrice, BlockEnv, Env, TransactTo};
-use revm::primitives::specification::SpecId;
-use revm::primitives::{Address, B256, U256};
-use revm::Evm;
-
 use std::sync::Arc;
+
+use revm::{
+    primitives::{
+        alloy_primitives::Bytes,
+        env::{BlobExcessGasAndPrice, BlockEnv, Env, TransactTo},
+        specification::SpecId,
+        Address, B256, U256,
+    },
+    Evm,
+};
 
 use db::DB;
 
-mod precompiles;
-use precompiles::load_precompiles;
+use super::load_precompiles;
 
 const CURRENT_SPEC: SpecId = SpecId::CANCUN;
 
-pub fn get_evm(block_info: &BlockEnv, db: DB) -> Evm<(), DB> {
+pub fn get_evm(block_info: BlockEnv, db: DB) -> Evm<'static, (), DB> {
     let mut env = Env::default();
     env.cfg.chain_id = 331337;
     env.cfg.limit_contract_code_size = Some(usize::MAX);
@@ -25,21 +28,25 @@ pub fn get_evm(block_info: &BlockEnv, db: DB) -> Evm<(), DB> {
     env.block.basefee = U256::ZERO;
     env.block.difficulty = U256::ZERO;
     env.block.prevrandao = Some(B256::ZERO);
-    env.block.blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(0));
+    env.block.blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(0, false));
 
     env.tx.gas_limit = u64::MAX;
     env.tx.gas_price = U256::ZERO;
     env.tx.value = U256::ZERO;
 
-    let mut evm = Evm::builder()
+    Evm::builder()
         .with_db(db)
         .with_env(Box::new(env))
         .with_spec_id(CURRENT_SPEC)
-        .build();
-
-    evm.handler.pre_execution.load_precompiles = Arc::new(|| load_precompiles(CURRENT_SPEC));
-
-    evm
+        .append_handler_register(|handler| {
+            let precompiles = handler.pre_execution.load_precompiles();
+            handler.pre_execution.load_precompiles = Arc::new(move || {
+                let mut precompiles = precompiles.clone();
+                precompiles.extend(load_precompiles());
+                precompiles
+            });
+        })
+        .build()
 }
 
 pub fn modify_evm_with_tx_env(

@@ -1,6 +1,5 @@
-use heed::{BytesDecode, BytesEncode};
 use revm::primitives::{FixedBytes, B256};
-use std::{borrow::Cow, error::Error};
+use std::error::Error;
 
 use super::{Decode, Encode};
 
@@ -28,25 +27,6 @@ impl Decode for B256ED {
         Self: Sized,
     {
         let mut arr = [0u8; 32];
-        arr.copy_from_slice(&bytes);
-        Ok(BEncodeDecode(FixedBytes::from(arr)))
-    }
-}
-
-impl<'a, const N: usize> BytesEncode<'a> for BEncodeDecode<N> {
-    type EItem = BEncodeDecode<N>;
-
-    fn bytes_encode(item: &'a Self::EItem) -> Result<Cow<'a, [u8]>, Box<dyn Error>> {
-        let bytes = item.0.as_slice().to_vec();
-        Ok(Cow::Owned(bytes))
-    }
-}
-
-impl<'a, const N: usize> BytesDecode<'a> for BEncodeDecode<N> {
-    type DItem = BEncodeDecode<N>;
-
-    fn bytes_decode(bytes: &'a [u8]) -> Result<Self::DItem, Box<dyn Error>> {
-        let mut arr = [0u8; N];
         arr.copy_from_slice(&bytes);
         Ok(BEncodeDecode(FixedBytes::from(arr)))
     }

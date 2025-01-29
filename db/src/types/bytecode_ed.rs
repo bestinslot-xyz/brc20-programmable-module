@@ -1,6 +1,5 @@
-use std::{borrow::Cow, error::Error};
+use std::error::Error;
 
-use heed::{BytesDecode, BytesEncode};
 use revm::primitives::alloy_primitives::Bytes;
 use revm::primitives::Bytecode;
 
@@ -18,7 +17,7 @@ impl BytecodeED {
 impl Encode for BytecodeED {
     fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.0.bytecode.0);
+        bytes.extend_from_slice(&self.0.bytecode().0);
         Ok(bytes)
     }
 }
@@ -29,22 +28,6 @@ impl Decode for BytecodeED {
         Self: Sized,
     {
         Ok(BytecodeED(Bytecode::new_raw(Bytes::from(bytes))))
-    }
-}
-
-impl<'a> BytesEncode<'a> for BytecodeED {
-    type EItem = BytecodeED;
-
-    fn bytes_encode(item: &'a Self::EItem) -> Result<Cow<'a, [u8]>, Box<dyn Error>> {
-        let bytes = item.0.bytecode.0.to_vec();
-        Ok(Cow::Owned(bytes))
-    }
-}
-impl<'a> BytesDecode<'a> for BytecodeED {
-    type DItem = BytecodeED;
-
-    fn bytes_decode(bytes: &'a [u8]) -> Result<Self::DItem, Box<dyn Error>> {
-        Ok(BytecodeED(Bytecode::new_raw(Bytes::from(bytes.to_vec()))))
     }
 }
 
