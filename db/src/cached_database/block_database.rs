@@ -1,9 +1,8 @@
 use std::collections::BTreeMap;
 
 use heed::{Database, Env, RwTxn};
-use revm::primitives::{ruint::Uint, U256};
 
-use crate::types::{Decode, Encode, U256ED};
+use crate::types::{Decode, Encode, U64ED};
 
 use super::BytesWrapper;
 
@@ -20,8 +19,8 @@ where
     V: Encode + Decode + Clone,
 {
     env: Env,
-    db: Database<U256ED, BytesWrapper>,
-    cache: BTreeMap<U256, V>,
+    db: Database<U64ED, BytesWrapper>,
+    cache: BTreeMap<u64, V>,
 }
 
 impl<V> BlockDatabase<V>
@@ -38,15 +37,14 @@ where
     //
     // Returns: BlockDatabase<V> - the created BlockDatabase
     pub fn new(env: Env, name: &str, parent_wtxn: &mut RwTxn) -> Self {
-        let db: Database<U256ED, BytesWrapper> = {
+        let db: Database<U64ED, BytesWrapper> = {
             let old_db = env
-                .open_database::<U256ED, BytesWrapper>(Some(name))
+                .open_database::<U64ED, BytesWrapper>(&parent_wtxn, Some(name))
                 .unwrap();
             if old_db.is_some() {
                 old_db.unwrap()
             } else {
-                env.create_database_with_txn(Some(name), parent_wtxn)
-                    .unwrap()
+                env.create_database(parent_wtxn, Some(name)).unwrap()
             }
         };
         Self {
@@ -62,15 +60,15 @@ where
     // If the value is not found, it returns None
     // If the value is found, it returns Some(value)
     //
-    // block_number: U256 - the block number to get the value for
+    // block_number: u64 - the block number to get the value for
     // Returns: Option<V> - the value for the block number
-    pub fn get(&mut self, key: U256) -> Option<V> {
+    pub fn get(&mut self, key: u64) -> Option<V> {
         if let Some(value) = self.cache.get(&key) {
             return Some(value.clone());
         }
 
         let rtxn = self.env.read_txn().unwrap();
-        let value_bytes = self.db.get(&rtxn, &U256ED::from_u256(key)).unwrap();
+        let value_bytes = self.db.get(&rtxn, &U64ED::from_u64(key)).unwrap();
         if value_bytes.is_none() {
             return None;
         }
@@ -83,9 +81,9 @@ where
     //
     // It sets the value in the cache, it's not written to the database until commit is called
     //
-    // block_number: U256 - the block number to set the value for
+    // block_number: u64 - the block number to set the value for
     // value: V - the value to set
-    pub fn set(&mut self, block_number: U256, value: V) {
+    pub fn set(&mut self, block_number: u64, value: V) {
         self.cache.insert(block_number, value.clone());
     }
 
@@ -99,7 +97,7 @@ where
         for (key, value) in self.cache.iter() {
             let value_bytes = BytesWrapper::from_vec(value.encode().unwrap());
             self.db
-                .put(&mut parent_wtxn, &U256ED::from_u256(*key), &value_bytes)
+                .put(&mut parent_wtxn, &U64ED::from_u64(*key), &value_bytes)
                 .unwrap();
         }
     }
@@ -119,10 +117,10 @@ where
     // It returns the last key in the database
     // If the database is empty, it returns None
     //
-    // Returns: Option<U256> - the last key in the database
-    pub fn last_key(&self) -> Option<U256> {
+    // Returns: Option<u64> - the last key in the database
+    pub fn last_key(&self) -> Option<u64> {
         let rtxn = self.env.read_txn().unwrap();
-        let result = self.db.last(&rtxn).unwrap().map(|(key, _)| key.0);
+        let result = self.db.last(&rtxn).unwrap().map(|(key, _)| key.to_u64());
 
         // if cache has larger value, replace result
         if let Some((key, _)) = self.cache.iter().last() {
@@ -142,15 +140,13 @@ where
     // Make sure to call commit on parent_wtxn after calling this function to write the changes to the database
     //
     // parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
-    pub fn reorg(&mut self, parent_wtxn: &mut RwTxn, latest_valid_block_number: U256) {
-        let mut current = latest_valid_block_number + Uint::from(1);
+    pub fn reorg(&mut self, parent_wtxn: &mut RwTxn, latest_valid_block_number: u64) {
+        let mut current = latest_valid_block_number + 1;
         let end = self.last_key().unwrap();
         while end >= current {
-            self.db
-                .delete(parent_wtxn, &U256ED::from_u256(end))
-                .unwrap();
+            self.db.delete(parent_wtxn, &U64ED::from_u64(end)).unwrap();
             self.cache.remove(&end);
-            current += Uint::from(1);
+            current += 1;
         }
     }
 }
@@ -165,57 +161,42 @@ mod tests {
     #[test]
     fn test_block_database() {
         let env = create_test_env().unwrap();
-        let mut wtxn: heed::RwTxn<'_, '_> = env.write_txn().unwrap();
+        let mut wtxn = env.write_txn().unwrap();
         let mut db = BlockDatabase::<U256ED>::new(env.clone(), "test", &mut wtxn);
         wtxn.commit().unwrap();
 
-        let block_number = U256::from(1);
+        let block_number = 1;
         let value = U256ED::from_u256(U256::from(100));
         db.set(block_number, value);
 
-        let block_number = U256::from(2);
+        let block_number = 2;
         let value = U256ED::from_u256(U256::from(200));
         db.set(block_number, value);
 
-        let block_number = U256::from(3);
+        let block_number = 3;
         let value = U256ED::from_u256(U256::from(300));
         db.set(block_number, value);
 
-        assert_eq!(db.last_key().unwrap(), U256::from(3));
+        assert_eq!(db.last_key().unwrap(), 3);
 
         let mut wtxn = env.write_txn().unwrap();
         db.commit(&mut wtxn);
         wtxn.commit().unwrap();
         db.clear_cache();
 
-        assert_eq!(
-            db.get(U256::from(1)).unwrap(),
-            U256ED::from_u256(U256::from(100))
-        );
-        assert_eq!(
-            db.get(U256::from(2)).unwrap(),
-            U256ED::from_u256(U256::from(200))
-        );
-        assert_eq!(
-            db.get(U256::from(3)).unwrap(),
-            U256ED::from_u256(U256::from(300))
-        );
-        assert_eq!(db.last_key(), Some(U256::from(3)));
+        assert_eq!(db.get(1).unwrap(), U256ED::from_u256(U256::from(100)));
+        assert_eq!(db.get(2).unwrap(), U256ED::from_u256(U256::from(200)));
+        assert_eq!(db.get(3).unwrap(), U256ED::from_u256(U256::from(300)));
+        assert_eq!(db.last_key(), Some(3));
 
         let mut wtxn = env.write_txn().unwrap();
-        db.reorg(&mut wtxn, U256::from(2));
+        db.reorg(&mut wtxn, 2);
         wtxn.commit().unwrap();
 
-        assert_eq!(
-            db.get(U256::from(1)).unwrap(),
-            U256ED::from_u256(U256::from(100))
-        );
-        assert_eq!(
-            db.get(U256::from(2)).unwrap(),
-            U256ED::from_u256(U256::from(200))
-        );
-        assert_eq!(db.get(U256::from(3)).is_none(), true);
+        assert_eq!(db.get(1).unwrap(), U256ED::from_u256(U256::from(100)));
+        assert_eq!(db.get(2).unwrap(), U256ED::from_u256(U256::from(200)));
+        assert_eq!(db.get(3).is_none(), true);
 
-        assert_eq!(db.last_key().unwrap(), U256::from(2));
+        assert_eq!(db.last_key().unwrap(), 2);
     }
 }

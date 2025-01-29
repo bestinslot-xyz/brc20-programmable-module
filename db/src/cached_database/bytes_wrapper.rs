@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, error::Error};
 
 use heed::{BytesDecode, BytesEncode};
 
@@ -18,7 +18,7 @@ impl BytesWrapper {
 impl<'a> BytesDecode<'a> for BytesWrapper {
     type DItem = BytesWrapper;
 
-    fn bytes_decode(bytes: &'a [u8]) -> Result<Self::DItem, Box<dyn std::error::Error>> {
+    fn bytes_decode(bytes: &'a [u8]) -> Result<Self::DItem, Box<dyn Error + Send + Sync>> {
         Ok(BytesWrapper(bytes.to_vec()))
     }
 }
@@ -26,7 +26,7 @@ impl<'a> BytesDecode<'a> for BytesWrapper {
 impl<'a> BytesEncode<'a> for BytesWrapper {
     type EItem = BytesWrapper;
 
-    fn bytes_encode(item: &'a Self::EItem) -> Result<Cow<'a, [u8]>, Box<dyn std::error::Error>> {
+    fn bytes_encode(item: &'a Self::EItem) -> Result<Cow<'a, [u8]>, Box<dyn Error + Send + Sync>> {
         Ok(Cow::Borrowed(&item.0))
     }
 }

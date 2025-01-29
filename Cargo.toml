@@ -4,11 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-hex = "0.4.3"
-revm = "5.0.0"
-rouille = "3.6.2"
-serde = "1.0.196"
-serde_json = "1.0.113"
 db = { path = "db" }
 server = { path = "server" }
 

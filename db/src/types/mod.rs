@@ -7,8 +7,8 @@ pub use address_ed::*;
 pub mod bytecode_ed;
 pub use bytecode_ed::*;
 
-pub mod u256_u512_ed;
-pub use u256_u512_ed::*;
+pub mod uint_ed;
+pub use uint_ed::*;
 
 pub mod b256_ed;
 pub use b256_ed::*;

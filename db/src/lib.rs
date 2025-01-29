@@ -1,6 +1,7 @@
 // NOTE: Limbs are little-endian
 // DB needs big-endian bytes
 
+use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use std::path::Path;
@@ -13,49 +14,59 @@ use revm::primitives::db::DatabaseCommit;
 use revm::primitives::ruint::aliases::U256;
 use revm::primitives::{Account, AccountInfo, Address, Bytecode, B256};
 
-use hashbrown::HashMap as Map;
-
 mod cached_database;
 use cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 
 mod test_utils;
 
 mod types;
+use types::U64ED;
 use types::{AccountInfoED, AddressED, BytecodeED, B256ED, U256ED, U512ED};
 
 pub struct DB {
     env: Option<Env>,
     // Account address to memory location
-    db_account_memory: BlockCachedDatabase<U512ED, U256ED, BlockHistoryCacheData<U256ED>>,
+    db_account_memory: Option<BlockCachedDatabase<U512ED, U256ED, BlockHistoryCacheData<U256ED>>>,
 
     // Code hash to bytecode
-    db_code: BlockCachedDatabase<B256ED, BytecodeED, BlockHistoryCacheData<BytecodeED>>,
+    db_code: Option<BlockCachedDatabase<B256ED, BytecodeED, BlockHistoryCacheData<BytecodeED>>>,
 
     // Account address to account info
-    db_account: BlockCachedDatabase<AddressED, AccountInfoED, BlockHistoryCacheData<AccountInfoED>>,
+    db_account: Option<BlockCachedDatabase<AddressED, AccountInfoED, BlockHistoryCacheData<AccountInfoED>>>,
 
     // Block hash to block number
-    db_block_hash_to_number: BlockCachedDatabase<B256ED, U256ED, BlockHistoryCacheData<U256ED>>,
+    db_block_hash_to_number: Option<BlockCachedDatabase<B256ED, U64ED, BlockHistoryCacheData<U64ED>>>,
 
     // Block number to block hash
-    db_block_number_to_hash: BlockDatabase<B256ED>,
+    db_block_number_to_hash: Option<BlockDatabase<B256ED>>,
 
     // Block number to block timestamp
-    db_block_number_to_timestamp: BlockDatabase<U256ED>,
+    db_block_number_to_timestamp: Option<BlockDatabase<U256ED>>,
 
     // Block number to gas used
-    db_block_number_to_gas_used: BlockDatabase<U256ED>,
+    db_block_number_to_gas_used: Option<BlockDatabase<U256ED>>,
 
     // Block number to mine timestamp
-    db_block_number_to_mine_tm: BlockDatabase<U256ED>,
+    db_block_number_to_mine_tm: Option<BlockDatabase<U256ED>>,
 
     // Cache for latest block number and block hash
-    latest_block_number: Option<(U256, B256)>,
+    latest_block_number: Option<(u64, B256)>,
 }
 
 impl Default for DB {
     fn default() -> Self {
-        Self::new().unwrap()
+        Self {
+            env: None,
+            db_account_memory: None,
+            db_code: None,
+            db_account: None,
+            db_block_number_to_hash: None,
+            db_block_hash_to_number: None,
+            db_block_number_to_timestamp: None,
+            db_block_number_to_gas_used: None,
+            db_block_number_to_mine_tm: None,
+            latest_block_number: None,
+        }
     }
 }
 
@@ -63,10 +74,12 @@ fn create_env() -> Result<Env, Box<dyn Error>> {
     let path = Path::new("target").join("heed.mdb");
     fs::create_dir_all(&path)?;
 
-    let env = EnvOpenOptions::new()
-        .map_size(20 * 1024 * 1024 * 1024) // 20GB // TODO: set this reasonably!!
-        .max_dbs(3000)
-        .open(path)?;
+    let env = unsafe {
+        EnvOpenOptions::new()
+            .map_size(20 * 1024 * 1024 * 1024) // 20GB // TODO: set this reasonably!!
+            .max_dbs(3000)
+            .open(path)?
+    };
 
     Ok(env)
 }
@@ -77,16 +90,16 @@ impl DB {
 
         let mut wtxn = env.write_txn()?;
         let db_account_memory =
-            BlockCachedDatabase::new(env.clone(), "account_memory_map", &mut wtxn);
-        let db_code = BlockCachedDatabase::new(env.clone(), "code_map", &mut wtxn);
-        let db_account = BlockCachedDatabase::new(env.clone(), "account_map", &mut wtxn);
+            Some(BlockCachedDatabase::new(env.clone(), "account_memory_map", &mut wtxn));
+        let db_code = Some(BlockCachedDatabase::new(env.clone(), "code_map", &mut wtxn));
+        let db_account = Some(BlockCachedDatabase::new(env.clone(), "account_map", &mut wtxn));
         let db_block_hash_to_number =
-            BlockCachedDatabase::new(env.clone(), "block_hash_to_number", &mut wtxn);
+            Some(BlockCachedDatabase::new(env.clone(), "block_hash_to_number", &mut wtxn));
 
-        let db_block_number_to_hash = BlockDatabase::new(env.clone(), "block_hash", &mut wtxn);
-        let db_block_number_to_timestamp = BlockDatabase::new(env.clone(), "block_ts", &mut wtxn);
-        let db_block_number_to_gas_used = BlockDatabase::new(env.clone(), "gas_used", &mut wtxn);
-        let db_block_number_to_mine_tm = BlockDatabase::new(env.clone(), "mine_tm", &mut wtxn);
+        let db_block_number_to_hash = Some(BlockDatabase::new(env.clone(), "block_hash", &mut wtxn));
+        let db_block_number_to_timestamp = Some(BlockDatabase::new(env.clone(), "block_ts", &mut wtxn));
+        let db_block_number_to_gas_used = Some(BlockDatabase::new(env.clone(), "gas_used", &mut wtxn));
+        let db_block_number_to_mine_tm = Some(BlockDatabase::new(env.clone(), "mine_tm", &mut wtxn));
 
         wtxn.commit()?;
 
@@ -108,17 +121,19 @@ impl DB {
         Ok(self.env.as_ref().unwrap().write_txn()?)
     }
 
-    fn require_latest_block_number(&self) -> Result<U256, Box<dyn Error>> {
+    fn require_latest_block_number(&self) -> Result<u64, Box<dyn Error>> {
         if self.latest_block_number.is_some() {
             return Ok(self.latest_block_number.unwrap().0);
         }
         self.db_block_number_to_hash
+            .as_ref()
+            .unwrap()
             .last_key()
             .map(|x| x)
             .ok_or_else(|| "Latest block number not found".into())
     }
 
-    pub fn get_latest_block_height(&self) -> Result<U256, Box<dyn Error>> {
+    pub fn get_latest_block_height(&self) -> Result<u64, Box<dyn Error>> {
         self.require_latest_block_number()
     }
 
@@ -129,6 +144,8 @@ impl DB {
     ) -> Result<Option<U256>, Box<dyn Error>> {
         let ret = self
             .db_account_memory
+            .as_ref()
+            .unwrap()
             .latest(&U512ED::from_addr_u256(account, mem_loc));
 
         Ok(ret.map(|x| x.0))
@@ -141,7 +158,7 @@ impl DB {
         value: U256,
     ) -> Result<(), Box<dyn Error>> {
         let block_number = self.require_latest_block_number()?;
-        self.db_account_memory.set(
+        self.db_account_memory.as_mut().unwrap().set(
             block_number,
             U512ED::from_addr_u256(account, mem_loc),
             U256ED::from_u256(value),
@@ -151,14 +168,14 @@ impl DB {
     }
 
     pub fn get_code(&mut self, code_hash: B256) -> Result<Option<Bytecode>, Box<dyn Error>> {
-        let ret = self.db_code.latest(&B256ED::from_b256(code_hash));
+        let ret = self.db_code.as_ref().unwrap().latest(&B256ED::from_b256(code_hash));
 
         Ok(ret.map(|x| x.0))
     }
 
     pub fn set_code(&mut self, code_hash: B256, bytecode: Bytecode) -> Result<(), Box<dyn Error>> {
         let block_number = self.require_latest_block_number()?;
-        self.db_code.set(
+        self.db_code.as_mut().unwrap().set(
             block_number,
             B256ED::from_b256(code_hash),
             BytecodeED::from_bytecode(bytecode),
@@ -170,7 +187,7 @@ impl DB {
         &mut self,
         account: Address,
     ) -> Result<Option<AccountInfo>, Box<dyn Error>> {
-        let ret = self.db_account.latest(&AddressED::from_addr(account));
+        let ret = self.db_account.as_ref().unwrap().latest(&AddressED::from_addr(account));
 
         Ok(ret.map(|x| x.0))
     }
@@ -181,7 +198,7 @@ impl DB {
         value: AccountInfo,
     ) -> Result<(), Box<dyn Error>> {
         let block_number = self.require_latest_block_number()?;
-        self.db_account.set(
+        self.db_account.as_mut().unwrap().set(
             block_number,
             AddressED::from_addr(account),
             AccountInfoED::from_account_info(value),
@@ -190,100 +207,90 @@ impl DB {
         Ok(())
     }
 
-    pub fn get_block_hash(&mut self, block_number: U256) -> Result<Option<B256>, Box<dyn Error>> {
-        let ret = self
-            .db_block_number_to_hash
-            .get(block_number);
+    pub fn get_block_hash(&mut self, block_number: u64) -> Result<Option<B256>, Box<dyn Error>> {
+        let ret = self.db_block_number_to_hash.as_mut().unwrap().get(block_number);
 
         Ok(ret.map(|x| x.0))
     }
 
     pub fn set_block_hash(
         &mut self,
-        block_number: U256,
+        block_number: u64,
         block_hash: B256,
     ) -> Result<(), Box<dyn Error>> {
-        if block_number
-            > self
-                .latest_block_number
-                .unwrap_or((U256::ZERO, B256::ZERO))
-                .0
-        {
+        if block_number > self.latest_block_number.unwrap_or((0, B256::ZERO)).0 {
             self.latest_block_number = Some((block_number, block_hash));
         }
 
-        self.db_block_number_to_hash.set(
+        self.db_block_number_to_hash
+            .as_mut()
+            .unwrap()
+            .set(block_number, B256ED::from_b256(block_hash));
+        self.db_block_hash_to_number.as_mut().unwrap().set(
             block_number,
             B256ED::from_b256(block_hash),
-        );
-        self.db_block_hash_to_number.set(
-            block_number,
-            B256ED::from_b256(block_hash),
-            U256ED::from_u256(block_number),
+            U64ED::from_u64(block_number),
         )?;
 
         Ok(())
     }
 
-    pub fn get_block_timestamp(&mut self, number: U256) -> Result<Option<U256>, Box<dyn Error>> {
-        let ret = self
-            .db_block_number_to_timestamp
-            .get(number);
+    pub fn get_block_timestamp(&mut self, number: u64) -> Result<Option<U256>, Box<dyn Error>> {
+        let ret = self.db_block_number_to_timestamp.as_mut().unwrap().get(number);
 
         Ok(ret.map(|x| x.0))
     }
 
     pub fn set_block_timestamp(
         &mut self,
-        block_number: U256,
+        block_number: u64,
         block_timestamp: U256,
     ) -> Result<(), Box<dyn Error>> {
-        self.db_block_number_to_timestamp.set(
-            block_number,
-            U256ED::from_u256(block_timestamp),
-        );
+        self.db_block_number_to_timestamp
+            .as_mut()
+            .unwrap()
+            .set(block_number, U256ED::from_u256(block_timestamp));
 
         Ok(())
     }
 
-    pub fn get_gas_used(&mut self, block_number: U256) -> Result<Option<U256>, Box<dyn Error>> {
-        let ret = self
-            .db_block_number_to_gas_used
-            .get(block_number);
+    pub fn get_gas_used(&mut self, block_number: u64) -> Result<Option<U256>, Box<dyn Error>> {
+        let ret = self.db_block_number_to_gas_used.as_mut().unwrap().get(block_number);
 
         Ok(ret.map(|x| x.0))
     }
 
     pub fn set_gas_used(
         &mut self,
-        block_number: U256,
+        block_number: u64,
         gas_used: U256,
     ) -> Result<(), Box<dyn Error>> {
-        self.db_block_number_to_gas_used.set(
-            block_number,
-            U256ED::from_u256(gas_used),
-        );
+        self.db_block_number_to_gas_used
+            .as_mut()
+            .unwrap()
+            .set(block_number, U256ED::from_u256(gas_used));
 
         Ok(())
     }
 
-    pub fn get_mine_timestamp(&mut self, block_number: U256) -> Result<Option<U256>, Box<dyn Error>> {
-        let ret = self
-            .db_block_number_to_mine_tm
-            .get(block_number);
+    pub fn get_mine_timestamp(
+        &mut self,
+        block_number: u64,
+    ) -> Result<Option<U256>, Box<dyn Error>> {
+        let ret = self.db_block_number_to_mine_tm.as_mut().unwrap().get(block_number);
 
         Ok(ret.map(|x| x.0))
     }
 
     pub fn set_mine_timestamp(
         &mut self,
-        block_number: U256,
+        block_number: u64,
         mine_timestamp: U256,
     ) -> Result<(), Box<dyn Error>> {
-        self.db_block_number_to_mine_tm.set(
-            block_number,
-            U256ED::from_u256(mine_timestamp),
-        );
+        self.db_block_number_to_mine_tm
+            .as_mut()
+            .unwrap()
+            .set(block_number, U256ED::from_u256(mine_timestamp));
 
         Ok(())
     }
@@ -292,15 +299,15 @@ impl DB {
         let env = self.env.clone().unwrap();
         let mut wtxn = env.write_txn()?;
 
-        self.db_block_number_to_hash.commit(&mut wtxn);
-        self.db_block_number_to_timestamp.commit(&mut wtxn);
-        self.db_block_number_to_gas_used.commit(&mut wtxn);
-        self.db_block_number_to_mine_tm.commit(&mut wtxn);
+        self.db_block_number_to_hash.as_mut().unwrap().commit(&mut wtxn);
+        self.db_block_number_to_timestamp.as_mut().unwrap().commit(&mut wtxn);
+        self.db_block_number_to_gas_used.as_mut().unwrap().commit(&mut wtxn);
+        self.db_block_number_to_mine_tm.as_mut().unwrap().commit(&mut wtxn);
 
-        self.db_account_memory.commit(&mut wtxn)?;
-        self.db_code.commit(&mut wtxn)?;
-        self.db_account.commit(&mut wtxn)?;
-        self.db_block_hash_to_number.commit(&mut wtxn)?;
+        self.db_account_memory.as_ref().unwrap().commit(&mut wtxn)?;
+        self.db_code.as_ref().unwrap().commit(&mut wtxn)?;
+        self.db_account.as_ref().unwrap().commit(&mut wtxn)?;
+        self.db_block_hash_to_number.as_ref().unwrap().commit(&mut wtxn)?;
         wtxn.commit()?;
         self.env.clone().unwrap().force_sync()?;
 
@@ -309,35 +316,52 @@ impl DB {
     }
 
     pub fn clear_caches(&mut self) {
-        self.db_account_memory.clear_cache();
-        self.db_code.clear_cache();
-        self.db_account.clear_cache();
-        self.db_block_number_to_hash.clear_cache();
-        self.db_block_hash_to_number.clear_cache();
-        self.db_block_number_to_timestamp.clear_cache();
-        self.db_block_number_to_gas_used.clear_cache();
-        self.db_block_number_to_mine_tm.clear_cache();
+        self.db_account_memory.as_mut().unwrap().clear_cache();
+        self.db_code.as_mut().unwrap().clear_cache();
+        self.db_account.as_mut().unwrap().clear_cache();
+        self.db_block_number_to_hash.as_mut().unwrap().clear_cache();
+        self.db_block_hash_to_number.as_mut().unwrap().clear_cache();
+        self.db_block_number_to_timestamp.as_mut().unwrap().clear_cache();
+        self.db_block_number_to_gas_used.as_mut().unwrap().clear_cache();
+        self.db_block_number_to_mine_tm.as_mut().unwrap().clear_cache();
     }
 
-    pub fn reorg(&mut self, latest_valid_block_number: U256) -> Result<(), Box<dyn Error>> {
+    pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
         let env = self.env.clone().unwrap();
         let mut wtxn = env.write_txn()?;
 
         self.db_account_memory
+            .as_mut()
+            .unwrap()
             .reorg(&mut wtxn, latest_valid_block_number)?;
-        self.db_code.reorg(&mut wtxn, latest_valid_block_number)?;
+        self.db_code
+            .as_mut()
+            .unwrap()
+            .reorg(&mut wtxn, latest_valid_block_number)?;
         self.db_account
+            .as_mut()
+            .unwrap()
             .reorg(&mut wtxn, latest_valid_block_number)?;
         self.db_block_hash_to_number
+            .as_mut()
+            .unwrap()
             .reorg(&mut wtxn, latest_valid_block_number)?;
 
         self.db_block_number_to_hash
+            .as_mut()
+            .unwrap()
             .reorg(&mut wtxn, latest_valid_block_number);
         self.db_block_number_to_timestamp
+            .as_mut()
+            .unwrap()
             .reorg(&mut wtxn, latest_valid_block_number);
         self.db_block_number_to_gas_used
+            .as_mut()
+            .unwrap()
             .reorg(&mut wtxn, latest_valid_block_number);
         self.db_block_number_to_mine_tm
+            .as_mut()
+            .unwrap()
             .reorg(&mut wtxn, latest_valid_block_number);
 
         wtxn.commit()?;
@@ -381,14 +405,14 @@ impl DatabaseTrait for DB {
     }
 
     /// Get block hash by block number.
-    fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error> {
+    fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
         // println!("block_hash {}", number);
         self.get_block_hash(number).map(|x| x.unwrap_or(B256::ZERO))
     }
 }
 
 impl DatabaseCommit for DB {
-    fn commit(&mut self, changes: Map<Address, Account>) {
+    fn commit(&mut self, changes: HashMap<Address, Account>) {
         for (address, account) in changes {
             if !account.is_touched() {
                 continue;

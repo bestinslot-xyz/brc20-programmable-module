@@ -1,10 +1,8 @@
 use std::{collections::BTreeMap, error::Error};
 
-use revm::primitives::ruint::aliases::U256;
-
 use crate::types::{Decode, Encode};
 
-const MAX_HISTORY_SIZE: usize = 10;
+const MAX_HISTORY_SIZE: u64 = 10;
 
 // Cache to store the history of a value at different block numbers
 #[derive(Clone)]
@@ -12,7 +10,7 @@ pub struct BlockHistoryCacheData<V>
 where
     V: Encode + Decode + Clone,
 {
-    cache: BTreeMap<U256, Option<V>>,
+    cache: BTreeMap<u64, Option<V>>,
 }
 
 pub trait BlockHistoryCache<V>
@@ -21,8 +19,8 @@ where
 {
     fn new(initial_value: Option<V>) -> Self;
     fn latest(&self) -> Option<V>;
-    fn set(&mut self, block_number: U256, value: V);
-    fn reorg(&mut self, latest_valid_block_number: U256);
+    fn set(&mut self, block_number: u64, value: V);
+    fn reorg(&mut self, latest_valid_block_number: u64);
 }
 
 impl<V> BlockHistoryCache<V> for BlockHistoryCacheData<V>
@@ -37,9 +35,9 @@ where
     fn new(initial_value: Option<V>) -> Self {
         let mut cache = BTreeMap::new();
         if let Some(value) = initial_value {
-            cache.insert(U256::from(0), Some(value));
+            cache.insert(0, Some(value));
         } else {
-            cache.insert(U256::from(0), None);
+            cache.insert(0, None);
         }
         Self { cache }
     }
@@ -53,14 +51,16 @@ where
     //
     // block_number: U256 - the block number
     // value: V - the value to store
-    fn set(&mut self, block_number: U256, value: V) {
+    fn set(&mut self, block_number: u64, value: V) {
         self.cache.insert(block_number, Some(value));
 
+        // Remove the oldest value if the cache size is greater than MAX_HISTORY_SIZE + 1
+        // The extra 1 is to keep the initial value
         if self.cache.len() > (MAX_HISTORY_SIZE + 1) as usize {
-            let keys_to_remove: Vec<U256> = self
+            let keys_to_remove: Vec<u64> = self
                 .cache
                 .keys()
-                .take(self.cache.len() - (MAX_HISTORY_SIZE + 1))
+                .take(self.cache.len() - (MAX_HISTORY_SIZE + 1) as usize)
                 .cloned()
                 .collect();
             for key in keys_to_remove {
@@ -72,8 +72,8 @@ where
     // Reorganize the cache, removing all values with block number greater than the latest valid block number
     //
     // latest_valid_block_number: U256 - the latest valid block number
-    fn reorg(&mut self, latest_valid_block_number: U256) {
-        let keys_to_remove: Vec<U256> = self
+    fn reorg(&mut self, latest_valid_block_number: u64) {
+        let keys_to_remove: Vec<u64> = self
             .cache
             .keys()
             .filter(|&&key| key > latest_valid_block_number)
@@ -92,7 +92,7 @@ where
     fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>> {
         let mut bytes = Vec::new();
         for (block_number, value) in self.cache.iter() {
-            bytes.extend_from_slice(&U256::to_be_bytes::<32>(block_number));
+            bytes.extend_from_slice(&block_number.to_be_bytes());
             if value.is_none() {
                 bytes.extend_from_slice(&0u32.to_be_bytes());
                 continue;
@@ -111,10 +111,10 @@ where
     V: Encode + Decode + Clone,
 {
     fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn Error>> {
-        let mut cache: BTreeMap<U256, Option<V>> = BTreeMap::new();
+        let mut cache: BTreeMap<u64, Option<V>> = BTreeMap::new();
         let mut i = 0;
         while i < bytes.len() {
-            let block_number = U256::from_be_bytes::<32>(bytes[i..i + 32].try_into().unwrap());
+            let block_number = u64::from_be_bytes(bytes[i..i + 32].try_into().unwrap());
             i += 32;
             let size = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap()) as usize;
             i += 4;
@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn test_block_cache() {
         let mut cache = BlockHistoryCacheData::<U256ED>::new(None);
-        let block_number = U256::from(1);
+        let block_number = 1;
         let value = U256::from(100);
         let value_ed = U256ED::from_u256(value);
 
@@ -156,7 +156,7 @@ mod tests {
         cache.set(block_number, value_ed2.clone());
         assert_eq!(cache.latest().unwrap().0, value_ed2.0);
 
-        let block_number2 = U256::from(2);
+        let block_number2 = 2;
         let value3 = U256::from(300);
         let value_ed3 = U256ED::from_u256(value3);
         cache.set(block_number2, value_ed3.clone());
@@ -175,8 +175,7 @@ mod tests {
         let value_ed = U256ED::from_u256(value);
 
         for i in 0..MAX_HISTORY_SIZE + 2 {
-            let block_number = U256::from(i);
-            cache.set(block_number, value_ed.clone());
+            cache.set(i, value_ed.clone());
         }
 
         assert_eq!(cache.cache.len(), (MAX_HISTORY_SIZE + 1) as usize);
@@ -192,7 +191,7 @@ mod tests {
     #[test]
     fn test_encode_decode() {
         let mut cache = BlockHistoryCacheData::<U256ED>::new(None);
-        let block_number = U256::from(1);
+        let block_number = 1;
         let value = U256::from(100);
         let value_ed = U256ED::from_u256(value);
 
@@ -207,19 +206,19 @@ mod tests {
     fn test_reorg() {
         let mut cache = BlockHistoryCacheData::<U256ED>::new(None);
 
-        let block_number = U256::from(1);
+        let block_number = 1;
         let value = U256::from(100);
         let value_ed = U256ED::from_u256(value);
         cache.set(block_number, value_ed.clone());
         assert_eq!(cache.latest().unwrap().0, value_ed.0);
 
-        let block_number2 = U256::from(2);
+        let block_number2 = 2;
         let value2 = U256::from(200);
         let value_ed2 = U256ED::from_u256(value2);
         cache.set(block_number2, value_ed2.clone());
         assert_eq!(cache.latest().unwrap().0, value_ed2.0);
 
-        cache.reorg(U256::from(1));
+        cache.reorg(1);
 
         assert_eq!(cache.latest().unwrap().0, value_ed.0);
     }
@@ -229,14 +228,13 @@ mod tests {
         let mut cache = BlockHistoryCacheData::<U256ED>::new(None);
 
         for i in 1..=11 {
-            let block_number = U256::from(i);
             let value = U256::from(100 * i);
             let value_ed = U256ED::from_u256(value);
-            cache.set(block_number, value_ed.clone());
+            cache.set(i, value_ed.clone());
             assert_eq!(cache.latest().unwrap().0, value_ed.0);
         }
 
-        cache.reorg(U256::from(5));
+        cache.reorg(5);
 
         assert_eq!(cache.latest().unwrap().0, U256::from(500));
     }
@@ -246,14 +244,13 @@ mod tests {
         let mut cache = BlockHistoryCacheData::<U256ED>::new(None);
 
         for i in 1..=11 {
-            let block_number = U256::from(i);
             let value = U256::from(100 * i);
             let value_ed = U256ED::from_u256(value);
-            cache.set(block_number, value_ed.clone());
+            cache.set(i, value_ed.clone());
             assert_eq!(cache.latest().unwrap().0, value_ed.0);
         }
 
-        cache.reorg(U256::from(0));
+        cache.reorg(0);
 
         assert!(cache.latest().is_none());
     }

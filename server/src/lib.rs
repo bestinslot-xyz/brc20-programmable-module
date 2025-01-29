@@ -1,6 +1,6 @@
 use revm::primitives::alloy_primitives::Bytes;
 use revm::primitives::env::{BlockEnv, TransactTo};
-use revm::primitives::{CreateScheme, ExecutionResult, B256, U256};
+use revm::primitives::{Address, ExecutionResult, B256, U256};
 
 use revm::Database;
 use rouille::try_or_400;
@@ -8,7 +8,7 @@ use rouille::Response;
 
 use serde_json::Value;
 
-use std::sync::{Mutex, MutexGuard};
+use std::sync::Mutex;
 use std::time::Instant;
 
 use db::DB;
@@ -34,9 +34,7 @@ pub fn start_server(db_mutex: Mutex<DB>) {
             let method = json.get("method").unwrap().as_str().unwrap();
             let params = json.get("params").unwrap().as_object().unwrap().clone();
             if method == "custom_blockNumber" {
-                let mut db = db_mutex.lock().unwrap();
-
-                Response::json(&get_latest_block_height(&mut db).to_string())
+                Response::json(&get_latest_block_height(&db_mutex).to_string())
             } else if method == "custom_mine" {
                 let waiting_tx_cnt = waiting_tx_cnt_mutex.lock().unwrap();
                 if *waiting_tx_cnt != 0 {
@@ -45,22 +43,18 @@ pub fn start_server(db_mutex: Mutex<DB>) {
                     )
                     .with_status_code(400)
                 } else {
-                    let mut db = db_mutex.lock().unwrap();
-
                     let block_cnt = params.get("block_cnt").unwrap().as_u64().unwrap();
                     let timestamp = params.get("timestamp").unwrap().as_u64().unwrap();
                     let hash = B256::ZERO;
 
-                    mine_block(&mut db, block_cnt, U256::from(timestamp), hash);
+                    mine_block(&db_mutex, block_cnt, U256::from(timestamp), hash);
 
                     Response::json::<Value>(&Value::Null)
                 }
             } else if method == "custom_getBlockByNumber" {
-                let mut db = db_mutex.lock().unwrap();
+                let number = params.get("number").unwrap().as_u64().unwrap();
 
-                let number = U256::from(params.get("number").unwrap().as_u64().unwrap());
-
-                if let Some(block) = get_block_by_number(&mut db, number) {
+                if let Some(block) = get_block_by_number(&db_mutex, number) {
                     Response::json(&BlockResJSON {
                         number: block.number.to_string(),
                         timestamp: block.timestamp.to_string(),
@@ -211,7 +205,6 @@ pub fn start_server(db_mutex: Mutex<DB>) {
                 let mut last_ts = last_ts_mutex.lock().unwrap();
                 let mut last_block_hash = last_block_hash_mutex.lock().unwrap();
                 let mut last_block_gas_used = last_block_gas_used_mutex.lock().unwrap();
-                let mut db = db_mutex.lock().unwrap();
 
                 let timestamp = U256::from(params.get("timestamp").unwrap().as_u64().unwrap());
                 let hash = B256::from_slice(
@@ -254,7 +247,7 @@ pub fn start_server(db_mutex: Mutex<DB>) {
 
                 let start_time = std::time::Instant::now();
                 finalise_block(
-                    &mut db,
+                    &db_mutex,
                     timestamp,
                     hash,
                     *last_block_gas_used,
@@ -300,8 +293,6 @@ pub fn start_server(db_mutex: Mutex<DB>) {
 
                 let start_time = std::time::Instant::now();
 
-                let mut db = db_mutex.lock().unwrap();
-
                 *last_block_gas_used = 0;
                 let mut serializeable_resses: Vec<SerializableExecutionResult> = Vec::new();
                 for tx in txes {
@@ -321,8 +312,7 @@ pub fn start_server(db_mutex: Mutex<DB>) {
                     );
                     let txinfo = TxInfo { from, to, data };
 
-                    let (result, nonce, txhash) =
-                        add_tx_to_block_wo_mutex(&mut db, timestamp, &txinfo);
+                    let (result, nonce, txhash) = add_tx_to_block(&db_mutex, timestamp, &txinfo);
                     *last_block_gas_used += result.gas_used();
 
                     let serializeable_res =
@@ -331,7 +321,7 @@ pub fn start_server(db_mutex: Mutex<DB>) {
                 }
 
                 finalise_block(
-                    &mut db,
+                    &db_mutex,
                     timestamp,
                     hash,
                     *last_block_gas_used,
@@ -359,8 +349,11 @@ pub fn start_server(db_mutex: Mutex<DB>) {
 
                 Response::json::<Value>(&Value::Null)
             } else if method == "custom_reorg" {
-                let latest_valid_block_number =
-                    U256::from(params.get("latest_valid_block_number").unwrap().as_u64().unwrap());
+                let latest_valid_block_number = params
+                    .get("latest_valid_block_number")
+                    .unwrap()
+                    .as_u64()
+                    .unwrap();
 
                 let mut db = db_mutex.lock().unwrap();
                 db.reorg(latest_valid_block_number).unwrap();
@@ -389,7 +382,8 @@ pub fn start_server(db_mutex: Mutex<DB>) {
     });
 }
 
-fn get_block_by_number(db: &mut DB, block_number: U256) -> Option<BlockRes> {
+fn get_block_by_number(db: &Mutex<DB>, block_number: u64) -> Option<BlockRes> {
+    let mut db = db.lock().unwrap();
     println!("Getting block by number {}", block_number);
     let block_hash = db.get_block_hash(block_number).unwrap();
     if block_hash.is_none() {
@@ -416,33 +410,36 @@ fn get_block_by_number(db: &mut DB, block_number: U256) -> Option<BlockRes> {
     })
 }
 
-fn get_latest_block_height(db: &DB) -> U256 {
+fn get_latest_block_height(db_mutex: &Mutex<DB>) -> u64 {
+    let db = db_mutex.lock().unwrap();
     let last_block_info = db.get_latest_block_height();
     if last_block_info.is_err() {
-        return U256::ZERO;
+        return 0;
     }
     last_block_info.unwrap()
 }
 
-fn mine_block(db: &mut DB, block_cnt: u64, timestamp: U256, hash: B256) {
-    let mut number = get_latest_block_height(db) + U256::from(1);
+fn mine_block(db_mutex: &Mutex<DB>, block_cnt: u64, timestamp: U256, hash: B256) {
+    let mut number = get_latest_block_height(&db_mutex) + 1;
+
+    let mut db = db_mutex.lock().unwrap();
     println!(
         "Mining blocks from {} to {}",
         number,
-        number + U256::from(block_cnt) - U256::from(1)
+        number + block_cnt - 1
     );
     let mut number_clone = number.clone();
 
     for _ in 0..block_cnt {
         db.set_block_hash(number, hash).unwrap();
         db.set_block_timestamp(number, timestamp).unwrap();
-        number += U256::from(1);
+        number += 1;
     }
 
     for _ in 0..block_cnt {
         db.set_gas_used(number_clone, U256::ZERO).unwrap();
         db.set_mine_timestamp(number_clone, U256::ZERO).unwrap();
-        number_clone += U256::from(1);
+        number_clone += 1;
     }
 }
 
@@ -451,12 +448,11 @@ fn add_tx_to_block(
     timestamp: U256,
     tx_info: &TxInfo,
 ) -> (ExecutionResult, u64, String) {
-    let mut db_mutex_guard = db_mutex.lock().unwrap();
-    let mut db = core::mem::take(&mut *db_mutex_guard);
+    let number = get_latest_block_height(db_mutex) + 1;
+    let mut db = db_mutex.lock().unwrap();
 
-    let number = get_latest_block_height(&db) + U256::from(1);
     let block_info: BlockEnv = BlockEnv {
-        number,
+        number: U256::from_limbs([0, 0, 0, number]),
         coinbase: "0x0000000000000000000000000000000000003Ca6"
             .parse()
             .unwrap(),
@@ -464,107 +460,67 @@ fn add_tx_to_block(
         ..Default::default()
     };
 
+    let output: Option<ExecutionResult>;
     let nonce = db
         .basic(tx_info.from)
         .unwrap()
         .map(|x| x.nonce)
         .unwrap_or(0);
     let txhash = get_tx_hash(&tx_info, &nonce);
-    let mut evm = get_evm(&block_info, db);
-    evm = modify_evm_with_tx_env(
-        evm,
-        tx_info.from,
-        tx_info
-            .to
-            .map(|x| TransactTo::Call(x))
-            .unwrap_or(TransactTo::Create(CreateScheme::Create)),
-        tx_info.data.clone(),
-    );
 
-    let output = evm.transact_commit().unwrap();
+    {
+        let db_moved = core::mem::take(&mut *db);
+        let mut evm = get_evm(block_info, db_moved);
+        evm = modify_evm_with_tx_env(
+            evm,
+            tx_info.from,
+            tx_info
+                .to
+                .map(|x| TransactTo::Call(x))
+                .unwrap_or(TransactTo::Create),
+            tx_info.data.clone(),
+        );
 
-    (output, nonce, txhash)
-}
+        output = Some(evm.transact_commit().unwrap());
+        core::mem::swap(&mut *db, &mut evm.context.evm.db);
+    }
 
-fn add_tx_to_block_wo_mutex(
-    db_mutex_guard: &mut MutexGuard<'_, DB>,
-    timestamp: U256,
-    tx_info: &TxInfo,
-) -> (ExecutionResult, u64, String) {
-    let mut db = core::mem::take(&mut **db_mutex_guard);
-
-    let number = get_latest_block_height(&mut db) + U256::from(1);
-    let block_info: BlockEnv = BlockEnv {
-        number,
-        coinbase: "0x0000000000000000000000000000000000003Ca6"
-            .parse()
-            .unwrap(),
-        timestamp,
-        ..Default::default()
-    };
-
-    let nonce = db
-        .basic(tx_info.from)
-        .unwrap()
-        .map(|x| x.nonce)
-        .unwrap_or(0);
-    let txhash = get_tx_hash(&tx_info, &nonce);
-    let mut evm = get_evm(&block_info, db);
-    evm = modify_evm_with_tx_env(
-        evm,
-        tx_info.from,
-        tx_info
-            .to
-            .map(|x| TransactTo::Call(x))
-            .unwrap_or(TransactTo::Create(CreateScheme::Create)),
-        tx_info.data.clone(),
-    );
-
-    let output = evm.transact_commit().unwrap();
-    **db_mutex_guard = evm.context.evm.db;
-
-    (output, nonce, txhash)
+    (output.unwrap(), nonce, txhash)
 }
 
 fn finalise_block(
-    db: &mut DB,
+    db_mutex: &Mutex<DB>,
     timestamp: U256,
     block_hash: B256,
     total_gas_used: u64,
     block_tx_cnt: u64,
     start_time: Instant,
 ) -> () {
-    let mut db_inner = db;
-
-    let block_number = get_latest_block_height(&mut db_inner) + U256::from(1);
+    let block_number = get_latest_block_height(&db_mutex) + 1;
+    let mut db = db_mutex.lock().unwrap();
     println!(
         "Finalising block {}, tx cnt: {}",
         block_number, block_tx_cnt
     );
 
-    db_inner.set_block_hash(block_number, block_hash).unwrap();
+    db.set_block_hash(block_number, block_hash).unwrap();
 
-    db_inner
-        .set_gas_used(block_number, U256::from(total_gas_used))
+    db.set_gas_used(block_number, U256::from(total_gas_used))
         .unwrap();
     let total_time_took = U256::from(start_time.elapsed().as_nanos());
-    db_inner
-        .set_mine_timestamp(block_number, total_time_took)
+    db.set_mine_timestamp(block_number, total_time_took)
         .unwrap();
-    db_inner
-        .set_block_timestamp(block_number, timestamp)
-        .unwrap();
-    db_inner.set_block_hash(block_number, block_hash).unwrap();
+    db.set_block_timestamp(block_number, timestamp).unwrap();
+    db.set_block_hash(block_number, block_hash).unwrap();
 }
 
 fn call_contract(db_mutex: &Mutex<DB>, tx_info: &TxInfo) -> (ExecutionResult, u64, String) {
-    let mut db_mutex_guard = db_mutex.lock().unwrap();
-    let mut db = core::mem::take(&mut *db_mutex_guard);
+    let number = get_latest_block_height(&db_mutex) + 1;
+    let mut db = db_mutex.lock().unwrap();
 
-    let number = get_latest_block_height(&mut db) + U256::from(1);
     let timestamp = U256::from(std::time::UNIX_EPOCH.elapsed().unwrap().as_secs());
     let block_info: BlockEnv = BlockEnv {
-        number,
+        number: U256::from_limbs([0, 0, 0, number]),
         coinbase: "0x0000000000000000000000000000000000003Ca6"
             .parse()
             .unwrap(),
@@ -572,25 +528,31 @@ fn call_contract(db_mutex: &Mutex<DB>, tx_info: &TxInfo) -> (ExecutionResult, u6
         ..Default::default()
     };
 
-    let nonce = db
-        .basic(tx_info.from)
-        .unwrap()
-        .map(|x| x.nonce)
-        .unwrap_or(0);
+    let output: Option<ExecutionResult>;
+    let nonce = get_nonce(&db_mutex, tx_info.from);
     let txhash = get_tx_hash(&tx_info, &nonce);
-    let mut evm = get_evm(&block_info, db);
-    evm = modify_evm_with_tx_env(
-        evm,
-        tx_info.from,
-        tx_info
-            .to
-            .map(|x| TransactTo::Call(x))
-            .unwrap_or(TransactTo::Create(CreateScheme::Create)),
-        tx_info.data.clone(),
-    );
 
-    let output = evm.transact().unwrap().result;
-    *db_mutex_guard = evm.context.evm.db;
+    {
+        let db_moved = core::mem::take(&mut *db);
+        let mut evm = get_evm(block_info, db_moved);
+        evm = modify_evm_with_tx_env(
+            evm,
+            tx_info.from,
+            tx_info
+                .to
+                .map(|x| TransactTo::Call(x))
+                .unwrap_or(TransactTo::Create),
+            tx_info.data.clone(),
+        );
 
-    (output, nonce, txhash)
+        output = Some(evm.transact().unwrap().result);
+        core::mem::swap(&mut *db, &mut evm.context.evm.db);
+    }
+
+    (output.unwrap(), nonce, txhash)
+}
+
+fn get_nonce(db_mutex: &Mutex<DB>, addr: Address) -> u64 {
+    let mut db = db_mutex.lock().unwrap();
+    db.basic(addr).unwrap().unwrap().nonce
 }
