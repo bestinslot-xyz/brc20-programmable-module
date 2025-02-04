@@ -82,6 +82,9 @@ impl ServerInstance {
         tx_idx: u64,
         hash: B256,
     ) -> Result<(ExecutionResult, u64, String), &'static str> {
+        let block_number = self.get_latest_block_height() + 1;
+        println!("Adding tx {:?} to block {:?}", tx_idx, block_number);
+
         let mut waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
         let mut last_ts = self.last_ts_mutex.lock().unwrap();
         let mut last_block_hash = self.last_block_hash_mutex.lock().unwrap();
