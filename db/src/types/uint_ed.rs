@@ -10,6 +10,7 @@ use super::{Decode, Encode};
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash, Debug)]
 pub struct UintEncodeDecode<const BITS: usize, const LIMBS: usize>(pub Uint<BITS, LIMBS>);
 pub type U64ED = UintEncodeDecode<64, 1>;
+pub type U128ED = UintEncodeDecode<128, 2>;
 pub type U512ED = UintEncodeDecode<512, 8>;
 pub type U256ED = UintEncodeDecode<256, 4>;
 
@@ -28,6 +29,12 @@ impl U512ED {
 impl U256ED {
     pub fn from_u256(a: U256) -> Self {
         Self(a)
+    }
+}
+
+impl U128ED {
+    pub fn from_u128(a: u128) -> Self {
+        Self(Uint::from(a))
     }
 }
 

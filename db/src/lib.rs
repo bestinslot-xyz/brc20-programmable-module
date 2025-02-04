@@ -9,6 +9,8 @@ use std::path::Path;
 use cached_database::BlockDatabase;
 use heed::{Env, EnvOpenOptions, RwTxn};
 
+use revm::primitives::alloy_primitives::U128;
+use revm::primitives::alloy_primitives::U64;
 use revm::primitives::db::Database as DatabaseTrait;
 use revm::primitives::db::DatabaseCommit;
 use revm::primitives::ruint::aliases::U256;
@@ -20,6 +22,7 @@ use cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 mod test_utils;
 
 mod types;
+use types::U128ED;
 use types::U64ED;
 use types::{AccountInfoED, AddressED, BytecodeED, B256ED, U256ED, U512ED};
 
@@ -32,22 +35,24 @@ pub struct DB {
     db_code: Option<BlockCachedDatabase<B256ED, BytecodeED, BlockHistoryCacheData<BytecodeED>>>,
 
     // Account address to account info
-    db_account: Option<BlockCachedDatabase<AddressED, AccountInfoED, BlockHistoryCacheData<AccountInfoED>>>,
+    db_account:
+        Option<BlockCachedDatabase<AddressED, AccountInfoED, BlockHistoryCacheData<AccountInfoED>>>,
 
     // Block hash to block number
-    db_block_hash_to_number: Option<BlockCachedDatabase<B256ED, U64ED, BlockHistoryCacheData<U64ED>>>,
+    db_block_hash_to_number:
+        Option<BlockCachedDatabase<B256ED, U64ED, BlockHistoryCacheData<U64ED>>>,
 
     // Block number to block hash
     db_block_number_to_hash: Option<BlockDatabase<B256ED>>,
 
     // Block number to block timestamp
-    db_block_number_to_timestamp: Option<BlockDatabase<U256ED>>,
+    db_block_number_to_timestamp: Option<BlockDatabase<U64ED>>,
 
     // Block number to gas used
-    db_block_number_to_gas_used: Option<BlockDatabase<U256ED>>,
+    db_block_number_to_gas_used: Option<BlockDatabase<U64ED>>,
 
     // Block number to mine timestamp
-    db_block_number_to_mine_tm: Option<BlockDatabase<U256ED>>,
+    db_block_number_to_mine_tm: Option<BlockDatabase<U128ED>>,
 
     // Cache for latest block number and block hash
     latest_block_number: Option<(u64, B256)>,
@@ -89,17 +94,31 @@ impl DB {
         let env = create_env()?;
 
         let mut wtxn = env.write_txn()?;
-        let db_account_memory =
-            Some(BlockCachedDatabase::new(env.clone(), "account_memory_map", &mut wtxn));
+        let db_account_memory = Some(BlockCachedDatabase::new(
+            env.clone(),
+            "account_memory_map",
+            &mut wtxn,
+        ));
         let db_code = Some(BlockCachedDatabase::new(env.clone(), "code_map", &mut wtxn));
-        let db_account = Some(BlockCachedDatabase::new(env.clone(), "account_map", &mut wtxn));
-        let db_block_hash_to_number =
-            Some(BlockCachedDatabase::new(env.clone(), "block_hash_to_number", &mut wtxn));
+        let db_account = Some(BlockCachedDatabase::new(
+            env.clone(),
+            "account_map",
+            &mut wtxn,
+        ));
+        let db_block_hash_to_number = Some(BlockCachedDatabase::new(
+            env.clone(),
+            "block_hash_to_number",
+            &mut wtxn,
+        ));
 
-        let db_block_number_to_hash = Some(BlockDatabase::new(env.clone(), "block_hash", &mut wtxn));
-        let db_block_number_to_timestamp = Some(BlockDatabase::new(env.clone(), "block_ts", &mut wtxn));
-        let db_block_number_to_gas_used = Some(BlockDatabase::new(env.clone(), "gas_used", &mut wtxn));
-        let db_block_number_to_mine_tm = Some(BlockDatabase::new(env.clone(), "mine_tm", &mut wtxn));
+        let db_block_number_to_hash =
+            Some(BlockDatabase::new(env.clone(), "block_hash", &mut wtxn));
+        let db_block_number_to_timestamp =
+            Some(BlockDatabase::new(env.clone(), "block_ts", &mut wtxn));
+        let db_block_number_to_gas_used =
+            Some(BlockDatabase::new(env.clone(), "gas_used", &mut wtxn));
+        let db_block_number_to_mine_tm =
+            Some(BlockDatabase::new(env.clone(), "mine_tm", &mut wtxn));
 
         wtxn.commit()?;
 
@@ -168,7 +187,11 @@ impl DB {
     }
 
     pub fn get_code(&mut self, code_hash: B256) -> Result<Option<Bytecode>, Box<dyn Error>> {
-        let ret = self.db_code.as_ref().unwrap().latest(&B256ED::from_b256(code_hash));
+        let ret = self
+            .db_code
+            .as_ref()
+            .unwrap()
+            .latest(&B256ED::from_b256(code_hash));
 
         Ok(ret.map(|x| x.0))
     }
@@ -187,7 +210,11 @@ impl DB {
         &mut self,
         account: Address,
     ) -> Result<Option<AccountInfo>, Box<dyn Error>> {
-        let ret = self.db_account.as_ref().unwrap().latest(&AddressED::from_addr(account));
+        let ret = self
+            .db_account
+            .as_ref()
+            .unwrap()
+            .latest(&AddressED::from_addr(account));
 
         Ok(ret.map(|x| x.0))
     }
@@ -208,7 +235,11 @@ impl DB {
     }
 
     pub fn get_block_hash(&mut self, block_number: u64) -> Result<Option<B256>, Box<dyn Error>> {
-        let ret = self.db_block_number_to_hash.as_mut().unwrap().get(block_number);
+        let ret = self
+            .db_block_number_to_hash
+            .as_mut()
+            .unwrap()
+            .get(block_number);
 
         Ok(ret.map(|x| x.0))
     }
@@ -235,8 +266,12 @@ impl DB {
         Ok(())
     }
 
-    pub fn get_block_timestamp(&mut self, number: u64) -> Result<Option<U256>, Box<dyn Error>> {
-        let ret = self.db_block_number_to_timestamp.as_mut().unwrap().get(number);
+    pub fn get_block_timestamp(&mut self, number: u64) -> Result<Option<U64>, Box<dyn Error>> {
+        let ret = self
+            .db_block_number_to_timestamp
+            .as_mut()
+            .unwrap()
+            .get(number);
 
         Ok(ret.map(|x| x.0))
     }
@@ -244,31 +279,31 @@ impl DB {
     pub fn set_block_timestamp(
         &mut self,
         block_number: u64,
-        block_timestamp: U256,
+        block_timestamp: u64,
     ) -> Result<(), Box<dyn Error>> {
         self.db_block_number_to_timestamp
             .as_mut()
             .unwrap()
-            .set(block_number, U256ED::from_u256(block_timestamp));
+            .set(block_number, U64ED::from_u64(block_timestamp));
 
         Ok(())
     }
 
-    pub fn get_gas_used(&mut self, block_number: u64) -> Result<Option<U256>, Box<dyn Error>> {
-        let ret = self.db_block_number_to_gas_used.as_mut().unwrap().get(block_number);
+    pub fn get_gas_used(&mut self, block_number: u64) -> Result<Option<U64>, Box<dyn Error>> {
+        let ret = self
+            .db_block_number_to_gas_used
+            .as_mut()
+            .unwrap()
+            .get(block_number);
 
         Ok(ret.map(|x| x.0))
     }
 
-    pub fn set_gas_used(
-        &mut self,
-        block_number: u64,
-        gas_used: U256,
-    ) -> Result<(), Box<dyn Error>> {
+    pub fn set_gas_used(&mut self, block_number: u64, gas_used: u64) -> Result<(), Box<dyn Error>> {
         self.db_block_number_to_gas_used
             .as_mut()
             .unwrap()
-            .set(block_number, U256ED::from_u256(gas_used));
+            .set(block_number, U64ED::from_u64(gas_used));
 
         Ok(())
     }
@@ -276,8 +311,12 @@ impl DB {
     pub fn get_mine_timestamp(
         &mut self,
         block_number: u64,
-    ) -> Result<Option<U256>, Box<dyn Error>> {
-        let ret = self.db_block_number_to_mine_tm.as_mut().unwrap().get(block_number);
+    ) -> Result<Option<U128>, Box<dyn Error>> {
+        let ret = self
+            .db_block_number_to_mine_tm
+            .as_mut()
+            .unwrap()
+            .get(block_number);
 
         Ok(ret.map(|x| x.0))
     }
@@ -285,12 +324,12 @@ impl DB {
     pub fn set_mine_timestamp(
         &mut self,
         block_number: u64,
-        mine_timestamp: U256,
+        mine_timestamp: u128,
     ) -> Result<(), Box<dyn Error>> {
         self.db_block_number_to_mine_tm
             .as_mut()
             .unwrap()
-            .set(block_number, U256ED::from_u256(mine_timestamp));
+            .set(block_number, U128ED::from_u128(mine_timestamp));
 
         Ok(())
     }
@@ -299,15 +338,30 @@ impl DB {
         let env = self.env.clone().unwrap();
         let mut wtxn = env.write_txn()?;
 
-        self.db_block_number_to_hash.as_mut().unwrap().commit(&mut wtxn);
-        self.db_block_number_to_timestamp.as_mut().unwrap().commit(&mut wtxn);
-        self.db_block_number_to_gas_used.as_mut().unwrap().commit(&mut wtxn);
-        self.db_block_number_to_mine_tm.as_mut().unwrap().commit(&mut wtxn);
+        self.db_block_number_to_hash
+            .as_mut()
+            .unwrap()
+            .commit(&mut wtxn);
+        self.db_block_number_to_timestamp
+            .as_mut()
+            .unwrap()
+            .commit(&mut wtxn);
+        self.db_block_number_to_gas_used
+            .as_mut()
+            .unwrap()
+            .commit(&mut wtxn);
+        self.db_block_number_to_mine_tm
+            .as_mut()
+            .unwrap()
+            .commit(&mut wtxn);
 
         self.db_account_memory.as_ref().unwrap().commit(&mut wtxn)?;
         self.db_code.as_ref().unwrap().commit(&mut wtxn)?;
         self.db_account.as_ref().unwrap().commit(&mut wtxn)?;
-        self.db_block_hash_to_number.as_ref().unwrap().commit(&mut wtxn)?;
+        self.db_block_hash_to_number
+            .as_ref()
+            .unwrap()
+            .commit(&mut wtxn)?;
         wtxn.commit()?;
         self.env.clone().unwrap().force_sync()?;
 
@@ -321,9 +375,18 @@ impl DB {
         self.db_account.as_mut().unwrap().clear_cache();
         self.db_block_number_to_hash.as_mut().unwrap().clear_cache();
         self.db_block_hash_to_number.as_mut().unwrap().clear_cache();
-        self.db_block_number_to_timestamp.as_mut().unwrap().clear_cache();
-        self.db_block_number_to_gas_used.as_mut().unwrap().clear_cache();
-        self.db_block_number_to_mine_tm.as_mut().unwrap().clear_cache();
+        self.db_block_number_to_timestamp
+            .as_mut()
+            .unwrap()
+            .clear_cache();
+        self.db_block_number_to_gas_used
+            .as_mut()
+            .unwrap()
+            .clear_cache();
+        self.db_block_number_to_mine_tm
+            .as_mut()
+            .unwrap()
+            .clear_cache();
     }
 
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {

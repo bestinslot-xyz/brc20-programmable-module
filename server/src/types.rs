@@ -1,9 +1,8 @@
 use serde::Serialize;
 
-use revm::primitives::alloy_primitives::Bytes;
+use revm::primitives::alloy_primitives::{Bytes, U128};
 use revm::primitives::{
     keccak256, Address, ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason, B256,
-    U256,
 };
 
 #[derive(Serialize)]
@@ -45,9 +44,9 @@ pub struct SerializeableLog {
 
 pub struct BlockRes {
     pub number: u64,
-    pub timestamp: U256,
-    pub gas_used: U256,
-    pub mine_tm: U256,
+    pub timestamp: u64,
+    pub gas_used: u64,
+    pub mine_tm: U128,
     pub hash: B256,
 }
 
