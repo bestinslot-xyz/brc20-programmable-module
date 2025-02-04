@@ -449,7 +449,6 @@ fn add_tx_to_block(
     tx_info: &TxInfo,
 ) -> (ExecutionResult, u64, String) {
     let number = get_latest_block_height(db_mutex) + 1;
-    let mut db = db_mutex.lock().unwrap();
 
     let block_info: BlockEnv = BlockEnv {
         number: U256::from_limbs([0, 0, 0, number]),
@@ -461,14 +460,11 @@ fn add_tx_to_block(
     };
 
     let output: Option<ExecutionResult>;
-    let nonce = db
-        .basic(tx_info.from)
-        .unwrap()
-        .map(|x| x.nonce)
-        .unwrap_or(0);
+    let nonce = get_nonce(&db_mutex, tx_info.from);
     let txhash = get_tx_hash(&tx_info, &nonce);
 
     {
+        let mut db = db_mutex.lock().unwrap();
         let db_moved = core::mem::take(&mut *db);
         let mut evm = get_evm(block_info, db_moved);
         evm = modify_evm_with_tx_env(
@@ -516,7 +512,6 @@ fn finalise_block(
 
 fn call_contract(db_mutex: &Mutex<DB>, tx_info: &TxInfo) -> (ExecutionResult, u64, String) {
     let number = get_latest_block_height(&db_mutex) + 1;
-    let mut db = db_mutex.lock().unwrap();
 
     let timestamp = U256::from(std::time::UNIX_EPOCH.elapsed().unwrap().as_secs());
     let block_info: BlockEnv = BlockEnv {
@@ -533,6 +528,7 @@ fn call_contract(db_mutex: &Mutex<DB>, tx_info: &TxInfo) -> (ExecutionResult, u6
     let txhash = get_tx_hash(&tx_info, &nonce);
 
     {
+        let mut db = db_mutex.lock().unwrap();
         let db_moved = core::mem::take(&mut *db);
         let mut evm = get_evm(block_info, db_moved);
         evm = modify_evm_with_tx_env(
@@ -554,5 +550,5 @@ fn call_contract(db_mutex: &Mutex<DB>, tx_info: &TxInfo) -> (ExecutionResult, u6
 
 fn get_nonce(db_mutex: &Mutex<DB>, addr: Address) -> u64 {
     let mut db = db_mutex.lock().unwrap();
-    db.basic(addr).unwrap().unwrap().nonce
+    db.basic(addr).unwrap().map_or(0, |x| x.nonce)
 }
