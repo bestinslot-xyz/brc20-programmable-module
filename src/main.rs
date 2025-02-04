@@ -1,8 +1,6 @@
-use std::sync::Mutex;
-
 use db::DB;
-use server::start_server;
+use server::{start_http_server, ServerInstance};
 
 fn main() {
-    start_server(Mutex::new(DB::new().unwrap()));
+    start_http_server(ServerInstance::new(DB::new().unwrap()));
 }
