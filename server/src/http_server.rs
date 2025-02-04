@@ -167,8 +167,7 @@ pub fn start_http_server(instance: ServerInstance) {
             );
             let block_tx_cnt = params.get("block_tx_cnt").unwrap().as_u64().unwrap();
 
-            let start_time = std::time::Instant::now();
-            let result = instance.finalise_block(timestamp, hash, block_tx_cnt, start_time);
+            let result = instance.finalise_block(timestamp, hash, block_tx_cnt, None);
 
             if result.is_err() {
                 return Response::text(result.unwrap_err()).with_status_code(400);

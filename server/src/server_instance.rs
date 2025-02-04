@@ -153,8 +153,11 @@ impl ServerInstance {
         timestamp: u64,
         block_hash: B256,
         block_tx_cnt: u64,
-        start_time: Instant,
+        mut start_time: Option<Instant>,
     ) -> Result<(), &'static str> {
+        if start_time.is_none() {
+            start_time = Some(Instant::now());
+        }
         let mut waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
         let mut last_ts = self.last_ts_mutex.lock().unwrap();
         let mut last_block_hash = self.last_block_hash_mutex.lock().unwrap();
@@ -185,7 +188,7 @@ impl ServerInstance {
         db.set_block_hash(block_number, block_hash).unwrap();
 
         db.set_gas_used(block_number, *last_block_gas_used).unwrap();
-        let total_time_took = start_time.elapsed().as_nanos();
+        let total_time_took = start_time.unwrap().elapsed().as_nanos();
         db.set_mine_timestamp(block_number, total_time_took)
             .unwrap();
         db.set_block_timestamp(block_number, timestamp).unwrap();
@@ -250,7 +253,7 @@ impl ServerInstance {
             }
         }
 
-        let result = self.finalise_block(timestamp, block_hash, tx_len as u64, start_time);
+        let result = self.finalise_block(timestamp, block_hash, tx_len as u64, Some(start_time));
 
         if result.is_err() {
             return Err(result.unwrap_err());

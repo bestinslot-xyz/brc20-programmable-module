@@ -10,5 +10,6 @@ rouille = "3.6.2"
 serde = "1.0.196"
 serde_json = "1.0.113"
 db = { path = "../db" }
+jsonrpsee = { version = "0.24.8", features = [ "server" ] }
 # evm-coder = "0.4.2"
 # solabi = "0.2.0"
