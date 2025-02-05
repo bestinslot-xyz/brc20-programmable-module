@@ -21,6 +21,9 @@ pub struct ServerInstance {
 
 impl ServerInstance {
     pub fn new(db: DB) -> Self {
+        #[cfg(debug_assertions)]
+        println!("Creating new server instance");
+
         ServerInstance {
             db_mutex: Mutex::new(db),
             waiting_tx_cnt_mutex: Mutex::new(0),
@@ -31,12 +34,18 @@ impl ServerInstance {
     }
 
     pub fn get_latest_block_height(&self) -> u64 {
+        #[cfg(debug_assertions)]
+        println!("Getting latest block height");
+
         let db = self.db_mutex.lock().unwrap();
         let last_block_info = db.get_latest_block_height();
-        if last_block_info.is_err() {
-            return 0;
-        }
-        last_block_info.unwrap()
+
+        let block_height = last_block_info.unwrap_or(0);
+
+        #[cfg(debug_assertions)]
+        println!("Got latest block height: {}", block_height);
+
+        block_height
     }
 
     pub fn mine_block(
@@ -45,6 +54,9 @@ impl ServerInstance {
         timestamp: u64,
         hash: B256,
     ) -> Result<(), &'static str> {
+        #[cfg(debug_assertions)]
+        println!("Mining block with {} blocks", block_cnt);
+
         let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
         if *waiting_tx_cnt != 0 {
             return Err("There are waiting txes committed to db, cannot mine empty block!");
@@ -53,11 +65,14 @@ impl ServerInstance {
         let mut number = self.get_latest_block_height() + 1;
 
         let mut db = self.db_mutex.lock().unwrap();
+
+        #[cfg(debug_assertions)]
         println!(
             "Mining blocks from {} to {}",
             number,
             number + block_cnt - 1
         );
+
         let mut number_clone = number.clone();
 
         for _ in 0..block_cnt {
@@ -82,8 +97,11 @@ impl ServerInstance {
         tx_idx: u64,
         hash: B256,
     ) -> Result<(ExecutionResult, u64, String), &'static str> {
-        let block_number = self.get_latest_block_height() + 1;
-        println!("Adding tx {:?} to block {:?}", tx_idx, block_number);
+        #[cfg(debug_assertions)]
+        {
+            let block_number = self.get_latest_block_height() + 1;
+            println!("Adding tx {:?} to block {:?}", tx_idx, block_number);
+        }
 
         let mut waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
         let mut last_ts = self.last_ts_mutex.lock().unwrap();
@@ -180,6 +198,8 @@ impl ServerInstance {
 
         let block_number = self.get_latest_block_height() + 1;
         let mut db = self.db_mutex.lock().unwrap();
+
+        #[cfg(debug_assertions)]
         println!(
             "Finalising block {}, tx cnt: {}",
             block_number, block_tx_cnt
@@ -208,6 +228,9 @@ impl ServerInstance {
         block_hash: B256,
         txes: Vec<Value>,
     ) -> Result<Vec<SerializableExecutionResult>, &'static str> {
+        #[cfg(debug_assertions)]
+        println!("Finalising block with {:?} txes", txes.len());
+
         {
             let mut waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
 
@@ -265,6 +288,12 @@ impl ServerInstance {
         &self,
         tx_info: &TxInfo,
     ) -> Result<(ExecutionResult, u64, String), &'static str> {
+        #[cfg(debug_assertions)]
+        println!(
+            "Calling contract from: {:?} to: {:?}",
+            tx_info.from, tx_info.to
+        );
+
         let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
         if *waiting_tx_cnt != 0 {
             return Err("There are waiting txes committed to db, cannot mine empty block!");
@@ -306,12 +335,10 @@ impl ServerInstance {
         Ok((output.unwrap(), nonce, txhash))
     }
 
-    pub fn get_nonce(&self, addr: Address) -> u64 {
-        let mut db = self.db_mutex.lock().unwrap();
-        db.basic(addr).unwrap().map_or(0, |x| x.nonce)
-    }
-
     pub fn get_block_by_number(&self, block_number: u64) -> Option<BlockRes> {
+        #[cfg(debug_assertions)]
+        println!("Getting block by number {}", block_number);
+
         let mut db = self.db_mutex.lock().unwrap();
         let block_hash = db.get_block_hash(block_number).unwrap();
         if block_hash.is_none() {
@@ -329,16 +356,24 @@ impl ServerInstance {
         if block_mine_tm.is_none() {
             return None;
         }
-        Some(BlockRes {
+        let block_res = BlockRes {
             number: block_number,
             timestamp: block_ts.unwrap().as_limbs()[0],
             gas_used: block_gas_used.unwrap().as_limbs()[0],
             hash: block_hash.unwrap(),
             mine_tm: block_mine_tm.unwrap(),
-        })
+        };
+
+        #[cfg(debug_assertions)]
+        println!("Got block with hash {:?}", block_res.hash);
+
+        Some(block_res)
     }
 
     pub fn get_contract_bytecode(&self, addr: Address) -> Option<Bytes> {
+        #[cfg(debug_assertions)]
+        println!("Getting contract bytecode for {:?}", addr);
+
         let mut db = self.db_mutex.lock().unwrap();
         let acct = db.basic(addr).unwrap().unwrap();
         let bytecode = db.get_code(acct.code_hash).unwrap().unwrap();
@@ -347,6 +382,9 @@ impl ServerInstance {
     }
 
     pub fn clear_caches(&self) {
+        #[cfg(debug_assertions)]
+        println!("Clearing caches");
+
         let mut waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
         let mut last_ts = self.last_ts_mutex.lock().unwrap();
         let mut last_block_hash = self.last_block_hash_mutex.lock().unwrap();
@@ -362,6 +400,9 @@ impl ServerInstance {
     }
 
     pub fn commit_to_db(&self) -> Result<(), &'static str> {
+        #[cfg(debug_assertions)]
+        println!("Committing to db");
+
         let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
         if *waiting_tx_cnt != 0 {
             return Err("there are waiting txes, first finalise the block or clear the cache!!");
@@ -373,6 +414,9 @@ impl ServerInstance {
     }
 
     pub fn reorg(&self, latest_valid_block_number: u64) -> Result<(), &'static str> {
+        #[cfg(debug_assertions)]
+        println!("Reorging to block {}", latest_valid_block_number);
+
         let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
         if *waiting_tx_cnt != 0 {
             return Err("there are waiting txes, first finalise the block or clear the cache!!");
@@ -381,5 +425,10 @@ impl ServerInstance {
         let mut db = self.db_mutex.lock().unwrap();
         db.reorg(latest_valid_block_number).unwrap();
         Ok(())
+    }
+
+    fn get_nonce(&self, addr: Address) -> u64 {
+        let mut db = self.db_mutex.lock().unwrap();
+        db.basic(addr).unwrap().map_or(0, |x| x.nonce)
     }
 }

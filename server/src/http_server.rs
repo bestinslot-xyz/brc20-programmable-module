@@ -4,20 +4,20 @@ use revm::primitives::B256;
 use rouille::try_or_400;
 use rouille::Response;
 
+use serde_json::Map;
 use serde_json::Value;
 
 use crate::server_instance::ServerInstance;
 use crate::types::{get_serializeable_execution_result, BlockResJSON, TxInfo};
 
-pub fn start_http_server(instance: ServerInstance) {
-    println!("Starting server!");
-    rouille::start_server("127.0.0.1:18545", move |request| {
+pub fn start_http_server(addr: &str, instance: ServerInstance) {
+    rouille::start_server(addr, move |request| {
         if request.method() != "POST" {
             return Response::text("Send POST Req!!!").with_status_code(400);
         }
         let json: Value = try_or_400!(rouille::input::json_input(request));
         let method = json.get("method").unwrap().as_str().unwrap();
-        let params = json.get("params").unwrap().as_object().unwrap().clone();
+        let params = json.get("params").unwrap().as_object().unwrap_or(&Map::new()).clone();
         if method == "custom_blockNumber" {
             Response::json(&instance.get_latest_block_height().to_string())
         } else if method == "custom_mine" {

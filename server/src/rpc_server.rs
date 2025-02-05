@@ -1,23 +1,20 @@
-use std::net::SocketAddr;
+use std::{error::Error, net::SocketAddr};
 
-use jsonrpsee::{
-    server::{RpcModule, Server},
-    tokio,
-};
-use revm::primitives::Bytes;
+use jsonrpsee::server::{RpcModule, Server, ServerHandle};
+use revm::primitives::{Bytes, B256};
 use serde_json::Value;
 
 use crate::{
     server_instance::ServerInstance,
-    types::{get_serializeable_execution_result, TxInfo},
+    types::{get_serializeable_execution_result, BlockResJSON, TxInfo},
 };
 
 pub async fn start_rpc_server(
+    addr: &str,
     server_instance: ServerInstance,
-) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Starting RPC server!");
+) -> Result<ServerHandle, Box<dyn Error>> {
     let server = Server::builder()
-        .build("127.0.0.1:18545".parse::<SocketAddr>()?)
+        .build(addr.parse::<SocketAddr>()?)
         .await?;
 
     let mut module = RpcModule::new(server_instance);
@@ -31,13 +28,23 @@ pub async fn start_rpc_server(
             return Value::Null;
         }
         let block = block.unwrap();
-        serde_json::json!({
-            "number": block.number.to_string(),
-            "timestamp": block.timestamp.to_string(),
-            "gas_used": block.gas_used.to_string(),
-            "mine_tm": block.mine_tm.to_string(),
-            "hash": format!("{:?}", block.hash),
+        serde_json::json!(BlockResJSON {
+            number: block.number.to_string(),
+            timestamp: block.timestamp.to_string(),
+            gas_used: block.gas_used.to_string(),
+            mine_tm: block.mine_tm.to_string(),
+            hash: format!("{:?}", block.hash),
         })
+    })?;
+    module.register_method("custom_mine", |params, ctx, _| {
+        let MineRequest { block_cnt, timestamp } = params.parse().unwrap();
+        let hash = B256::ZERO;
+        let result = ctx.mine_block(block_cnt, timestamp, hash);
+
+        if result.is_err() {
+            return Value::Null;
+        }
+        Value::Null
     })?;
     module.register_method("custom_call", |params, ctx, _| {
         let CallRequest { from, to, data } = params.parse::<CallRequest>().unwrap();
@@ -132,9 +139,8 @@ pub async fn start_rpc_server(
     })?;
 
     let handle = server.start(module);
-    tokio::spawn(handle.stopped());
 
-    Ok(())
+    Ok(handle)
 }
 
 #[derive(serde::Deserialize)]
@@ -181,4 +187,10 @@ pub struct FinaliseBlockWithTxesRequest {
 #[derive(serde::Deserialize)]
 pub struct ReorgRequest {
     pub latest_valid_block_number: u64,
+}
+
+#[derive(serde::Deserialize)]
+pub struct MineRequest {
+    pub block_cnt: u64,
+    pub timestamp: u64,
 }
