@@ -60,7 +60,7 @@ async function provider_send(method, params) {
   }
   let r = await fetch('http://localhost:18545', { method: 'POST', body: JSON.stringify(obj), headers: { 'Content-Type': 'application/json' } })
   let j = await r.json()
-  if (j.hasOwnProperty("jsonrpc") && j["jsonrpc"] == "2.0" && j.hasOwnProperty("result")) {
+  if (j != null && j.hasOwnProperty("jsonrpc") && j["jsonrpc"] == "2.0" && j.hasOwnProperty("result")) {
     console.log(j["result"])
     return j["result"]
   }
