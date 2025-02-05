@@ -53,13 +53,21 @@ if (solc_fixed.version() != '0.8.24+commit.e11b9ed9.Emscripten.clang') {
 // HELPER FUNCTIONS
 async function provider_send(method, params) {
   let obj = {
+    jsonrpc: "2.0",
     method: method,
     params: params,
+    id: 1,
   }
   let r = await fetch('http://localhost:18545', { method: 'POST', body: JSON.stringify(obj), headers: { 'Content-Type': 'application/json' } })
   let j = await r.json()
+  if (j.hasOwnProperty("jsonrpc") && j["jsonrpc"] == "2.0" && j.hasOwnProperty("result")) {
+    console.log(j["result"])
+    return j["result"]
+  }
+  console.log(j)
   return j
 }
+
 async function get_info_of_block(block_number) {
   block_number = parseInt(block_number)
   let res = await provider_send(
@@ -107,7 +115,7 @@ async function initialise_chain() {
   }
 
   let st_tm = +(new Date())
-  for (let i = current_block_height; i < module_activation_height - 1; ) {
+  for (let i = current_block_height; i < module_activation_height - 1;) {
     console.log(`initialising block ${i} time per block ${(+(new Date()) - st_tm) / (i - current_block_height + 1)}`)
     let block_count = Math.min(1000, module_activation_height - i - 1)
     await custom_mine(block_count, 0);
@@ -166,7 +174,7 @@ async function get_deploy_brc20_controller_tx() {
 async function mine_next_block(timestamp, hash, block_txes) {
   let txes = []
   for (const tx of block_txes) {
-    let [, to_send, error, ] = tx.resp
+    let [, to_send, error,] = tx.resp
     if (error == null) {
       txes.push(to_send)
     }
@@ -272,14 +280,14 @@ function btc_pkscript_to_eth_address(btc_pkscript) {
 // only view function call!!
 async function call_a_function_of_a_smart_contract_as_a_specific_address(contract_addr, btc_pkscript, data) {
   const address = btc_pkscript_to_eth_address(btc_pkscript)
-  
+
   const tx = {
     to: contract_addr,
     from: address,
     data: data,
   }
   let res = await provider_send("custom_call", tx)
-  
+
   return res
 }
 
@@ -342,7 +350,7 @@ class DEPLOY_ERRORS {
 var get_ethers_interface_cache = {}
 function get_ethers_interface(function_sig) {
   if (get_ethers_interface_cache[function_sig]) return get_ethers_interface_cache[function_sig]
-  const interface = new ethers.Interface([ function_sig ])
+  const interface = new ethers.Interface([function_sig])
   const fragment = interface.getFunction(function_sig);
   get_ethers_interface_cache[function_sig] = [interface, fragment]
   return get_ethers_interface_cache[function_sig]
@@ -358,20 +366,20 @@ async function process_inscription(inscription, btc_pkscript) {
     try {
       //if (Object.keys(inscription).indexOf('c') == -1) return [PROCESS_TYPES.CALL, null, CALL_ERRORS.ERROR_NO_C, btc_pkscript];
       //if (Object.keys(inscription).indexOf('f') == -1) return [PROCESS_TYPES.CALL, null, CALL_ERRORS.ERROR_NO_F, btc_pkscript];
-  
+
       contract_addr = inscription.c
       let func_name = inscription.f
-      
+
       //if (typeof contract_addr != "string") return [PROCESS_TYPES.CALL, null, CALL_ERRORS.ERROR_C_NOT_STRING, btc_pkscript];
       //if (typeof func_name != "string") return [PROCESS_TYPES.CALL, null, CALL_ERRORS.ERROR_F_NOT_STRING, btc_pkscript];
-  
+
       let args = []
       //if (Object.keys(inscription).indexOf('a') != -1) {
       if (inscription.a) {
         args = inscription.a
         //if (!Array.isArray(args)) return [PROCESS_TYPES.CALL, null, CALL_ERRORS.ERROR_A_NOT_ARRAY, btc_pkscript];
       }
-      
+
       let arg_values = []
       for (const arg of args) {
         /* if (typeof arg != "object") return [PROCESS_TYPES.CALL, null, CALL_ERRORS.ERROR_ARG_NOT_OBJECT, btc_pkscript];
@@ -392,14 +400,14 @@ async function process_inscription(inscription, btc_pkscript) {
         }
         arg_values.push(arg.v)
       }
-  
+
       // console.log("call: " + contract_addr + " " + func_name + " " + JSON.stringify(args))
-  
+
       let function_sig = 'function ' + func_name + '('
       for (const arg of args) function_sig += arg.t + ','
       if (args.length > 0) function_sig = function_sig.slice(0, -1)
       function_sig += ')'
-    
+
       let [contract, fragment] = get_ethers_interface(function_sig)
       data = contract.encodeFunctionData(fragment, arg_values)
     } catch (e) {
@@ -439,14 +447,14 @@ async function process_inscription(inscription, btc_pkscript) {
       //if (Object.keys(inscription).indexOf('cls') == -1) return [PROCESS_TYPES.DEPLOY, null, DEPLOY_ERRORS.ERROR_NO_CLS, btc_pkscript];
       let deploy_class = inscription.cls
       //if (typeof deploy_class != "string") return [PROCESS_TYPES.DEPLOY, null, DEPLOY_ERRORS.ERROR_CLS_NOT_STRING, btc_pkscript];
-  
+
       let args = []
       //if (Object.keys(inscription).indexOf('a') != -1) {
       if (inscription.a) {
         args = inscription.a
         //if (!Array.isArray(args)) return [PROCESS_TYPES.DEPLOY, null, DEPLOY_ERRORS.ERROR_A_NOT_ARRAY, btc_pkscript];
       }
-      
+
       arg_values = []
       for (const arg of args) {
         /* if (typeof arg != "object") return [PROCESS_TYPES.DEPLOY, null, DEPLOY_ERRORS.ERROR_ARG_NOT_OBJECT, btc_pkscript];
@@ -467,9 +475,9 @@ async function process_inscription(inscription, btc_pkscript) {
         }
         arg_values.push(arg.v)
       }
-  
+
       // console.log("deploy: " + contract_source_code + " " + deploy_class + " " + JSON.stringify(args))
-  
+
       // compile contract
       let input = {
         language: 'Solidity',
@@ -493,7 +501,7 @@ async function process_inscription(inscription, btc_pkscript) {
         let contract = compiled.contracts['main.sol'][deploy_class]
         let bytecode = contract.evm.bytecode.object
         let abi = contract.abi
-  
+
         contract_factory = new ethers.ContractFactory(abi, bytecode, null)
       } catch (e) {
         console.error(e)
@@ -602,7 +610,7 @@ app.use(express.json({ limit: '50mb' }))
 app.post('/mine_block', async (request, response) => {
   try {
     console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
-    
+
     let ts = parseInt(request.body.ts)
     let hash = request.body.hash
 
@@ -629,7 +637,7 @@ app.post('/mine_block', async (request, response) => {
 app.get('/check_balance', async (request, response) => {
   try {
     console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
-    
+
     let btc_addr = request.query.btc_addr
     let ticker = request.query.ticker
     let resp = await check_balance_of_an_address(btc_addr, ticker)
@@ -647,7 +655,7 @@ app.get('/check_balance', async (request, response) => {
 app.post('/call_view_function_as', async (request, response) => {
   try {
     console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
-    
+
     let btc_addr = request.body.btc_addr
     let contract_addr = request.body.contract_addr
     let func_name = request.body.func_name
@@ -667,7 +675,7 @@ app.post('/call_view_function_as', async (request, response) => {
 app.get('/commit_changes_to_db', async (request, response) => {
   try {
     console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
-    
+
     let resp = await provider_send("custom_commit_to_db", {})
 
     response.send({
@@ -683,7 +691,7 @@ app.get('/commit_changes_to_db', async (request, response) => {
 app.get('/current_block_height', async (request, response) => {
   try {
     console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
-    
+
     let resp = parseInt(await provider_send("custom_blockNumber", {}))
 
     response.send({
@@ -699,7 +707,7 @@ app.get('/current_block_height', async (request, response) => {
 app.get('/hash_of_height', async (request, response) => {
   try {
     console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
-    
+
     let block_height = parseInt(request.query.block_height)
     let resp = (await get_info_of_block(block_height))['hash']
 
@@ -716,7 +724,7 @@ app.get('/hash_of_height', async (request, response) => {
 app.get('/restore_to_last_ok_height', async (request, response) => {
   try {
     console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
-    
+
     let last_ok_height = request.query.last_ok_height
     await restore_to_last_ok_height(last_ok_height)
 
@@ -733,7 +741,7 @@ app.get('/restore_to_last_ok_height', async (request, response) => {
 app.get('/get_block_info', async (request, response) => {
   try {
     console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
-    
+
     let block_height = parseInt(request.query.block_height)
     let res = await get_info_of_block(block_height)
 
@@ -750,7 +758,7 @@ app.get('/get_block_info', async (request, response) => {
 app.get('/get_contract_bytecode', async (request, response) => {
   try {
     console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
-    
+
     let addr = request.query.addr
     let res = await provider_send("get_contract_bytecode", { "addr": addr })
 

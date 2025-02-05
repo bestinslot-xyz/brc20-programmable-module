@@ -140,7 +140,7 @@ impl DB {
         Ok(self.env.as_ref().unwrap().write_txn()?)
     }
 
-    fn require_latest_block_number(&self) -> Result<u64, Box<dyn Error>> {
+    pub fn get_latest_block_height(&self) -> Result<u64, Box<dyn Error>> {
         if self.latest_block_number.is_some() {
             return Ok(self.latest_block_number.unwrap().0);
         }
@@ -148,12 +148,7 @@ impl DB {
             .as_ref()
             .unwrap()
             .last_key()
-            .map(|x| x)
             .ok_or_else(|| "Latest block number not found".into())
-    }
-
-    pub fn get_latest_block_height(&self) -> Result<u64, Box<dyn Error>> {
-        self.require_latest_block_number()
     }
 
     pub fn get_account_memory(
@@ -176,7 +171,7 @@ impl DB {
         mem_loc: U256,
         value: U256,
     ) -> Result<(), Box<dyn Error>> {
-        let block_number = self.require_latest_block_number()?;
+        let block_number = self.get_latest_block_height()?;
         self.db_account_memory.as_mut().unwrap().set(
             block_number,
             U512ED::from_addr_u256(account, mem_loc),
@@ -197,7 +192,7 @@ impl DB {
     }
 
     pub fn set_code(&mut self, code_hash: B256, bytecode: Bytecode) -> Result<(), Box<dyn Error>> {
-        let block_number = self.require_latest_block_number()?;
+        let block_number = self.get_latest_block_height()?;
         self.db_code.as_mut().unwrap().set(
             block_number,
             B256ED::from_b256(code_hash),
@@ -224,7 +219,7 @@ impl DB {
         account: Address,
         value: AccountInfo,
     ) -> Result<(), Box<dyn Error>> {
-        let block_number = self.require_latest_block_number()?;
+        let block_number = self.get_latest_block_height()?;
         self.db_account.as_mut().unwrap().set(
             block_number,
             AddressED::from_addr(account),
