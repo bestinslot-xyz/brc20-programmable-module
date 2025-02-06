@@ -1,11 +1,11 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use revm::primitives::alloy_primitives::{Bytes, U128};
 use revm::primitives::{
     keccak256, Address, ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason, B256,
 };
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Debug)]
 pub struct BlockResJSON {
     pub number: String,
     pub timestamp: String,
@@ -16,7 +16,7 @@ pub struct BlockResJSON {
     pub hash: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Debug)]
 pub struct SerializableExecutionResult {
     pub txhash: String,
     pub nonce: u64,
@@ -28,18 +28,32 @@ pub struct SerializableExecutionResult {
     pub gas_used: String,
     #[serde(rename = "gasRefunded")]
     pub gas_refunded: String,
-    pub logs: Vec<SerializeableLog>,
+    pub logs: Vec<SerializableLog>,
     #[serde(rename = "callOutput")]
     pub call_output: Option<String>,
     #[serde(rename = "contractAddress")]
     pub contract_address: Option<String>,
 }
 
-#[derive(Serialize)]
-pub struct SerializeableLog {
+#[derive(Serialize, Clone, Debug)]
+pub struct SerializableLog {
     pub address: String,
     pub topics: Vec<String>,
     pub data: String,
+}
+
+impl From<&revm::primitives::Log> for SerializableLog {
+    fn from(log: &revm::primitives::Log) -> Self {
+        SerializableLog {
+            address: log.address.to_string(),
+            topics: log
+                .topics()
+                .iter()
+                .map(|topic| format!("{:?}", topic))
+                .collect(),
+            data: format!("{}", hex::encode(&log.data.data)),
+        }
+    }
 }
 
 pub struct BlockRes {
@@ -50,18 +64,58 @@ pub struct BlockRes {
     pub hash: B256,
 }
 
+#[derive(Deserialize, Clone)]
 pub struct TxInfo {
+    #[serde(deserialize_with = "deserialize_address")]
     pub from: Address,
+    #[serde(deserialize_with = "deserialize_option_address")]
     pub to: Option<Address>,
+    #[serde(deserialize_with = "deserialize_data")]
     pub data: Bytes,
 }
 
-pub fn get_serializeable_execution_result(
-    old: ExecutionResult,
+fn deserialize_address<'de, D>(deserializer: D) -> Result<Address, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    let s = if s.starts_with("0x") { &s[2..] } else { &s };
+    return Ok(Address::from_slice(&hex::decode(s).unwrap()));
+}
+
+fn deserialize_option_address<'de, D>(deserializer: D) -> Result<Option<Address>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer);
+    if s.is_err() {
+        return Ok(None);
+    }
+    let s = s.unwrap();
+    let s = if s.starts_with("0x") { &s[2..] } else { &s };
+    let bytes = hex::decode(s);
+    if bytes.is_err() {
+        return Ok(None);
+    }
+    Ok(Some(Address::from_slice(&bytes.unwrap())))
+}
+
+fn deserialize_data<'de, D>(deserializer: D) -> Result<Bytes, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    let s = if s.starts_with("0x") { &s[2..] } else { &s };
+    let bytes = hex::decode(s).map_err(serde::de::Error::custom)?;
+    Ok(Bytes::from(bytes))
+}
+
+pub fn get_serializable_execution_result(
+    result: ExecutionResult,
     txhash: String,
     nonce: u64,
 ) -> SerializableExecutionResult {
-    match old {
+    match result {
         ExecutionResult::Success {
             gas_used,
             gas_refunded,
@@ -82,7 +136,7 @@ pub fn get_serializeable_execution_result(
             gas_refunded: gas_refunded.to_string(),
             logs: logs
                 .iter()
-                .map(|log| SerializeableLog {
+                .map(|log| SerializableLog {
                     address: log.address.to_string(),
                     topics: log
                         .topics()

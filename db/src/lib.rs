@@ -229,6 +229,16 @@ impl DB {
         Ok(())
     }
 
+    pub fn get_block_number(&mut self, block_hash: B256) -> Result<Option<u64>, Box<dyn Error>> {
+        let ret = self
+            .db_block_hash_to_number
+            .as_ref()
+            .unwrap()
+            .latest(&B256ED::from_b256(block_hash));
+
+        Ok(ret.map(|x| x.to_u64()))
+    }
+
     pub fn get_block_hash(&mut self, block_number: u64) -> Result<Option<B256>, Box<dyn Error>> {
         let ret = self
             .db_block_number_to_hash

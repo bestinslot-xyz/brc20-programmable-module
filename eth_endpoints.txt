@@ -1,0 +1,47 @@
+List of eth endpoints to support/not support with work estimations
+
+Legend:
+[T-shirt size] Endpoint: Notes
+
+- Supported endpoints: Similar to eth
+
+[XS] eth_blockNumber: convert to hex
+[XS] eth_getCode: block only "latest"
+[S] eth_getStorageAt: block only "latest"
+[M] eth_call: gas limit (?) - check input output types match with eth
+[S] eth_estimateGas: return only gas from eth_call
+[XL] eth_getLogs: Record SerializableLogs to database or a file per block
+[S] eth_getTransactionCount: Return nonce at the latest block
+[M] eth_getBlockByNumber: Implement "latest", logsBloom null ? -> BlockRes should be on par with eth
+[S] eth_getBlockTransactionCountByNumber
+[S] eth_getBlockTransactionCountByHash
+[L] eth_getTransactionByHash: A database of txes by txhash to output
+[M] eth_getTransactionByBlockNumberAndIndex: Record txes and return
+[XS] eth_getTransactionByBlockHashAndIndex: Record txes and return
+[L] eth_getTransactionReceipt: Implement, record by txhash
+
+- Static values: Values for BRC2.0 Prog
+
+[XS] eth_chainId: static - we'll choose
+[S] eth_gasPrice: static - we'll calculate value
+
+- Empty values: Unused in BRC2.0 Prog
+
+[XS] eth_maxPriorityFeePerGas: 0
+[XS] eth_blobBaseFee: 0
+[XS] eth_getBalance: 0
+[XS] eth_getUncleCountByBlockNumber: Return 0
+[XS] eth_getUncleCountByBlockHash: Return 0
+[XS] eth_getUncleByBlockNumberAndIndex: Return null
+[XS] eth_getUncleByBlockHashAndIndex: Return null
+
+- Not supported in BRC2.0 Prog
+
+[!] [None] eth_feeHistory: Not Supported
+[!] [None] eth_getProof: Not Supported
+[!] [None] eth_accounts: Not Supported
+[!] [None] eth_coinbase: Not Supported
+[!] [None] eth_syncing: Not Supported
+[!] [None] eth_mining: Not Supported
+[!] [None] eth_hashrate: Not Supported
+[!] [None] eth_getWork: Not Supported
