@@ -4,11 +4,10 @@ use std::time::Instant;
 use db::DB;
 use revm::primitives::{Address, BlockEnv, Bytes, ExecutionResult, TransactTo, B256, U256};
 use revm::Database;
-use serde_json::Value;
 
 use crate::evm::{get_evm, modify_evm_with_tx_env};
 use crate::types::{
-    get_serializeable_execution_result, get_tx_hash, BlockRes, SerializableExecutionResult, TxInfo,
+    get_serializable_execution_result, get_tx_hash, BlockRes, SerializableExecutionResult, TxInfo,
 };
 
 pub struct ServerInstance {
@@ -34,17 +33,10 @@ impl ServerInstance {
     }
 
     pub fn get_latest_block_height(&self) -> u64 {
-        #[cfg(debug_assertions)]
-        println!("Getting latest block height");
-
         let db = self.db_mutex.lock().unwrap();
         let last_block_info = db.get_latest_block_height();
 
         let block_height = last_block_info.unwrap_or(0);
-
-        #[cfg(debug_assertions)]
-        println!("Got latest block height: {}", block_height);
-
         block_height
     }
 
@@ -54,9 +46,6 @@ impl ServerInstance {
         timestamp: u64,
         hash: B256,
     ) -> Result<(), &'static str> {
-        #[cfg(debug_assertions)]
-        println!("Mining block with {} blocks", block_cnt);
-
         let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
         if *waiting_tx_cnt != 0 {
             return Err("There are waiting txes committed to db, cannot mine empty block!");
@@ -96,7 +85,7 @@ impl ServerInstance {
         tx_info: &TxInfo,
         tx_idx: u64,
         hash: B256,
-    ) -> Result<(ExecutionResult, u64, String), &'static str> {
+    ) -> Result<SerializableExecutionResult, &'static str> {
         #[cfg(debug_assertions)]
         {
             let block_number = self.get_latest_block_height() + 1;
@@ -141,9 +130,20 @@ impl ServerInstance {
         let txhash = get_tx_hash(&tx_info, &nonce);
 
         {
+            #[cfg(debug_assertions)]
+            println!(
+                "Running EVM for tx {:?} in block {:?} with hash {:?}",
+                tx_idx, number, hash
+            );
+
             let mut db = self.db_mutex.lock().unwrap();
             let db_moved = core::mem::take(&mut *db);
             let mut evm = get_evm(block_info, db_moved);
+            #[cfg(debug_assertions)]
+            println!(
+                "Adding tx {:?} from: {:?} to: {:?} with data: {:?}",
+                tx_idx, tx_info.from, tx_info.to, tx_info.data
+            );
             evm = modify_evm_with_tx_env(
                 evm,
                 tx_info.from,
@@ -161,9 +161,17 @@ impl ServerInstance {
         let output = output.unwrap();
 
         *waiting_tx_cnt += 1;
+
+        #[cfg(debug_assertions)]
+        println!(
+            "Tx {:?} added to block {:?} with gas used {:?}",
+            tx_idx,
+            number,
+            output.gas_used()
+        );
         *last_block_gas_used += output.gas_used();
 
-        Ok((output, nonce, txhash))
+        Ok(get_serializable_execution_result(output, txhash, nonce))
     }
 
     pub fn finalise_block(
@@ -226,7 +234,7 @@ impl ServerInstance {
         &self,
         timestamp: u64,
         block_hash: B256,
-        txes: Vec<Value>,
+        txes: Vec<TxInfo>,
     ) -> Result<Vec<SerializableExecutionResult>, &'static str> {
         #[cfg(debug_assertions)]
         println!("Finalising block with {:?} txes", txes.len());
@@ -247,32 +255,14 @@ impl ServerInstance {
         let start_time = Instant::now();
         let tx_len = txes.len();
 
-        let mut serializeable_results: Vec<SerializableExecutionResult> = Vec::new();
+        let mut serializable_results: Vec<SerializableExecutionResult> = Vec::new();
         for tx in txes {
-            let from = tx.get("from").unwrap().as_str().unwrap().parse().unwrap();
-            let to = tx.get("to").unwrap().as_str().map(|x| x.parse().unwrap());
-            let data = Bytes::from(
-                hex::decode(
-                    tx.get("data")
-                        .unwrap()
-                        .as_str()
-                        .unwrap()
-                        .to_string()
-                        .split_at(2)
-                        .1,
-                )
-                .unwrap(),
-            );
-            let txinfo = TxInfo { from, to, data };
-
-            let result = self.add_tx_to_block(timestamp, &txinfo, 0, block_hash);
+            let result = self.add_tx_to_block(timestamp, &tx, 0, block_hash);
 
             if result.is_err() {
                 return Err(result.unwrap_err());
             } else {
-                let (result, nonce, txhash) = result.unwrap();
-                let serializeable_res = get_serializeable_execution_result(result, txhash, nonce);
-                serializeable_results.push(serializeable_res);
+                serializable_results.push(result.unwrap());
             }
         }
 
@@ -281,13 +271,13 @@ impl ServerInstance {
         if result.is_err() {
             return Err(result.unwrap_err());
         }
-        Ok(serializeable_results)
+        Ok(serializable_results)
     }
 
     pub fn call_contract(
         &self,
         tx_info: &TxInfo,
-    ) -> Result<(ExecutionResult, u64, String), &'static str> {
+    ) -> Result<SerializableExecutionResult, &'static str> {
         #[cfg(debug_assertions)]
         println!(
             "Calling contract from: {:?} to: {:?}",
@@ -332,7 +322,11 @@ impl ServerInstance {
             core::mem::swap(&mut *db, &mut evm.context.evm.db);
         }
 
-        Ok((output.unwrap(), nonce, txhash))
+        Ok(get_serializable_execution_result(
+            output.unwrap(),
+            txhash,
+            nonce,
+        ))
     }
 
     pub fn get_block_by_number(&self, block_number: u64) -> Option<BlockRes> {
@@ -365,9 +359,25 @@ impl ServerInstance {
         };
 
         #[cfg(debug_assertions)]
-        println!("Got block with hash {:?}", block_res.hash);
+        println!(
+            "Got block {:?} with hash {:?}",
+            block_number, block_res.hash
+        );
 
         Some(block_res)
+    }
+
+    pub fn get_block_by_hash(&self, block_hash: B256) -> Option<BlockRes> {
+        #[cfg(debug_assertions)]
+        println!("Getting block by hash {:?}", block_hash);
+
+        let mut db = self.db_mutex.lock().unwrap();
+        let block_number = db.get_block_number(block_hash).unwrap();
+
+        #[cfg(debug_assertions)]
+        println!("Got block {:?} hash {:?}", block_number, block_hash);
+
+        self.get_block_by_number(block_number.unwrap())
     }
 
     pub fn get_contract_bytecode(&self, addr: Address) -> Option<Bytes> {
