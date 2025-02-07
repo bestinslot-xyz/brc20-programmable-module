@@ -71,28 +71,29 @@ async function provider_send(method, params) {
 
 async function get_info_of_block(block_number) {
   block_number = parseInt(block_number)
+  block_number = "0x" + block_number.toString(16)
   let res = await provider_send(
-    "custom_getBlockByNumber",
+    "eth_getBlockByNumber",
     { number: block_number },
   );
 
   return res
 }
-async function custom_mine(n, timestamp) {
-  await provider_send("custom_mine", { block_cnt: parseInt(n), timestamp: parseInt(timestamp) });
+async function eth_mine(n, timestamp) {
+  await provider_send("eth_mine", { block_cnt: parseInt(n), timestamp: parseInt(timestamp) });
 }
-/* async function custom_mine_with_txes(timestamp, hash, txes) {
+/* async function eth_mine_with_txes(timestamp, hash, txes) {
   let responses = []
   for (const tx of txes) {
-    let r = await provider_send("custom_addTxToBlock", { timestamp: parseInt(timestamp), hash: hash, tx_idx: responses.length, from: tx.from, to: tx.to, data: tx.data });
+    let r = await provider_send("eth_addTxToBlock", { timestamp: parseInt(timestamp), hash: hash, tx_idx: responses.length, from: tx.from, to: tx.to, data: tx.data });
     responses.push(r);
   }
 
-  await provider_send("custom_finaliseBlock", { timestamp: parseInt(timestamp), hash: hash, block_tx_cnt: responses.length });
+  await provider_send("eth_finaliseBlock", { timestamp: parseInt(timestamp), hash: hash, block_tx_cnt: responses.length });
   return responses
 } */
-async function custom_mine_with_txes(timestamp, hash, txes) {
-  return await provider_send("custom_finaliseBlockWithTxes", { timestamp: parseInt(timestamp), hash: hash, txes: txes });
+async function eth_mine_with_txes(timestamp, hash, txes) {
+  return await provider_send("eth_finaliseBlockWithTxes", { timestamp: parseInt(timestamp), hash: hash, txes: txes });
 }
 
 
@@ -100,11 +101,11 @@ async function custom_mine_with_txes(timestamp, hash, txes) {
 async function initialise_chain() {
   let init_st_tm = +(new Date())
 
-  let current_block_height = parseInt(await provider_send("custom_blockNumber", {}))
+  let current_block_height = parseInt(await provider_send("eth_blockNumber", {}))
   if (current_block_height == 0) {
     console.log("deploying BRC20_Controller")
     const deploy_brc20_controller_tx = await get_deploy_brc20_controller_tx();
-    let resp = await custom_mine_with_txes(0, "0x0000000000000000000000000000000000000000000000000000000000000000", [deploy_brc20_controller_tx]);
+    let resp = await eth_mine_with_txes(0, "0x0000000000000000000000000000000000000000000000000000000000000000", [deploy_brc20_controller_tx]);
     let brc20_controller_deploy_receipt = resp[0];
 
     if (brc20_controller_deploy_receipt.contractAddress != brc20_controller_addr) {
@@ -119,7 +120,7 @@ async function initialise_chain() {
   for (let i = current_block_height; i < module_activation_height - 1;) {
     console.log(`initialising block ${i} time per block ${(+(new Date()) - st_tm) / (i - current_block_height + 1)}`)
     let block_count = Math.min(1000, module_activation_height - i - 1)
-    await custom_mine(block_count, 0);
+    await eth_mine(block_count, 0);
     i += block_count
   }
 
@@ -180,7 +181,7 @@ async function mine_next_block(timestamp, hash, block_txes) {
       txes.push(to_send)
     }
   }
-  let receipts = await custom_mine_with_txes(timestamp, hash, txes);
+  let receipts = await eth_mine_with_txes(timestamp, hash, txes);
 
   return check_block_receipts(block_txes, receipts)
 }
@@ -248,7 +249,7 @@ function check_block_receipts(block_txes, receipts) {
 
 async function restore_to_last_ok_height(block_height) {
   const reverted = await provider_send(
-    "custom_reorg",
+    "eth_reorg",
     { last_ok_height: parseInt(block_height) },
   );
 
@@ -287,7 +288,7 @@ async function call_a_function_of_a_smart_contract_as_a_specific_address(contrac
     from: address,
     data: data,
   }
-  let res = await provider_send("custom_call", tx)
+  let res = await provider_send("eth_call", tx)
 
   return res
 }
@@ -677,7 +678,7 @@ app.get('/commit_changes_to_db', async (request, response) => {
   try {
     console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
 
-    let resp = await provider_send("custom_commit_to_db", {})
+    let resp = await provider_send("eth_commit_to_db", {})
 
     response.send({
       error: null,
@@ -693,7 +694,7 @@ app.get('/current_block_height', async (request, response) => {
   try {
     console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
 
-    let resp = parseInt(await provider_send("custom_blockNumber", {}))
+    let resp = parseInt(await provider_send("eth_blockNumber", {}))
 
     response.send({
       error: null,
@@ -774,7 +775,7 @@ app.get('/get_contract_bytecode', async (request, response) => {
 })
 
 async function main() {
-  let resp = parseInt(await provider_send("custom_blockNumber", {}))
+  let resp = parseInt(await provider_send("eth_blockNumber", {}))
   if (resp < module_activation_height - 1) {
     console.log("initialising chain")
     await initialise_chain()
