@@ -19,18 +19,26 @@ pub struct RpcServer {
 
 #[async_trait]
 impl Brc20ProgApiServer for RpcServer {
-    async fn block_number(&self) -> RpcResult<u64> {
-        Ok(self.server_instance.get_latest_block_height())
+    async fn block_number(&self) -> RpcResult<String> {
+        let height = self.server_instance.get_latest_block_height();
+        Ok(format!("0x{:x}", height))
     }
 
-    async fn get_block_by_number(&self, number: u64) -> RpcResult<BlockResJSON> {
+    async fn get_block_by_number(&self, number: String) -> RpcResult<BlockResJSON> {
+        let number = if number == "latest" {
+            self.server_instance.get_latest_block_height()
+        } else if number.starts_with("0x") {
+            u64::from_str_radix(&number[2..], 16).unwrap()
+        } else {
+            number.parse().unwrap()
+        };
         let block = self.server_instance.get_block_by_number(number);
         if let Some(block) = block {
             Ok(BlockResJSON {
-                number: block.number.to_string(),
-                timestamp: block.timestamp.to_string(),
-                gas_used: block.gas_used.to_string(),
-                mine_tm: block.mine_tm.to_string(),
+                number: format!("0x{:x}", block.number),
+                timestamp: format!("0x{:x}", block.timestamp),
+                gas_used: format!("0x{:x}", block.gas_used),
+                mine_tm: format!("0x{:x}", block.mine_tm),
                 hash: format!("{:?}", block.hash),
             })
         } else {
@@ -44,10 +52,10 @@ impl Brc20ProgApiServer for RpcServer {
             .get_block_by_hash(hash.parse().unwrap());
         if let Some(block) = block {
             Ok(BlockResJSON {
-                number: block.number.to_string(),
-                timestamp: block.timestamp.to_string(),
-                gas_used: block.gas_used.to_string(),
-                mine_tm: block.mine_tm.to_string(),
+                number: format!("0x{:x}", block.number),
+                timestamp: format!("0x{:x}", block.timestamp),
+                gas_used: format!("0x{:x}", block.gas_used),
+                mine_tm: format!("0x{:x}", block.mine_tm),
                 hash: format!("{:?}", block.hash),
             })
         } else {

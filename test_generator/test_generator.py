@@ -531,6 +531,12 @@ data_call = {
 url_current_block_height = 'http://localhost:8000/current_block_height'
 url_get_block_info = 'http://localhost:8000/get_block_info?block_height='
 
+def convert_hex_or_decimal_to_float(s):
+  if s.startswith("0x"):
+    return float(int(s, 16))
+  else:
+    return float(s)
+
 ress = []
 for i in range(len(codes)):
   code = codes[i]
@@ -554,7 +560,7 @@ for i in range(len(codes)):
   js = response.json()
   gasUsed = js["result"]["gasUsed"]
   mineTm = js["result"]["mineTm"]
-  ratio = float(mineTm) / float(gasUsed)
+  ratio = convert_hex_or_decimal_to_float(mineTm) / convert_hex_or_decimal_to_float(gasUsed)
   print("ratio: ", ratio, " gasUsed: ", gasUsed, " mineTm: ", mineTm)
   ress.append([params, ratio, gasUsed, mineTm])
 
