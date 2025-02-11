@@ -4,7 +4,6 @@ use heed::{BytesDecode, BytesEncode};
 
 pub(crate) struct BytesWrapper(Vec<u8>);
 
-// Convert from [u8]
 impl BytesWrapper {
     pub fn from_vec(bytes: Vec<u8>) -> Self {
         BytesWrapper(bytes)
