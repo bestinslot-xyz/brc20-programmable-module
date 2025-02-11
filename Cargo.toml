@@ -10,6 +10,7 @@ tokio = "1.43.0"
 
 [workspace]
 members = [ ".", "db", "server" ]
+default-members = [ ".", "db", "server"]
 
 [profile.release]
 debug = true
