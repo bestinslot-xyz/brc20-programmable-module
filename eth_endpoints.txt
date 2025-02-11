@@ -43,11 +43,11 @@ Legend:
 
 - Not supported in BRC2.0 Prog
 
-[!] [None] eth_feeHistory: Not Supported
-[!] [None] eth_getProof: Not Supported
-[!] [None] eth_accounts: Not Supported
-[!] [None] eth_coinbase: Not Supported
-[!] [None] eth_syncing: Not Supported
-[!] [None] eth_mining: Not Supported
-[!] [None] eth_hashrate: Not Supported
-[!] [None] eth_getWork: Not Supported
+✅ [!] [None] eth_feeHistory: Not Supported
+✅ [!] [None] eth_getProof: Not Supported
+✅ [!] [None] eth_accounts: Not Supported
+✅ [!] [None] eth_coinbase: Not Supported
+✅ [!] [None] eth_syncing: Not Supported
+✅ [!] [None] eth_mining: Not Supported
+✅ [!] [None] eth_hashrate: Not Supported
+✅ [!] [None] eth_getWork: Not Supported

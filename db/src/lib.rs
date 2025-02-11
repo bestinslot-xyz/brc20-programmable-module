@@ -1,6 +1,3 @@
-// NOTE: Limbs are little-endian
-// DB needs big-endian bytes
-
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
@@ -28,33 +25,35 @@ use types::{AccountInfoED, AddressED, BytecodeED, B256ED, U256ED, U512ED};
 
 pub struct DB {
     env: Option<Env>,
-    // Account address to memory location
+
+    /// Account address to memory location
+    /// TODO: If the value is zero, consider deleting it from the database to save space
     db_account_memory: Option<BlockCachedDatabase<U512ED, U256ED, BlockHistoryCacheData<U256ED>>>,
 
-    // Code hash to bytecode
+    /// Code hash to bytecode
     db_code: Option<BlockCachedDatabase<B256ED, BytecodeED, BlockHistoryCacheData<BytecodeED>>>,
 
-    // Account address to account info
+    /// Account address to account info
     db_account:
         Option<BlockCachedDatabase<AddressED, AccountInfoED, BlockHistoryCacheData<AccountInfoED>>>,
 
-    // Block hash to block number
+    /// Block hash to block number
     db_block_hash_to_number:
         Option<BlockCachedDatabase<B256ED, U64ED, BlockHistoryCacheData<U64ED>>>,
 
-    // Block number to block hash
+    /// Block number to block hash
     db_block_number_to_hash: Option<BlockDatabase<B256ED>>,
 
-    // Block number to block timestamp
+    /// Block number to block timestamp
     db_block_number_to_timestamp: Option<BlockDatabase<U64ED>>,
 
-    // Block number to gas used
+    /// Block number to gas used
     db_block_number_to_gas_used: Option<BlockDatabase<U64ED>>,
 
-    // Block number to mine timestamp
+    /// Block number to mine timestamp
     db_block_number_to_mine_tm: Option<BlockDatabase<U128ED>>,
 
-    // Cache for latest block number and block hash
+    /// Cache for latest block number and block hash
     latest_block_number: Option<(u64, B256)>,
 }
 
@@ -343,6 +342,8 @@ impl DB {
         let env = self.env.clone().unwrap();
         let mut wtxn = env.write_txn()?;
 
+        let latest_block_number = self.get_latest_block_height()?;
+
         self.db_block_number_to_hash
             .as_mut()
             .unwrap()
@@ -360,13 +361,13 @@ impl DB {
             .unwrap()
             .commit(&mut wtxn);
 
-        self.db_account_memory.as_ref().unwrap().commit(&mut wtxn)?;
-        self.db_code.as_ref().unwrap().commit(&mut wtxn)?;
-        self.db_account.as_ref().unwrap().commit(&mut wtxn)?;
+        self.db_account_memory.as_ref().unwrap().commit(&mut wtxn, latest_block_number)?;
+        self.db_code.as_ref().unwrap().commit(&mut wtxn, latest_block_number)?;
+        self.db_account.as_ref().unwrap().commit(&mut wtxn, latest_block_number)?;
         self.db_block_hash_to_number
             .as_ref()
             .unwrap()
-            .commit(&mut wtxn)?;
+            .commit(&mut wtxn, latest_block_number)?;
         wtxn.commit()?;
         self.env.clone().unwrap().force_sync()?;
 

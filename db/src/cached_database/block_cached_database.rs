@@ -24,7 +24,7 @@ use super::BlockHistoryCache;
 pub struct BlockCachedDatabase<K, V, C>
 where
     K: Encode + Decode + Eq + Hash + Clone,
-    V: Encode + Decode + Clone,
+    V: Encode + Decode + Clone + Eq,
     C: BlockHistoryCache<V> + Encode + Decode + Clone,
 {
     env: Env,
@@ -38,18 +38,18 @@ where
 impl<K, V, C> BlockCachedDatabase<K, V, C>
 where
     K: Encode + Decode + Eq + Hash + Clone,
-    V: Encode + Decode + Clone,
+    V: Encode + Decode + Eq + Clone,
     C: BlockHistoryCache<V> + Encode + Decode + Clone,
 {
-    // Create a new BlockCachedDatabase
-    //
-    // It creates a new database if it does not exist
-    //
-    // env: heed::Env - the environment to store the database
-    // name: &str - the name of the database
-    // parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
-    //
-    // Returns: BlockCachedDatabase<K, V, C> - the created BlockCachedDatabase
+    /// Create a new BlockCachedDatabase
+    ///
+    /// It creates a new database if it does not exist
+    ///
+    /// env: heed::Env - the environment to store the database
+    /// name: &str - the name of the database
+    /// parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
+    ///
+    /// Returns: BlockCachedDatabase<K, V, C> - the created BlockCachedDatabase
     pub fn new(env: Env, name: &str, parent_wtxn: &mut RwTxn) -> Self {
         let db: Database<BytesWrapper, BytesWrapper> = {
             let old_db = env
@@ -82,14 +82,14 @@ where
         }
     }
 
-    // Get the value for a key
-    //
-    // It first checks the cache and then the database
-    // If the value is not found, it returns None
-    // If the value is found, it returns Some(value)
-    //
-    // key: &K - the key to get the value for
-    // Returns: Option<V> - the value for the key
+    /// Get the value for a key
+    ///
+    /// It first checks the cache and then the database
+    /// If the value is not found, it returns None
+    /// If the value is found, it returns Some(value)
+    ///
+    /// key: &K - the key to get the value for
+    /// Returns: Option<V> - the value for the key
     pub fn latest(&self, key: &K) -> Option<V> {
         if self.cache.contains_key(key) {
             let cache = self.cache.get(key).unwrap();
@@ -109,13 +109,13 @@ where
         Some(V::decode(value.unwrap().to_vec()).unwrap())
     }
 
-    // Set the value for a key
-    //
-    // It sets the value in the cache, it's not written to the database until commit is called
-    //
-    // block_number: U256 - the block number to set the value for
-    // key: K - the key to set the value for
-    // value: V - the value to set
+    /// Set the value for a key
+    ///
+    /// It sets the value in the cache, it's not written to the database until commit is called
+    ///
+    /// block_number: U256 - the block number to set the value for
+    /// key: K - the key to set the value for
+    /// value: V - the value to set
     pub fn set(&mut self, block_number: u64, key: K, value: V) -> Result<()> {
         if self.cache.contains_key(&key) {
             let cache = self.cache.get_mut(&key).unwrap();
@@ -128,34 +128,44 @@ where
         Ok(())
     }
 
-    // Commit the cache to the database
-    //
-    // It writes all the values in the cache to the database
-    // It does not clear the cache
-    //
-    // parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
-    pub fn commit(&self, mut parent_wtxn: &mut RwTxn) -> Result<()> {
+    /// Commit the cache to the database
+    ///
+    /// It writes all the values in the cache to the database
+    /// It does not clear the cache
+    ///
+    /// parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
+    pub fn commit(&self, mut parent_wtxn: &mut RwTxn, block_number: u64) -> Result<()> {
         for (key, cache) in self.cache.iter() {
             let key_bytes = BytesWrapper::from_vec(K::encode(key).unwrap());
             let cache_bytes = BytesWrapper::from_vec(C::encode(cache).unwrap());
-            self.cache_db
-                .put(&mut parent_wtxn, &key_bytes, &cache_bytes)?;
-            self.db.put(
-                &mut parent_wtxn,
-                &key_bytes,
-                &BytesWrapper::from_vec(V::encode(&cache.latest().unwrap()).unwrap()),
-            )?;
+            // Delete old caches from the cache_db
+            if cache.is_old(block_number) {
+                self.cache_db.delete(&mut parent_wtxn, &key_bytes)?;
+            } else {
+                self.cache_db
+                    .put(&mut parent_wtxn, &key_bytes, &cache_bytes)?;
+            }
+
+            if cache.latest().is_none() {
+                self.db.delete(&mut parent_wtxn, &key_bytes)?;
+            } else {
+                self.db.put(
+                    &mut parent_wtxn,
+                    &key_bytes,
+                    &BytesWrapper::from_vec(V::encode(&cache.latest().unwrap()).unwrap()),
+                )?;
+            }
         }
         Ok(())
     }
 
-    // Revert the state to the latest valid block
-    //
-    // It reverts the state of all the caches to the latest valid block
-    // It does not clear the cache
-    //
-    // parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
-    // latest_valid_block_number: U256 - the latest valid block number
+    /// Revert the state to the latest valid block
+    ///
+    /// It reverts the state of all the caches to the latest valid block
+    /// It does not clear the cache
+    ///
+    /// parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
+    /// latest_valid_block_number: U256 - the latest valid block number
     pub fn reorg(
         &mut self,
         mut parent_wtxn: &mut RwTxn,
@@ -177,14 +187,14 @@ where
             let cache = self.cache.get_mut(&key).unwrap();
             cache.reorg(latest_valid_block_number);
         }
-        self.commit(&mut parent_wtxn)?;
+        self.commit(&mut parent_wtxn, latest_valid_block_number)?;
         Ok(())
     }
 
-    // Clear the cache
-    //
-    // It clears the cache, make sure to call commit before clearing the cache to write the data to the database
-    // Otherwise the data will be lost
+    /// Clear the cache
+    ///
+    /// It clears the cache, make sure to call commit before clearing the cache to write the data to the database
+    /// Otherwise the data will be lost
     pub fn clear_cache(&mut self) {
         self.cache.clear();
     }
@@ -301,7 +311,7 @@ mod tests {
         assert_eq!(account_info.0.code_hash, B256::from([1; 32]));
 
         let mut wtxn = env.write_txn().unwrap();
-        db.commit(&mut wtxn).unwrap();
+        db.commit(&mut wtxn, 1).unwrap();
         wtxn.commit().unwrap();
 
         let real_db = db.db;
@@ -364,7 +374,7 @@ mod tests {
         assert_eq!(account_info.0.code_hash, B256::from([1; 32]));
 
         let mut wtxn = env.write_txn().unwrap();
-        db.commit(&mut wtxn).unwrap();
+        db.commit(&mut wtxn, 1).unwrap();
         wtxn.commit().unwrap();
 
         let mut wtxn = env.write_txn().unwrap();
@@ -406,7 +416,7 @@ mod tests {
             );
         }
         let mut wtxn = env.write_txn().unwrap();
-        db.commit(&mut wtxn).unwrap();
+        db.commit(&mut wtxn, 10).unwrap();
         wtxn.commit().unwrap();
 
         let mut wtxn = env.write_txn().unwrap();
@@ -414,7 +424,7 @@ mod tests {
         wtxn.commit().unwrap();
 
         let mut wtxn = env.write_txn().unwrap();
-        db.commit(&mut wtxn).unwrap();
+        db.commit(&mut wtxn, 5).unwrap();
         wtxn.commit().unwrap();
 
         let account_info = db.latest(&address_ed).unwrap();
