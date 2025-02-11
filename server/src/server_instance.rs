@@ -329,6 +329,16 @@ impl ServerInstance {
         ))
     }
 
+    pub fn get_storage_at(&self, contract: Address, location: U256) -> U256 {
+        #[cfg(debug_assertions)]
+        println!("Getting storage at {:?} for contract {:?}", location, contract);
+
+        let mut db = self.db_mutex.lock().unwrap();
+        let storage = db.storage(contract, location);
+
+        storage.unwrap_or(U256::ZERO)
+    }
+
     pub fn get_block_by_number(&self, block_number: u64) -> Option<BlockRes> {
         #[cfg(debug_assertions)]
         println!("Getting block by number {}", block_number);
