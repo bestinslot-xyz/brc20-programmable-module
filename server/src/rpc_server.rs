@@ -86,6 +86,32 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(|e| RpcServerError::new(e).into())
     }
 
+    async fn estimate_gas(
+        &self,
+        from: String,
+        to: Option<String>,
+        data: String,
+    ) -> RpcResult<String> {
+        let from = from.parse().unwrap();
+        let to = to.map(|x| x.parse().unwrap());
+        let data = hex::decode(data).unwrap();
+        let data = Bytes::from(data);
+        let tx_info = TxInfo { from, to, data };
+        let gas_used = self
+            .server_instance
+            .call_contract(&tx_info)
+            .unwrap()
+            .gas_used;
+        Ok(gas_used)
+    }
+
+    async fn get_storage_at(&self, contract: String, location: String) -> RpcResult<String> {
+        let addr = contract.parse().unwrap();
+        let location = location.parse().unwrap();
+        let storage = self.server_instance.get_storage_at(addr, location);
+        Ok(format!("0x{:x}", storage))
+    }
+
     async fn add_tx_to_block(
         &self,
         from: String,
@@ -145,8 +171,8 @@ impl Brc20ProgApiServer for RpcServer {
         Ok(())
     }
 
-    async fn get_code(&self, address: String) -> RpcResult<String> {
-        let addr = address.parse().unwrap();
+    async fn get_code(&self, contract: String) -> RpcResult<String> {
+        let addr = contract.parse().unwrap();
         let result = self.server_instance.get_contract_bytecode(addr);
         if let Some(bytecode) = result {
             Ok(hex::encode(bytecode))

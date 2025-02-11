@@ -7,17 +7,23 @@ Legend:
 
 -- Existing endpoints (needs work)
 
-[XS] eth_blockNumber: convert to hex
-[XS] eth_getCode: block only "latest"
-[M] eth_call: gas limit (?) - check input output types match with eth
-[M] eth_getBlockByNumber: logsBloom null ? / BlockRes should be on par with eth / Check out the isFull parameter
-[XS] eth_getBlockByHash: Same as above ^
+✅ [XS] eth_blockNumber: convert to hex
+✅ [XS] eth_getCode: block only "latest"
+[M] eth_call: gas limit check - also, input output types should match with eth
+[M] eth_getBlockByNumber: logsBloom null ? / BlockRes should be on par with eth
+✅ [XS] eth_getBlockByHash: Same as above ^
 
 -- New endpoints
 
+✅ [S] eth_estimateGas: return only gas from eth_call
+✅ [S] eth_getStorageAt: block only "latest"
+
+---- Log endpoints (needs storage)
+
 [XL] eth_getLogs: Record SerializableLogs to database or a file per block
-[S] eth_estimateGas: return only gas from eth_call
-[S] eth_getStorageAt: block only "latest"
+
+---- Transaction endpoints (needs storage)
+
 [S] eth_getTransactionCount: Return nonce at the latest block
 [S] eth_getBlockTransactionCountByNumber
 [S] eth_getBlockTransactionCountByHash

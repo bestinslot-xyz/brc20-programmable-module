@@ -35,6 +35,19 @@ pub trait Brc20ProgApi {
         data: String,
     ) -> RpcResult<SerializableExecutionResult>;
 
+    /// Estimates the gas for the given transaction
+    #[method(name = "eth_estimateGas")]
+    async fn estimate_gas(
+        &self,
+        from: String,
+        to: Option<String>,
+        data: String,
+    ) -> RpcResult<String>;
+
+    /// Get storage for the given contract and memory location
+    #[method(name = "eth_getStorageAt")]
+    async fn get_storage_at(&self, contract: String, location: String) -> RpcResult<String>;
+
     /// Adds a transaction to the block
     #[method(name = "eth_addTxToBlock")]
     async fn add_tx_to_block(
@@ -79,7 +92,7 @@ pub trait Brc20ProgApi {
 
     /// Returns the bytecode of the contract at the given address
     #[method(name = "eth_getCode")]
-    async fn get_code(&self, address: String) -> RpcResult<String>;
+    async fn get_code(&self, contract: String) -> RpcResult<String>;
 
     /// Returns max priority fee per gas in hex format (0 in BRC20)
     #[method(name = "eth_maxPriorityFeePerGas")]
