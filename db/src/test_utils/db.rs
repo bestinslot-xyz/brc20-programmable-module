@@ -1,17 +1,29 @@
-use heed::{Env, EnvOpenOptions, Error};
+use heed::{Env, EnvOpenOptions};
 use std::fs;
 use std::path::Path;
 
-pub fn create_test_env() -> Result<Env, Error> {
-    let path = Path::new("test_db");
-    if path.exists() {
-        fs::remove_dir_all(path).unwrap();
+pub struct EnvWrapper {
+    pub env: Env,
+}
+
+impl Drop for EnvWrapper {
+    fn drop(&mut self) {
+        fs::remove_dir_all(self.env.path()).unwrap();
     }
+}
+
+pub fn create_test_env() -> EnvWrapper {
+    let id = rand::random::<u64>().to_string();
+    let path_str = format!("test_db{}", id);
+    let path = Path::new(&path_str);
     fs::create_dir(path).unwrap();
     unsafe {
-        EnvOpenOptions::new()
-            .map_size(20 * 1024 * 1024 * 1024) // 20GB // TODO: set this reasonably!!
-            .max_dbs(3000)
-            .open(path)
+        EnvWrapper {
+            env: EnvOpenOptions::new()
+                .map_size(20 * 1024 * 1024 * 1024) // 20GB // TODO: set this reasonably!!
+                .max_dbs(3000)
+                .open(path)
+                .unwrap(),
+        }
     }
 }

@@ -179,7 +179,8 @@ mod tests {
 
     #[test]
     fn test_block_database() {
-        let env = create_test_env().unwrap();
+        let env_wrapper = create_test_env();
+        let env = &env_wrapper.env;
         let mut wtxn = env.write_txn().unwrap();
         let mut db = BlockDatabase::<U256ED>::new(env.clone(), "test", &mut wtxn);
         wtxn.commit().unwrap();

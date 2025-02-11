@@ -249,7 +249,8 @@ mod tests {
 
     #[test]
     fn test_cache_only() {
-        let env = create_test_env().unwrap();
+        let wrapper = create_test_env();
+        let env = &wrapper.env;
         let mut wtxn = env.write_txn().unwrap();
         let mut db = BlockCachedDatabase::<
             AddressED,
@@ -284,7 +285,8 @@ mod tests {
 
     #[test]
     fn test_database_commit() {
-        let env = create_test_env().unwrap();
+        let wrapper = create_test_env();
+        let env = &wrapper.env;
         let mut wtxn = env.write_txn().unwrap();
         let mut db = BlockCachedDatabase::<
             AddressED,
@@ -347,7 +349,8 @@ mod tests {
 
     #[test]
     fn test_database_reorg() {
-        let env = create_test_env().unwrap();
+        let wrapper = create_test_env();
+        let env = &wrapper.env;
         let mut wtxn = env.write_txn().unwrap();
         let mut db = BlockCachedDatabase::<
             AddressED,
@@ -389,7 +392,8 @@ mod tests {
 
     #[test]
     fn test_database_reorg_10_blocks() {
-        let env = create_test_env().unwrap();
+        let wrapper = create_test_env();
+        let env = &wrapper.env;
         let mut wtxn = env.write_txn().unwrap();
         let mut db = BlockCachedDatabase::<
             AddressED,
