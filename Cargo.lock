@@ -364,7 +364,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "brc20_finance"
+name = "brc20_prog"
 version = "0.1.0"
 dependencies = [
  "db",
