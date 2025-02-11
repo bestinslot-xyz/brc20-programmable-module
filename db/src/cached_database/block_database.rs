@@ -19,7 +19,7 @@ where
     V: Encode + Decode + Clone,
 {
     env: Env,
-    db: Database<U64ED, BytesWrapper>,
+    db: Database<BytesWrapper, BytesWrapper>,
     cache: BTreeMap<u64, V>,
 }
 
@@ -37,9 +37,9 @@ where
     ///
     /// Returns: BlockDatabase<V> - the created BlockDatabase
     pub fn new(env: Env, name: &str, parent_wtxn: &mut RwTxn) -> Self {
-        let db: Database<U64ED, BytesWrapper> = {
+        let db: Database<BytesWrapper, BytesWrapper> = {
             let old_db = env
-                .open_database::<U64ED, BytesWrapper>(&parent_wtxn, Some(name))
+                .open_database::<BytesWrapper, BytesWrapper>(&parent_wtxn, Some(name))
                 .unwrap();
             if old_db.is_some() {
                 old_db.unwrap()
@@ -55,11 +55,11 @@ where
     }
 
     /// Get the value for a block number
-    ///
+    //
     /// It first checks the cache and then the database
     /// If the value is not found, it returns None
     /// If the value is found, it returns Some(value)
-    ///
+    //
     /// block_number: u64 - the block number to get the value for
     /// Returns: Option<V> - the value for the block number
     pub fn get(&mut self, key: u64) -> Option<V> {
@@ -68,7 +68,13 @@ where
         }
 
         let rtxn = self.env.read_txn().unwrap();
-        let value_bytes = self.db.get(&rtxn, &U64ED::from_u64(key)).unwrap();
+        let value_bytes = self
+            .db
+            .get(
+                &rtxn,
+                &BytesWrapper::from_vec(U64ED::from_u64(key).encode().unwrap()),
+            )
+            .unwrap();
         if value_bytes.is_none() {
             return None;
         }
@@ -78,9 +84,9 @@ where
     }
 
     /// Set the value for a block number
-    ///
+    //
     /// It sets the value in the cache, it's not written to the database until commit is called
-    ///
+    //
     /// block_number: u64 - the block number to set the value for
     /// value: V - the value to set
     pub fn set(&mut self, block_number: u64, value: V) {
@@ -88,24 +94,28 @@ where
     }
 
     /// Commit the cache to the database
-    ///
+    //
     /// It writes all the values in the cache to the database
     /// It does not clear the cache
-    ///
+    //
     /// parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
     pub fn commit(&mut self, mut parent_wtxn: &mut RwTxn) {
         for (key, value) in self.cache.iter() {
             let value_bytes = BytesWrapper::from_vec(value.encode().unwrap());
             self.db
-                .put(&mut parent_wtxn, &U64ED::from_u64(*key), &value_bytes)
+                .put(
+                    &mut parent_wtxn,
+                    &BytesWrapper::from_vec(U64ED::from_u64(*key).encode().unwrap()),
+                    &value_bytes,
+                )
                 .unwrap();
         }
     }
 
     /// Clear the cache
-    ///
+    //
     /// It clears the cache
-    ///
+    //
     /// This does not delete the data from the database, make sure to call commit before clearing the cache
     /// to write the data to the database, otherwise the data will be lost
     pub fn clear_cache(&mut self) {
@@ -113,14 +123,18 @@ where
     }
 
     /// Get the last key in the database
-    ///
+    //
     /// It returns the last key in the database
     /// If the database is empty, it returns None
-    ///
+    //
     /// Returns: Option<u64> - the last key in the database
     pub fn last_key(&self) -> Option<u64> {
         let rtxn = self.env.read_txn().unwrap();
-        let result = self.db.last(&rtxn).unwrap().map(|(key, _)| key.to_u64());
+        let result = self
+            .db
+            .last(&rtxn)
+            .unwrap()
+            .map(|(key, _)| U64ED::decode(key.to_vec()).unwrap().to_u64());
 
         // if cache has larger value, replace result
         if let Some((key, _)) = self.cache.iter().last() {
@@ -135,16 +149,21 @@ where
     }
 
     /// Reorg the database
-    ///
+    //
     /// It deletes all the data that is not valid anymore, i.e. the data with block number greater than latest_valid_block_number
     /// Make sure to call commit on parent_wtxn after calling this function to write the changes to the database
-    ///
-    /// parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
+    //
+    // parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
     pub fn reorg(&mut self, parent_wtxn: &mut RwTxn, latest_valid_block_number: u64) {
         let mut current = latest_valid_block_number + 1;
         let end = self.last_key().unwrap();
         while end >= current {
-            self.db.delete(parent_wtxn, &U64ED::from_u64(end)).unwrap();
+            self.db
+                .delete(
+                    parent_wtxn,
+                    &BytesWrapper::from_vec(U64ED::from_u64(current).encode().unwrap()),
+                )
+                .unwrap();
             self.cache.remove(&end);
             current += 1;
         }

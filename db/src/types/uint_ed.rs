@@ -1,9 +1,8 @@
-use heed::{BytesDecode, BytesEncode};
 use revm::primitives::{
     ruint::{aliases::U256, Uint},
     Address,
 };
-use std::{borrow::Cow, error::Error, fmt};
+use std::{error::Error, fmt};
 
 use super::{Decode, Encode};
 
@@ -65,37 +64,6 @@ impl<const BITS: usize, const LIMBS: usize> Decode for UintEncodeDecode<BITS, LI
     where
         Self: Sized,
     {
-        let mut limbs = [0u64; LIMBS];
-        for (i, limb) in limbs.iter_mut().enumerate() {
-            let start = (LIMBS - 1 - i) * 8;
-            let end = start + 8;
-            let bytes = &bytes[start..end];
-            *limb = u64::from_be_bytes([
-                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-            ]);
-        }
-        Ok(UintEncodeDecode(Uint::from_limbs(limbs)))
-    }
-}
-
-impl<'a, const BITS: usize, const LIMBS: usize> BytesEncode<'a> for UintEncodeDecode<BITS, LIMBS> {
-    type EItem = UintEncodeDecode<BITS, LIMBS>;
-
-    fn bytes_encode(item: &'a Self::EItem) -> Result<Cow<'a, [u8]>, Box<dyn Error + Send + Sync>> {
-        let mut limbs = item.0.as_limbs().to_vec();
-        limbs.reverse();
-        let bytes = limbs
-            .iter()
-            .flat_map(|limb| limb.to_be_bytes().to_vec())
-            .collect::<Vec<u8>>();
-        Ok(Cow::Owned(bytes))
-    }
-}
-
-impl<'a, const BITS: usize, const LIMBS: usize> BytesDecode<'a> for UintEncodeDecode<BITS, LIMBS> {
-    type DItem = UintEncodeDecode<BITS, LIMBS>;
-
-    fn bytes_decode(bytes: &'a [u8]) -> Result<Self::DItem, Box<dyn Error + Send + Sync>> {
         let mut limbs = [0u64; LIMBS];
         for (i, limb) in limbs.iter_mut().enumerate() {
             let start = (LIMBS - 1 - i) * 8;
