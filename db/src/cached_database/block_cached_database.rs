@@ -134,11 +134,10 @@ where
     /// It does not clear the cache
     ///
     /// parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
-    pub fn commit(&self, mut parent_wtxn: &mut RwTxn, block_number: u64) -> Result<()> {
+    pub fn commit(&mut self, mut parent_wtxn: &mut RwTxn, block_number: u64) -> Result<()> {
         for (key, cache) in self.cache.iter() {
             let key_bytes = BytesWrapper::from_vec(K::encode(key).unwrap());
             let cache_bytes = BytesWrapper::from_vec(C::encode(cache).unwrap());
-            // Delete old caches from the cache_db
             if cache.is_old(block_number) {
                 self.cache_db.delete(&mut parent_wtxn, &key_bytes)?;
             } else {
@@ -155,6 +154,16 @@ where
                     &BytesWrapper::from_vec(V::encode(&cache.latest().unwrap()).unwrap()),
                 )?;
             }
+        }
+
+        let keys_to_remove: Vec<K> = self
+            .cache
+            .iter()
+            .filter(|(_, cache)| cache.is_old(block_number))
+            .map(|(key, _)| key.clone())
+            .collect();
+        for key in keys_to_remove {
+            self.cache.remove(&key);
         }
         Ok(())
     }
