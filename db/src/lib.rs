@@ -1,31 +1,21 @@
-use std::collections::HashMap;
-use std::error::Error;
-use std::fs;
-use std::path::Path;
+use std::{collections::HashMap, error::Error, path::Path};
 
 use cached_database::BlockDatabase;
-use heed::{Env, EnvOpenOptions, RwTxn};
 
-use revm::primitives::alloy_primitives::U128;
-use revm::primitives::alloy_primitives::U64;
-use revm::primitives::db::Database as DatabaseTrait;
-use revm::primitives::db::DatabaseCommit;
-use revm::primitives::ruint::aliases::U256;
-use revm::primitives::{Account, AccountInfo, Address, Bytecode, B256};
+use revm::primitives::{
+    alloy_primitives::{U128, U64},
+    db::{Database as DatabaseTrait, DatabaseCommit},
+    ruint::aliases::U256,
+    Account, AccountInfo, Address, Bytecode, B256,
+};
 
 mod cached_database;
 use cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 
-mod test_utils;
-
 mod types;
-use types::U128ED;
-use types::U64ED;
-use types::{AccountInfoED, AddressED, BytecodeED, B256ED, U256ED, U512ED};
+use types::{AccountInfoED, AddressED, BytecodeED, B256ED, U128ED, U256ED, U512ED, U64ED};
 
 pub struct DB {
-    env: Option<Env>,
-
     /// Account address to memory location
     /// TODO: If the value is zero, consider deleting it from the database to save space
     db_account_memory: Option<BlockCachedDatabase<U512ED, U256ED, BlockHistoryCacheData<U256ED>>>,
@@ -60,7 +50,6 @@ pub struct DB {
 impl Default for DB {
     fn default() -> Self {
         Self {
-            env: None,
             db_account_memory: None,
             db_code: None,
             db_account: None,
@@ -74,55 +63,21 @@ impl Default for DB {
     }
 }
 
-fn create_env() -> Result<Env, Box<dyn Error>> {
-    let path = Path::new("target").join("heed.mdb");
-    fs::create_dir_all(&path)?;
-
-    let env = unsafe {
-        EnvOpenOptions::new()
-            .map_size(20 * 1024 * 1024 * 1024) // 20GB // TODO: set this reasonably!!
-            .max_dbs(3000)
-            .open(path)?
-    };
-
-    Ok(env)
-}
-
 impl DB {
     pub fn new() -> Result<Self, Box<dyn Error>> {
-        let env = create_env()?;
+        let base_path = Path::new("target").join("db");
+        let db_account_memory = Some(BlockCachedDatabase::new(&base_path, "account_memory_map"));
+        let db_code = Some(BlockCachedDatabase::new(&base_path, "code_map"));
+        let db_account = Some(BlockCachedDatabase::new(&base_path, "account_map"));
+        let db_block_hash_to_number =
+            Some(BlockCachedDatabase::new(&base_path, "block_hash_to_number"));
 
-        let mut wtxn = env.write_txn()?;
-        let db_account_memory = Some(BlockCachedDatabase::new(
-            env.clone(),
-            "account_memory_map",
-            &mut wtxn,
-        ));
-        let db_code = Some(BlockCachedDatabase::new(env.clone(), "code_map", &mut wtxn));
-        let db_account = Some(BlockCachedDatabase::new(
-            env.clone(),
-            "account_map",
-            &mut wtxn,
-        ));
-        let db_block_hash_to_number = Some(BlockCachedDatabase::new(
-            env.clone(),
-            "block_hash_to_number",
-            &mut wtxn,
-        ));
-
-        let db_block_number_to_hash =
-            Some(BlockDatabase::new(env.clone(), "block_hash", &mut wtxn));
-        let db_block_number_to_timestamp =
-            Some(BlockDatabase::new(env.clone(), "block_ts", &mut wtxn));
-        let db_block_number_to_gas_used =
-            Some(BlockDatabase::new(env.clone(), "gas_used", &mut wtxn));
-        let db_block_number_to_mine_tm =
-            Some(BlockDatabase::new(env.clone(), "mine_tm", &mut wtxn));
-
-        wtxn.commit()?;
+        let db_block_number_to_hash = Some(BlockDatabase::new(&base_path, "block_hash"));
+        let db_block_number_to_timestamp = Some(BlockDatabase::new(&base_path, "block_ts"));
+        let db_block_number_to_gas_used = Some(BlockDatabase::new(&base_path, "gas_used"));
+        let db_block_number_to_mine_tm = Some(BlockDatabase::new(&base_path, "mine_tm"));
 
         Ok(Self {
-            env: Some(env),
             db_account_memory,
             db_code,
             db_account,
@@ -135,19 +90,16 @@ impl DB {
         })
     }
 
-    pub fn get_write_txn(&self) -> Result<RwTxn, Box<dyn Error>> {
-        Ok(self.env.as_ref().unwrap().write_txn()?)
-    }
-
     pub fn get_latest_block_height(&self) -> Result<u64, Box<dyn Error>> {
         if self.latest_block_number.is_some() {
             return Ok(self.latest_block_number.unwrap().0);
         }
-        self.db_block_number_to_hash
+        Ok(self
+            .db_block_number_to_hash
             .as_ref()
             .unwrap()
-            .last_key()
-            .ok_or_else(|| "Latest block number not found".into())
+            .last_key()?
+            .unwrap_or(0))
     }
 
     pub fn get_account_memory(
@@ -159,7 +111,7 @@ impl DB {
             .db_account_memory
             .as_ref()
             .unwrap()
-            .latest(&U512ED::from_addr_u256(account, mem_loc));
+            .latest(&U512ED::from_addr_u256(account, mem_loc))?;
 
         Ok(ret.map(|x| x.0))
     }
@@ -185,7 +137,7 @@ impl DB {
             .db_code
             .as_ref()
             .unwrap()
-            .latest(&B256ED::from_b256(code_hash));
+            .latest(&B256ED::from_b256(code_hash))?;
 
         Ok(ret.map(|x| x.0))
     }
@@ -208,7 +160,7 @@ impl DB {
             .db_account
             .as_ref()
             .unwrap()
-            .latest(&AddressED::from_addr(account));
+            .latest(&AddressED::from_addr(account))?;
 
         Ok(ret.map(|x| x.0))
     }
@@ -233,7 +185,7 @@ impl DB {
             .db_block_hash_to_number
             .as_ref()
             .unwrap()
-            .latest(&B256ED::from_b256(block_hash));
+            .latest(&B256ED::from_b256(block_hash))?;
 
         Ok(ret.map(|x| x.to_u64()))
     }
@@ -243,7 +195,7 @@ impl DB {
             .db_block_number_to_hash
             .as_mut()
             .unwrap()
-            .get(block_number);
+            .get(block_number)?;
 
         Ok(ret.map(|x| x.0))
     }
@@ -275,7 +227,7 @@ impl DB {
             .db_block_number_to_timestamp
             .as_mut()
             .unwrap()
-            .get(number);
+            .get(number)?;
 
         Ok(ret.map(|x| x.0))
     }
@@ -298,7 +250,7 @@ impl DB {
             .db_block_number_to_gas_used
             .as_mut()
             .unwrap()
-            .get(block_number);
+            .get(block_number)?;
 
         Ok(ret.map(|x| x.0))
     }
@@ -320,7 +272,7 @@ impl DB {
             .db_block_number_to_mine_tm
             .as_mut()
             .unwrap()
-            .get(block_number);
+            .get(block_number)?;
 
         Ok(ret.map(|x| x.0))
     }
@@ -339,37 +291,32 @@ impl DB {
     }
 
     pub fn commit_changes(&mut self) -> Result<(), Box<dyn Error>> {
-        let env = self.env.clone().unwrap();
-        let mut wtxn = env.write_txn()?;
-
         let latest_block_number = self.get_latest_block_height()?;
 
-        self.db_block_number_to_hash
-            .as_mut()
-            .unwrap()
-            .commit(&mut wtxn);
+        self.db_block_number_to_hash.as_mut().unwrap().commit()?;
         self.db_block_number_to_timestamp
             .as_mut()
             .unwrap()
-            .commit(&mut wtxn);
+            .commit()?;
         self.db_block_number_to_gas_used
             .as_mut()
             .unwrap()
-            .commit(&mut wtxn);
-        self.db_block_number_to_mine_tm
+            .commit()?;
+        self.db_block_number_to_mine_tm.as_mut().unwrap().commit()?;
+
+        self.db_account_memory
             .as_mut()
             .unwrap()
-            .commit(&mut wtxn);
-
-        self.db_account_memory.as_ref().unwrap().commit(&mut wtxn, latest_block_number)?;
-        self.db_code.as_ref().unwrap().commit(&mut wtxn, latest_block_number)?;
-        self.db_account.as_ref().unwrap().commit(&mut wtxn, latest_block_number)?;
-        self.db_block_hash_to_number
-            .as_ref()
+            .commit(latest_block_number)?;
+        self.db_code.as_mut().unwrap().commit(latest_block_number)?;
+        self.db_account
+            .as_mut()
             .unwrap()
-            .commit(&mut wtxn, latest_block_number)?;
-        wtxn.commit()?;
-        self.env.clone().unwrap().force_sync()?;
+            .commit(latest_block_number)?;
+        self.db_block_hash_to_number
+            .as_mut()
+            .unwrap()
+            .commit(latest_block_number)?;
 
         self.clear_caches();
         Ok(())
@@ -396,47 +343,41 @@ impl DB {
     }
 
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
-        let env = self.env.clone().unwrap();
-        let mut wtxn = env.write_txn()?;
-
         self.db_account_memory
             .as_mut()
             .unwrap()
-            .reorg(&mut wtxn, latest_valid_block_number)?;
+            .reorg(latest_valid_block_number)?;
         self.db_code
             .as_mut()
             .unwrap()
-            .reorg(&mut wtxn, latest_valid_block_number)?;
+            .reorg(latest_valid_block_number)?;
         self.db_account
             .as_mut()
             .unwrap()
-            .reorg(&mut wtxn, latest_valid_block_number)?;
+            .reorg(latest_valid_block_number)?;
         self.db_block_hash_to_number
             .as_mut()
             .unwrap()
-            .reorg(&mut wtxn, latest_valid_block_number)?;
+            .reorg(latest_valid_block_number)?;
 
         self.db_block_number_to_hash
             .as_mut()
             .unwrap()
-            .reorg(&mut wtxn, latest_valid_block_number);
+            .reorg(latest_valid_block_number)?;
         self.db_block_number_to_timestamp
             .as_mut()
             .unwrap()
-            .reorg(&mut wtxn, latest_valid_block_number);
+            .reorg(latest_valid_block_number)?;
         self.db_block_number_to_gas_used
             .as_mut()
             .unwrap()
-            .reorg(&mut wtxn, latest_valid_block_number);
+            .reorg(latest_valid_block_number)?;
         self.db_block_number_to_mine_tm
             .as_mut()
             .unwrap()
-            .reorg(&mut wtxn, latest_valid_block_number);
+            .reorg(latest_valid_block_number)?;
 
-        wtxn.commit()?;
-        self.env.clone().unwrap().force_sync()?;
-        self.clear_caches();
-
+        self.commit_changes()?;
         Ok(())
     }
 }

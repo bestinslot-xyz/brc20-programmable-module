@@ -1,14 +1,12 @@
 use std::{
     collections::{HashMap, HashSet},
     hash::Hash,
+    path::Path,
 };
 
-use heed::{Database, Env, Result, RwTxn};
+use rocksdb::{Error, IteratorMode, Options, DB};
 
-use crate::{
-    cached_database::BytesWrapper,
-    types::{Decode, Encode},
-};
+use crate::types::{Decode, Encode};
 
 use super::BlockHistoryCache;
 
@@ -27,9 +25,8 @@ where
     V: Encode + Decode + Clone + Eq,
     C: BlockHistoryCache<V> + Encode + Decode + Clone,
 {
-    env: Env,
-    db: Database<BytesWrapper, BytesWrapper>,
-    cache_db: Database<BytesWrapper, BytesWrapper>,
+    db: DB,
+    cache_db: DB,
     cache: HashMap<K, C>,
 
     _phantom: std::marker::PhantomData<V>,
@@ -45,36 +42,17 @@ where
     ///
     /// It creates a new database if it does not exist
     ///
-    /// env: heed::Env - the environment to store the database
+    /// path: &Path - the path to store the database
     /// name: &str - the name of the database
-    /// parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
     ///
     /// Returns: BlockCachedDatabase<K, V, C> - the created BlockCachedDatabase
-    pub fn new(env: Env, name: &str, parent_wtxn: &mut RwTxn) -> Self {
-        let db: Database<BytesWrapper, BytesWrapper> = {
-            let old_db = env
-                .open_database::<BytesWrapper, BytesWrapper>(&parent_wtxn, Some(name))
-                .unwrap();
-            if old_db.is_some() {
-                old_db.unwrap()
-            } else {
-                env.create_database(parent_wtxn, Some(name)).unwrap()
-            }
-        };
-        let cache_db = {
-            let cache_name = format!("{}_cache", &name);
-            let old_db = env
-                .open_database::<BytesWrapper, BytesWrapper>(&parent_wtxn, Some(&cache_name))
-                .unwrap();
-            if old_db.is_some() {
-                old_db.unwrap()
-            } else {
-                env.create_database(parent_wtxn, Some(&cache_name)).unwrap()
-            }
-        };
+    pub fn new(path: &Path, name: &str) -> Self {
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+        let db = DB::open(&opts, &path.join(Path::new(name))).unwrap();
+        let cache_db = DB::open(&opts, &path.join(Path::new(&format!("{}_cache", name)))).unwrap();
         let cache = HashMap::new();
         Self {
-            env: env.clone(),
             db,
             cache_db,
             cache,
@@ -90,23 +68,17 @@ where
     ///
     /// key: &K - the key to get the value for
     /// Returns: Option<V> - the value for the key
-    pub fn latest(&self, key: &K) -> Option<V> {
+    pub fn latest(&self, key: &K) -> Result<Option<V>, Error> {
         if self.cache.contains_key(key) {
             let cache = self.cache.get(key).unwrap();
-            return cache.latest();
+            return Ok(cache.latest());
         }
-        let rtxn = self.env.read_txn().unwrap();
-        let result = self
-            .db
-            .get(&rtxn, &BytesWrapper::from_vec(K::encode(key).unwrap()));
-        if result.is_err() {
-            return None;
+        let result = self.db.get(key.encode().unwrap())?;
+        if result.is_none() {
+            return Ok(None);
         }
-        let value = result.unwrap();
-        if value.is_none() {
-            return None;
-        }
-        Some(V::decode(value.unwrap().to_vec()).unwrap())
+        let value = V::decode(result.unwrap().to_vec()).unwrap();
+        Ok(Some(value))
     }
 
     /// Set the value for a key
@@ -116,7 +88,7 @@ where
     /// block_number: U256 - the block number to set the value for
     /// key: K - the key to set the value for
     /// value: V - the value to set
-    pub fn set(&mut self, block_number: u64, key: K, value: V) -> Result<()> {
+    pub fn set(&mut self, block_number: u64, key: K, value: V) -> Result<(), Error> {
         if self.cache.contains_key(&key) {
             let cache = self.cache.get_mut(&key).unwrap();
             cache.set(block_number, value);
@@ -133,26 +105,22 @@ where
     /// It writes all the values in the cache to the database
     /// It does not clear the cache
     ///
-    /// parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
-    pub fn commit(&mut self, mut parent_wtxn: &mut RwTxn, block_number: u64) -> Result<()> {
+    /// block_number: U256 - the block number to commit at
+    pub fn commit(&mut self, block_number: u64) -> Result<(), Error> {
         for (key, cache) in self.cache.iter() {
-            let key_bytes = BytesWrapper::from_vec(K::encode(key).unwrap());
-            let cache_bytes = BytesWrapper::from_vec(C::encode(cache).unwrap());
+            let key_bytes = K::encode(key).unwrap();
+            let cache_bytes = C::encode(cache).unwrap();
             if cache.is_old(block_number) {
-                self.cache_db.delete(&mut parent_wtxn, &key_bytes)?;
+                self.cache_db.delete(&key_bytes)?;
             } else {
-                self.cache_db
-                    .put(&mut parent_wtxn, &key_bytes, &cache_bytes)?;
+                self.cache_db.put(&key_bytes, &cache_bytes)?;
             }
 
             if cache.latest().is_none() {
-                self.db.delete(&mut parent_wtxn, &key_bytes)?;
+                self.db.delete(&key_bytes)?;
             } else {
-                self.db.put(
-                    &mut parent_wtxn,
-                    &key_bytes,
-                    &BytesWrapper::from_vec(V::encode(&cache.latest().unwrap()).unwrap()),
-                )?;
+                self.db
+                    .put(&key_bytes, &cache.latest().unwrap().encode().unwrap())?;
             }
         }
 
@@ -165,6 +133,8 @@ where
         for key in keys_to_remove {
             self.cache.remove(&key);
         }
+
+        self.clear_cache();
         Ok(())
     }
 
@@ -173,19 +143,12 @@ where
     /// It reverts the state of all the caches to the latest valid block
     /// It does not clear the cache
     ///
-    /// parent_wtxn: &mut heed::RwTxn<'_, '_> - the write transaction to use
     /// latest_valid_block_number: U256 - the latest valid block number
-    pub fn reorg(
-        &mut self,
-        mut parent_wtxn: &mut RwTxn,
-        latest_valid_block_number: u64,
-    ) -> Result<()> {
+    pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Error> {
         let mut keys = HashSet::new();
         {
-            let rtxn = self.env.read_txn()?;
-            for result in self.cache_db.iter(&rtxn).unwrap() {
-                let (key, _) = result?;
-                keys.insert(K::decode(key.to_vec()).unwrap());
+            for kv_pair in self.cache_db.full_iterator(IteratorMode::Start) {
+                keys.insert(K::decode(kv_pair.unwrap().0.to_vec()).unwrap());
             }
             for key in self.cache.keys() {
                 keys.insert(key.clone());
@@ -196,7 +159,8 @@ where
             let cache = self.cache.get_mut(&key).unwrap();
             cache.reorg(latest_valid_block_number);
         }
-        self.commit(&mut parent_wtxn, latest_valid_block_number)?;
+        self.commit(latest_valid_block_number)?;
+        self.clear_cache();
         Ok(())
     }
 
@@ -208,36 +172,18 @@ where
         self.cache.clear();
     }
 
-    fn load_cache_if_needed(&mut self, key: &K) -> Result<()> {
+    fn load_cache_if_needed(&mut self, key: &K) -> Result<(), Error> {
         if self.cache.contains_key(key) {
             return Ok(());
         }
 
-        let rtxn = self.env.read_txn()?;
-        let cache_bytes = self
-            .cache_db
-            .get(&rtxn, &BytesWrapper::from_vec(K::encode(key).unwrap()));
-        if cache_bytes.is_err() {
-            let latest_db_value = self
-                .db
-                .get(&rtxn, &BytesWrapper::from_vec(K::encode(key).unwrap()));
-            if latest_db_value.is_err() {
-                self.cache.insert(key.clone(), C::new(None));
-            } else {
-                let initial_cache_value: Option<V> = latest_db_value
-                    .unwrap()
-                    .map(|v| V::decode(v.to_vec()).unwrap());
-                self.cache.insert(key.clone(), C::new(initial_cache_value));
-            }
-        } else {
-            let value = cache_bytes.unwrap();
-            if value.is_none() {
-                self.cache.insert(key.clone(), C::new(None));
-                return Ok(());
-            }
-            let cache = C::decode(value.unwrap().to_vec()).unwrap();
-            self.cache.insert(key.clone(), cache);
+        let cache_bytes = self.cache_db.get(key.encode().unwrap())?;
+        if cache_bytes.is_none() {
+            self.cache.insert(key.clone(), C::new(None));
+            return Ok(());
         }
+        let cache = C::decode(cache_bytes.unwrap().to_vec()).unwrap();
+        self.cache.insert(key.clone(), cache);
         Ok(())
     }
 }
@@ -248,25 +194,21 @@ mod tests {
     use revm::primitives::Address;
     use revm::primitives::B256;
     use revm::primitives::U256;
+    use tempfile::TempDir;
 
-    use crate::cached_database::BytesWrapper;
     use crate::cached_database::{BlockCachedDatabase, BlockHistoryCache, BlockHistoryCacheData};
-    use crate::test_utils::db::create_test_env;
     use crate::types::Decode;
     use crate::types::Encode;
     use crate::types::{AccountInfoED, AddressED};
 
     #[test]
     fn test_cache_only() {
-        let wrapper = create_test_env();
-        let env = &wrapper.env;
-        let mut wtxn = env.write_txn().unwrap();
+        let path = TempDir::new().unwrap();
         let mut db = BlockCachedDatabase::<
             AddressED,
             AccountInfoED,
             BlockHistoryCacheData<AccountInfoED>,
-        >::new(env.clone(), "test_db", &mut wtxn);
-        wtxn.commit().unwrap();
+        >::new(path.path(), "test_db");
 
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
@@ -280,7 +222,7 @@ mod tests {
         let address_ed = AddressED::from_addr(address);
         let _ = db.set(1, address_ed.clone(), account_info.clone());
 
-        let account_info = db.latest(&address_ed).unwrap();
+        let account_info = db.latest(&address_ed).unwrap().unwrap();
         assert_eq!(account_info.0.balance, U256::from(100));
         assert_eq!(account_info.0.nonce, 1);
         assert_eq!(account_info.0.code_hash, B256::from([1; 32]));
@@ -294,15 +236,12 @@ mod tests {
 
     #[test]
     fn test_database_commit() {
-        let wrapper = create_test_env();
-        let env = &wrapper.env;
-        let mut wtxn = env.write_txn().unwrap();
+        let path = TempDir::new().unwrap();
         let mut db = BlockCachedDatabase::<
             AddressED,
             AccountInfoED,
             BlockHistoryCacheData<AccountInfoED>,
-        >::new(env.clone(), "test_db", &mut wtxn);
-        wtxn.commit().unwrap();
+        >::new(path.path(), "test_db");
 
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
@@ -316,24 +255,16 @@ mod tests {
         let address_ed = AddressED::from_addr(address);
         let _ = db.set(1, address_ed.clone(), account_info.clone());
 
-        let account_info = db.latest(&address_ed).unwrap();
+        let account_info = db.latest(&address_ed).unwrap().unwrap();
         assert_eq!(account_info.0.balance, U256::from(100));
         assert_eq!(account_info.0.nonce, 1);
         assert_eq!(account_info.0.code_hash, B256::from([1; 32]));
 
-        let mut wtxn = env.write_txn().unwrap();
-        db.commit(&mut wtxn, 1).unwrap();
-        wtxn.commit().unwrap();
+        db.commit(1).unwrap();
 
         let real_db = db.db;
 
-        let rtxn = env.read_txn().unwrap();
-        let account_info = real_db
-            .get(
-                &rtxn,
-                &BytesWrapper::from_vec(AddressED::encode(&address_ed).unwrap()),
-            )
-            .unwrap();
+        let account_info = real_db.get(address_ed.encode().unwrap()).unwrap();
 
         let account_info = AccountInfoED::decode(account_info.unwrap().to_vec()).unwrap();
         assert_eq!(account_info.0.balance, U256::from(100));
@@ -342,12 +273,7 @@ mod tests {
 
         let cache_db = db.cache_db;
 
-        let cache = cache_db
-            .get(
-                &rtxn,
-                &BytesWrapper::from_vec(AddressED::encode(&address_ed).unwrap()),
-            )
-            .unwrap();
+        let cache = cache_db.get(address_ed.encode().unwrap()).unwrap();
 
         let cache =
             BlockHistoryCacheData::<AccountInfoED>::decode(cache.unwrap().to_vec()).unwrap();
@@ -358,15 +284,12 @@ mod tests {
 
     #[test]
     fn test_database_reorg() {
-        let wrapper = create_test_env();
-        let env = &wrapper.env;
-        let mut wtxn = env.write_txn().unwrap();
+        let path = TempDir::new().unwrap();
         let mut db = BlockCachedDatabase::<
             AddressED,
             AccountInfoED,
             BlockHistoryCacheData<AccountInfoED>,
-        >::new(env.clone(), "test_db", &mut wtxn);
-        wtxn.commit().unwrap();
+        >::new(path.path(), "test_db");
 
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
@@ -380,36 +303,27 @@ mod tests {
         let address_ed = AddressED::from_addr(address);
         let _ = db.set(1, address_ed.clone(), account_info.clone());
 
-        let account_info = db.latest(&address_ed).unwrap();
+        let account_info = db.latest(&address_ed).unwrap().unwrap();
         assert_eq!(account_info.0.balance, U256::from(100));
         assert_eq!(account_info.0.nonce, 1);
         assert_eq!(account_info.0.code_hash, B256::from([1; 32]));
 
-        let mut wtxn = env.write_txn().unwrap();
-        db.commit(&mut wtxn, 1).unwrap();
-        wtxn.commit().unwrap();
-
-        let mut wtxn = env.write_txn().unwrap();
-        db.reorg(&mut wtxn, 0).unwrap();
-        wtxn.commit().unwrap();
-
+        db.commit(1).unwrap();
+        db.reorg(0).unwrap();
         db.clear_cache();
 
         let account_info = db.latest(&address_ed);
-        assert!(account_info.is_none());
+        assert!(account_info.unwrap().is_none());
     }
 
     #[test]
     fn test_database_reorg_10_blocks() {
-        let wrapper = create_test_env();
-        let env = &wrapper.env;
-        let mut wtxn = env.write_txn().unwrap();
+        let path = TempDir::new().unwrap();
         let mut db = BlockCachedDatabase::<
             AddressED,
             AccountInfoED,
             BlockHistoryCacheData<AccountInfoED>,
-        >::new(env.clone(), "test_db", &mut wtxn);
-        wtxn.commit().unwrap();
+        >::new(path.path(), "test_db");
 
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
@@ -428,19 +342,13 @@ mod tests {
                 }),
             );
         }
-        let mut wtxn = env.write_txn().unwrap();
-        db.commit(&mut wtxn, 10).unwrap();
-        wtxn.commit().unwrap();
+        db.commit(10).unwrap();
 
-        let mut wtxn = env.write_txn().unwrap();
-        db.reorg(&mut wtxn, 5).unwrap();
-        wtxn.commit().unwrap();
+        db.reorg(5).unwrap();
 
-        let mut wtxn = env.write_txn().unwrap();
-        db.commit(&mut wtxn, 5).unwrap();
-        wtxn.commit().unwrap();
+        db.commit(5).unwrap();
 
-        let account_info = db.latest(&address_ed).unwrap();
+        let account_info = db.latest(&address_ed).unwrap().unwrap();
         assert_eq!(account_info.0.balance, U256::from(100 + 5));
         assert_eq!(account_info.0.nonce, 1 + 5);
         assert_eq!(account_info.0.code_hash, B256::from([1; 32]));
