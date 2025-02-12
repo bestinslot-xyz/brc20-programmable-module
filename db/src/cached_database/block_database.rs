@@ -84,6 +84,7 @@ where
             self.db
                 .put(U64ED::from_u64(*key).encode().unwrap(), &value_bytes)?;
         }
+        self.db.flush()?;
         Ok(())
     }
 
@@ -129,7 +130,7 @@ where
     /// Reorg the database
     //
     /// It deletes all the data that is not valid anymore, i.e. the data with block number greater than latest_valid_block_number
-    /// Make sure to call commit on parent_wtxn after calling this function to write the changes to the database
+    /// Make sure to call commit after calling this function to write the changes to the database
     //
     /// latest_valid_block_number: u64 - the latest valid block number
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Error> {
