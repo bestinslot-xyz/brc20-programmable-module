@@ -6,6 +6,3 @@ pub use block_database::BlockDatabase;
 
 mod block_cached_database;
 pub use block_cached_database::BlockCachedDatabase;
-
-mod bytes_wrapper;
-use bytes_wrapper::*;
