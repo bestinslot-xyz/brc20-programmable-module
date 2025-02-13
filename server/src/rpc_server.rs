@@ -1,5 +1,6 @@
-use std::{error::Error, net::SocketAddr};
+use std::{error::Error, net::SocketAddr, str::FromStr};
 
+use db::types::{TxED, TxReceiptED};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     server::{Server, ServerHandle},
@@ -61,6 +62,41 @@ impl Brc20ProgApiServer for RpcServer {
         } else {
             Err(RpcServerError::new("Block not found").into())
         }
+    }
+
+    async fn get_transaction_by_hash(&self, transaction: String) -> RpcResult<Option<TxED>> {
+        let tx_hash = B256::from_str(&transaction[2..]).unwrap();
+        let tx = self.server_instance.get_transaction_by_hash(tx_hash);
+        Ok(tx)
+    }
+
+    async fn get_transaction_by_block_hash_and_index(
+        &self,
+        block_hash: String,
+        tx_idx: u64,
+    ) -> RpcResult<Option<TxED>> {
+        let block_hash = B256::from_str(&block_hash[2..]).unwrap();
+        let tx = self
+            .server_instance
+            .get_transaction_by_block_hash_and_index(block_hash, tx_idx);
+        Ok(tx)
+    }
+
+    async fn get_transaction_by_block_number_and_index(
+        &self,
+        block_number: u64,
+        tx_idx: u64,
+    ) -> RpcResult<Option<TxED>> {
+        let tx = self
+            .server_instance
+            .get_transaction_by_block_number_and_index(block_number, tx_idx);
+        Ok(tx)
+    }
+
+    async fn get_transaction_receipt(&self, transaction: String) -> RpcResult<Option<TxReceiptED>> {
+        let tx_hash = B256::from_str(&transaction[2..]).unwrap();
+        let receipt = self.server_instance.get_transaction_receipt(tx_hash);
+        Ok(receipt)
     }
 
     async fn mine(&self, block_cnt: u64, timestamp: u64) -> RpcResult<()> {

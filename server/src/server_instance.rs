@@ -1,7 +1,11 @@
+use std::str::FromStr;
 use std::sync::Mutex;
 use std::time::Instant;
 
-use db::DB;
+use db::{
+    types::{TxED, TxReceiptED},
+    DB,
+};
 use revm::primitives::{Address, BlockEnv, Bytes, ExecutionResult, TransactTo, B256, U256};
 use revm::Database;
 
@@ -171,7 +175,79 @@ impl ServerInstance {
         );
         *last_block_gas_used += output.gas_used();
 
-        Ok(get_serializable_execution_result(output, txhash, nonce))
+        let serializable_result = get_serializable_execution_result(&output, txhash, nonce);
+
+        let mut db = self.db_mutex.lock().unwrap();
+        db.set_tx_receipt(
+            hash,
+            number,
+            serializable_result
+                .contract_address
+                .map(|x| Address::from_str(x.as_str()).unwrap()),
+            tx_info.from,
+            tx_info.to,
+            &tx_info.data,
+            txhash,
+            tx_idx,
+            &output.clone(),
+            *last_block_gas_used,
+            nonce,
+        )
+        .unwrap();
+
+        Ok(get_serializable_execution_result(&output, txhash, nonce))
+    }
+
+    pub fn get_transaction_by_block_hash_and_index(
+        &self,
+        block_hash: B256,
+        tx_idx: u64,
+    ) -> Option<TxED> {
+        #[cfg(debug_assertions)]
+        println!(
+            "Getting tx by block hash {:?} and index {:?}",
+            block_hash, tx_idx
+        );
+
+        let mut db = self.db_mutex.lock().unwrap();
+        let tx_hash = db
+            .get_tx_hash_by_block_hash_and_index(block_hash, tx_idx)
+            .unwrap();
+        tx_hash.map(|x| db.get_tx_by_hash(x.0).unwrap()).unwrap()
+    }
+
+    pub fn get_transaction_by_block_number_and_index(
+        &self,
+        block_number: u64,
+        tx_idx: u64,
+    ) -> Option<TxED> {
+        #[cfg(debug_assertions)]
+        println!(
+            "Getting tx by block number {:?} and index {:?}",
+            block_number, tx_idx
+        );
+
+        let mut db = self.db_mutex.lock().unwrap();
+        let tx_hash = db
+            .get_tx_hash_by_block_number_and_index(block_number, tx_idx)
+            .unwrap();
+        tx_hash.map(|x| db.get_tx_by_hash(x.0).unwrap()).unwrap()
+    }
+
+    pub fn get_transaction_by_hash(&self, tx_hash: B256) -> Option<TxED> {
+        #[cfg(debug_assertions)]
+        println!("Getting tx by hash {:?}", tx_hash);
+
+        let mut db = self.db_mutex.lock().unwrap();
+        db.get_tx_by_hash(tx_hash).unwrap()
+    }
+
+    pub fn get_transaction_receipt(&self, tx_hash: B256) -> Option<TxReceiptED> {
+        #[cfg(debug_assertions)]
+        println!("Getting tx receipt for {:?}", tx_hash);
+
+        let mut db = self.db_mutex.lock().unwrap();
+        db.get_tx_receipt(tx_hash).unwrap()
     }
 
     pub fn finalise_block(
@@ -323,7 +399,7 @@ impl ServerInstance {
         }
 
         Ok(get_serializable_execution_result(
-            output.unwrap(),
+            &output.unwrap(),
             txhash,
             nonce,
         ))
@@ -331,7 +407,10 @@ impl ServerInstance {
 
     pub fn get_storage_at(&self, contract: Address, location: U256) -> U256 {
         #[cfg(debug_assertions)]
-        println!("Getting storage at {:?} for contract {:?}", location, contract);
+        println!(
+            "Getting storage at {:?} for contract {:?}",
+            location, contract
+        );
 
         let mut db = self.db_mutex.lock().unwrap();
         let storage = db.storage(contract, location);
@@ -387,7 +466,7 @@ impl ServerInstance {
         #[cfg(debug_assertions)]
         println!("Got block {:?} hash {:?}", block_number, block_hash);
 
-        self.get_block_by_number(block_number.unwrap())
+        self.get_block_by_number(block_number.unwrap().to_u64())
     }
 
     pub fn get_contract_bytecode(&self, addr: Address) -> Option<Bytes> {
@@ -398,7 +477,7 @@ impl ServerInstance {
         let acct = db.basic(addr).unwrap().unwrap();
         let bytecode = db.get_code(acct.code_hash).unwrap().unwrap();
 
-        Some(bytecode.bytes())
+        Some(bytecode.0.bytes())
     }
 
     pub fn clear_caches(&self) {
@@ -435,7 +514,7 @@ impl ServerInstance {
 
     pub fn reorg(&self, latest_valid_block_number: u64) -> Result<(), &'static str> {
         #[cfg(debug_assertions)]
-        println!("Reorging to block {}", latest_valid_block_number);
+        println!("Reorg to block {}", latest_valid_block_number);
 
         let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
         if *waiting_tx_cnt != 0 {

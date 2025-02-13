@@ -7,12 +7,6 @@ use super::{Decode, Encode};
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct AccountInfoED(pub AccountInfo);
 
-impl AccountInfoED {
-    pub fn from_account_info(a: AccountInfo) -> Self {
-        Self(a)
-    }
-}
-
 impl Encode for AccountInfoED {
     fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>> {
         let mut bytes = Vec::new();
@@ -53,7 +47,7 @@ mod tests {
 
     #[test]
     fn test_account_info_ed() {
-        let account_info = AccountInfoED::from_account_info(AccountInfo {
+        let account_info = AccountInfoED(AccountInfo {
             balance: U256::from(100),
             nonce: 1,
             code_hash: B256::from([1; 32]),

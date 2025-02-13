@@ -9,8 +9,8 @@ Legend:
 
 ✅ [XS] eth_blockNumber: convert to hex
 ✅ [XS] eth_getCode: block only "latest"
-[M] eth_call: gas limit check - also, input output types should match with eth
-[M] eth_getBlockByNumber: logsBloom null ? / BlockRes should be on par with eth
+[M] eth_call: add a gas limit check - also, input output types should match with eth endpoint
+[M] eth_getBlockByNumber: calculate logsBloom / BlockRes should be on par with eth endpoint
 ✅ [XS] eth_getBlockByHash: Same as above ^
 
 -- New endpoints
@@ -27,10 +27,10 @@ Legend:
 [S] eth_getTransactionCount: Return nonce at the latest block
 [S] eth_getBlockTransactionCountByNumber
 [S] eth_getBlockTransactionCountByHash
-[L] eth_getTransactionByHash: A database of txes by txhash to output
-[M] eth_getTransactionByBlockNumberAndIndex: Record txes and return
-[XS] eth_getTransactionByBlockHashAndIndex: Record txes and return
-[L] eth_getTransactionReceipt: Implement, record by txhash
+✅ [L] eth_getTransactionByHash: A database of txes by txhash to output
+✅ [XS] eth_getTransactionByBlockNumberAndIndex: Record txes and return
+✅ [XS] eth_getTransactionByBlockHashAndIndex: Record txes and return
+✅ [L] eth_getTransactionReceipt: Implement, record by txhash
 
 - Static values: Values for BRC2.0 Prog
 

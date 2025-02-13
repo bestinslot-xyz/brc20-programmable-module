@@ -213,13 +213,13 @@ mod tests {
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
             .unwrap();
-        let account_info = AccountInfoED::from_account_info(AccountInfo {
+        let account_info = AccountInfoED(AccountInfo {
             balance: U256::from(100),
             nonce: 1,
             code_hash: B256::from([1; 32]),
             code: None,
         });
-        let address_ed = AddressED::from_addr(address);
+        let address_ed = AddressED(address);
         let _ = db.set(1, address_ed.clone(), account_info.clone());
 
         let account_info = db.latest(&address_ed).unwrap().unwrap();
@@ -246,13 +246,13 @@ mod tests {
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
             .unwrap();
-        let account_info = AccountInfoED::from_account_info(AccountInfo {
+        let account_info = AccountInfoED(AccountInfo {
             balance: U256::from(100),
             nonce: 1,
             code_hash: B256::from([1; 32]),
             code: None,
         });
-        let address_ed = AddressED::from_addr(address);
+        let address_ed = AddressED(address);
         let _ = db.set(1, address_ed.clone(), account_info.clone());
 
         let account_info = db.latest(&address_ed).unwrap().unwrap();
@@ -294,13 +294,13 @@ mod tests {
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
             .unwrap();
-        let account_info = AccountInfoED::from_account_info(AccountInfo {
+        let account_info = AccountInfoED(AccountInfo {
             balance: U256::from(100),
             nonce: 1,
             code_hash: B256::from([1; 32]),
             code: None,
         });
-        let address_ed = AddressED::from_addr(address);
+        let address_ed = AddressED(address);
         let _ = db.set(1, address_ed.clone(), account_info.clone());
 
         let account_info = db.latest(&address_ed).unwrap().unwrap();
@@ -328,13 +328,13 @@ mod tests {
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
             .unwrap();
-        let address_ed = AddressED::from_addr(address);
+        let address_ed = AddressED(address);
 
         for i in 1..=10 {
             let _ = db.set(
                 i,
                 address_ed.clone(),
-                AccountInfoED::from_account_info(AccountInfo {
+                AccountInfoED(AccountInfo {
                     balance: U256::from(100 + i),
                     nonce: i + 1,
                     code_hash: B256::from([1; 32]),
