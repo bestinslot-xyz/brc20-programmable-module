@@ -2,15 +2,20 @@ use std::error::Error;
 
 use revm::primitives::alloy_primitives::Bytes;
 use revm::primitives::Bytecode;
+use serde::Serialize;
 
 use super::{Decode, Encode};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct BytecodeED(pub Bytecode);
 
-impl BytecodeED {
-    pub fn from_bytecode(a: Bytecode) -> Self {
-        Self(a)
+impl Serialize for BytecodeED {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let hex_string = format!("{:x}", self.0.bytecode());
+        serializer.serialize_str(&hex_string)
     }
 }
 
@@ -40,9 +45,26 @@ mod tests {
     #[test]
     fn test_bytecode_ed() {
         let bytecode: Bytecode = Bytecode::new_raw(Bytes::from("Hello world"));
-        let bytecode_ed = BytecodeED::from_bytecode(bytecode);
+        let bytecode_ed = BytecodeED(bytecode);
         let bytes = BytecodeED::encode(&bytecode_ed).unwrap();
         let decoded = BytecodeED::decode(bytes).unwrap();
         assert_eq!(bytecode_ed.0, decoded.0);
+    }
+
+    #[test]
+    fn test_bytecode_ed_empty() {
+        let bytecode: Bytecode = Bytecode::new_raw(Bytes::from(""));
+        let bytecode_ed = BytecodeED(bytecode);
+        let bytes = BytecodeED::encode(&bytecode_ed).unwrap();
+        let decoded = BytecodeED::decode(bytes).unwrap();
+        assert_eq!(bytecode_ed.0, decoded.0);
+    }
+
+    #[test]
+    fn test_bytecode_ed_serialize() {
+        let bytecode: Bytecode = Bytecode::new_raw(Bytes::from("Hello world"));
+        let bytecode_ed = BytecodeED(bytecode);
+        let serialized = serde_json::to_string(&bytecode_ed).unwrap();
+        assert_eq!(serialized, "\"0x48656c6c6f20776f726c64\"");
     }
 }

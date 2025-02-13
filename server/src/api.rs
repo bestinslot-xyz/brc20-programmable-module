@@ -1,3 +1,4 @@
+use db::types::{TxED, TxReceiptED};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use crate::types::{BlockResJSON, SerializableExecutionResult, TxInfo};
@@ -93,6 +94,30 @@ pub trait Brc20ProgApi {
     /// Returns the bytecode of the contract at the given address
     #[method(name = "eth_getCode")]
     async fn get_code(&self, contract: String) -> RpcResult<String>;
+
+    /// Returns the transaction receipt for the given transaction hash
+    #[method(name = "eth_getTransactionReceipt")]
+    async fn get_transaction_receipt(&self, transaction: String) -> RpcResult<Option<TxReceiptED>>;
+
+    /// Returns the transaction by hash
+    #[method(name = "eth_getTransactionByHash")]
+    async fn get_transaction_by_hash(&self, transaction: String) -> RpcResult<Option<TxED>>;
+
+    /// Returns the transaction by block number and index
+    #[method(name = "eth_getTransactionByBlockNumberAndIndex")]
+    async fn get_transaction_by_block_number_and_index(
+        &self,
+        number: u64,
+        index: u64,
+    ) -> RpcResult<Option<TxED>>;
+
+    /// Returns the transaction by block hash and index
+    #[method(name = "eth_getTransactionByBlockHashAndIndex")]
+    async fn get_transaction_by_block_hash_and_index(
+        &self,
+        hash: String,
+        index: u64,
+    ) -> RpcResult<Option<TxED>>;
 
     /// Returns max priority fee per gas in hex format (0 in BRC20)
     #[method(name = "eth_maxPriorityFeePerGas")]

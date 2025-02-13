@@ -1,4 +1,5 @@
 /target
+/db/target
 test_db
 node_modules
 venv

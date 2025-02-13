@@ -6,14 +6,17 @@ use revm::primitives::{
     alloy_primitives::{U128, U64},
     db::{Database as DatabaseTrait, DatabaseCommit},
     ruint::aliases::U256,
-    Account, AccountInfo, Address, Bytecode, B256,
+    Account, AccountInfo, Address, Bytecode, Bytes, ExecutionResult, B256,
 };
 
 mod cached_database;
 use cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 
-mod types;
-use types::{AccountInfoED, AddressED, BytecodeED, B256ED, U128ED, U256ED, U512ED, U64ED};
+pub mod types;
+
+use types::{
+    AccountInfoED, AddressED, BytecodeED, TxED, TxReceiptED, B256ED, U128ED, U256ED, U512ED, U64ED,
+};
 
 pub struct DB {
     /// Account address to memory location
@@ -26,6 +29,17 @@ pub struct DB {
     /// Account address to account info
     db_account:
         Option<BlockCachedDatabase<AddressED, AccountInfoED, BlockHistoryCacheData<AccountInfoED>>>,
+
+    /// Block number and index to tx hash
+    db_number_and_index_to_tx_hash:
+        Option<BlockCachedDatabase<U128ED, B256ED, BlockHistoryCacheData<B256ED>>>,
+
+    /// TxHash to tx receipt
+    db_tx_receipt:
+        Option<BlockCachedDatabase<B256ED, TxReceiptED, BlockHistoryCacheData<TxReceiptED>>>,
+
+    /// Tx hash to Tx
+    db_tx: Option<BlockCachedDatabase<B256ED, TxED, BlockHistoryCacheData<TxED>>>,
 
     /// Block hash to block number
     db_block_hash_to_number:
@@ -53,6 +67,9 @@ impl Default for DB {
             db_account_memory: None,
             db_code: None,
             db_account: None,
+            db_number_and_index_to_tx_hash: None,
+            db_tx_receipt: None,
+            db_tx: None,
             db_block_number_to_hash: None,
             db_block_hash_to_number: None,
             db_block_number_to_timestamp: None,
@@ -64,28 +81,34 @@ impl Default for DB {
 }
 
 impl DB {
-    pub fn new() -> Result<Self, Box<dyn Error>> {
-        let base_path = Path::new("target").join("db");
-        let db_account_memory = Some(BlockCachedDatabase::new(&base_path, "account_memory_map"));
-        let db_code = Some(BlockCachedDatabase::new(&base_path, "code_map"));
-        let db_account = Some(BlockCachedDatabase::new(&base_path, "account_map"));
-        let db_block_hash_to_number =
-            Some(BlockCachedDatabase::new(&base_path, "block_hash_to_number"));
-
-        let db_block_number_to_hash = Some(BlockDatabase::new(&base_path, "block_hash"));
-        let db_block_number_to_timestamp = Some(BlockDatabase::new(&base_path, "block_ts"));
-        let db_block_number_to_gas_used = Some(BlockDatabase::new(&base_path, "gas_used"));
-        let db_block_number_to_mine_tm = Some(BlockDatabase::new(&base_path, "mine_tm"));
-
+    pub fn new(base_path: &Path) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
-            db_account_memory,
-            db_code,
-            db_account,
-            db_block_number_to_hash,
-            db_block_hash_to_number,
-            db_block_number_to_timestamp,
-            db_block_number_to_gas_used,
-            db_block_number_to_mine_tm,
+            db_account_memory: Some(BlockCachedDatabase::new(&base_path, "account_memory")),
+            db_code: Some(BlockCachedDatabase::new(&base_path, "code")),
+            db_account: Some(BlockCachedDatabase::new(&base_path, "account")),
+            db_number_and_index_to_tx_hash: Some(BlockCachedDatabase::new(
+                &base_path,
+                "number_and_index_to_tx_hash",
+            )),
+            db_tx_receipt: Some(BlockCachedDatabase::new(&base_path, "tx_receipt")),
+            db_tx: Some(BlockCachedDatabase::new(&base_path, "tx")),
+            db_block_hash_to_number: Some(BlockCachedDatabase::new(
+                &base_path,
+                "block_hash_to_number",
+            )),
+            db_block_number_to_hash: Some(BlockDatabase::new(&base_path, "block_number_to_hash")),
+            db_block_number_to_timestamp: Some(BlockDatabase::new(
+                &base_path,
+                "block_number_to_timestamp",
+            )),
+            db_block_number_to_gas_used: Some(BlockDatabase::new(
+                &base_path,
+                "block_number_to_gas_used",
+            )),
+            db_block_number_to_mine_tm: Some(BlockDatabase::new(
+                &base_path,
+                "block_number_to_mine_tm",
+            )),
             latest_block_number: None,
         })
     }
@@ -106,14 +129,14 @@ impl DB {
         &mut self,
         account: Address,
         mem_loc: U256,
-    ) -> Result<Option<U256>, Box<dyn Error>> {
+    ) -> Result<Option<U256ED>, Box<dyn Error>> {
         let ret = self
             .db_account_memory
             .as_ref()
             .unwrap()
             .latest(&U512ED::from_addr_u256(account, mem_loc))?;
 
-        Ok(ret.map(|x| x.0))
+        Ok(ret)
     }
 
     pub fn set_account_memory(
@@ -132,37 +155,147 @@ impl DB {
         Ok(())
     }
 
-    pub fn get_code(&mut self, code_hash: B256) -> Result<Option<Bytecode>, Box<dyn Error>> {
+    pub fn get_code(&mut self, code_hash: B256) -> Result<Option<BytecodeED>, Box<dyn Error>> {
         let ret = self
             .db_code
             .as_ref()
             .unwrap()
             .latest(&B256ED::from_b256(code_hash))?;
 
-        Ok(ret.map(|x| x.0))
+        Ok(ret)
     }
 
     pub fn set_code(&mut self, code_hash: B256, bytecode: Bytecode) -> Result<(), Box<dyn Error>> {
         let block_number = self.get_latest_block_height()?;
-        self.db_code.as_mut().unwrap().set(
+        Ok(self.db_code.as_mut().unwrap().set(
             block_number,
             B256ED::from_b256(code_hash),
-            BytecodeED::from_bytecode(bytecode),
+            BytecodeED(bytecode),
+        )?)
+    }
+
+    fn get_number_and_index_key(block_number: u64, tx_idx: u64) -> Result<u128, Box<dyn Error>> {
+        Ok(((tx_idx as u128) << 64) | block_number as u128)
+    }
+
+    pub fn get_tx_hash_by_block_number_and_index(
+        &mut self,
+        block_number: u64,
+        tx_idx: u64,
+    ) -> Result<Option<B256ED>, Box<dyn Error>> {
+        let key = Self::get_number_and_index_key(block_number, tx_idx)?;
+        let ret = self
+            .db_number_and_index_to_tx_hash
+            .as_ref()
+            .unwrap()
+            .latest(&U128ED::from_u128(key))?;
+
+        Ok(ret)
+    }
+
+    pub fn get_tx_hash_by_block_hash_and_index(
+        &mut self,
+        block_hash: B256,
+        tx_idx: u64,
+    ) -> Result<Option<B256ED>, Box<dyn Error>> {
+        let block_number = self.get_block_number(block_hash)?;
+        if block_number.is_none() {
+            return Ok(None);
+        }
+
+        self.get_tx_hash_by_block_number_and_index(block_number.unwrap().to_u64(), tx_idx)
+    }
+
+    pub fn get_tx_by_hash(&mut self, tx_hash: B256) -> Result<Option<TxED>, Box<dyn Error>> {
+        let ret = self
+            .db_tx
+            .as_ref()
+            .unwrap()
+            .latest(&B256ED::from_b256(tx_hash))?;
+
+        Ok(ret)
+    }
+
+    pub fn get_tx_receipt(&mut self, tx_hash: B256) -> Result<Option<TxReceiptED>, Box<dyn Error>> {
+        let ret = self
+            .db_tx_receipt
+            .as_ref()
+            .unwrap()
+            .latest(&B256ED::from_b256(tx_hash))?;
+
+        Ok(ret)
+    }
+
+    pub fn set_tx_receipt(
+        &mut self,
+        block_hash: B256,
+        block_number: u64,
+        contract_address: Option<Address>,
+        from: Address,
+        to: Option<Address>,
+        data: &Bytes,
+        tx_hash: B256,
+        tx_idx: u64,
+        output: &ExecutionResult,
+        cumulative_gas_used: u64,
+        nonce: u64,
+    ) -> Result<(), Box<dyn Error>> {
+        let tx_receipt = TxReceiptED::new(
+            block_hash,
+            block_number,
+            contract_address,
+            from,
+            to,
+            tx_hash,
+            tx_idx,
+            output,
+            cumulative_gas_used,
+            nonce,
+        );
+
+        let tx = TxED {
+            hash: B256ED::from_b256(tx_hash),
+            nonce,
+            block_hash: B256ED::from_b256(block_hash),
+            block_number,
+            transaction_index: tx_idx,
+            from: AddressED(from),
+            to: to.map(AddressED),
+            value: 0,
+            gas: 0,
+            gas_price: 0,
+            input: data.clone(),
+        };
+
+        self.db_tx
+            .as_mut()
+            .unwrap()
+            .set(block_number, B256ED::from_b256(tx_hash), tx)?;
+
+        self.db_number_and_index_to_tx_hash.as_mut().unwrap().set(
+            block_number,
+            U128ED::from_u128(Self::get_number_and_index_key(block_number, tx_idx)?),
+            B256ED::from_b256(tx_hash),
         )?;
-        Ok(())
+
+        Ok(self.db_tx_receipt.as_mut().unwrap().set(
+            block_number,
+            B256ED::from_b256(tx_hash),
+            tx_receipt,
+        )?)
     }
 
     pub fn get_account_info(
         &mut self,
         account: Address,
-    ) -> Result<Option<AccountInfo>, Box<dyn Error>> {
+    ) -> Result<Option<AccountInfoED>, Box<dyn Error>> {
         let ret = self
             .db_account
             .as_ref()
             .unwrap()
-            .latest(&AddressED::from_addr(account))?;
+            .latest(&AddressED(account))?;
 
-        Ok(ret.map(|x| x.0))
+        Ok(ret)
     }
 
     pub fn set_account_info(
@@ -171,23 +304,21 @@ impl DB {
         value: AccountInfo,
     ) -> Result<(), Box<dyn Error>> {
         let block_number = self.get_latest_block_height()?;
-        self.db_account.as_mut().unwrap().set(
+        Ok(self.db_account.as_mut().unwrap().set(
             block_number,
-            AddressED::from_addr(account),
-            AccountInfoED::from_account_info(value),
-        )?;
-
-        Ok(())
+            AddressED(account),
+            AccountInfoED(value),
+        )?)
     }
 
-    pub fn get_block_number(&mut self, block_hash: B256) -> Result<Option<u64>, Box<dyn Error>> {
+    pub fn get_block_number(&mut self, block_hash: B256) -> Result<Option<U64ED>, Box<dyn Error>> {
         let ret = self
             .db_block_hash_to_number
             .as_ref()
             .unwrap()
             .latest(&B256ED::from_b256(block_hash))?;
 
-        Ok(ret.map(|x| x.to_u64()))
+        Ok(ret)
     }
 
     pub fn get_block_hash(&mut self, block_number: u64) -> Result<Option<B256>, Box<dyn Error>> {
@@ -213,13 +344,12 @@ impl DB {
             .as_mut()
             .unwrap()
             .set(block_number, B256ED::from_b256(block_hash));
-        self.db_block_hash_to_number.as_mut().unwrap().set(
+
+        Ok(self.db_block_hash_to_number.as_mut().unwrap().set(
             block_number,
             B256ED::from_b256(block_hash),
             U64ED::from_u64(block_number),
-        )?;
-
-        Ok(())
+        )?)
     }
 
     pub fn get_block_timestamp(&mut self, number: u64) -> Result<Option<U64>, Box<dyn Error>> {
@@ -237,12 +367,11 @@ impl DB {
         block_number: u64,
         block_timestamp: u64,
     ) -> Result<(), Box<dyn Error>> {
-        self.db_block_number_to_timestamp
+        Ok(self
+            .db_block_number_to_timestamp
             .as_mut()
             .unwrap()
-            .set(block_number, U64ED::from_u64(block_timestamp));
-
-        Ok(())
+            .set(block_number, U64ED::from_u64(block_timestamp)))
     }
 
     pub fn get_gas_used(&mut self, block_number: u64) -> Result<Option<U64>, Box<dyn Error>> {
@@ -256,12 +385,11 @@ impl DB {
     }
 
     pub fn set_gas_used(&mut self, block_number: u64, gas_used: u64) -> Result<(), Box<dyn Error>> {
-        self.db_block_number_to_gas_used
+        Ok(self
+            .db_block_number_to_gas_used
             .as_mut()
             .unwrap()
-            .set(block_number, U64ED::from_u64(gas_used));
-
-        Ok(())
+            .set(block_number, U64ED::from_u64(gas_used)))
     }
 
     pub fn get_mine_timestamp(
@@ -282,12 +410,11 @@ impl DB {
         block_number: u64,
         mine_timestamp: u128,
     ) -> Result<(), Box<dyn Error>> {
-        self.db_block_number_to_mine_tm
+        Ok(self
+            .db_block_number_to_mine_tm
             .as_mut()
             .unwrap()
-            .set(block_number, U128ED::from_u128(mine_timestamp));
-
-        Ok(())
+            .set(block_number, U128ED::from_u128(mine_timestamp)))
     }
 
     pub fn commit_changes(&mut self) -> Result<(), Box<dyn Error>> {
@@ -303,6 +430,14 @@ impl DB {
             .unwrap()
             .commit()?;
         self.db_block_number_to_mine_tm.as_mut().unwrap().commit()?;
+        self.db_number_and_index_to_tx_hash
+            .as_mut()
+            .unwrap()
+            .commit(latest_block_number)?;
+        self.db_tx_receipt
+            .as_mut()
+            .unwrap()
+            .commit(latest_block_number)?;
 
         self.db_account_memory
             .as_mut()
@@ -328,6 +463,11 @@ impl DB {
         self.db_account.as_mut().unwrap().clear_cache();
         self.db_block_number_to_hash.as_mut().unwrap().clear_cache();
         self.db_block_hash_to_number.as_mut().unwrap().clear_cache();
+        self.db_tx_receipt.as_mut().unwrap().clear_cache();
+        self.db_number_and_index_to_tx_hash
+            .as_mut()
+            .unwrap()
+            .clear_cache();
         self.db_block_number_to_timestamp
             .as_mut()
             .unwrap()
@@ -359,6 +499,14 @@ impl DB {
             .as_mut()
             .unwrap()
             .reorg(latest_valid_block_number)?;
+        self.db_number_and_index_to_tx_hash
+            .as_mut()
+            .unwrap()
+            .reorg(latest_valid_block_number)?;
+        self.db_tx_receipt
+            .as_mut()
+            .unwrap()
+            .reorg(latest_valid_block_number)?;
 
         self.db_block_number_to_hash
             .as_mut()
@@ -377,8 +525,7 @@ impl DB {
             .unwrap()
             .reorg(latest_valid_block_number)?;
 
-        self.commit_changes()?;
-        Ok(())
+        Ok(self.commit_changes()?)
     }
 }
 
@@ -392,11 +539,11 @@ impl DatabaseTrait for DB {
         // println!("basic res {:?}", res);
 
         if res.is_some() {
-            let mut res = res.unwrap();
+            let mut res = res.unwrap().0;
             res.code = Some(self.code_by_hash(res.code_hash).unwrap());
             Ok(Some(res))
         } else {
-            Ok(res)
+            Ok(None)
         }
     }
 
@@ -404,14 +551,14 @@ impl DatabaseTrait for DB {
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
         // println!("code_by_hash {}", code_hash);
         self.get_code(code_hash)
-            .map(|x| x.unwrap_or(Bytecode::default()))
+            .map(|x| x.unwrap_or(BytecodeED(Bytecode::new())).0)
     }
 
     /// Get storage value of address at index.
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         // println!("storage {} {}", address, index);
         self.get_account_memory(address, index)
-            .map(|x| x.unwrap_or(U256::ZERO))
+            .map(|x| x.unwrap_or(U256ED::from_u256(U256::ZERO)).0)
     }
 
     /// Get block hash by block number.
@@ -446,5 +593,187 @@ impl DatabaseCommit for DB {
                 let _ = self.set_account_memory(address, loc, slot.present_value());
             }
         }
+    }
+}
+
+/// Tests for all set and get methods
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use revm::primitives::{Address, Bytes, Output, SuccessReason};
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_db() {
+        let path = TempDir::new().unwrap().into_path();
+
+        let address = Address::from([1u8; 20]);
+        let code_hash = B256::from([2u8; 32]);
+        let bytecode = Bytecode::new_raw(Bytes::from(vec![3u8; 32]));
+        let account_info = AccountInfo {
+            balance: U256::from(100),
+            nonce: 4,
+            code_hash,
+            code: Some(bytecode.clone()),
+        };
+        let mine_timestamp = 5;
+
+        let mem_loc = U256::from(6);
+        let value = U256::from(7);
+        let block_number = 8;
+        let block_hash = B256::from([9u8; 32]);
+        let block_timestamp = 10;
+        let gas_used = 11;
+
+        {
+            let mut db = DB::new(&path).unwrap();
+
+            db.set_account_info(address, account_info.clone()).unwrap();
+            assert_eq!(
+                db.get_account_info(address).unwrap().unwrap().0,
+                account_info
+            );
+
+            db.set_code(code_hash, bytecode.clone()).unwrap();
+            assert_eq!(db.get_code(code_hash).unwrap().unwrap().0, bytecode);
+
+            db.set_account_memory(address, mem_loc, value).unwrap();
+            assert_eq!(
+                db.get_account_memory(address, mem_loc).unwrap().unwrap().0,
+                value
+            );
+
+            db.set_block_hash(block_number, block_hash).unwrap();
+            assert_eq!(
+                db.get_block_hash(block_number).unwrap().unwrap(),
+                block_hash
+            );
+
+            db.set_block_timestamp(block_number, block_timestamp)
+                .unwrap();
+            assert_eq!(
+                db.get_block_timestamp(block_number).unwrap().unwrap(),
+                block_timestamp.try_into().unwrap()
+            );
+
+            db.set_gas_used(block_number, gas_used).unwrap();
+            assert_eq!(
+                db.get_gas_used(block_number).unwrap().unwrap(),
+                gas_used.try_into().unwrap()
+            );
+
+            db.set_mine_timestamp(block_number, mine_timestamp).unwrap();
+            assert_eq!(
+                db.get_mine_timestamp(block_number).unwrap().unwrap(),
+                mine_timestamp.try_into().unwrap()
+            );
+
+            db.commit_changes().unwrap();
+        }
+
+        let mut db = DB::new(&path).unwrap();
+
+        assert_eq!(
+            db.get_account_info(address).unwrap().unwrap().0,
+            account_info
+        );
+        assert_eq!(db.get_code(code_hash).unwrap().unwrap().0, bytecode);
+        assert_eq!(
+            db.get_account_memory(address, mem_loc).unwrap().unwrap().0,
+            value
+        );
+        assert_eq!(
+            db.get_block_hash(block_number).unwrap().unwrap(),
+            block_hash
+        );
+        assert_eq!(
+            db.get_block_timestamp(block_number).unwrap().unwrap(),
+            block_timestamp.try_into().unwrap()
+        );
+        assert_eq!(
+            db.get_gas_used(block_number).unwrap().unwrap(),
+            gas_used.try_into().unwrap()
+        );
+        assert_eq!(
+            db.get_mine_timestamp(block_number).unwrap().unwrap(),
+            mine_timestamp.try_into().unwrap()
+        );
+    }
+
+    #[test]
+    fn test_tx_methods() {
+        let path = TempDir::new().unwrap().into_path();
+
+        let data = vec![0u8; 32];
+        let block_hash = B256::from([1u8; 32]);
+        let block_number = 2;
+        let contract_address = Address::from([3u8; 20]);
+        let from = Address::from([4u8; 20]);
+        let to = Address::from([5u8; 20]);
+        let tx_hash = B256::from([6u8; 32]);
+        let tx_idx = 7;
+        let output = ExecutionResult::Success {
+            reason: SuccessReason::Return,
+            gas_used: 10,
+            gas_refunded: 0,
+            logs: Vec::new(),
+            output: Output::Call(Bytes::from(vec![11u8; 32])),
+        };
+        let cumulative_gas_used = 8;
+        let nonce = 9;
+
+        {
+            let mut db = DB::new(&path).unwrap();
+
+            db.set_block_hash(block_number, block_hash).unwrap();
+            db.set_tx_receipt(
+                block_hash,
+                block_number,
+                Some(contract_address),
+                from,
+                Some(to),
+                &Bytes::from(data),
+                tx_hash,
+                tx_idx,
+                &output,
+                cumulative_gas_used,
+                nonce,
+            )
+            .unwrap();
+
+            db.commit_changes().unwrap();
+        }
+
+        let mut db = DB::new(&path).unwrap();
+
+        assert_eq!(
+            db.get_tx_hash_by_block_number_and_index(block_number, tx_idx)
+                .unwrap()
+                .unwrap()
+                .0,
+            tx_hash
+        );
+        assert_eq!(
+            db.get_tx_hash_by_block_hash_and_index(block_hash, tx_idx)
+                .unwrap()
+                .unwrap()
+                .0,
+            tx_hash
+        );
+        assert_eq!(
+            db.get_tx_receipt(tx_hash).unwrap().unwrap(),
+            TxReceiptED::new(
+                block_hash,
+                block_number,
+                Some(contract_address),
+                from,
+                Some(to),
+                tx_hash,
+                tx_idx,
+                &output,
+                cumulative_gas_used,
+                nonce
+            )
+        );
     }
 }

@@ -2,6 +2,7 @@ use revm::primitives::{
     ruint::{aliases::U256, Uint},
     Address,
 };
+use serde::Serialize;
 use std::{error::Error, fmt};
 
 use super::{Decode, Encode};
@@ -44,6 +45,16 @@ impl U64ED {
 
     pub fn to_u64(&self) -> u64 {
         self.0.as_limbs()[0]
+    }
+}
+
+impl<const BITS: usize, const LIMBS: usize> Serialize for UintEncodeDecode<BITS, LIMBS> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let hex_string = format!("0x{:x}", self.0);
+        serializer.serialize_str(&hex_string)
     }
 }
 

@@ -111,8 +111,8 @@ where
 }
 
 pub fn get_serializable_execution_result(
-    result: ExecutionResult,
-    txhash: String,
+    result: &ExecutionResult,
+    txhash: B256,
     nonce: u64,
 ) -> SerializableExecutionResult {
     match result {
@@ -123,7 +123,7 @@ pub fn get_serializable_execution_result(
             output,
             reason,
         } => SerializableExecutionResult {
-            txhash: "0x".to_string() + txhash.as_str(),
+            txhash: txhash.to_string(),
             nonce,
             r#type: "Success".to_string(),
             reason: match reason {
@@ -156,7 +156,7 @@ pub fn get_serializable_execution_result(
             },
         },
         ExecutionResult::Revert { gas_used, output } => SerializableExecutionResult {
-            txhash,
+            txhash: txhash.to_string(),
             nonce,
             r#type: "Revert".to_string(),
             reason: "".to_string(),
@@ -167,7 +167,7 @@ pub fn get_serializable_execution_result(
             contract_address: None,
         },
         ExecutionResult::Halt { gas_used, reason } => SerializableExecutionResult {
-            txhash,
+            txhash: txhash.to_string(),
             nonce,
             r#type: "Halt".to_string(),
             reason: match reason {
@@ -218,7 +218,7 @@ pub fn get_serializable_execution_result(
     }
 }
 
-pub fn get_tx_hash(txinfo: &TxInfo, nonce: &u64) -> String {
+pub fn get_tx_hash(txinfo: &TxInfo, nonce: &u64) -> B256 {
     let mut data = Vec::new();
     data.extend_from_slice(txinfo.from.as_slice());
     data.extend_from_slice(&nonce.to_be_bytes());
@@ -228,5 +228,5 @@ pub fn get_tx_hash(txinfo: &TxInfo, nonce: &u64) -> String {
         data.extend_from_slice(&[0; 20]);
     }
     data.extend_from_slice(&txinfo.data);
-    hex::encode(keccak256(data).0)
+    keccak256(data)
 }
