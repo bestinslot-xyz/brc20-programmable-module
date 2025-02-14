@@ -47,6 +47,13 @@ Legend:
 ✅ [XS] eth_getUncleByBlockNumberAndIndex: Return null
 ✅ [XS] eth_getUncleByBlockHashAndIndex: Return null
 
+- Planned after release
+
+[M] eth_newBlockFilter
+[M] eth_uninstallFilter
+[M] eth_getFilterChanges
+[M] eth_getFilterLogs
+
 - Not supported in BRC2.0 Prog
 
 ✅ [!] [None] eth_feeHistory: Not Supported
@@ -57,3 +64,10 @@ Legend:
 ✅ [!] [None] eth_mining: Not Supported
 ✅ [!] [None] eth_hashrate: Not Supported
 ✅ [!] [None] eth_getWork: Not Supported
+
+✅ [!] [None] eth_sign: Not Supported
+✅ [!] [None] eth_signTransaction: Not Supported
+✅ [!] [None] eth_sendTransaction: Not Supported
+✅ [!] [None] eth_sendRawTransaction: Not Supported
+
+✅ [!] [None] eth_newPendingTransactionFilter: Not Supported
