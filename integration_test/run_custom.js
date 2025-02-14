@@ -79,8 +79,8 @@ async function get_info_of_block(block_number) {
 
   return res
 }
-async function eth_mine(n, timestamp) {
-  await provider_send("eth_mine", { block_cnt: parseInt(n), timestamp: parseInt(timestamp) });
+async function brc20_mine(n, timestamp) {
+  await provider_send("brc20_mine", { block_cnt: parseInt(n), timestamp: parseInt(timestamp) });
 }
 /* async function eth_mine_with_txes(timestamp, hash, txes) {
   let responses = []
@@ -92,8 +92,8 @@ async function eth_mine(n, timestamp) {
   await provider_send("eth_finaliseBlock", { timestamp: parseInt(timestamp), hash: hash, block_tx_cnt: responses.length });
   return responses
 } */
-async function eth_mine_with_txes(timestamp, hash, txes) {
-  return await provider_send("eth_finaliseBlockWithTxes", { timestamp: parseInt(timestamp), hash: hash, txes: txes });
+async function brc20_mine_with_txes(timestamp, hash, txes) {
+  return await provider_send("brc20_finaliseBlockWithTxes", { timestamp: parseInt(timestamp), hash: hash, txes: txes });
 }
 
 
@@ -105,7 +105,7 @@ async function initialise_chain() {
   if (current_block_height == 0) {
     console.log("deploying BRC20_Controller")
     const deploy_brc20_controller_tx = await get_deploy_brc20_controller_tx();
-    let resp = await eth_mine_with_txes(0, "0x0000000000000000000000000000000000000000000000000000000000000000", [deploy_brc20_controller_tx]);
+    let resp = await brc20_mine_with_txes(0, "0x0000000000000000000000000000000000000000000000000000000000000000", [deploy_brc20_controller_tx]);
     let brc20_controller_deploy_receipt = resp[0];
 
     if (brc20_controller_deploy_receipt.contractAddress != brc20_controller_addr) {
@@ -120,7 +120,7 @@ async function initialise_chain() {
   for (let i = current_block_height; i < module_activation_height - 1;) {
     console.log(`initialising block ${i} time per block ${(+(new Date()) - st_tm) / (i - current_block_height + 1)}`)
     let block_count = Math.min(1000, module_activation_height - i - 1)
-    await eth_mine(block_count, 0);
+    await brc20_mine(block_count, 0);
     i += block_count
   }
 
@@ -181,7 +181,7 @@ async function mine_next_block(timestamp, hash, block_txes) {
       txes.push(to_send)
     }
   }
-  let receipts = await eth_mine_with_txes(timestamp, hash, txes);
+  let receipts = await brc20_mine_with_txes(timestamp, hash, txes);
 
   return check_block_receipts(block_txes, receipts)
 }
@@ -249,7 +249,7 @@ function check_block_receipts(block_txes, receipts) {
 
 async function restore_to_last_ok_height(block_height) {
   const reverted = await provider_send(
-    "eth_reorg",
+    "brc20_reorg",
     { last_ok_height: parseInt(block_height) },
   );
 
@@ -288,7 +288,7 @@ async function call_a_function_of_a_smart_contract_as_a_specific_address(contrac
     from: address,
     data: data,
   }
-  let res = await provider_send("eth_call", tx)
+  let res = await provider_send("brc20_call", tx)
 
   return res
 }
@@ -678,7 +678,7 @@ app.get('/commit_changes_to_db', async (request, response) => {
   try {
     console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
 
-    let resp = await provider_send("eth_commit_to_db", {})
+    let resp = await provider_send("brc20_commitToDatabase", {})
 
     response.send({
       error: null,
