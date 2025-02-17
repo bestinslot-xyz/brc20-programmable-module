@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use db::{
-    types::{TxED, TxReceiptED},
+    types::{LogResponseED, TxED, TxReceiptED},
     DB,
 };
 use revm::primitives::{Address, BlockEnv, Bytes, ExecutionResult, TransactTo, B256, U256};
@@ -248,6 +248,25 @@ impl ServerInstance {
 
         let mut db = self.db_mutex.lock().unwrap();
         db.get_tx_receipt(tx_hash).unwrap()
+    }
+
+    pub fn get_logs(
+        &self,
+        block_number_from: Option<u64>,
+        block_number_to: Option<u64>,
+        address: Option<Address>,
+        topics: Option<Vec<B256>>,
+    ) -> Vec<LogResponseED> {
+        #[cfg(debug_assertions)]
+        println!("Getting logs");
+
+        let mut db = self.db_mutex.lock().unwrap();
+        db.get_logs(
+            block_number_from,
+            block_number_to,
+            address,
+            topics.unwrap_or(Vec::new()),
+        ).unwrap()
     }
 
     pub fn finalise_block(

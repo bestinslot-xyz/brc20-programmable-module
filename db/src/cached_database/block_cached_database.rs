@@ -81,6 +81,34 @@ where
         Ok(Some(value))
     }
 
+    /// Get the range of values between start_key and end_key
+    ///
+    /// It returns a list of key-value pairs between start_key and end_key
+    ///
+    /// This only works if keys can be compared in their encoded form
+    ///
+    /// start_key: &K - the start key
+    /// end_key: &K - the end key
+    /// Returns: Vec<(K, V)> - the list of key-value pairs
+    pub fn get_range(&self, start_key: &K, end_key: &K) -> Result<Vec<(K, V)>, Error> {
+        let mut result = Vec::new();
+        let start_key_bytes = start_key.encode().unwrap();
+        let end_key_bytes = end_key.encode().unwrap();
+        for kv_pair in self.db.iterator(IteratorMode::From(
+            &start_key_bytes,
+            rocksdb::Direction::Forward,
+        )) {
+            let (key, value) = kv_pair?;
+            if *key > *end_key_bytes {
+                break;
+            }
+            let key = K::decode(key.to_vec()).unwrap();
+            let value = V::decode(value.to_vec()).unwrap();
+            result.push((key, value));
+        }
+        Ok(result)
+    }
+
     /// Set the value for a key
     ///
     /// It sets the value in the cache, it's not written to the database until commit is called
