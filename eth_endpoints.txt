@@ -20,13 +20,13 @@ Legend:
 
 ---- Log endpoints (needs storage)
 
-[XL] eth_getLogs: Record SerializableLogs to database or a file per block
+✅ [XL] eth_getLogs: Record SerializableLogs to database or a file per block
 
 ---- Transaction endpoints (needs storage)
 
-[S] eth_getTransactionCount: Return nonce at the latest block
-[S] eth_getBlockTransactionCountByNumber
-[S] eth_getBlockTransactionCountByHash
+✅ [S] eth_getTransactionCount: Return nonce at the latest block
+✅ [S] eth_getBlockTransactionCountByNumber
+✅ [S] eth_getBlockTransactionCountByHash
 ✅ [L] eth_getTransactionByHash: A database of txes by txhash to output
 ✅ [XS] eth_getTransactionByBlockNumberAndIndex: Record txes and return
 ✅ [XS] eth_getTransactionByBlockHashAndIndex: Record txes and return
@@ -71,3 +71,15 @@ Legend:
 ✅ [!] [None] eth_sendRawTransaction: Not Supported
 
 ✅ [!] [None] eth_newPendingTransactionFilter: Not Supported
+
+
+
+
+-- Non-RPC Tasks left
+
+[M] BRC20 contract / Deposit & Withdrawal endpoints
+[M] Precompiles
+  [S] BIP-322 / library
+  [M] BRC20 balance / indexer + execution engine balance
+  [M] Bitcoin transaction verification / via Bitcoin-RPC
+[M] Gas price / limit calculations

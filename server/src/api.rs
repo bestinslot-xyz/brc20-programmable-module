@@ -76,6 +76,18 @@ pub trait Brc20ProgApi {
     #[method(name = "eth_getBlockByHash")]
     async fn get_block_by_hash(&self, hash: String) -> RpcResult<BlockResJSON>;
 
+    /// Returns the transaction count by address and block number
+    #[method(name = "eth_getTransactionCount")]
+    async fn get_transaction_count(&self, account: String, block: String) -> RpcResult<String>;
+
+    /// Returns the transaction count by block number
+    #[method(name = "eth_getBlockTransactionCountByNumber")]
+    async fn get_block_transaction_count_by_number(&self, block: String) -> RpcResult<String>;
+
+    /// Returns the transaction count by block hash
+    #[method(name = "eth_getBlockTransactionCountByHash")]  
+    async fn get_block_transaction_count_by_hash(&self, block: String) -> RpcResult<String>;
+
     /// Gets logs for the given filter
     #[method(name = "eth_getLogs")]
     async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogResponseED>>;
