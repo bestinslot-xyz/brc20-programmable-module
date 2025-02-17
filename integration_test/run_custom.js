@@ -74,7 +74,7 @@ async function get_info_of_block(block_number) {
   block_number = "0x" + block_number.toString(16)
   let res = await provider_send(
     "eth_getBlockByNumber",
-    { number: block_number },
+    { block: block_number },
   );
 
   return res

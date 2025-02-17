@@ -559,9 +559,9 @@ for i in range(len(codes)):
   response = requests.get(url_get_block_info + str(blockHeight))
   js = response.json()
   gasUsed = js["result"]["gasUsed"]
-  mineTm = js["result"]["mineTm"]
+  mineTm = js["result"]["mineTimestamp"]
   ratio = convert_hex_or_decimal_to_float(mineTm) / convert_hex_or_decimal_to_float(gasUsed)
-  print("ratio: ", ratio, " gasUsed: ", gasUsed, " mineTm: ", mineTm)
+  print("ratio: ", ratio, " gasUsed: ", gasUsed, " mineTimestamp: ", mineTm)
   ress.append([params, ratio, gasUsed, mineTm])
 
 ress.sort(key=lambda x: x[1], reverse=True)

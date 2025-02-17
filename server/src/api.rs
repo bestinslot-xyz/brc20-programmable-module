@@ -1,7 +1,7 @@
-use db::types::{LogResponseED, TxED, TxReceiptED};
+use db::types::{BlockResponseED, LogResponseED, TxED, TxReceiptED};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-use crate::types::{BlockResJSON, SerializableExecutionResult, TxInfo};
+use crate::types::{SerializableExecutionResult, TxInfo};
 
 #[rpc(server)]
 pub trait Brc20ProgApi {
@@ -70,11 +70,11 @@ pub trait Brc20ProgApi {
 
     /// Returns the block information for the requested block number
     #[method(name = "eth_getBlockByNumber")]
-    async fn get_block_by_number(&self, number: String) -> RpcResult<BlockResJSON>;
+    async fn get_block_by_number(&self, block: String) -> RpcResult<BlockResponseED>;
 
     /// Returns the block information for the requested block hash
     #[method(name = "eth_getBlockByHash")]
-    async fn get_block_by_hash(&self, hash: String) -> RpcResult<BlockResJSON>;
+    async fn get_block_by_hash(&self, block: String) -> RpcResult<BlockResponseED>;
 
     /// Returns the transaction count by address and block number
     #[method(name = "eth_getTransactionCount")]

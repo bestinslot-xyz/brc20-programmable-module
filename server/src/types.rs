@@ -1,20 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use revm::primitives::alloy_primitives::{Bytes, U128};
+use revm::primitives::alloy_primitives::Bytes;
 use revm::primitives::{
     keccak256, Address, ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason, B256,
 };
-
-#[derive(Serialize, Clone, Debug)]
-pub struct BlockResJSON {
-    pub number: String,
-    pub timestamp: String,
-    #[serde(rename = "gasUsed")]
-    pub gas_used: String,
-    #[serde(rename = "mineTm")]
-    pub mine_tm: String,
-    pub hash: String,
-}
 
 #[derive(Serialize, Clone, Debug)]
 pub struct SerializableExecutionResult {
@@ -54,14 +43,6 @@ impl From<&revm::primitives::Log> for SerializableLog {
             data: format!("{}", hex::encode(&log.data.data)),
         }
     }
-}
-
-pub struct BlockRes {
-    pub number: u64,
-    pub timestamp: u64,
-    pub gas_used: u64,
-    pub mine_tm: U128,
-    pub hash: B256,
 }
 
 #[derive(Deserialize, Clone)]

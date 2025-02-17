@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use db::{
-    types::{LogResponseED, TxED, TxReceiptED},
+    types::{BlockResponseED, LogResponseED, TxED, TxReceiptED},
     DB,
 };
 use revm::primitives::{Address, BlockEnv, Bytes, ExecutionResult, TransactTo, B256, U256};
@@ -11,7 +11,7 @@ use revm::Database;
 
 use crate::evm::{get_evm, modify_evm_with_tx_env};
 use crate::types::{
-    get_serializable_execution_result, get_tx_hash, BlockRes, SerializableExecutionResult, TxInfo,
+    get_serializable_execution_result, get_tx_hash, SerializableExecutionResult, TxInfo,
 };
 
 pub struct ServerInstance {
@@ -477,45 +477,15 @@ impl ServerInstance {
         storage.unwrap_or(U256::ZERO)
     }
 
-    pub fn get_block_by_number(&self, block_number: u64) -> Option<BlockRes> {
+    pub fn get_block_by_number(&self, block_number: u64) -> Option<BlockResponseED> {
         #[cfg(debug_assertions)]
         println!("Getting block by number 0x{:x} ({})", block_number, block_number);
 
         let mut db = self.db_mutex.lock().unwrap();
-        let block_hash = db.get_block_hash(block_number).unwrap();
-        if block_hash.is_none() {
-            return None;
-        }
-        let block_ts = db.get_block_timestamp(block_number).unwrap();
-        if block_ts.is_none() {
-            return None;
-        }
-        let block_gas_used = db.get_gas_used(block_number).unwrap();
-        if block_gas_used.is_none() {
-            return None;
-        }
-        let block_mine_tm = db.get_mine_timestamp(block_number).unwrap();
-        if block_mine_tm.is_none() {
-            return None;
-        }
-        let block_res = BlockRes {
-            number: block_number,
-            timestamp: block_ts.unwrap().as_limbs()[0],
-            gas_used: block_gas_used.unwrap().as_limbs()[0],
-            hash: block_hash.unwrap(),
-            mine_tm: block_mine_tm.unwrap(),
-        };
-
-        #[cfg(debug_assertions)]
-        println!(
-            "Got block {:?} with hash {:?}",
-            block_number, block_res.hash
-        );
-
-        Some(block_res)
+        db.get_block(block_number).unwrap()
     }
 
-    pub fn get_block_by_hash(&self, block_hash: B256) -> Option<BlockRes> {
+    pub fn get_block_by_hash(&self, block_hash: B256) -> Option<BlockResponseED> {
         #[cfg(debug_assertions)]
         println!("Getting block by hash {:?}", block_hash);
 
@@ -525,7 +495,7 @@ impl ServerInstance {
         #[cfg(debug_assertions)]
         println!("Got block {:?} hash {:?}", block_number, block_hash);
 
-        self.get_block_by_number(block_number.unwrap().to_u64())
+        db.get_block(block_number.unwrap().to_u64()).unwrap()
     }
 
     pub fn get_contract_bytecode(&self, addr: Address) -> Option<Bytes> {
