@@ -94,10 +94,29 @@ where
         let mut result = Vec::new();
         let start_key_bytes = start_key.encode().unwrap();
         let end_key_bytes = end_key.encode().unwrap();
+
+        for key in self.cache.keys() {
+            let key_bytes = key.encode().unwrap();
+            if *key_bytes < *start_key_bytes {
+                continue;
+            }
+            if *key_bytes > *end_key_bytes {
+                break;
+            }
+            let cache = self.cache.get(key).unwrap();
+            if cache.latest().is_none() {
+                continue;
+            }
+            result.push((key.clone(), cache.latest().unwrap()));
+        }
+
         for kv_pair in self.db.iterator(IteratorMode::From(
             &start_key_bytes,
             rocksdb::Direction::Forward,
         )) {
+            #[cfg(debug_assertions)]
+            println!("{:?}", kv_pair);
+
             let (key, value) = kv_pair?;
             if *key > *end_key_bytes {
                 break;
@@ -106,6 +125,7 @@ where
             let value = V::decode(value.to_vec()).unwrap();
             result.push((key, value));
         }
+
         Ok(result)
     }
 

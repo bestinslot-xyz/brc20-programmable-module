@@ -71,6 +71,38 @@ impl Brc20ProgApiServer for RpcServer {
         }
     }
 
+    async fn get_transaction_count(&self, account: String, block: String) -> RpcResult<String> {
+        let account = account.parse().unwrap();
+        let block = self.parse_block_number(&block);
+        let count = self.server_instance.get_transaction_count(account, block);
+        if count.is_err() {
+            return Err(RpcServerError::new("Couldn't get transaction count").into());
+        }
+        Ok(format!("0x{:x}", count.unwrap()))
+    }
+
+    async fn get_block_transaction_count_by_number(&self, block: String) -> RpcResult<String> {
+        let block = self.parse_block_number(&block);
+        let count = self
+            .server_instance
+            .get_block_transaction_count_by_number(block);
+        if count.is_err() {
+            return Err(RpcServerError::new("Couldn't get block transaction count").into());
+        }
+        Ok(format!("0x{:x}", count.unwrap()))
+    }
+
+    async fn get_block_transaction_count_by_hash(&self, block: String) -> RpcResult<String> {
+        let block_hash = B256::from_str(&block[2..]).unwrap();
+        let count = self
+            .server_instance
+            .get_block_transaction_count_by_hash(block_hash);
+        if count.is_err() {
+            return Err(RpcServerError::new("Couldn't get block transaction count").into());
+        }
+        Ok(format!("0x{:x}", count.unwrap()))
+    }
+
     async fn get_transaction_by_hash(&self, transaction: String) -> RpcResult<Option<TxED>> {
         let tx_hash = B256::from_str(&transaction[2..]).unwrap();
         let tx = self.server_instance.get_transaction_by_hash(tx_hash);

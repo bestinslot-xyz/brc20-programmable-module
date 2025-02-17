@@ -61,8 +61,10 @@ impl ServerInstance {
 
         #[cfg(debug_assertions)]
         println!(
-            "Mining blocks from {} to {}",
+            "Mining blocks from 0x{:x} ({}) to 0x{:x} ({})",
             number,
+            number,
+            number + block_cnt - 1,
             number + block_cnt - 1
         );
 
@@ -136,8 +138,8 @@ impl ServerInstance {
         {
             #[cfg(debug_assertions)]
             println!(
-                "Running EVM for tx {:?} in block {:?} with hash {:?}",
-                tx_idx, number, hash
+                "Running EVM for tx 0x{:x} ({}) in block 0x{:x} ({}) with hash {:?}",
+                tx_idx, tx_idx, number, number, hash
             );
 
             let mut db = self.db_mutex.lock().unwrap();
@@ -145,8 +147,8 @@ impl ServerInstance {
             let mut evm = get_evm(block_info, db_moved);
             #[cfg(debug_assertions)]
             println!(
-                "Adding tx {:?} from: {:?} to: {:?} with data: {:?}",
-                tx_idx, tx_info.from, tx_info.to, tx_info.data
+                "Adding tx 0x{:x} ({}) from: {:?} to: {:?} with data: {:?}",
+                tx_idx, tx_idx, tx_info.from, tx_info.to, tx_info.data
             );
             evm = modify_evm_with_tx_env(
                 evm,
@@ -168,9 +170,12 @@ impl ServerInstance {
 
         #[cfg(debug_assertions)]
         println!(
-            "Tx {:?} added to block {:?} with gas used {:?}",
+            "Tx 0x{:x} ({}) added to block 0x{:x} ({}) with gas used 0x{:x} ({})",
+            tx_idx,
             tx_idx,
             number,
+            number,
+            output.gas_used(),
             output.gas_used()
         );
         *last_block_gas_used += output.gas_used();
@@ -198,6 +203,40 @@ impl ServerInstance {
         Ok(get_serializable_execution_result(&output, txhash, nonce))
     }
 
+    pub fn get_transaction_count(&self, account: Address, block_number: u64) -> Result<u64, &'static str> {
+        #[cfg(debug_assertions)]
+        println!(
+            "Getting transaction count for account {:?} in block 0x{:x} ({})",
+            account, block_number, block_number
+        );
+
+        let mut db = self.db_mutex.lock().unwrap();
+        let tx_count = db.get_tx_count(Some(account), block_number).unwrap();
+        Ok(tx_count)
+    }
+
+    pub fn get_block_transaction_count_by_number(&self, block_number: u64) -> Result<u64, &'static str> {
+        #[cfg(debug_assertions)]
+        println!("Getting block tx count for block 0x{:x} ({})", block_number, block_number);
+
+        let mut db = self.db_mutex.lock().unwrap();
+        let tx_count = db.get_tx_count(None, block_number).unwrap();
+        Ok(tx_count)
+    }
+
+    pub fn get_block_transaction_count_by_hash(
+        &self,
+        block_hash: B256,
+    ) -> Result<u64, &'static str> {
+        #[cfg(debug_assertions)]
+        println!("Getting block tx count for block hash {:?}", block_hash);
+
+        let mut db = self.db_mutex.lock().unwrap();
+        let block_number = db.get_block_number(block_hash).unwrap().unwrap().to_u64();
+        let tx_count = db.get_tx_count(None, block_number).unwrap();
+        Ok(tx_count)
+    }
+
     pub fn get_transaction_by_block_hash_and_index(
         &self,
         block_hash: B256,
@@ -205,8 +244,8 @@ impl ServerInstance {
     ) -> Option<TxED> {
         #[cfg(debug_assertions)]
         println!(
-            "Getting tx by block hash {:?} and index {:?}",
-            block_hash, tx_idx
+            "Getting tx by block hash {:?} and index 0x{:x} ({})",
+            block_hash, tx_idx, tx_idx
         );
 
         let mut db = self.db_mutex.lock().unwrap();
@@ -223,8 +262,8 @@ impl ServerInstance {
     ) -> Option<TxED> {
         #[cfg(debug_assertions)]
         println!(
-            "Getting tx by block number {:?} and index {:?}",
-            block_number, tx_idx
+            "Getting tx by block number 0x{:x} ({}) and index 0x{:x} ({})",
+            block_number, block_number, tx_idx, tx_idx
         );
 
         let mut db = self.db_mutex.lock().unwrap();
@@ -266,7 +305,8 @@ impl ServerInstance {
             block_number_to,
             address,
             topics.unwrap_or(Vec::new()),
-        ).unwrap()
+        )
+        .unwrap()
     }
 
     pub fn finalise_block(
@@ -304,8 +344,8 @@ impl ServerInstance {
 
         #[cfg(debug_assertions)]
         println!(
-            "Finalising block {}, tx cnt: {}",
-            block_number, block_tx_cnt
+            "Finalising block 0x{:x} ({}), tx cnt: 0x{:x} ({})",
+            block_number, block_number, block_tx_cnt, block_tx_cnt
         );
 
         db.set_block_hash(block_number, block_hash).unwrap();
@@ -439,7 +479,7 @@ impl ServerInstance {
 
     pub fn get_block_by_number(&self, block_number: u64) -> Option<BlockRes> {
         #[cfg(debug_assertions)]
-        println!("Getting block by number {}", block_number);
+        println!("Getting block by number 0x{:x} ({})", block_number, block_number);
 
         let mut db = self.db_mutex.lock().unwrap();
         let block_hash = db.get_block_hash(block_number).unwrap();
@@ -533,7 +573,7 @@ impl ServerInstance {
 
     pub fn reorg(&self, latest_valid_block_number: u64) -> Result<(), &'static str> {
         #[cfg(debug_assertions)]
-        println!("Reorg to block {}", latest_valid_block_number);
+        println!("Reorg to block 0x{:x} ({})", latest_valid_block_number, latest_valid_block_number);
 
         let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
         if *waiting_tx_cnt != 0 {

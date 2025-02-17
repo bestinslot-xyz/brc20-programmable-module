@@ -15,8 +15,7 @@ use cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 pub mod types;
 
 use types::{
-    AccountInfoED, AddressED, BytecodeED, LogResponseED, TxED, TxReceiptED, B256ED, U128ED, U256ED,
-    U512ED, U64ED,
+    AccountInfoED, AddressED, BytecodeED, LogResponseED, TxED, TxReceiptED, B256ED, U128ED, U256ED, U512ED, U64ED
 };
 
 pub struct DB {
@@ -264,6 +263,31 @@ impl DB {
         }
 
         Ok(logs)
+    }
+
+    pub fn get_tx_count(
+        &mut self,
+        account: Option<Address>,
+        block_number: u64,
+    ) -> Result<u64, Box<dyn Error>> {
+        let tx_ids = self
+            .db_number_and_index_to_tx_hash
+            .as_ref()
+            .unwrap()
+            .get_range(
+                &U128ED::from_u128(Self::get_number_and_index_key(block_number, 0)),
+                &&U128ED::from_u128(Self::get_number_and_index_key(block_number + 1, 0)),
+            )?;
+
+        let mut count = 0;
+        for tx_pair in tx_ids {
+            let tx_id = tx_pair.1;
+            let tx = self.get_tx_by_hash(tx_id.0).unwrap().unwrap();
+            if account.is_none() || tx.from.0 == account.unwrap() {
+                count += 1;
+            }
+        }
+        Ok(count)
     }
 
     pub fn get_tx_hash_by_block_number_and_index(
