@@ -1,4 +1,4 @@
-use db::types::{TxED, TxReceiptED};
+use db::types::{LogResponseED, TxED, TxReceiptED};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use crate::types::{BlockResJSON, SerializableExecutionResult, TxInfo};
@@ -59,11 +59,11 @@ pub trait Brc20ProgApi {
     async fn clear_caches(&self) -> RpcResult<()>;
 
     ///
-    /// 
+    ///
     /// Eth Methods
-    /// 
-    /// 
-    
+    ///
+    ///
+
     /// Returns the latest block number in hex format
     #[method(name = "eth_blockNumber")]
     async fn block_number(&self) -> RpcResult<String>;
@@ -75,6 +75,10 @@ pub trait Brc20ProgApi {
     /// Returns the block information for the requested block hash
     #[method(name = "eth_getBlockByHash")]
     async fn get_block_by_hash(&self, hash: String) -> RpcResult<BlockResJSON>;
+
+    /// Gets logs for the given filter
+    #[method(name = "eth_getLogs")]
+    async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogResponseED>>;
 
     /// Calls a contract with the given parameters
     #[method(name = "eth_call")]
@@ -127,10 +131,10 @@ pub trait Brc20ProgApi {
     ) -> RpcResult<Option<TxED>>;
 
     ///
-    /// 
+    ///
     /// Eth methods with static values
-    /// 
-    /// 
+    ///
+    ///
 
     /// Returns the chain id in hex format ("BRC20" in hex)
     #[method(name = "eth_chainId")]
@@ -187,4 +191,14 @@ pub trait Brc20ProgApi {
     ) -> RpcResult<Option<String>> {
         Ok(None)
     }
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct GetLogsFilter {
+    #[serde(rename = "fromBlock")]
+    pub from_block: Option<String>,
+    #[serde(rename = "toBlock")]
+    pub to_block: Option<String>,
+    pub address: Option<String>,
+    pub topics: Option<Vec<String>>,
 }

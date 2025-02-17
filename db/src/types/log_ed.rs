@@ -1,13 +1,38 @@
 use std::error::Error;
 
-use revm::primitives::{Address, Log};
+use revm::primitives::{Address, Bytes, Log};
 use serde::Serialize;
 use serde_json::Map;
 
-use super::{Decode, Encode, B256ED};
+use super::{AddressED, Decode, Encode, B256ED, U64ED};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogED(pub Vec<Log>);
+
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+pub struct LogResponseED {
+    pub address: AddressED,
+    pub topics: Vec<B256ED>,
+    #[serde(serialize_with = "bytes_hex")]
+    pub data: Bytes,
+    #[serde(rename = "transactionIndex")]
+    pub transaction_index: U64ED,
+    #[serde(rename = "transactionHash")]
+    pub transaction_hash: B256ED,
+    #[serde(rename = "blockHash")]
+    pub block_hash: B256ED,
+    #[serde(rename = "blockNumber")]
+    pub block_number: U64ED,
+    #[serde(rename = "logIndex")]
+    pub log_index: U64ED,
+}
+
+fn bytes_hex<S>(bytes: &Bytes, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&format!("0x{:x}", bytes))
+}
 
 impl Serialize for LogED {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

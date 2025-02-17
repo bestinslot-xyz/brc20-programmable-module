@@ -6,7 +6,7 @@ use revm::primitives::{
     alloy_primitives::{U128, U64},
     db::{Database as DatabaseTrait, DatabaseCommit},
     ruint::aliases::U256,
-    Account, AccountInfo, Address, Bytecode, Bytes, ExecutionResult, B256,
+    Account, AccountInfo, Address, Bytecode, Bytes, ExecutionResult, FixedBytes, B256,
 };
 
 mod cached_database;
@@ -15,7 +15,8 @@ use cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 pub mod types;
 
 use types::{
-    AccountInfoED, AddressED, BytecodeED, TxED, TxReceiptED, B256ED, U128ED, U256ED, U512ED, U64ED,
+    AccountInfoED, AddressED, BytecodeED, LogResponseED, TxED, TxReceiptED, B256ED, U128ED, U256ED,
+    U512ED, U64ED,
 };
 
 pub struct DB {
@@ -174,8 +175,95 @@ impl DB {
         )?)
     }
 
-    fn get_number_and_index_key(block_number: u64, tx_idx: u64) -> Result<u128, Box<dyn Error>> {
-        Ok(((tx_idx as u128) << 64) | block_number as u128)
+    fn get_number_and_index_key(block_number: u64, tx_idx: u64) -> u128 {
+        ((block_number as u128) << 64) | tx_idx as u128
+    }
+
+    pub fn get_logs(
+        &mut self,
+        mut block_number_from: Option<u64>,
+        mut block_number_to: Option<u64>,
+        contract_address: Option<Address>,
+        topics: Vec<B256>,
+    ) -> Result<Vec<LogResponseED>, Box<dyn Error>> {
+        if block_number_from.is_none() {
+            block_number_from = self.latest_block_number.map(|x| x.0);
+        }
+        if block_number_to.is_none() {
+            block_number_to = self.latest_block_number.map(|x| x.0);
+        }
+
+        // Limit the number of blocks to be fetched
+        // DB is under a lock here and if this takes too long, it will block other threads
+        //
+        // TODO: This is a temporary solution, we can potentially avoid using a mutex for reads
+        // TODO: Also, test this, maybe it's not that slow?
+        if block_number_to.unwrap() - block_number_from.unwrap() > 5 {
+            return Ok(Vec::new());
+        }
+
+        let mut logs = Vec::new();
+
+        let tx_ids = self
+            .db_number_and_index_to_tx_hash
+            .as_ref()
+            .unwrap()
+            .get_range(
+                &U128ED::from_u128(Self::get_number_and_index_key(
+                    block_number_from.unwrap(),
+                    0,
+                )),
+                &&U128ED::from_u128(Self::get_number_and_index_key(
+                    block_number_to.unwrap() + 1,
+                    0,
+                )),
+            )?;
+
+        for tx_pair in tx_ids {
+            let tx_id = tx_pair.1;
+            let tx_receipt = self.get_tx_receipt(tx_id.0).unwrap().unwrap();
+            if tx_receipt.contract_address.is_none() {
+                continue;
+            }
+            if contract_address.is_some()
+                && tx_receipt.contract_address.unwrap().0 != contract_address.unwrap()
+            {
+                continue;
+            }
+
+            for log in tx_receipt.logs.0 {
+                let mut matched = true;
+                if topics.len() != 0 && log.topics().len() != topics.len() {
+                    continue;
+                }
+
+                for (i, topic) in topics.iter().enumerate() {
+                    if log.topics()[i] != *topic {
+                        matched = false;
+                        break;
+                    }
+                }
+
+                if matched {
+                    logs.push(LogResponseED {
+                        address: AddressED(log.address),
+                        topics: log
+                            .topics()
+                            .iter()
+                            .map(|x: &FixedBytes<32>| B256ED::from_b256(*x))
+                            .collect(),
+                        data: log.data.data,
+                        transaction_index: U64ED::from_u64(tx_receipt.transaction_index),
+                        transaction_hash: tx_receipt.transaction_hash.clone(),
+                        block_hash: tx_receipt.hash.clone(),
+                        block_number: U64ED::from_u64(tx_receipt.block_number),
+                        log_index: U64ED::from_u64(0),
+                    });
+                }
+            }
+        }
+
+        Ok(logs)
     }
 
     pub fn get_tx_hash_by_block_number_and_index(
@@ -183,7 +271,7 @@ impl DB {
         block_number: u64,
         tx_idx: u64,
     ) -> Result<Option<B256ED>, Box<dyn Error>> {
-        let key = Self::get_number_and_index_key(block_number, tx_idx)?;
+        let key = Self::get_number_and_index_key(block_number, tx_idx);
         let ret = self
             .db_number_and_index_to_tx_hash
             .as_ref()
@@ -274,7 +362,7 @@ impl DB {
 
         self.db_number_and_index_to_tx_hash.as_mut().unwrap().set(
             block_number,
-            U128ED::from_u128(Self::get_number_and_index_key(block_number, tx_idx)?),
+            U128ED::from_u128(Self::get_number_and_index_key(block_number, tx_idx)),
             B256ED::from_b256(tx_hash),
         )?;
 

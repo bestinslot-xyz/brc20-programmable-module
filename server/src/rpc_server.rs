@@ -1,6 +1,6 @@
 use std::{error::Error, net::SocketAddr, str::FromStr};
 
-use db::types::{TxED, TxReceiptED};
+use db::types::{LogResponseED, TxED, TxReceiptED};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     server::{Server, ServerHandle},
@@ -9,6 +9,7 @@ use jsonrpsee::{
 use revm::primitives::{Bytes, B256};
 
 use crate::{
+    api::GetLogsFilter,
     server_instance::ServerInstance,
     types::{BlockResJSON, SerializableExecutionResult, TxInfo},
     Brc20ProgApiServer,
@@ -16,6 +17,18 @@ use crate::{
 
 pub struct RpcServer {
     server_instance: ServerInstance,
+}
+
+impl RpcServer {
+    fn parse_block_number(&self, number: &str) -> u64 {
+        if number == "latest" {
+            self.server_instance.get_latest_block_height()
+        } else if number.starts_with("0x") {
+            u64::from_str_radix(&number[2..], 16).unwrap()
+        } else {
+            number.parse().unwrap()
+        }
+    }
 }
 
 #[async_trait]
@@ -26,13 +39,7 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     async fn get_block_by_number(&self, number: String) -> RpcResult<BlockResJSON> {
-        let number = if number == "latest" {
-            self.server_instance.get_latest_block_height()
-        } else if number.starts_with("0x") {
-            u64::from_str_radix(&number[2..], 16).unwrap()
-        } else {
-            number.parse().unwrap()
-        };
+        let number = self.parse_block_number(&number);
         let block = self.server_instance.get_block_by_number(number);
         if let Some(block) = block {
             Ok(BlockResJSON {
@@ -97,6 +104,17 @@ impl Brc20ProgApiServer for RpcServer {
         let tx_hash = B256::from_str(&transaction[2..]).unwrap();
         let receipt = self.server_instance.get_transaction_receipt(tx_hash);
         Ok(receipt)
+    }
+
+    async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogResponseED>> {
+        Ok(self.server_instance.get_logs(
+            Some(self.parse_block_number(&filter.from_block.unwrap_or("latest".to_string()))),
+            Some(self.parse_block_number(&filter.to_block.unwrap_or("latest".to_string()))),
+            filter.address.map(|x| x.parse().unwrap()),
+            filter
+                .topics
+                .map(|x| x.into_iter().map(|y| y.parse().unwrap()).collect()),
+        ))
     }
 
     async fn mine(&self, block_cnt: u64, timestamp: u64) -> RpcResult<()> {
