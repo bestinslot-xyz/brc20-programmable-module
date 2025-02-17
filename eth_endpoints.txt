@@ -10,7 +10,7 @@ Legend:
 ✅ [XS] eth_blockNumber: convert to hex
 ✅ [XS] eth_getCode: block only "latest"
 [M] eth_call: add a gas limit check - also, input output types should match with eth endpoint
-[M] eth_getBlockByNumber: calculate logsBloom / BlockRes should be on par with eth endpoint
+✅ [M] eth_getBlockByNumber: BlockRes should be on par with eth endpoint
 ✅ [XS] eth_getBlockByHash: Same as above ^
 
 -- New endpoints
@@ -53,6 +53,7 @@ Legend:
 [M] eth_uninstallFilter
 [M] eth_getFilterChanges
 [M] eth_getFilterLogs
+[M] eth_getBlockByNumber: calculate logsBloom
 
 - Not supported in BRC2.0 Prog
 

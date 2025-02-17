@@ -1,6 +1,6 @@
 use std::{error::Error, net::SocketAddr, str::FromStr};
 
-use db::types::{LogResponseED, TxED, TxReceiptED};
+use db::types::{BlockResponseED, LogResponseED, TxED, TxReceiptED};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     server::{Server, ServerHandle},
@@ -11,7 +11,7 @@ use revm::primitives::{Bytes, B256};
 use crate::{
     api::GetLogsFilter,
     server_instance::ServerInstance,
-    types::{BlockResJSON, SerializableExecutionResult, TxInfo},
+    types::{SerializableExecutionResult, TxInfo},
     Brc20ProgApiServer,
 };
 
@@ -38,34 +38,22 @@ impl Brc20ProgApiServer for RpcServer {
         Ok(format!("0x{:x}", height))
     }
 
-    async fn get_block_by_number(&self, number: String) -> RpcResult<BlockResJSON> {
-        let number = self.parse_block_number(&number);
+    async fn get_block_by_number(&self, block: String) -> RpcResult<BlockResponseED> {
+        let number = self.parse_block_number(&block);
         let block = self.server_instance.get_block_by_number(number);
         if let Some(block) = block {
-            Ok(BlockResJSON {
-                number: format!("0x{:x}", block.number),
-                timestamp: format!("0x{:x}", block.timestamp),
-                gas_used: format!("0x{:x}", block.gas_used),
-                mine_tm: format!("0x{:x}", block.mine_tm),
-                hash: format!("{:?}", block.hash),
-            })
+            Ok(block)
         } else {
             Err(RpcServerError::new("Block not found").into())
         }
     }
 
-    async fn get_block_by_hash(&self, hash: String) -> RpcResult<BlockResJSON> {
+    async fn get_block_by_hash(&self, block: String) -> RpcResult<BlockResponseED> {
         let block = self
             .server_instance
-            .get_block_by_hash(hash.parse().unwrap());
+            .get_block_by_hash(block.parse().unwrap());
         if let Some(block) = block {
-            Ok(BlockResJSON {
-                number: format!("0x{:x}", block.number),
-                timestamp: format!("0x{:x}", block.timestamp),
-                gas_used: format!("0x{:x}", block.gas_used),
-                mine_tm: format!("0x{:x}", block.mine_tm),
-                hash: format!("{:?}", block.hash),
-            })
+            Ok(block)
         } else {
             Err(RpcServerError::new("Block not found").into())
         }

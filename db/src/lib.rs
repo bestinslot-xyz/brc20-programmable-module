@@ -15,7 +15,8 @@ use cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 pub mod types;
 
 use types::{
-    AccountInfoED, AddressED, BytecodeED, LogResponseED, TxED, TxReceiptED, B256ED, U128ED, U256ED, U512ED, U64ED
+    AccountInfoED, AddressED, BEncodeDecode, BlockResponseED, BytecodeED, LogResponseED, TxED,
+    TxReceiptED, UintEncodeDecode, B256ED, U128ED, U256ED, U512ED, U64ED,
 };
 
 pub struct DB {
@@ -421,6 +422,66 @@ impl DB {
             AddressED(account),
             AccountInfoED(value),
         )?)
+    }
+
+    pub fn get_block(
+        &mut self,
+        block_number: u64,
+    ) -> Result<Option<BlockResponseED>, Box<dyn Error>> {
+        let block_hash = self.get_block_hash(block_number)?;
+        if block_hash.is_none() {
+            return Ok(None);
+        }
+
+        let block_hash = block_hash.unwrap();
+        let block_timestamp = self.get_block_timestamp(block_number)?;
+        let gas_used = self.get_gas_used(block_number)?;
+        let mine_timestamp = self.get_mine_timestamp(block_number)?;
+
+        let tx_ids = self
+            .db_number_and_index_to_tx_hash
+            .as_ref()
+            .unwrap()
+            .get_range(
+                &U128ED::from_u128(Self::get_number_and_index_key(block_number, 0)),
+                &&U128ED::from_u128(Self::get_number_and_index_key(block_number + 1, 0)),
+            )?;
+
+        let mut transactions = Vec::new();
+        for tx_pair in tx_ids {
+            let tx_id = tx_pair.1;
+            transactions.push(tx_id);
+        }
+
+        Ok(Some(BlockResponseED {
+            difficulty: 0,
+            gas_limit: 0,
+            gas_used: gas_used.unwrap_or(U64::ZERO).as_limbs()[0],
+            nonce: 0,
+            number: block_number,
+            timestamp: block_timestamp.unwrap_or(U64::ZERO).as_limbs()[0],
+            mine_timestamp: UintEncodeDecode(mine_timestamp.unwrap_or(U128::ZERO)),
+            hash: BEncodeDecode(block_hash),
+            logs_bloom: BEncodeDecode(FixedBytes([0u8; 256])),
+            transactions,
+            parent_hash: BEncodeDecode(B256::ZERO),
+            blob_gas_used: 0,
+            base_fee_per_gas: 0,
+            transactions_root: BEncodeDecode(FixedBytes([0; 32])),
+            uncles: Vec::new(),
+            withdrawals: Vec::new(),
+            withdrawals_root: BEncodeDecode(FixedBytes([0; 32])),
+            total_difficulty: 0,
+            parent_beacon_block_root: BEncodeDecode(FixedBytes([0; 32])),
+            receipts_root: BEncodeDecode(FixedBytes([0; 32])),
+            sha3_uncles: BEncodeDecode(FixedBytes([0; 32])),
+            size: 0,
+            state_root: BEncodeDecode(FixedBytes([0; 32])),
+            miner: BEncodeDecode(FixedBytes([0; 32])),
+            mix_hash: BEncodeDecode(FixedBytes([0; 32])),
+            excess_blob_gas: 0,
+            extra_data: BEncodeDecode(FixedBytes([0; 32])),
+        }))
     }
 
     pub fn get_block_number(&mut self, block_hash: B256) -> Result<Option<U64ED>, Box<dyn Error>> {
