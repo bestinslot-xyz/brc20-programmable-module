@@ -7,7 +7,10 @@ use serde_json::Map;
 use super::{AddressED, Decode, Encode, B256ED, U64ED};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LogED(pub Vec<Log>);
+pub struct LogED {
+    pub logs: Vec<Log>,
+    pub log_index: u64,
+}
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct LogResponseED {
@@ -40,7 +43,7 @@ impl Serialize for LogED {
         S: serde::Serializer,
     {
         let logs: Vec<Map<String, serde_json::Value>> = self
-            .0
+            .logs
             .iter()
             .map(|log| {
                 let mut map = Map::new();
@@ -72,7 +75,9 @@ impl Serialize for LogED {
 impl Encode for LogED {
     fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>> {
         let mut bytes = Vec::new();
-        for log in self.0.iter() {
+        bytes.extend_from_slice(&(self.log_index.to_be_bytes()));
+        bytes.extend_from_slice(&(self.logs.len() as u32).to_be_bytes());
+        for log in self.logs.iter() {
             bytes.extend_from_slice(&log.address.0.to_vec());
             bytes.extend_from_slice(&(log.topics().len() as u32).to_be_bytes());
             for topic in log.topics().iter() {
@@ -92,7 +97,11 @@ impl Decode for LogED {
     {
         let mut logs = Vec::new();
         let mut i = 0;
-        while i < bytes.len() {
+        let log_index = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
+        i += 8;
+        let logs_len = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap()) as usize;
+        i += 4;
+        for _ in 0..logs_len {
             let address = Address::from_slice(&bytes[i..i + 20]);
             i += 20;
 
@@ -113,7 +122,7 @@ impl Decode for LogED {
             i += data_len;
             logs.push(Log::new(address, topics, data).unwrap());
         }
-        Ok(LogED(logs))
+        Ok(LogED { logs, log_index })
     }
 }
 
@@ -131,11 +140,15 @@ mod tests {
             [3u8; 32].to_vec().into(),
         )
         .unwrap();
-        let log_ed = LogED(vec![log]);
+        let log_ed = LogED {
+            logs: vec![log],
+            log_index: 0,
+        };
         let bytes = LogED::encode(&log_ed).unwrap();
         assert_eq!(bytes.len(), 92);
         let decoded = LogED::decode(bytes).unwrap();
-        assert_eq!(log_ed.0, decoded.0);
+        assert_eq!(log_ed.logs, decoded.logs);
+        assert_eq!(log_ed.log_index, decoded.log_index);
     }
 
     #[test]
@@ -146,7 +159,10 @@ mod tests {
             [3u8; 32].to_vec().into(),
         )
         .unwrap();
-        let log_ed = LogED(vec![log]);
+        let log_ed = LogED {
+            logs: vec![log],
+            log_index: 0,
+        };
         let serialized = serde_json::to_string(&log_ed).unwrap();
         assert_eq!(
             serialized,

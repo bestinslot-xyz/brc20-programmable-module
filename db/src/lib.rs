@@ -231,9 +231,11 @@ impl DB {
                 continue;
             }
 
-            for log in tx_receipt.logs.0 {
+            let mut current_index = tx_receipt.logs.log_index;
+            for log in tx_receipt.logs.logs {
                 let mut matched = true;
                 if topics.len() != 0 && log.topics().len() != topics.len() {
+                    current_index += 1;
                     continue;
                 }
 
@@ -257,9 +259,11 @@ impl DB {
                         transaction_hash: tx_receipt.transaction_hash.clone(),
                         block_hash: tx_receipt.hash.clone(),
                         block_number: U64ED::from_u64(tx_receipt.block_number),
-                        log_index: U64ED::from_u64(0),
+                        log_index: U64ED::from_u64(current_index),
                     });
                 }
+
+                current_index += 1;
             }
         }
 
@@ -352,6 +356,7 @@ impl DB {
         output: &ExecutionResult,
         cumulative_gas_used: u64,
         nonce: u64,
+        start_log_index: u64,
     ) -> Result<(), Box<dyn Error>> {
         let tx_receipt = TxReceiptED::new(
             block_hash,
@@ -364,6 +369,7 @@ impl DB {
             output,
             cumulative_gas_used,
             nonce,
+            start_log_index,
         );
 
         let tx = TxED {
@@ -894,6 +900,7 @@ mod tests {
         };
         let cumulative_gas_used = 8;
         let nonce = 9;
+        let start_log_index = 10;
 
         {
             let mut db = DB::new(&path).unwrap();
@@ -911,6 +918,7 @@ mod tests {
                 &output,
                 cumulative_gas_used,
                 nonce,
+                start_log_index,
             )
             .unwrap();
 
@@ -945,7 +953,8 @@ mod tests {
                 tx_idx,
                 &output,
                 cumulative_gas_used,
-                nonce
+                nonce,
+                start_log_index
             )
         );
     }
