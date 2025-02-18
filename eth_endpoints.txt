@@ -9,7 +9,7 @@ Legend:
 
 ✅ [XS] eth_blockNumber: convert to hex
 ✅ [XS] eth_getCode: block only "latest"
-[M] eth_call: add a gas limit check - also, input output types should match with eth endpoint
+✅ [M] eth_call: Add gas limit check, input output types should match with eth endpoint
 ✅ [M] eth_getBlockByNumber: BlockRes should be on par with eth endpoint
 ✅ [XS] eth_getBlockByHash: Same as above ^
 

@@ -153,7 +153,7 @@ impl ServerInstance {
 
             let mut db = self.db_mutex.lock().unwrap();
             let db_moved = core::mem::take(&mut *db);
-            let mut evm = get_evm(block_info, db_moved);
+            let mut evm = get_evm(block_info, db_moved, None);
             #[cfg(debug_assertions)]
             println!(
                 "Adding tx 0x{:x} ({}) from: {:?} to: {:?} with data: {:?}",
@@ -461,7 +461,7 @@ impl ServerInstance {
         {
             let mut db = self.db_mutex.lock().unwrap();
             let db_moved = core::mem::take(&mut *db);
-            let mut evm = get_evm(block_info, db_moved);
+            let mut evm = get_evm(block_info, db_moved, Some(U256::from(1_000_000)));
             evm = modify_evm_with_tx_env(
                 evm,
                 tx_info.from,

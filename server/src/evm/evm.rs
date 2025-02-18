@@ -16,7 +16,7 @@ use super::load_precompiles;
 
 const CURRENT_SPEC: SpecId = SpecId::CANCUN;
 
-pub fn get_evm(block_info: BlockEnv, db: DB) -> Evm<'static, (), DB> {
+pub fn get_evm(block_info: BlockEnv, db: DB, gas_limit: Option<U256>) -> Evm<'static, (), DB> {
     let mut env = Env::default();
     env.cfg.chain_id = 331337;
     env.cfg.limit_contract_code_size = Some(usize::MAX);
@@ -24,7 +24,7 @@ pub fn get_evm(block_info: BlockEnv, db: DB) -> Evm<'static, (), DB> {
     env.block.number = block_info.number;
     env.block.coinbase = block_info.coinbase;
     env.block.timestamp = block_info.timestamp;
-    env.block.gas_limit = U256::MAX;
+    env.block.gas_limit = gas_limit.unwrap_or(U256::MAX);
     env.block.basefee = U256::ZERO;
     env.block.difficulty = U256::ZERO;
     env.block.prevrandao = Some(B256::ZERO);
