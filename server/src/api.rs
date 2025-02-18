@@ -16,6 +16,14 @@ pub trait Brc20ProgApi {
     #[method(name = "brc20_mine")]
     async fn mine(&self, block_cnt: u64, timestamp: u64) -> RpcResult<()>;
 
+    /// Deposits brc20 tokens to the given address
+    #[method(name = "brc20_deposit")]
+    async fn deposit(&self, from: String, ticker: String, amount: u64) -> RpcResult<bool>;
+
+    /// Withdraws brc20 tokens from the given address
+    #[method(name = "brc20_withdraw")]
+    async fn withdraw(&self, to: String, ticker: String, amount: u64) -> RpcResult<bool>;
+
     /// Adds a transaction to the block
     #[method(name = "brc20_addTxToBlock")]
     async fn add_tx_to_block(
