@@ -4,6 +4,8 @@
   "description": "",
   "main": "run_custom.js",
   "scripts": {
+    "compile": "node compile_contract_into_json.js",
+    "server": "node run_custom.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
