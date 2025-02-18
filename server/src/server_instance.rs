@@ -34,41 +34,23 @@ pub struct ServerInstance {
     pub last_block_log_index_mutex: Mutex<u64>,
 }
 
-fn load_contract() -> Vec<u8> {
-    let file_content = ContractAssets::get("BRC20_Controller.bin");
+fn load_contract(file_name: &str) -> TxInfo {
+    let file_content = ContractAssets::get(file_name);
     let file_content = file_content.unwrap();
     let data = String::from_utf8(file_content.data.to_vec()).unwrap();
-    let data = if data.starts_with("0x") {
-        data[2..].to_string()
-    } else {
-        data.to_string()
-    };
-    hex::decode(data).unwrap()
+
+    serde_json::from_str(&data).unwrap()
 }
 
 fn deploy_brc20_contract(instance: &ServerInstance) {
-    let indexer_addr = "0x0000000000000000000000000000000000003Ca6";
-    let brc20_controller_addr = "0xc54dd4581af2dbf18e4d90840226756e9d2b3cdb";
+    let result =
+        instance.add_tx_to_block(0, &load_contract("BRC20_Controller.json"), 0, B256::ZERO);
+    assert!(result.is_ok());
 
-    let result = instance.add_tx_to_block(
-        0,
-        &TxInfo {
-            from: indexer_addr.parse().unwrap(),
-            to: None,
-            data: Bytes::from(load_contract()),
-        },
-        0,
-        B256::ZERO,
+    println!(
+        "BRC20_Controller contract address: {:?}",
+        result.unwrap().contract_address.unwrap().0.to_string()
     );
-
-    let contract_address = result.unwrap().contract_address.map(|x| {
-        println!("BRC20_Controller contract address: {:?}", x.0.to_string());
-        x.0
-    });
-
-    if contract_address.unwrap().to_string().to_lowercase() != brc20_controller_addr {
-        println!("BRC20_Controller contract deployment failed");
-    }
 
     instance.finalise_block(0, B256::ZERO, 1, None).unwrap();
 }
