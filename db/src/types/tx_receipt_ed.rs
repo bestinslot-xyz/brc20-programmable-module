@@ -53,8 +53,12 @@ impl TxReceiptED {
         output: &ExecutionResult,
         cumulative_gas_used: u64,
         nonce: u64,
+        start_log_index: u64,
     ) -> Self {
-        let logs = LogED(output.logs().to_vec());
+        let logs = LogED {
+            logs: output.logs().to_vec(),
+            log_index: start_log_index,
+        };
         let logs_bloom = B2048ED::decode(logs_bloom(output.logs()).to_vec()).unwrap();
         TxReceiptED {
             status: output.is_success() as u8,
@@ -182,12 +186,15 @@ mod tests {
 
     #[test]
     fn test_tx_receipt_ed() {
-        let logs = LogED(vec![Log::new(
-            Address::from([1u8; 20]),
-            vec![B256::from([2u8; 32])],
-            vec![3u8; 32].into(),
-        )
-        .unwrap()]);
+        let logs = LogED {
+            logs: vec![Log::new(
+                Address::from([1u8; 20]),
+                vec![B256::from([2u8; 32])],
+                vec![3u8; 32].into(),
+            )
+            .unwrap()],
+            log_index: 0,
+        };
         let tx_receipt_ed = TxReceiptED {
             status: 4,
             logs,

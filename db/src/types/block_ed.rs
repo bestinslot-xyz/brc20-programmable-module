@@ -3,7 +3,6 @@ use serde_hex::{CompactPfx, SerHex};
 
 use super::{B2048ED, B256ED, U128ED};
 
-
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct BlockResponseED {
     #[serde(with = "SerHex::<CompactPfx>")]
@@ -27,13 +26,12 @@ pub struct BlockResponseED {
     pub transactions: Vec<B256ED>,
 
     // Always empty values
-
     #[serde(with = "SerHex::<CompactPfx>", rename = "baseFeePerGas")]
     pub base_fee_per_gas: u64,
 
     #[serde(rename = "transactionsRoot")]
     pub transactions_root: B256ED,
-    
+
     #[serde(rename = "uncles")]
     pub uncles: Vec<B256ED>,
 
@@ -59,13 +57,13 @@ pub struct BlockResponseED {
 
     #[serde(rename = "size")]
     pub size: u64,
-    
+
     #[serde(rename = "stateRoot")]
     pub state_root: B256ED,
 
     #[serde(rename = "miner")]
     pub miner: B256ED,
-    
+
     #[serde(rename = "mixHash")]
     pub mix_hash: B256ED,
 

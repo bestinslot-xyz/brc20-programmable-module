@@ -20,6 +20,7 @@ pub struct ServerInstance {
     pub last_ts_mutex: Mutex<u64>,
     pub last_block_hash_mutex: Mutex<B256>,
     pub last_block_gas_used_mutex: Mutex<u64>,
+    pub last_block_log_index_mutex: Mutex<u64>,
 }
 
 impl ServerInstance {
@@ -33,6 +34,7 @@ impl ServerInstance {
             last_ts_mutex: Mutex::new(0),
             last_block_hash_mutex: Mutex::new(B256::ZERO),
             last_block_gas_used_mutex: Mutex::new(0),
+            last_block_log_index_mutex: Mutex::new(0),
         }
     }
 
@@ -102,6 +104,7 @@ impl ServerInstance {
         let mut last_ts = self.last_ts_mutex.lock().unwrap();
         let mut last_block_hash = self.last_block_hash_mutex.lock().unwrap();
         let mut last_block_gas_used = self.last_block_gas_used_mutex.lock().unwrap();
+        let mut last_block_log_index = self.last_block_log_index_mutex.lock().unwrap();
 
         if *waiting_tx_cnt != tx_idx {
             return Err("tx_idx is different from waiting tx cnt in block!!");
@@ -118,6 +121,7 @@ impl ServerInstance {
             *last_ts = timestamp;
             *last_block_hash = hash;
             *last_block_gas_used = 0;
+            *last_block_log_index = 0;
         }
 
         let number = self.get_latest_block_height() + 1;
@@ -197,13 +201,20 @@ impl ServerInstance {
             &output.clone(),
             *last_block_gas_used,
             nonce,
+            *last_block_log_index,
         )
         .unwrap();
+
+        *last_block_log_index += output.logs().len() as u64;
 
         Ok(get_serializable_execution_result(&output, txhash, nonce))
     }
 
-    pub fn get_transaction_count(&self, account: Address, block_number: u64) -> Result<u64, &'static str> {
+    pub fn get_transaction_count(
+        &self,
+        account: Address,
+        block_number: u64,
+    ) -> Result<u64, &'static str> {
         #[cfg(debug_assertions)]
         println!(
             "Getting transaction count for account {:?} in block 0x{:x} ({})",
@@ -215,9 +226,15 @@ impl ServerInstance {
         Ok(tx_count)
     }
 
-    pub fn get_block_transaction_count_by_number(&self, block_number: u64) -> Result<u64, &'static str> {
+    pub fn get_block_transaction_count_by_number(
+        &self,
+        block_number: u64,
+    ) -> Result<u64, &'static str> {
         #[cfg(debug_assertions)]
-        println!("Getting block tx count for block 0x{:x} ({})", block_number, block_number);
+        println!(
+            "Getting block tx count for block 0x{:x} ({})",
+            block_number, block_number
+        );
 
         let mut db = self.db_mutex.lock().unwrap();
         let tx_count = db.get_tx_count(None, block_number).unwrap();
@@ -323,6 +340,7 @@ impl ServerInstance {
         let mut last_ts = self.last_ts_mutex.lock().unwrap();
         let mut last_block_hash = self.last_block_hash_mutex.lock().unwrap();
         let mut last_block_gas_used = self.last_block_gas_used_mutex.lock().unwrap();
+        let mut last_block_log_index = self.last_block_log_index_mutex.lock().unwrap();
 
         if *waiting_tx_cnt != 0 {
             if timestamp != *last_ts {
@@ -361,6 +379,7 @@ impl ServerInstance {
         *last_ts = 0;
         *last_block_hash = B256::ZERO;
         *last_block_gas_used = 0;
+        *last_block_log_index = 0;
 
         Ok(())
     }
@@ -479,7 +498,10 @@ impl ServerInstance {
 
     pub fn get_block_by_number(&self, block_number: u64) -> Option<BlockResponseED> {
         #[cfg(debug_assertions)]
-        println!("Getting block by number 0x{:x} ({})", block_number, block_number);
+        println!(
+            "Getting block by number 0x{:x} ({})",
+            block_number, block_number
+        );
 
         let mut db = self.db_mutex.lock().unwrap();
         db.get_block(block_number).unwrap()
@@ -543,7 +565,10 @@ impl ServerInstance {
 
     pub fn reorg(&self, latest_valid_block_number: u64) -> Result<(), &'static str> {
         #[cfg(debug_assertions)]
-        println!("Reorg to block 0x{:x} ({})", latest_valid_block_number, latest_valid_block_number);
+        println!(
+            "Reorg to block 0x{:x} ({})",
+            latest_valid_block_number, latest_valid_block_number
+        );
 
         let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
         if *waiting_tx_cnt != 0 {
