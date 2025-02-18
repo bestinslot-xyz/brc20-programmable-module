@@ -145,7 +145,7 @@ mod tests {
             log_index: 0,
         };
         let bytes = LogED::encode(&log_ed).unwrap();
-        assert_eq!(bytes.len(), 92);
+        assert_eq!(bytes.len(), 104);
         let decoded = LogED::decode(bytes).unwrap();
         assert_eq!(log_ed.logs, decoded.logs);
         assert_eq!(log_ed.log_index, decoded.log_index);
