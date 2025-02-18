@@ -22,7 +22,7 @@ use crate::{
 };
 
 #[derive(Embed)]
-#[folder = "src/contracts/"]
+#[folder = "contracts/"]
 struct ContractAssets;
 
 pub struct ServerInstance {
