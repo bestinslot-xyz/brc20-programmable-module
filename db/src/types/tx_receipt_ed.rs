@@ -8,6 +8,10 @@ use super::{AddressED, Decode, Encode, LogED, B2048ED, B256ED};
 pub struct TxReceiptED {
     #[serde(serialize_with = "one_or_zero")]
     pub status: u8,
+    #[serde(rename = "txResult")]
+    pub transaction_result: String,
+    #[serde(rename = "reason")]
+    pub reason: String,
     pub logs: LogED,
     #[serde(rename = "gasUsed", with = "SerHex::<CompactPfx>")]
     pub gas_used: u64,
@@ -54,6 +58,8 @@ impl TxReceiptED {
         cumulative_gas_used: u64,
         nonce: u64,
         start_log_index: u64,
+        r#type: String,
+        reason: String,
     ) -> Self {
         let logs = LogED {
             logs: output.logs().to_vec(),
@@ -62,6 +68,8 @@ impl TxReceiptED {
         let logs_bloom = B2048ED::decode(logs_bloom(output.logs()).to_vec()).unwrap();
         TxReceiptED {
             status: output.is_success() as u8,
+            transaction_result: r#type,
+            reason,
             logs,
             gas_used: output.gas_used(),
             from: AddressED(from),
@@ -82,6 +90,14 @@ impl Encode for TxReceiptED {
     fn encode(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut bytes = Vec::new();
         bytes.push(self.status);
+
+        let r#type_bytes = self.transaction_result.as_bytes();
+        bytes.extend_from_slice(&(r#type_bytes.len() as u32).to_be_bytes());
+        bytes.extend_from_slice(r#type_bytes);
+
+        let reason_bytes = self.reason.as_bytes();
+        bytes.extend_from_slice(&(reason_bytes.len() as u32).to_be_bytes());
+        bytes.extend_from_slice(reason_bytes);
 
         let logs_bytes = self.logs.encode()?;
 
@@ -125,6 +141,16 @@ impl Decode for TxReceiptED {
         let status = bytes[0];
         let mut i = 1;
 
+        let r#type_len = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap()) as usize;
+        i += 4;
+        let r#type = String::from_utf8(bytes[i..i + r#type_len].to_vec())?;
+        i += r#type_len;
+
+        let reason_len = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap()) as usize;
+        i += 4;
+        let reason = String::from_utf8(bytes[i..i + reason_len].to_vec())?;
+        i += reason_len;
+
         let logs_len = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap()) as usize;
         i += 4;
 
@@ -154,6 +180,8 @@ impl Decode for TxReceiptED {
         let nonce = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
         Ok(TxReceiptED {
             status,
+            transaction_result: r#type,
+            reason,
             logs,
             gas_used,
             from,
@@ -197,6 +225,8 @@ mod tests {
         };
         let tx_receipt_ed = TxReceiptED {
             status: 4,
+            transaction_result: "type".to_string(),
+            reason: "reason".to_string(),
             logs,
             gas_used: 5,
             from: AddressED(Address::from([6u8; 20])),

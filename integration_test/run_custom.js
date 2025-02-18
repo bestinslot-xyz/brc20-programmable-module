@@ -9,7 +9,7 @@ var fs = require('fs');
 var express = require('express');
 
 const indexer_addr = '0x0000000000000000000000000000000000003Ca6'
-const brc20_controller_addr = '0xc54Dd4581Af2Dbf18E4d90840226756E9d2b3Cdb'
+const brc20_controller_addr = '0xc54dd4581af2dbf18e4d90840226756e9d2b3cdb'
 // const block_hash_after_initialization = '0xf10af31fab134991a3241ef302446cc206260cfbecae5e9c361d3db5aa5be635'
 const block_hash_after_initialization = '0x0000000000000000000000000000000000000000000000000000000000000000'
 const module_activation_height = 779832

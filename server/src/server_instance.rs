@@ -1,17 +1,22 @@
-use std::str::FromStr;
 use std::sync::Mutex;
 use std::time::Instant;
 
 use db::{
-    types::{BlockResponseED, LogResponseED, TxED, TxReceiptED},
+    types::{
+        AddressED, BlockResponseED, Decode, LogED, LogResponseED, TxED, TxReceiptED, B2048ED,
+        B256ED,
+    },
     DB,
 };
-use revm::primitives::{Address, BlockEnv, Bytes, ExecutionResult, TransactTo, B256, U256};
+use revm::primitives::{
+    alloy_primitives::logs_bloom, Address, BlockEnv, Bytes, ExecutionResult, TransactTo, B256, U256,
+};
 use revm::Database;
 
-use crate::evm::{get_evm, modify_evm_with_tx_env};
-use crate::types::{
-    get_serializable_execution_result, get_tx_hash, SerializableExecutionResult, TxInfo,
+use crate::types::{get_result_reason, get_result_type, get_tx_hash, TxInfo};
+use crate::{
+    evm::{get_evm, modify_evm_with_tx_env},
+    types::get_contract_address,
 };
 
 pub struct ServerInstance {
@@ -93,7 +98,7 @@ impl ServerInstance {
         tx_info: &TxInfo,
         tx_idx: u64,
         hash: B256,
-    ) -> Result<SerializableExecutionResult, &'static str> {
+    ) -> Result<TxReceiptED, &'static str> {
         #[cfg(debug_assertions)]
         {
             let block_number = self.get_latest_block_height() + 1;
@@ -184,15 +189,13 @@ impl ServerInstance {
         );
         *last_block_gas_used += output.gas_used();
 
-        let serializable_result = get_serializable_execution_result(&output, txhash, nonce);
-
         let mut db = self.db_mutex.lock().unwrap();
         db.set_tx_receipt(
+            &get_result_type(&output),
+            &get_result_reason(&output),
             hash,
             number,
-            serializable_result
-                .contract_address
-                .map(|x| Address::from_str(x.as_str()).unwrap()),
+            get_contract_address(&output),
             tx_info.from,
             tx_info.to,
             &tx_info.data,
@@ -207,7 +210,7 @@ impl ServerInstance {
 
         *last_block_log_index += output.logs().len() as u64;
 
-        Ok(get_serializable_execution_result(&output, txhash, nonce))
+        Ok(db.get_tx_receipt(txhash).unwrap().unwrap())
     }
 
     pub fn get_transaction_count(
@@ -389,7 +392,7 @@ impl ServerInstance {
         timestamp: u64,
         block_hash: B256,
         txes: Vec<TxInfo>,
-    ) -> Result<Vec<SerializableExecutionResult>, &'static str> {
+    ) -> Result<Vec<TxReceiptED>, &'static str> {
         #[cfg(debug_assertions)]
         println!("Finalising block with {:?} txes", txes.len());
 
@@ -409,14 +412,14 @@ impl ServerInstance {
         let start_time = Instant::now();
         let tx_len = txes.len();
 
-        let mut serializable_results: Vec<SerializableExecutionResult> = Vec::new();
+        let mut tx_receipts: Vec<TxReceiptED> = Vec::new();
         for tx in txes {
             let result = self.add_tx_to_block(timestamp, &tx, 0, block_hash);
 
             if result.is_err() {
                 return Err(result.unwrap_err());
             } else {
-                serializable_results.push(result.unwrap());
+                tx_receipts.push(result.unwrap());
             }
         }
 
@@ -425,13 +428,10 @@ impl ServerInstance {
         if result.is_err() {
             return Err(result.unwrap_err());
         }
-        Ok(serializable_results)
+        Ok(tx_receipts)
     }
 
-    pub fn call_contract(
-        &self,
-        tx_info: &TxInfo,
-    ) -> Result<SerializableExecutionResult, &'static str> {
+    pub fn call_contract(&self, tx_info: &TxInfo) -> Result<TxReceiptED, &'static str> {
         #[cfg(debug_assertions)]
         println!(
             "Calling contract from: {:?} to: {:?}",
@@ -476,11 +476,27 @@ impl ServerInstance {
             core::mem::swap(&mut *db, &mut evm.context.evm.db);
         }
 
-        Ok(get_serializable_execution_result(
-            &output.unwrap(),
-            txhash,
+        Ok(TxReceiptED {
+            status: output.as_ref().unwrap().is_success() as u8,
+            transaction_result: get_result_type(output.as_ref().unwrap()),
+            reason: get_result_reason(output.as_ref().unwrap()),
+            logs: LogED {
+                logs: output.as_ref().unwrap().logs().to_vec(),
+                log_index: 0,
+            },
+            gas_used: output.as_ref().unwrap().gas_used(),
+            from: AddressED(tx_info.from),
+            to: tx_info.to.map(AddressED),
+            contract_address: get_contract_address(output.as_ref().unwrap()).map(AddressED),
+            logs_bloom: B2048ED::decode(logs_bloom(output.as_ref().unwrap().logs()).to_vec())
+                .unwrap(),
+            hash: B256ED::from_b256(txhash),
+            block_number: number,
+            transaction_hash: B256ED::from_b256(txhash),
+            transaction_index: 0,
+            cumulative_gas_used: output.as_ref().unwrap().gas_used(),
             nonce,
-        ))
+        })
     }
 
     pub fn get_storage_at(&self, contract: Address, location: U256) -> U256 {

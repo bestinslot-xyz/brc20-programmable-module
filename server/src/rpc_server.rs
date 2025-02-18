@@ -9,10 +9,7 @@ use jsonrpsee::{
 use revm::primitives::{Bytes, B256};
 
 use crate::{
-    api::GetLogsFilter,
-    server_instance::ServerInstance,
-    types::{SerializableExecutionResult, TxInfo},
-    Brc20ProgApiServer,
+    api::GetLogsFilter, server_instance::ServerInstance, types::TxInfo, Brc20ProgApiServer,
 };
 
 pub struct RpcServer {
@@ -144,12 +141,7 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(|e| RpcServerError::new(e).into())
     }
 
-    async fn call(
-        &self,
-        from: String,
-        to: Option<String>,
-        data: String,
-    ) -> RpcResult<SerializableExecutionResult> {
+    async fn call(&self, from: String, to: Option<String>, data: String) -> RpcResult<TxReceiptED> {
         let from = from.parse().unwrap();
         let to = to.map(|x| x.parse().unwrap());
         let data = hex::decode(data).unwrap();
@@ -176,7 +168,7 @@ impl Brc20ProgApiServer for RpcServer {
             .call_contract(&tx_info)
             .unwrap()
             .gas_used;
-        Ok(gas_used)
+        Ok(format!("0x{:x}", gas_used))
     }
 
     async fn get_storage_at(&self, contract: String, location: String) -> RpcResult<String> {
@@ -194,7 +186,7 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: String,
         tx_idx: u64,
-    ) -> RpcResult<SerializableExecutionResult> {
+    ) -> RpcResult<TxReceiptED> {
         let from = from.parse().unwrap();
         let to = to.map(|x| x.parse().unwrap());
         let data = hex::decode(data).unwrap();
@@ -222,7 +214,7 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: String,
         txes: Vec<TxInfo>,
-    ) -> RpcResult<Vec<SerializableExecutionResult>> {
+    ) -> RpcResult<Vec<TxReceiptED>> {
         self.server_instance
             .finalise_block_with_txes(timestamp, hash.parse().unwrap(), txes)
             .map_err(|e| RpcServerError::new(e).into())

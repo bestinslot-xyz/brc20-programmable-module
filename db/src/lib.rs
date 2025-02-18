@@ -345,6 +345,8 @@ impl DB {
 
     pub fn set_tx_receipt(
         &mut self,
+        result_type: &str,
+        reason: &str,
         block_hash: B256,
         block_number: u64,
         contract_address: Option<Address>,
@@ -370,6 +372,8 @@ impl DB {
             cumulative_gas_used,
             nonce,
             start_log_index,
+            result_type.to_string(),
+            reason.to_string(),
         );
 
         let tx = TxED {
@@ -907,6 +911,8 @@ mod tests {
 
             db.set_block_hash(block_number, block_hash).unwrap();
             db.set_tx_receipt(
+                "type",
+                "reason",
                 block_hash,
                 block_number,
                 Some(contract_address),
@@ -954,7 +960,9 @@ mod tests {
                 &output,
                 cumulative_gas_used,
                 nonce,
-                start_log_index
+                start_log_index,
+                "type".to_string(),
+                "reason".to_string(),
             )
         );
     }
