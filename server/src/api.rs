@@ -1,7 +1,7 @@
 use db::types::{BlockResponseED, LogResponseED, TxED, TxReceiptED};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-use crate::types::{SerializableExecutionResult, TxInfo};
+use crate::types::TxInfo;
 
 #[rpc(server)]
 pub trait Brc20ProgApi {
@@ -26,7 +26,7 @@ pub trait Brc20ProgApi {
         timestamp: u64,
         hash: String,
         tx_idx: u64,
-    ) -> RpcResult<SerializableExecutionResult>;
+    ) -> RpcResult<TxReceiptED>;
 
     /// Finalises the block with the given parameters
     #[method(name = "brc20_finaliseBlock")]
@@ -44,7 +44,7 @@ pub trait Brc20ProgApi {
         timestamp: u64,
         hash: String,
         txes: Vec<TxInfo>,
-    ) -> RpcResult<Vec<SerializableExecutionResult>>;
+    ) -> RpcResult<Vec<TxReceiptED>>;
 
     /// Reverts the state to the given latest valid block number
     #[method(name = "brc20_reorg")]
@@ -94,12 +94,7 @@ pub trait Brc20ProgApi {
 
     /// Calls a contract with the given parameters
     #[method(name = "eth_call")]
-    async fn call(
-        &self,
-        from: String,
-        to: Option<String>,
-        data: String,
-    ) -> RpcResult<SerializableExecutionResult>;
+    async fn call(&self, from: String, to: Option<String>, data: String) -> RpcResult<TxReceiptED>;
 
     /// Estimates the gas for the given transaction
     #[method(name = "eth_estimateGas")]
