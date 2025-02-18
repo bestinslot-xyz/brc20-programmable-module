@@ -103,17 +103,17 @@ async function initialise_chain() {
 
   let current_block_height = parseInt(await provider_send("eth_blockNumber", {}))
   if (current_block_height == 0) {
-    console.log("deploying BRC20_Controller")
-    const deploy_brc20_controller_tx = await get_deploy_brc20_controller_tx();
-    let resp = await brc20_mine_with_txes(0, "0x0000000000000000000000000000000000000000000000000000000000000000", [deploy_brc20_controller_tx]);
-    let brc20_controller_deploy_receipt = resp[0];
+    // console.log("deploying BRC20_Controller")
+    // const deploy_brc20_controller_tx = await get_deploy_brc20_controller_tx();
+    // let resp = await brc20_mine_with_txes(0, "0x0000000000000000000000000000000000000000000000000000000000000000", [deploy_brc20_controller_tx]);
+    // let brc20_controller_deploy_receipt = resp[0];
 
-    if (brc20_controller_deploy_receipt.contractAddress != brc20_controller_addr) {
-      console.error(`BRC20_Controller deployed to ${brc20_controller_deploy_receipt.contractAddress} instead of ${brc20_controller_addr}`);
-      throw new Error("BRC20_Controller address does not match")
-    }
+    // if (brc20_controller_deploy_receipt.contractAddress != brc20_controller_addr) {
+    //   console.error(`BRC20_Controller deployed to ${brc20_controller_deploy_receipt.contractAddress} instead of ${brc20_controller_addr}`);
+    //   throw new Error("BRC20_Controller address does not match")
+    // }
 
-    current_block_height = 1
+    // current_block_height = 1
   }
 
   let st_tm = +(new Date())

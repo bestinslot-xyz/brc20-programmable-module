@@ -1,6 +1,8 @@
 use std::sync::Mutex;
 use std::time::Instant;
 
+use rust_embed::Embed;
+
 use db::{
     types::{
         AddressED, BlockResponseED, Decode, LogED, LogResponseED, TxED, TxReceiptED, B2048ED,
@@ -19,6 +21,10 @@ use crate::{
     types::get_contract_address,
 };
 
+#[derive(Embed)]
+#[folder = "src/contracts/"]
+struct ContractAssets;
+
 pub struct ServerInstance {
     pub db_mutex: Mutex<DB>,
     pub waiting_tx_cnt_mutex: Mutex<u64>,
@@ -28,19 +34,64 @@ pub struct ServerInstance {
     pub last_block_log_index_mutex: Mutex<u64>,
 }
 
+fn load_contract() -> Vec<u8> {
+    let file_content = ContractAssets::get("BRC20_Controller.bin");
+    let file_content = file_content.unwrap();
+    let data = String::from_utf8(file_content.data.to_vec()).unwrap();
+    let data = if data.starts_with("0x") {
+        data[2..].to_string()
+    } else {
+        data.to_string()
+    };
+    hex::decode(data).unwrap()
+}
+
+fn deploy_brc20_contract(instance: &ServerInstance) {
+    let indexer_addr = "0x0000000000000000000000000000000000003Ca6";
+    let brc20_controller_addr = "0xc54dd4581af2dbf18e4d90840226756e9d2b3cdb";
+
+    let result = instance.add_tx_to_block(
+        0,
+        &TxInfo {
+            from: indexer_addr.parse().unwrap(),
+            to: None,
+            data: Bytes::from(load_contract()),
+        },
+        0,
+        B256::ZERO,
+    );
+
+    let contract_address = result.unwrap().contract_address.map(|x| {
+        println!("BRC20_Controller contract address: {:?}", x.0.to_string());
+        x.0
+    });
+
+    if contract_address.unwrap().to_string().to_lowercase() != brc20_controller_addr {
+        println!("BRC20_Controller contract deployment failed");
+    }
+
+    instance.finalise_block(0, B256::ZERO, 1, None).unwrap();
+}
+
 impl ServerInstance {
     pub fn new(db: DB) -> Self {
         #[cfg(debug_assertions)]
         println!("Creating new server instance");
 
-        ServerInstance {
+        let instance = ServerInstance {
             db_mutex: Mutex::new(db),
             waiting_tx_cnt_mutex: Mutex::new(0),
             last_ts_mutex: Mutex::new(0),
             last_block_hash_mutex: Mutex::new(B256::ZERO),
             last_block_gas_used_mutex: Mutex::new(0),
             last_block_log_index_mutex: Mutex::new(0),
+        };
+
+        if instance.get_latest_block_height() == 0 {
+            deploy_brc20_contract(&instance);
         }
+
+        instance
     }
 
     pub fn get_latest_block_height(&self) -> u64 {
@@ -413,8 +464,10 @@ impl ServerInstance {
         let tx_len = txes.len();
 
         let mut tx_receipts: Vec<TxReceiptED> = Vec::new();
+        let mut tx_idx = 0;
         for tx in txes {
-            let result = self.add_tx_to_block(timestamp, &tx, 0, block_hash);
+            let result = self.add_tx_to_block(timestamp, &tx, tx_idx, block_hash);
+            tx_idx += 1;
 
             if result.is_err() {
                 return Err(result.unwrap_err());

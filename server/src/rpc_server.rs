@@ -30,6 +30,14 @@ impl RpcServer {
 
 #[async_trait]
 impl Brc20ProgApiServer for RpcServer {
+    async fn deposit(&self, _from: String, _ticker: String, _amount: u64) -> RpcResult<bool> {
+        Err(RpcServerError::new("Not implemented").into())
+    }
+
+    async fn withdraw(&self, _to: String, _ticker: String, _amount: u64) -> RpcResult<bool> {
+        Err(RpcServerError::new("Not implemented").into())
+    }
+
     async fn block_number(&self) -> RpcResult<String> {
         let height = self.server_instance.get_latest_block_height();
         Ok(format!("0x{:x}", height))

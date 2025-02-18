@@ -9,5 +9,6 @@ revm = "19.4.0"
 serde = "1.0.196"
 db = { path = "../db" }
 jsonrpsee = { version = "0.24.8", features = [ "server", "macros", "jsonrpsee-core", "jsonrpsee-types" ] }
+rust-embed = "8.5.0"
 # evm-coder = "0.4.2"
 # solabi = "0.2.0"
