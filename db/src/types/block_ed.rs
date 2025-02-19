@@ -1,7 +1,7 @@
 use serde::Serialize;
-use serde_hex::{CompactPfx, SerHex};
+use serde_hex::{CompactPfx, StrictPfx, SerHex};
 
-use super::{B2048ED, B256ED, U128ED};
+use super::{AddressED, B2048ED, B256ED, U128ED};
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct BlockResponseED {
@@ -14,7 +14,7 @@ pub struct BlockResponseED {
     pub hash: B256ED,
     #[serde(rename = "logsBloom")]
     pub logs_bloom: B2048ED,
-    #[serde(with = "SerHex::<CompactPfx>")]
+    #[serde(with = "SerHex::<StrictPfx>")]
     pub nonce: u64,
     #[serde(with = "SerHex::<CompactPfx>")]
     pub number: u64,
@@ -62,7 +62,7 @@ pub struct BlockResponseED {
     pub state_root: B256ED,
 
     #[serde(rename = "miner")]
-    pub miner: B256ED,
+    pub miner: AddressED,
 
     #[serde(rename = "mixHash")]
     pub mix_hash: B256ED,
