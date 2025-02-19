@@ -449,6 +449,8 @@ impl DB {
         let gas_used = self.get_gas_used(block_number)?;
         let mine_timestamp = self.get_mine_timestamp(block_number)?;
 
+        let parent_hash = self.get_block_hash(block_number - 1)?.unwrap();
+
         let tx_ids = self
             .db_number_and_index_to_tx_hash
             .as_ref()
@@ -479,7 +481,7 @@ impl DB {
             hash: BEncodeDecode(block_hash),
             logs_bloom: BEncodeDecode(FixedBytes([0u8; 256])),
             transactions,
-            parent_hash: BEncodeDecode(B256::ZERO),
+            parent_hash: BEncodeDecode(parent_hash),
             blob_gas_used: 0,
             base_fee_per_gas: 0,
             transactions_root: BEncodeDecode(FixedBytes(tx_merkle.root().unwrap_or([0; 32]))),
@@ -522,12 +524,23 @@ impl DB {
     pub fn set_block_hash(
         &mut self,
         block_number: u64,
-        block_hash: B256,
+        mut block_hash: B256,
     ) -> Result<(), Box<dyn Error>> {
         if self.latest_block_number.is_none()
             || block_number > self.latest_block_number.unwrap_or((0, B256::ZERO)).0
         {
             self.latest_block_number = Some((block_number, block_hash));
+        }
+
+        if block_hash == B256::ZERO {
+            // just hash the number
+            let bytes = (1 + block_number << 1).to_be_bytes();
+            let full_bytes = [0u8; 24]
+                .iter()
+                .chain(bytes.iter())
+                .copied()
+                .collect::<Vec<u8>>();
+            block_hash = B256::from_slice(&full_bytes);
         }
 
         self.db_block_number_to_hash
