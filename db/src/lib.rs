@@ -487,7 +487,7 @@ impl DB {
             sha3_uncles: BEncodeDecode(FixedBytes([0; 32])),
             size: 0,
             state_root: BEncodeDecode(FixedBytes([0; 32])),
-            miner: BEncodeDecode(FixedBytes([0; 32])),
+            miner: AddressED(Address::ZERO),
             mix_hash: BEncodeDecode(FixedBytes([0; 32])),
             excess_blob_gas: 0,
             extra_data: BEncodeDecode(FixedBytes([0; 32])),
