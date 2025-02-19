@@ -3,7 +3,7 @@ use std::{error::Error, net::SocketAddr, str::FromStr};
 use db::types::{BlockResponseED, LogResponseED, TxED, TxReceiptED};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
-    server::{Server, ServerHandle},
+    server::{RpcServiceBuilder, Server, ServerHandle},
     types::{ErrorObject, ErrorObjectOwned},
 };
 use revm::primitives::{Bytes, B256};
@@ -276,8 +276,15 @@ pub async fn start_rpc_server(
     addr: &str,
     server_instance: ServerInstance,
 ) -> Result<ServerHandle, Box<dyn Error>> {
-    let server = Server::builder().build(addr.parse::<SocketAddr>()?).await?;
-
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(tracing::Level::TRACE)
+            .finish(),
+    )?;
+    let server = Server::builder()
+        .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(1024))
+        .build(addr.parse::<SocketAddr>()?)
+        .await?;
     let module = RpcServer { server_instance }.into_rpc();
     let handle = server.start(module);
 

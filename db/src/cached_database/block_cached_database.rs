@@ -100,7 +100,7 @@ where
             if *key_bytes < *start_key_bytes {
                 continue;
             }
-            if *key_bytes > *end_key_bytes {
+            if *key_bytes >= *end_key_bytes {
                 break;
             }
             let cache = self.cache.get(key).unwrap();
