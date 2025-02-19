@@ -14,6 +14,7 @@ use cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 
 pub mod types;
 
+use rs_merkle::{algorithms::Sha256, MerkleTree};
 use types::{
     AccountInfoED, AddressED, BEncodeDecode, BlockResponseED, BytecodeED, LogResponseED, TxED,
     TxReceiptED, UintEncodeDecode, B256ED, U128ED, U256ED, U512ED, U64ED,
@@ -457,6 +458,10 @@ impl DB {
                 &&U128ED::from_u128(Self::get_number_and_index_key(block_number + 1, 0)),
             )?;
 
+        let leaves = tx_ids.iter().map(|x| x.1 .0 .0).collect::<Vec<[u8; 32]>>();
+
+        let tx_merkle = MerkleTree::<Sha256>::from_leaves(leaves.as_slice());
+
         let mut transactions = Vec::new();
         for tx_pair in tx_ids {
             let tx_id = tx_pair.1;
@@ -477,7 +482,7 @@ impl DB {
             parent_hash: BEncodeDecode(B256::ZERO),
             blob_gas_used: 0,
             base_fee_per_gas: 0,
-            transactions_root: BEncodeDecode(FixedBytes([0; 32])),
+            transactions_root: BEncodeDecode(FixedBytes(tx_merkle.root().unwrap_or([0; 32]))),
             uncles: Vec::new(),
             withdrawals: Vec::new(),
             withdrawals_root: BEncodeDecode(FixedBytes([0; 32])),
@@ -519,7 +524,9 @@ impl DB {
         block_number: u64,
         block_hash: B256,
     ) -> Result<(), Box<dyn Error>> {
-        if block_number > self.latest_block_number.unwrap_or((0, B256::ZERO)).0 {
+        if self.latest_block_number.is_none()
+            || block_number > self.latest_block_number.unwrap_or((0, B256::ZERO)).0
+        {
             self.latest_block_number = Some((block_number, block_hash));
         }
 

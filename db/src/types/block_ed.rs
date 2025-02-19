@@ -1,5 +1,5 @@
 use serde::Serialize;
-use serde_hex::{CompactPfx, StrictPfx, SerHex};
+use serde_hex::{CompactPfx, SerHex, StrictPfx};
 
 use super::{AddressED, B2048ED, B256ED, U128ED};
 

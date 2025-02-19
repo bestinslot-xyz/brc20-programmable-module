@@ -43,6 +43,7 @@ fn load_contract(file_name: &str) -> TxInfo {
 }
 
 fn deploy_brc20_contract(instance: &ServerInstance) {
+    // Deploy BRC20 Contract
     let result =
         instance.add_tx_to_block(0, &load_contract("BRC20_Controller.json"), 0, B256::ZERO);
     assert!(result.is_ok());
@@ -70,7 +71,19 @@ impl ServerInstance {
         };
 
         if instance.get_latest_block_height() == 0 {
+            {
+                let mut db = instance.db_mutex.lock().unwrap();
+                db.set_block_hash(0, B256::ZERO).unwrap();
+                db.set_block_timestamp(0, 0).unwrap();
+                db.set_gas_used(0, 0).unwrap();
+                db.set_mine_timestamp(0, 0).unwrap();
+            }
+
+            assert!(instance.get_latest_block_height() == 0);
+
             deploy_brc20_contract(&instance);
+
+            assert!(instance.get_latest_block_height() == 1)
         }
 
         instance
@@ -108,18 +121,12 @@ impl ServerInstance {
             number + block_cnt - 1
         );
 
-        let mut number_clone = number.clone();
-
         for _ in 0..block_cnt {
             db.set_block_hash(number, hash).unwrap();
             db.set_block_timestamp(number, timestamp).unwrap();
+            db.set_gas_used(number, 0).unwrap();
+            db.set_mine_timestamp(number, 0).unwrap();
             number += 1;
-        }
-
-        for _ in 0..block_cnt {
-            db.set_gas_used(number_clone, 0).unwrap();
-            db.set_mine_timestamp(number_clone, 0).unwrap();
-            number_clone += 1;
         }
 
         Ok(())
