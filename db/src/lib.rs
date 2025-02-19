@@ -449,7 +449,9 @@ impl DB {
         let gas_used = self.get_gas_used(block_number)?;
         let mine_timestamp = self.get_mine_timestamp(block_number)?;
 
-        let parent_hash = self.get_block_hash(block_number - 1)?.unwrap();
+        let parent_hash = self
+            .get_block_hash(block_number - 1)?
+            .unwrap_or(FixedBytes([0u8; 32]));
 
         let tx_ids = self
             .db_number_and_index_to_tx_hash
