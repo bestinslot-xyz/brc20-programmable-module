@@ -583,10 +583,13 @@ impl ServerInstance {
         println!("Getting contract bytecode for {:?}", addr);
 
         let mut db = self.db_mutex.lock().unwrap();
-        let acct = db.basic(addr).unwrap().unwrap();
-        let bytecode = db.get_code(acct.code_hash).unwrap().unwrap();
+        let acct = db.basic(addr).unwrap();
+        if acct.is_none() {
+            return None;
+        }
+        let bytecode = db.get_code(acct.unwrap().code_hash).unwrap();
 
-        Some(bytecode.0.bytes())
+        bytecode.map(|x| x.0.bytes())
     }
 
     pub fn clear_caches(&self) {
