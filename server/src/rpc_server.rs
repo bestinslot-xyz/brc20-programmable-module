@@ -30,12 +30,46 @@ impl RpcServer {
 
 #[async_trait]
 impl Brc20ProgApiServer for RpcServer {
-    async fn deposit(&self, _from: String, _ticker: String, _amount: u64) -> RpcResult<bool> {
-        Err(RpcServerError::new("Not implemented").into())
+    async fn deposit(
+        &self,
+        from: String,
+        ticker: String,
+        amount: u64,
+        timestamp: u64,
+        hash: String,
+        tx_idx: u64,
+    ) -> RpcResult<bool> {
+        self.server_instance
+            .deposit(
+                from.parse().unwrap(),
+                ticker,
+                amount,
+                timestamp,
+                hash.parse().unwrap(),
+                tx_idx,
+            )
+            .map_err(|e| RpcServerError::new(e).into())
     }
 
-    async fn withdraw(&self, _to: String, _ticker: String, _amount: u64) -> RpcResult<bool> {
-        Err(RpcServerError::new("Not implemented").into())
+    async fn withdraw(
+        &self,
+        to: String,
+        ticker: String,
+        amount: u64,
+        timestamp: u64,
+        hash: String,
+        tx_idx: u64,
+    ) -> RpcResult<bool> {
+        self.server_instance
+            .withdraw(
+                to.parse().unwrap(),
+                ticker,
+                amount,
+                timestamp,
+                hash.parse().unwrap(),
+                tx_idx,
+            )
+            .map_err(|e| RpcServerError::new(e).into())
     }
 
     async fn block_number(&self) -> RpcResult<String> {
