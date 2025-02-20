@@ -265,7 +265,7 @@ impl ServerInstance {
         );
 
         let mut db = self.db_mutex.lock().unwrap();
-        let tx_count = db.get_tx_count(Some(account), block_number).unwrap();
+        let tx_count = db.get_tx_count(Some(account), block_number).unwrap_or(0);
         Ok(tx_count)
     }
 
@@ -280,7 +280,7 @@ impl ServerInstance {
         );
 
         let mut db = self.db_mutex.lock().unwrap();
-        let tx_count = db.get_tx_count(None, block_number).unwrap();
+        let tx_count = db.get_tx_count(None, block_number).unwrap_or(0);
         Ok(tx_count)
     }
 
@@ -292,8 +292,12 @@ impl ServerInstance {
         println!("Getting block tx count for block hash {:?}", block_hash);
 
         let mut db = self.db_mutex.lock().unwrap();
-        let block_number = db.get_block_number(block_hash).unwrap().unwrap().to_u64();
-        let tx_count = db.get_tx_count(None, block_number).unwrap();
+        let block_number = db.get_block_number(block_hash);
+        if block_number.is_err() {
+            return Err("block hash not found");
+        }
+        let block_number = block_number.unwrap().map(|x| x.to_u64()).unwrap_or(0);
+        let tx_count = db.get_tx_count(None, block_number).unwrap_or(0);
         Ok(tx_count)
     }
 
@@ -312,7 +316,12 @@ impl ServerInstance {
         let tx_hash = db
             .get_tx_hash_by_block_hash_and_index(block_hash, tx_idx)
             .unwrap();
-        tx_hash.map(|x| db.get_tx_by_hash(x.0).unwrap()).unwrap()
+        if tx_hash == None {
+            return None;
+        }
+        tx_hash
+            .map(|x| db.get_tx_by_hash(x.0).unwrap_or(None))
+            .unwrap()
     }
 
     pub fn get_transaction_by_block_number_and_index(
@@ -330,7 +339,9 @@ impl ServerInstance {
         let tx_hash = db
             .get_tx_hash_by_block_number_and_index(block_number, tx_idx)
             .unwrap();
-        tx_hash.map(|x| db.get_tx_by_hash(x.0).unwrap()).unwrap()
+        tx_hash
+            .map(|x| db.get_tx_by_hash(x.0).unwrap_or(None))
+            .unwrap()
     }
 
     pub fn get_transaction_by_hash(&self, tx_hash: B256) -> Option<TxED> {
@@ -338,7 +349,7 @@ impl ServerInstance {
         println!("Getting tx by hash {:?}", tx_hash);
 
         let mut db = self.db_mutex.lock().unwrap();
-        db.get_tx_by_hash(tx_hash).unwrap()
+        db.get_tx_by_hash(tx_hash).unwrap_or(None)
     }
 
     pub fn get_transaction_receipt(&self, tx_hash: B256) -> Option<TxReceiptED> {
@@ -346,7 +357,7 @@ impl ServerInstance {
         println!("Getting tx receipt for {:?}", tx_hash);
 
         let mut db = self.db_mutex.lock().unwrap();
-        db.get_tx_receipt(tx_hash).unwrap()
+        db.get_tx_receipt(tx_hash).unwrap_or(None)
     }
 
     pub fn get_logs(
@@ -366,7 +377,7 @@ impl ServerInstance {
             address,
             topics.unwrap_or(Vec::new()),
         )
-        .unwrap()
+        .unwrap_or(Vec::new())
     }
 
     pub fn finalise_block(
@@ -571,6 +582,10 @@ impl ServerInstance {
 
         let mut db = self.db_mutex.lock().unwrap();
         let block_number = db.get_block_number(block_hash).unwrap();
+
+        if block_number.is_none() {
+            return None;
+        }
 
         #[cfg(debug_assertions)]
         println!("Got block {:?} hash {:?}", block_number, block_hash);
