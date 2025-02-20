@@ -474,9 +474,9 @@ impl DB {
 
         Ok(Some(BlockResponseED {
             difficulty: 0,
-            gas_limit: 0,
+            gas_limit: 36000000,
             gas_used: gas_used.unwrap_or(U64::ZERO).as_limbs()[0],
-            nonce: 0,
+            nonce: transactions.len() as u64,
             number: block_number,
             timestamp: block_timestamp.unwrap_or(U64::ZERO).as_limbs()[0],
             mine_timestamp: UintEncodeDecode(mine_timestamp.unwrap_or(U128::ZERO)),
