@@ -1,5 +1,5 @@
-use std::sync::Mutex;
 use std::time::Instant;
+use std::{str::FromStr, sync::Mutex};
 
 use rust_embed::Embed;
 
@@ -15,10 +15,13 @@ use revm::primitives::{
 };
 use revm::Database;
 
-use crate::types::{get_result_reason, get_result_type, get_tx_hash, TxInfo};
 use crate::{
     evm::{get_evm, modify_evm_with_tx_env},
     types::get_contract_address,
+};
+use crate::{
+    types::{get_result_reason, get_result_type, get_tx_hash, TxInfo},
+    BRC20_CONTROLLER_ADDRESS,
 };
 
 #[derive(Embed)]
@@ -42,18 +45,27 @@ fn load_contract(file_name: &str) -> TxInfo {
     serde_json::from_str(&data).unwrap()
 }
 
-fn deploy_brc20_contract(instance: &ServerInstance) {
+fn deploy_brc20_contract(instance: &ServerInstance) -> Address {
     // Deploy BRC20 Contract
     let result =
         instance.add_tx_to_block(0, &load_contract("BRC20_Controller.json"), 0, B256::ZERO);
     assert!(result.is_ok());
 
+    let brc20_controller_contract = result.unwrap().contract_address.unwrap().0;
+
     println!(
         "BRC20_Controller contract address: {:?}",
-        result.unwrap().contract_address.unwrap().0.to_string()
+        brc20_controller_contract
+    );
+
+    assert_eq!(
+        brc20_controller_contract,
+        Address::from_str(BRC20_CONTROLLER_ADDRESS).unwrap()
     );
 
     instance.finalise_block(0, B256::ZERO, 1, None).unwrap();
+
+    brc20_controller_contract
 }
 
 impl ServerInstance {
@@ -482,6 +494,56 @@ impl ServerInstance {
             return Err(result.unwrap_err());
         }
         Ok(tx_receipts)
+    }
+
+    pub fn deposit(
+        &self,
+        address: Address,
+        ticker: String,
+        amount: u64,
+        _timestamp: u64,
+        _hash: B256,
+        _tx_idx: u64,
+    ) -> Result<bool, &'static str> {
+        #[cfg(debug_assertions)]
+        println!(
+            "Depositing {:?} {:?} tokens to {:?}",
+            amount, ticker, address
+        );
+
+        let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
+        if *waiting_tx_cnt != 0 {
+            return Err("There are waiting txes committed to db, cannot mine empty block!");
+        }
+
+        // TODO: Call BRC20_Controller contract to deposit tokens
+        // self.add_tx_to_block...
+        Ok(true)
+    }
+
+    pub fn withdraw(
+        &self,
+        address: Address,
+        ticker: String,
+        amount: u64,
+        _timestamp: u64,
+        _hash: B256,
+        _tx_idx: u64,
+    ) -> Result<bool, &'static str> {
+        #[cfg(debug_assertions)]
+        println!(
+            "Withdrawing {:?} {:?} tokens from {:?}",
+            amount, ticker, address
+        );
+
+        let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
+        if *waiting_tx_cnt != 0 {
+            return Err("There are waiting txes committed to db, cannot mine empty block!");
+        }
+
+        // TODO: Call BRC20_Controller contract to withdraw tokens
+        // self.add_tx_to_block...
+        Ok(true)
     }
 
     pub fn call_contract(&self, tx_info: &TxInfo) -> Result<TxReceiptED, &'static str> {
