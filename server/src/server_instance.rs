@@ -1,5 +1,5 @@
-use std::time::Instant;
 use std::sync::Mutex;
+use std::time::Instant;
 
 use db::{
     types::{
@@ -221,6 +221,7 @@ impl ServerInstance {
         db.set_tx_receipt(
             &get_result_type(&output),
             &get_result_reason(&output),
+            output.output(),
             hash,
             number,
             get_contract_address(&output),
@@ -495,14 +496,14 @@ impl ServerInstance {
             ..Default::default()
         };
 
-        let output: Option<ExecutionResult>;
+        let output;
         let nonce = self.get_nonce(tx_info.from);
         let txhash = get_tx_hash(&tx_info, &nonce);
 
         {
             let mut db = self.db_mutex.lock().unwrap();
             let db_moved = core::mem::take(&mut *db);
-            let mut evm = get_evm(block_info, db_moved, Some(U256::from(1_000_000)));
+            let mut evm = get_evm(block_info, db_moved, None);
             evm = modify_evm_with_tx_env(
                 evm,
                 tx_info.from,
@@ -513,14 +514,19 @@ impl ServerInstance {
                 tx_info.data.clone(),
             );
 
-            output = Some(evm.transact().unwrap().result);
+            output = evm.transact().map(|x| x.result);
             core::mem::swap(&mut *db, &mut evm.context.evm.db);
+        }
+
+        if output.is_err() {
+            return Err("Error while calling contract");
         }
 
         Ok(TxReceiptED {
             status: output.as_ref().unwrap().is_success() as u8,
             transaction_result: get_result_type(output.as_ref().unwrap()),
             reason: get_result_reason(output.as_ref().unwrap()),
+            result_bytes: output.as_ref().unwrap().output().cloned(),
             logs: LogED {
                 logs: output.as_ref().unwrap().logs().to_vec(),
                 log_index: 0,

@@ -10,7 +10,9 @@ use revm::primitives::{Bytes, B256, U256};
 
 use crate::{
     api::GetLogsFilter,
-    brc20_controller::{load_brc20_burn_tx, load_brc20_mint_tx},
+    brc20_controller::{
+        decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
+    },
     server_instance::ServerInstance,
     types::TxInfo,
     Brc20ProgApiServer,
@@ -36,7 +38,7 @@ impl RpcServer {
 impl Brc20ProgApiServer for RpcServer {
     async fn deposit(
         &self,
-        from: String,
+        to: String,
         ticker: String,
         amount: String,
         timestamp: u64,
@@ -48,7 +50,7 @@ impl Brc20ProgApiServer for RpcServer {
                 timestamp,
                 &load_brc20_mint_tx(
                     ticker,
-                    from.parse().unwrap(),
+                    to.parse().unwrap(),
                     U256::from_str(&amount).unwrap(),
                 ),
                 tx_idx,
@@ -80,6 +82,18 @@ impl Brc20ProgApiServer for RpcServer {
             )
             .map_err(|e| RpcServerError::new(e).into())
             .map(|receipt| receipt.status == 1)
+    }
+
+    async fn balance(&self, address: String, ticker: String) -> RpcResult<String> {
+        self.server_instance
+            .call_contract(&load_brc20_balance_tx(ticker, address.parse().unwrap()))
+            .map(|receipt| {
+                format!(
+                    "0x{:x}",
+                    decode_brc20_balance_result(receipt.result_bytes.as_ref())
+                )
+            })
+            .map_err(|e| RpcServerError::new(e).into())
     }
 
     async fn block_number(&self) -> RpcResult<String> {
@@ -257,7 +271,12 @@ impl Brc20ProgApiServer for RpcServer {
         block_tx_cnt: u64,
     ) -> RpcResult<()> {
         self.server_instance
-            .finalise_block(timestamp, hash.parse().unwrap(), block_tx_cnt, None)
+            .finalise_block(
+                timestamp,
+                B256::from_str(&hash[2..]).unwrap(),
+                block_tx_cnt,
+                None,
+            )
             .map_err(|e| RpcServerError::new(e).into())
     }
 

@@ -348,6 +348,7 @@ impl DB {
         &mut self,
         result_type: &str,
         reason: &str,
+        result: Option<&Bytes>,
         block_hash: B256,
         block_number: u64,
         contract_address: Option<Address>,
@@ -375,6 +376,7 @@ impl DB {
             start_log_index,
             result_type.to_string(),
             reason.to_string(),
+            result,
         );
 
         let tx = TxED {
@@ -935,6 +937,7 @@ mod tests {
             db.set_tx_receipt(
                 "type",
                 "reason",
+                Some(&Bytes::from(vec![11u8; 32])),
                 block_hash,
                 block_number,
                 Some(contract_address),
@@ -985,6 +988,7 @@ mod tests {
                 start_log_index,
                 "type".to_string(),
                 "reason".to_string(),
+                Some(&Bytes::from(vec![11u8; 32])),
             )
         );
     }
