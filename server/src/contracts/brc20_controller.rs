@@ -53,6 +53,29 @@ pub fn load_brc20_burn_tx(ticker: String, address: Address, amount: U256) -> TxI
     }
 }
 
+const BALANCE_OF: FunctionEncoder<(String, solabi::Address), (solabi::U256,)> =
+    FunctionEncoder::new(selector!("balanceOf(string,address)"));
+
+pub fn load_brc20_balance_tx(ticker: String, address: Address) -> TxInfo {
+    let address = address.as_slice().try_into().unwrap();
+
+    TxInfo {
+        from: INDEXER_ADDRESS.parse().unwrap(),
+        to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
+        data: Bytes::from(BALANCE_OF.encode_params(&(ticker, solabi::Address(address)))),
+    }
+}
+
+pub fn decode_brc20_balance_result(data: Option<&Bytes>) -> U256 {
+    if data.is_none() {
+        return U256::ZERO;
+    }
+    let (result,) = BALANCE_OF.decode_returns(data.as_ref().unwrap()).unwrap();
+    println!("result: {:?}", result);
+    let result = result.to_be_bytes();
+    U256::from_be_bytes(result)
+}
+
 pub fn load_brc20_deploy_tx() -> TxInfo {
     let file_content = ContractAssets::get(&format!("{}.bin", BRC20_CONTROLLER_PATH));
     let file_content = file_content.unwrap();
@@ -66,5 +89,5 @@ pub fn load_brc20_deploy_tx() -> TxInfo {
 }
 
 pub fn verify_brc20_contract_address(address: &str) {
-    assert_eq!(address, BRC20_CONTROLLER_ADDRESS);
+    assert_eq!(address.to_lowercase(), BRC20_CONTROLLER_ADDRESS);
 }

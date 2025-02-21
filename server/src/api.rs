@@ -20,7 +20,7 @@ pub trait Brc20ProgApi {
     #[method(name = "brc20_deposit")]
     async fn deposit(
         &self,
-        from: String,
+        to: String,
         ticker: String,
         amount: String,
         timestamp: u64,
@@ -39,6 +39,10 @@ pub trait Brc20ProgApi {
         hash: String,
         tx_idx: u64,
     ) -> RpcResult<bool>;
+
+    /// Checks BRC20 balance for given address
+    #[method(name = "brc20_balance")]
+    async fn balance(&self, address: String, ticker: String) -> RpcResult<String>;
 
     /// Adds a transaction to the block
     #[method(name = "brc20_addTxToBlock")]

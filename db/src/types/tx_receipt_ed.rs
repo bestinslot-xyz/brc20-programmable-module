@@ -1,4 +1,4 @@
-use revm::primitives::{alloy_primitives::logs_bloom, Address, ExecutionResult, B256};
+use revm::primitives::{alloy_primitives::logs_bloom, Address, Bytes, ExecutionResult, B256};
 use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex};
 
@@ -32,6 +32,8 @@ pub struct TxReceiptED {
     pub cumulative_gas_used: u64,
     #[serde(with = "SerHex::<CompactPfx>")]
     pub nonce: u64,
+    #[serde(skip)]
+    pub result_bytes: Option<Bytes>,
 }
 
 fn one_or_zero<S>(status: &u8, serializer: S) -> Result<S::Ok, S::Error>
@@ -60,6 +62,7 @@ impl TxReceiptED {
         start_log_index: u64,
         r#type: String,
         reason: String,
+        output_bytes: Option<&Bytes>,
     ) -> Self {
         let logs = LogED {
             logs: output.logs().to_vec(),
@@ -82,6 +85,7 @@ impl TxReceiptED {
             transaction_index: tx_idx,
             cumulative_gas_used,
             nonce,
+            result_bytes: output_bytes.cloned(),
         }
     }
 }
@@ -129,6 +133,14 @@ impl Encode for TxReceiptED {
         bytes.extend_from_slice(&self.transaction_index.to_be_bytes());
         bytes.extend_from_slice(&self.cumulative_gas_used.to_be_bytes());
         bytes.extend_from_slice(&self.nonce.to_be_bytes());
+
+        let output_bytes = self.result_bytes.as_ref();
+        if let Some(output_bytes) = output_bytes {
+            bytes.extend_from_slice(&(output_bytes.len() as u32).to_be_bytes());
+            bytes.extend_from_slice(output_bytes);
+        } else {
+            bytes.extend_from_slice(&(0u32).to_be_bytes());
+        }
         Ok(bytes)
     }
 }
@@ -178,6 +190,14 @@ impl Decode for TxReceiptED {
         let cumulative_gas_used = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
         i += 8;
         let nonce = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
+        i += 8;
+        let output_bytes_len = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap()) as usize;
+        i += 4;
+        let result_bytes = if output_bytes_len == 0 {
+            None
+        } else {
+            Some(Bytes::from(bytes[i..i + output_bytes_len].to_vec()))
+        };
         Ok(TxReceiptED {
             status,
             transaction_result: r#type,
@@ -202,6 +222,7 @@ impl Decode for TxReceiptED {
             transaction_index,
             cumulative_gas_used,
             nonce,
+            result_bytes: result_bytes,
         })
     }
 }
@@ -239,6 +260,7 @@ mod tests {
             transaction_index: 13,
             cumulative_gas_used: 14,
             nonce: 15,
+            result_bytes: None,
         };
         let bytes = TxReceiptED::encode(&tx_receipt_ed).unwrap();
         let decoded = TxReceiptED::decode(bytes).unwrap();
