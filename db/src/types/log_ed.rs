@@ -62,7 +62,7 @@ impl Serialize for LogED {
                 );
                 map.insert(
                     "data".to_string(),
-                    serde_json::Value::String(format!("0x{:x}", log.data.data)),
+                    serde_json::Value::String(format!("{:x}", log.data.data)),
                 );
                 map
             })
