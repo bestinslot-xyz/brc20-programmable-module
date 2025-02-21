@@ -6,10 +6,14 @@ use jsonrpsee::{
     server::{RpcServiceBuilder, Server, ServerHandle},
     types::{ErrorObject, ErrorObjectOwned},
 };
-use revm::primitives::{Bytes, B256};
+use revm::primitives::{Bytes, B256, U256};
 
 use crate::{
-    api::GetLogsFilter, server_instance::ServerInstance, types::TxInfo, Brc20ProgApiServer,
+    api::GetLogsFilter,
+    brc20_controller::{load_brc20_burn_tx, load_brc20_mint_tx},
+    server_instance::ServerInstance,
+    types::TxInfo,
+    Brc20ProgApiServer,
 };
 
 pub struct RpcServer {
@@ -34,42 +38,48 @@ impl Brc20ProgApiServer for RpcServer {
         &self,
         from: String,
         ticker: String,
-        amount: u64,
+        amount: String,
         timestamp: u64,
         hash: String,
         tx_idx: u64,
     ) -> RpcResult<bool> {
         self.server_instance
-            .deposit(
-                from.parse().unwrap(),
-                ticker,
-                amount,
+            .add_tx_to_block(
                 timestamp,
-                hash.parse().unwrap(),
+                &load_brc20_mint_tx(
+                    ticker,
+                    from.parse().unwrap(),
+                    U256::from_str(&amount).unwrap(),
+                ),
                 tx_idx,
+                hash.parse().unwrap(),
             )
             .map_err(|e| RpcServerError::new(e).into())
+            .map(|receipt| receipt.status == 1)
     }
 
     async fn withdraw(
         &self,
         to: String,
         ticker: String,
-        amount: u64,
+        amount: String,
         timestamp: u64,
         hash: String,
         tx_idx: u64,
     ) -> RpcResult<bool> {
         self.server_instance
-            .withdraw(
-                to.parse().unwrap(),
-                ticker,
-                amount,
+            .add_tx_to_block(
                 timestamp,
-                hash.parse().unwrap(),
+                &load_brc20_burn_tx(
+                    ticker,
+                    to.parse().unwrap(),
+                    U256::from_str(&amount).unwrap(),
+                ),
                 tx_idx,
+                hash.parse().unwrap(),
             )
             .map_err(|e| RpcServerError::new(e).into())
+            .map(|receipt| receipt.status == 1)
     }
 
     async fn block_number(&self) -> RpcResult<String> {
