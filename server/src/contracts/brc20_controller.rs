@@ -27,7 +27,7 @@ pub fn load_brc20_mint_tx(ticker: String, address: Address, amount: U256) -> TxI
         data: Bytes::from(MINT.encode_params(&(
             ticker,
             solabi::Address(to),
-            solabi::U256([amount1, amount2]),
+            solabi::U256([amount2, amount1]),
         ))),
     }
 }
@@ -48,7 +48,7 @@ pub fn load_brc20_burn_tx(ticker: String, address: Address, amount: U256) -> TxI
         data: Bytes::from(BURN.encode_params(&(
             ticker,
             solabi::Address(from),
-            solabi::U256([amount1, amount2]),
+            solabi::U256([amount2, amount1]),
         ))),
     }
 }
@@ -71,7 +71,6 @@ pub fn decode_brc20_balance_result(data: Option<&Bytes>) -> U256 {
         return U256::ZERO;
     }
     let (result,) = BALANCE_OF.decode_returns(data.as_ref().unwrap()).unwrap();
-    println!("result: {:?}", result);
     let result = result.to_be_bytes();
     U256::from_be_bytes(result)
 }

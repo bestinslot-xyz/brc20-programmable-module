@@ -774,69 +774,6 @@ app.get('/get_contract_bytecode', async (request, response) => {
   }
 })
 
-app.get('/brc20_deposit', async (request, response) => {
-  try {
-    console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
-
-    let res = await provider_send("brc20_deposit", {
-      "to": request.query.address,
-      "ticker": request.query.ticker,
-      "amount": request.query.amount,
-      "timestamp": parseInt(request.query.timestamp),
-      "tx_idx": parseInt(request.query.tx_idx)
-    })
-
-    response.send({
-      error: null,
-      result: res
-    })
-  } catch (err) {
-    console.log(err)
-    response.status(500).send({ error: 'internal error', result: null })
-  }
-})
-
-app.get('/brc20_withdraw', async (request, response) => {
-  try {
-    console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
-
-    let res = await provider_send("brc20_withdraw", {
-      "from": request.query.address,
-      "ticker": request.query.ticker,
-      "amount": request.query.amount,
-      "timestamp": parseInt(request.query.timestamp),
-      "tx_idx": parseInt(request.query.tx_idx)
-    })
-
-    response.send({
-      error: null,
-      result: res
-    })
-  } catch (err) {
-    console.log(err)
-    response.status(500).send({ error: 'internal error', result: null })
-  }
-})
-
-app.get('/brc20_balance', async (request, response) => {
-  try {
-    console.log(`${request.protocol}://${request.get('host')}${request.originalUrl}`)
-
-    let res = await provider_send("brc20_balance", {
-      "address": request.query.address,
-      "ticker": request.query.ticker
-    })
-
-    response.send({
-      error: null,
-      result: res
-    })
-  } catch (err) {
-    console.log(err)
-    response.status(500).send({ error: 'internal error', result: null })
-  }
-})
-
 async function main() {
   let resp = parseInt(await provider_send("eth_blockNumber", {}))
   if (resp < module_activation_height - 1) {
