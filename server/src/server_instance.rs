@@ -1,7 +1,5 @@
 use std::time::Instant;
-use std::{str::FromStr, sync::Mutex};
-
-use rust_embed::Embed;
+use std::sync::Mutex;
 
 use db::{
     types::{
@@ -10,23 +8,22 @@ use db::{
     },
     DB,
 };
-use revm::primitives::{
-    alloy_primitives::logs_bloom, Address, BlockEnv, Bytes, ExecutionResult, TransactTo, B256, U256,
+use revm::{
+    primitives::{
+        alloy_primitives::logs_bloom, Address, BlockEnv, Bytes, ExecutionResult, TransactTo, B256,
+        U256,
+    },
+    Database,
 };
-use revm::Database;
+
+use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
 
 use crate::{
     evm::{get_evm, modify_evm_with_tx_env},
     types::get_contract_address,
 };
-use crate::{
-    types::{get_result_reason, get_result_type, get_tx_hash, TxInfo},
-    BRC20_CONTROLLER_ADDRESS,
-};
 
-#[derive(Embed)]
-#[folder = "contracts/"]
-struct ContractAssets;
+use crate::types::{get_result_reason, get_result_type, get_tx_hash, TxInfo};
 
 pub struct ServerInstance {
     pub db_mutex: Mutex<DB>,
@@ -37,35 +34,14 @@ pub struct ServerInstance {
     pub last_block_log_index_mutex: Mutex<u64>,
 }
 
-fn load_contract(file_name: &str) -> TxInfo {
-    let file_content = ContractAssets::get(file_name);
-    let file_content = file_content.unwrap();
-    let data = String::from_utf8(file_content.data.to_vec()).unwrap();
-
-    serde_json::from_str(&data).unwrap()
-}
-
-fn deploy_brc20_contract(instance: &ServerInstance) -> Address {
+fn deploy_contracts(instance: &ServerInstance) {
     // Deploy BRC20 Contract
-    let result =
-        instance.add_tx_to_block(0, &load_contract("BRC20_Controller.json"), 0, B256::ZERO);
-    assert!(result.is_ok());
+    let result = instance.add_tx_to_block(0, &load_brc20_deploy_tx(), 0, B256::ZERO);
 
     let brc20_controller_contract = result.unwrap().contract_address.unwrap().0;
-
-    println!(
-        "BRC20_Controller contract address: {:?}",
-        brc20_controller_contract
-    );
-
-    assert_eq!(
-        brc20_controller_contract,
-        Address::from_str(BRC20_CONTROLLER_ADDRESS).unwrap()
-    );
+    verify_brc20_contract_address(&brc20_controller_contract.to_string());
 
     instance.finalise_block(0, B256::ZERO, 1, None).unwrap();
-
-    brc20_controller_contract
 }
 
 impl ServerInstance {
@@ -93,7 +69,7 @@ impl ServerInstance {
 
             assert!(instance.get_latest_block_height() == 0);
 
-            deploy_brc20_contract(&instance);
+            deploy_contracts(&instance);
 
             assert!(instance.get_latest_block_height() == 1)
         }
@@ -494,56 +470,6 @@ impl ServerInstance {
             return Err(result.unwrap_err());
         }
         Ok(tx_receipts)
-    }
-
-    pub fn deposit(
-        &self,
-        address: Address,
-        ticker: String,
-        amount: u64,
-        _timestamp: u64,
-        _hash: B256,
-        _tx_idx: u64,
-    ) -> Result<bool, &'static str> {
-        #[cfg(debug_assertions)]
-        println!(
-            "Depositing {:?} {:?} tokens to {:?}",
-            amount, ticker, address
-        );
-
-        let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
-        if *waiting_tx_cnt != 0 {
-            return Err("There are waiting txes committed to db, cannot mine empty block!");
-        }
-
-        // TODO: Call BRC20_Controller contract to deposit tokens
-        // self.add_tx_to_block...
-        Ok(true)
-    }
-
-    pub fn withdraw(
-        &self,
-        address: Address,
-        ticker: String,
-        amount: u64,
-        _timestamp: u64,
-        _hash: B256,
-        _tx_idx: u64,
-    ) -> Result<bool, &'static str> {
-        #[cfg(debug_assertions)]
-        println!(
-            "Withdrawing {:?} {:?} tokens from {:?}",
-            amount, ticker, address
-        );
-
-        let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
-        if *waiting_tx_cnt != 0 {
-            return Err("There are waiting txes committed to db, cannot mine empty block!");
-        }
-
-        // TODO: Call BRC20_Controller contract to withdraw tokens
-        // self.add_tx_to_block...
-        Ok(true)
     }
 
     pub fn call_contract(&self, tx_info: &TxInfo) -> Result<TxReceiptED, &'static str> {
