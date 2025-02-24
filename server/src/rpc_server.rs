@@ -207,9 +207,17 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(|e| RpcServerError::new(e).into())
     }
 
-    async fn call(&self, from: String, to: Option<String>, data: String) -> RpcResult<TxReceiptED> {
+    async fn call(
+        &self,
+        from: String,
+        to: Option<String>,
+        mut data: String,
+    ) -> RpcResult<TxReceiptED> {
         let from = from.parse().unwrap();
         let to = to.map(|x| x.parse().unwrap());
+        if data.starts_with("0x") {
+            data = data[2..].to_string();
+        }
         let data = hex::decode(data).unwrap();
         let data = Bytes::from(data);
         let tx_info = TxInfo { from, to, data };
@@ -341,7 +349,7 @@ pub async fn start_rpc_server(
 ) -> Result<ServerHandle, Box<dyn Error>> {
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(tracing::Level::TRACE)
+            .with_max_level(tracing::Level::WARN)
             .finish(),
     )?;
     let server = Server::builder()

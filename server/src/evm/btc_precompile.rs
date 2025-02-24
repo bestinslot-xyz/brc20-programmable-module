@@ -19,7 +19,6 @@ impl ContextStatefulPrecompile<DB> for BTCPrecompile {
         _evmctx: &mut revm::InnerEvmContext<DB>,
     ) -> PrecompileResult {
         let params = TX_DETAILS.decode_params(&bytes).unwrap();
-        println!("{:?}", params);
 
         // TODO: Implement the actual logic
 

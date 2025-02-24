@@ -15,8 +15,8 @@ contract BRC20_Prog is IBRC20_Prog {
     /**
      * @dev Verifies BIP322 signature, given address, message and the signature.
      */
-    function verify(
-        address addr,
+    function verifyBIP322Signature(
+        string calldata addr,
         string calldata message_base64,
         string calldata signature_base64
     ) external override returns (bool) {
@@ -31,7 +31,7 @@ contract BRC20_Prog is IBRC20_Prog {
     /**
      * @dev Get non-module BRC-20 balance of a given Bitcoin wallet script and BRC-20 ticker.
      */
-    function balanceOf(
+    function getBrc20BalanceOf(
         string calldata ticker,
         address account
     ) external view returns (uint256) {
@@ -47,7 +47,7 @@ contract BRC20_Prog is IBRC20_Prog {
      *
      * Returns (string, uint256, uint256) where the first element is the txid, the second element is the block number and the third element is the block timestamp.
      */
-    function getTxDetails(
+    function getBitcoinTxDetails(
         string calldata txid
     ) external view returns (string memory, uint256, uint256) {
         return IBTC_Transaction(_btc_transaction_address).getTxDetails(txid);

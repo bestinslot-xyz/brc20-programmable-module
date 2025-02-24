@@ -3,6 +3,35 @@
         "inputs": [
             {
                 "internalType": "string",
+                "name": "txid",
+                "type": "string"
+            }
+        ],
+        "name": "getBitcoinTxDetails",
+        "outputs": [
+            {
+                "internalType": "string",
+                "name": "",
+                "type": "string"
+            },
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
                 "name": "ticker",
                 "type": "string"
             },
@@ -12,7 +41,7 @@
                 "type": "address"
             }
         ],
-        "name": "balanceOf",
+        "name": "getBrc20BalanceOf",
         "outputs": [
             {
                 "internalType": "uint256",
@@ -27,37 +56,8 @@
         "inputs": [
             {
                 "internalType": "string",
-                "name": "txid",
-                "type": "string"
-            }
-        ],
-        "name": "getTxDetails",
-        "outputs": [
-            {
-                "internalType": "string",
-                "name": "",
-                "type": "string"
-            },
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
                 "name": "addr",
-                "type": "address"
+                "type": "string"
             },
             {
                 "internalType": "string",
@@ -70,7 +70,7 @@
                 "type": "string"
             }
         ],
-        "name": "verify",
+        "name": "verifyBIP322Signature",
         "outputs": [
             {
                 "internalType": "bool",

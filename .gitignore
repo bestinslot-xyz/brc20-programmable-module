@@ -1,5 +1,6 @@
 /target
 /db/target
+/server/contracts/src/target
 test_db
 node_modules
 venv

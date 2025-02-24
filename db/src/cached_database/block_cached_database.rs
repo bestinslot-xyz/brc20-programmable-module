@@ -114,9 +114,6 @@ where
             &start_key_bytes,
             rocksdb::Direction::Forward,
         )) {
-            #[cfg(debug_assertions)]
-            println!("{:?}", kv_pair);
-
             let (key, value) = kv_pair?;
             if *key > *end_key_bytes {
                 break;
