@@ -741,9 +741,7 @@ impl DatabaseTrait for DB {
 
     /// Get basic account information.
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        // println!("basic {}", address);
         let res = self.get_account_info(address)?;
-        // println!("basic res {:?}", res);
 
         if res.is_some() {
             let mut res = res.unwrap().0;
@@ -756,21 +754,18 @@ impl DatabaseTrait for DB {
 
     /// Get account code by its hash.
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
-        // println!("code_by_hash {}", code_hash);
         self.get_code(code_hash)
             .map(|x| x.unwrap_or(BytecodeED(Bytecode::new())).0)
     }
 
     /// Get storage value of address at index.
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        // println!("storage {} {}", address, index);
         self.get_account_memory(address, index)
             .map(|x| x.unwrap_or(U256ED::from_u256(U256::ZERO)).0)
     }
 
     /// Get block hash by block number.
     fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
-        // println!("block_hash {}", number);
         self.get_block_hash(number).map(|x| x.unwrap_or(B256::ZERO))
     }
 }

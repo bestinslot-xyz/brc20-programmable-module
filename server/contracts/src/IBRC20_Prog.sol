@@ -7,7 +7,7 @@ pragma solidity ^0.8.19;
  */
 interface IBIP322_Verifier {
     function verify(
-        address addr,
+        string calldata addr,
         string calldata message_base64,
         string calldata signature_base64
     ) external returns (bool);
@@ -34,8 +34,8 @@ interface IBRC20_Prog {
     /**
      * @dev Verifies BIP322 signature, given address, message and the signature.
      */
-    function verify(
-        address addr,
+    function verifyBIP322Signature(
+        string calldata addr,
         string calldata message_base64,
         string calldata signature_base64
     ) external returns (bool);
@@ -43,10 +43,10 @@ interface IBRC20_Prog {
     /**
      * @dev Get non-module BRC-20 balance of a given Bitcoin wallet script and BRC-20 ticker.
      */
-    function balanceOf(string calldata ticker, address account) external view returns (uint256);
+    function getBrc20BalanceOf(string calldata ticker, address account) external view returns (uint256);
 
     /**
      * @dev Get Bitcoin transaction details using tx ids.
      */
-    function getTxDetails(string calldata txid) external view returns (string memory, uint256, uint256);
+    function getBitcoinTxDetails(string calldata txid) external view returns (string memory, uint256, uint256);
 }

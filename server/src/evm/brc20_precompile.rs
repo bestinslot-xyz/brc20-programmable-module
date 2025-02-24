@@ -1,8 +1,8 @@
 use db::DB;
 use revm::{
-    precompile::Error,
-    primitives::{Bytes, PrecompileErrors, PrecompileOutput, PrecompileResult},
-    ContextStatefulPrecompile,
+    precompile::Error, primitives::{
+        Bytes, PrecompileErrors, PrecompileOutput, PrecompileResult,
+    }, ContextStatefulPrecompile, InnerEvmContext
 };
 use solabi::{selector, FunctionEncoder};
 
@@ -16,11 +16,10 @@ impl ContextStatefulPrecompile<DB> for BRC20Precompile {
         &self,
         bytes: &Bytes,
         gas_limit: u64,
-        _evmctx: &mut revm::InnerEvmContext<DB>,
+        _evmctx: &mut InnerEvmContext<DB>,
     ) -> PrecompileResult {
         let gas_used = 100000;
         let params = BALANCE_OF.decode_params(&bytes).unwrap();
-        println!("{:?}", params);
 
         // TODO: Implement the actual logic
 

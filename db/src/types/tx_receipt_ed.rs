@@ -1,4 +1,4 @@
-use revm::primitives::{alloy_primitives::logs_bloom, Address, Bytes, ExecutionResult, B256};
+use revm::primitives::{alloy_primitives::logs_bloom, hex, Address, Bytes, ExecutionResult, B256};
 use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex};
 
@@ -32,8 +32,22 @@ pub struct TxReceiptED {
     pub cumulative_gas_used: u64,
     #[serde(with = "SerHex::<CompactPfx>")]
     pub nonce: u64,
-    #[serde(skip)]
+    #[serde(
+        rename = "resultBytes",
+        serialize_with = "bytes",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub result_bytes: Option<Bytes>,
+}
+
+fn bytes<S>(bytes: &Option<Bytes>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if bytes.is_none() {
+        return serializer.serialize_str("0x0");
+    }
+    serializer.serialize_str(&format!("0x{}", hex::encode(bytes.as_ref().unwrap())))
 }
 
 fn one_or_zero<S>(status: &u8, serializer: S) -> Result<S::Ok, S::Error>
