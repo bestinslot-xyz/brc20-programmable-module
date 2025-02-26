@@ -1,6 +1,7 @@
 /target
 /db/target
 /server/contracts/src/target
+/examples/simple_contract/output
 test_db
 node_modules
 venv
