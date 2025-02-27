@@ -9,7 +9,7 @@ use solabi::{selector, FunctionEncoder};
 pub struct BRC20Precompile;
 
 const _BALANCE_OF: FunctionEncoder<(solabi::Address, String), (solabi::U256,)> =
-    FunctionEncoder::new(selector!("verify(address,string)"));
+    FunctionEncoder::new(selector!("balanceOf(address,string)"));
 
 impl ContextStatefulPrecompile<DB> for BRC20Precompile {
     fn call(
