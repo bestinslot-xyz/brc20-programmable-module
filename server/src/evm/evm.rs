@@ -4,6 +4,7 @@ use revm::{
     primitives::{
         alloy_primitives::Bytes,
         env::{BlobExcessGasAndPrice, BlockEnv, Env, TransactTo},
+        keccak256,
         specification::SpecId,
         Address, B256, U256,
     },
@@ -15,6 +16,13 @@ use db::DB;
 use super::load_precompiles;
 
 const CURRENT_SPEC: SpecId = SpecId::CANCUN;
+
+pub fn get_evm_address(btc_pkscript: &str) -> Address {
+    let mut address = [0u8; 20];
+    let pkscript = keccak256(btc_pkscript);
+    address.copy_from_slice(&pkscript[12..32]);
+    Address::from_slice(&address)
+}
 
 pub fn get_evm(block_info: BlockEnv, db: DB, gas_limit: Option<U256>) -> Evm<'static, (), DB> {
     let mut env = Env::default();
@@ -62,4 +70,21 @@ pub fn modify_evm_with_tx_env(
             tx_env.data = data;
         })
         .build()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn test_get_evm_address() {
+        let btc_pkscript = "76a914f1b8e7e4f3f1f2f1e1f1f1f1f1f1f1f1f1f1f1f188ac";
+        let evm_address = get_evm_address(btc_pkscript);
+        assert_eq!(
+            Address::from_str("0x1f8d3be98dcc4ebb8ae2a46456d3b2754a89283a").unwrap(),
+            evm_address,
+        );
+    }
 }

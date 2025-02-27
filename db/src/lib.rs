@@ -451,9 +451,12 @@ impl DB {
         let gas_used = self.get_gas_used(block_number)?;
         let mine_timestamp = self.get_mine_timestamp(block_number)?;
 
-        let parent_hash = self
-            .get_block_hash(block_number - 1)?
-            .unwrap_or(FixedBytes([0u8; 32]));
+        let parent_hash = if block_number == 0 {
+            B256::ZERO
+        } else {
+            self.get_block_hash(block_number - 1)?
+                .unwrap_or(FixedBytes([0u8; 32]))
+        };
 
         let tx_ids = self
             .db_number_and_index_to_tx_hash
@@ -641,6 +644,7 @@ impl DB {
             .as_mut()
             .unwrap()
             .commit(latest_block_number)?;
+        self.db_tx.as_mut().unwrap().commit(latest_block_number)?;
         self.db_tx_receipt
             .as_mut()
             .unwrap()
@@ -670,6 +674,7 @@ impl DB {
         self.db_account.as_mut().unwrap().clear_cache();
         self.db_block_number_to_hash.as_mut().unwrap().clear_cache();
         self.db_block_hash_to_number.as_mut().unwrap().clear_cache();
+        self.db_tx.as_mut().unwrap().clear_cache();
         self.db_tx_receipt.as_mut().unwrap().clear_cache();
         self.db_number_and_index_to_tx_hash
             .as_mut()
@@ -687,6 +692,8 @@ impl DB {
             .as_mut()
             .unwrap()
             .clear_cache();
+
+        self.latest_block_number = None;
     }
 
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
@@ -711,6 +718,10 @@ impl DB {
             .unwrap()
             .reorg(latest_valid_block_number)?;
         self.db_tx_receipt
+            .as_mut()
+            .unwrap()
+            .reorg(latest_valid_block_number)?;
+        self.db_tx
             .as_mut()
             .unwrap()
             .reorg(latest_valid_block_number)?;

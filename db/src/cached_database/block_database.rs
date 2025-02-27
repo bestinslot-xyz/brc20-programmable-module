@@ -35,6 +35,7 @@ where
     pub fn new(path: &Path, name: &str) -> Self {
         let mut opts = Options::default();
         opts.create_if_missing(true);
+        opts.set_max_open_files(256);
         let db = DB::open(&opts, &path.join(Path::new(name))).unwrap();
         Self {
             db,
@@ -144,7 +145,7 @@ where
             self.db
                 .delete(U64ED::from_u64(current).encode().unwrap())
                 .unwrap();
-            self.cache.remove(&end);
+            self.cache.remove(&current);
             current += 1;
         }
         Ok(())

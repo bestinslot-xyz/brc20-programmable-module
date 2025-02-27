@@ -8,7 +8,7 @@ use solabi::{selector, FunctionEncoder, U256};
 
 pub struct BTCPrecompile;
 
-const TX_DETAILS: FunctionEncoder<String, (String, U256, U256)> =
+const _TX_DETAILS: FunctionEncoder<String, (String, U256, U256)> =
     FunctionEncoder::new(selector!("getTxDetails(string)"));
 
 impl ContextStatefulPrecompile<DB> for BTCPrecompile {
@@ -18,8 +18,7 @@ impl ContextStatefulPrecompile<DB> for BTCPrecompile {
         gas_limit: u64,
         _evmctx: &mut revm::InnerEvmContext<DB>,
     ) -> PrecompileResult {
-        let params = TX_DETAILS.decode_params(&bytes).unwrap();
-
+        // let params = TX_DETAILS.decode_params(&bytes).unwrap();
         // TODO: Implement the actual logic
 
         let gas_used = 100000;

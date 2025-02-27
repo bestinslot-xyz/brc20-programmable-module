@@ -20,7 +20,7 @@ pub trait Brc20ProgApi {
     #[method(name = "brc20_deposit")]
     async fn deposit(
         &self,
-        to: String,
+        to_pkscript: String,
         ticker: String,
         amount: String,
         timestamp: u64,
@@ -32,7 +32,7 @@ pub trait Brc20ProgApi {
     #[method(name = "brc20_withdraw")]
     async fn withdraw(
         &self,
-        from: String,
+        from_pkscript: String,
         ticker: String,
         amount: String,
         timestamp: u64,
@@ -42,13 +42,17 @@ pub trait Brc20ProgApi {
 
     /// Checks BRC20 balance for given address
     #[method(name = "brc20_balance")]
-    async fn balance(&self, address: String, ticker: String) -> RpcResult<String>;
+    async fn balance(&self, address_pkscript: String, ticker: String) -> RpcResult<String>;
+
+    /// Initialises the BRC20 prog module with the given genesis hash and timestamp
+    #[method(name = "brc20_initialise")]
+    async fn initialise(&self, genesis_hash: String, genesis_timestamp: u64) -> RpcResult<()>;
 
     /// Adds a transaction to the block
     #[method(name = "brc20_addTxToBlock")]
     async fn add_tx_to_block(
         &self,
-        from: String,
+        from_pkscript: String,
         to: Option<String>,
         data: String,
         timestamp: u64,
