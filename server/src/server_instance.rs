@@ -25,23 +25,31 @@ use crate::{
 
 use crate::types::{get_result_reason, get_result_type, get_tx_hash, TxInfo};
 
-pub struct ServerInstance {
-    pub db_mutex: Mutex<DB>,
-    pub waiting_tx_cnt_mutex: Mutex<u64>,
-    pub last_ts_mutex: Mutex<u64>,
-    pub last_block_hash_mutex: Mutex<B256>,
-    pub last_block_gas_used_mutex: Mutex<u64>,
-    pub last_block_log_index_mutex: Mutex<u64>,
+pub struct LastBlockInfo {
+    pub waiting_tx_cnt: u64,
+    pub last_ts: u64,
+    pub last_block_hash: B256,
+    pub last_block_gas_used: u64,
+    pub last_block_log_index: u64,
+    pub last_block_start_time: Option<Instant>,
 }
 
-fn deploy_contracts(instance: &ServerInstance) {
-    // Deploy BRC20 Contract
-    let result = instance.add_tx_to_block(0, &load_brc20_deploy_tx(), 0, B256::ZERO);
+impl LastBlockInfo {
+    pub fn new() -> Self {
+        LastBlockInfo {
+            waiting_tx_cnt: 0,
+            last_ts: 0,
+            last_block_hash: B256::ZERO,
+            last_block_gas_used: 0,
+            last_block_log_index: 0,
+            last_block_start_time: None,
+        }
+    }
+}
 
-    let brc20_controller_contract = result.unwrap().contract_address.unwrap().0;
-    verify_brc20_contract_address(&brc20_controller_contract.to_string());
-
-    instance.finalise_block(0, B256::ZERO, 1, None).unwrap();
+pub struct ServerInstance {
+    pub db_mutex: Mutex<DB>,
+    pub last_block_info: Mutex<LastBlockInfo>,
 }
 
 impl ServerInstance {
@@ -51,37 +59,57 @@ impl ServerInstance {
 
         let instance = ServerInstance {
             db_mutex: Mutex::new(db),
-            waiting_tx_cnt_mutex: Mutex::new(0),
-            last_ts_mutex: Mutex::new(0),
-            last_block_hash_mutex: Mutex::new(B256::ZERO),
-            last_block_gas_used_mutex: Mutex::new(0),
-            last_block_log_index_mutex: Mutex::new(0),
+            last_block_info: Mutex::new(LastBlockInfo::new()),
         };
-
-        if instance.get_latest_block_height() == 0 {
-            {
-                let mut db = instance.db_mutex.lock().unwrap();
-                db.set_block_hash(0, B256::ZERO).unwrap();
-                db.set_block_timestamp(0, 0).unwrap();
-                db.set_gas_used(0, 0).unwrap();
-                db.set_mine_timestamp(0, 0).unwrap();
-            }
-
-            assert!(instance.get_latest_block_height() == 0);
-
-            deploy_contracts(&instance);
-
-            assert!(instance.get_latest_block_height() == 1)
-        }
 
         instance
     }
 
+    pub fn initialise(
+        &self,
+        genesis_hash: B256,
+        genesis_timestamp: u64,
+    ) -> Result<(), &'static str> {
+        #[cfg(debug_assertions)]
+        println!(
+            "Initialising server instance with genesis hash {:?} and timestamp {}",
+            genesis_hash, genesis_timestamp
+        );
+
+        let genesis = self.get_block_by_number(0);
+
+        if genesis.is_some() {
+            let genesis = genesis.unwrap();
+            if genesis.hash.0 == genesis_hash {
+                return Ok(());
+            } else {
+                return Err("Genesis block hash mismatch");
+            }
+        }
+
+        // Deploy BRC20 Controller contract
+        let result = self.add_tx_to_block(
+            genesis_timestamp,
+            &load_brc20_deploy_tx(),
+            0,
+            0,
+            genesis_hash,
+        )?;
+
+        let brc20_controller_contract = result.contract_address.unwrap().0;
+        verify_brc20_contract_address(&brc20_controller_contract.to_string());
+
+        self.finalise_block(genesis_timestamp, 0, genesis_hash, 1)?;
+
+        assert!(self.get_latest_block_height() == 0);
+        Ok(())
+    }
+
     pub fn get_latest_block_height(&self) -> u64 {
         let db = self.db_mutex.lock().unwrap();
-        let last_block_info = db.get_latest_block_height();
+        let latest_block_height = db.get_latest_block_height();
 
-        let block_height = last_block_info.unwrap_or(0);
+        let block_height = latest_block_height.unwrap_or(0);
         block_height
     }
 
@@ -91,10 +119,7 @@ impl ServerInstance {
         timestamp: u64,
         hash: B256,
     ) -> Result<(), &'static str> {
-        let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
-        if *waiting_tx_cnt != 0 {
-            return Err("There are waiting txes committed to db, cannot mine empty block!");
-        }
+        self.require_no_waiting_txes()?;
 
         let mut number = self.get_latest_block_height() + 1;
 
@@ -125,42 +150,38 @@ impl ServerInstance {
         timestamp: u64,
         tx_info: &TxInfo,
         tx_idx: u64,
-        hash: B256,
+        block_number: u64,
+        block_hash: B256,
     ) -> Result<TxReceiptED, &'static str> {
         #[cfg(debug_assertions)]
-        {
-            let block_number = self.get_latest_block_height() + 1;
-            println!("Adding tx {:?} to block {:?}", tx_idx, block_number);
-        }
+        println!("Adding tx {:?} to block {:?}", tx_idx, block_number);
 
-        let mut waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
-        let mut last_ts = self.last_ts_mutex.lock().unwrap();
-        let mut last_block_hash = self.last_block_hash_mutex.lock().unwrap();
-        let mut last_block_gas_used = self.last_block_gas_used_mutex.lock().unwrap();
-        let mut last_block_log_index = self.last_block_log_index_mutex.lock().unwrap();
+        let mut last_block_info = self.last_block_info.lock().unwrap();
 
-        if *waiting_tx_cnt != tx_idx {
+        if last_block_info.waiting_tx_cnt != tx_idx {
             return Err("tx_idx is different from waiting tx cnt in block!!");
         }
-        if *waiting_tx_cnt != 0 {
-            if timestamp != *last_ts {
+        if last_block_info.waiting_tx_cnt != 0 {
+            if timestamp != last_block_info.last_ts {
                 return Err("timestamp is different from other txes in block!!");
             }
 
-            if hash != *last_block_hash {
+            if block_hash != last_block_info.last_block_hash {
                 return Err("block hash is different from other txes in block!!");
             }
         } else {
-            *last_ts = timestamp;
-            *last_block_hash = hash;
-            *last_block_gas_used = 0;
-            *last_block_log_index = 0;
+            *last_block_info = LastBlockInfo {
+                waiting_tx_cnt: 0,
+                last_ts: timestamp,
+                last_block_hash: block_hash,
+                last_block_gas_used: 0,
+                last_block_log_index: 0,
+                last_block_start_time: Instant::now().into(),
+            };
         }
 
-        let number = self.get_latest_block_height() + 1;
-
         let block_info: BlockEnv = BlockEnv {
-            number: U256::from_limbs([0, 0, 0, number]),
+            number: U256::from_limbs([0, 0, 0, block_number]),
             coinbase: "0x0000000000000000000000000000000000003Ca6"
                 .parse()
                 .unwrap(),
@@ -176,7 +197,7 @@ impl ServerInstance {
             #[cfg(debug_assertions)]
             println!(
                 "Running EVM for tx 0x{:x} ({}) in block 0x{:x} ({}) with hash {:?}",
-                tx_idx, tx_idx, number, number, hash
+                tx_idx, tx_idx, block_number, block_number, block_hash
             );
 
             let mut db = self.db_mutex.lock().unwrap();
@@ -203,27 +224,27 @@ impl ServerInstance {
 
         let output = output.unwrap();
 
-        *waiting_tx_cnt += 1;
+        last_block_info.waiting_tx_cnt += 1;
 
         #[cfg(debug_assertions)]
         println!(
             "Tx 0x{:x} ({}) added to block 0x{:x} ({}) with gas used 0x{:x} ({})",
             tx_idx,
             tx_idx,
-            number,
-            number,
+            block_number,
+            block_number,
             output.gas_used(),
             output.gas_used()
         );
-        *last_block_gas_used += output.gas_used();
+        last_block_info.last_block_gas_used += output.gas_used();
 
         let mut db = self.db_mutex.lock().unwrap();
         db.set_tx_receipt(
             &get_result_type(&output),
             &get_result_reason(&output),
             output.output(),
-            hash,
-            number,
+            block_hash,
+            block_number,
             get_contract_address(&output),
             tx_info.from,
             tx_info.to,
@@ -231,13 +252,13 @@ impl ServerInstance {
             txhash,
             tx_idx,
             &output.clone(),
-            *last_block_gas_used,
+            last_block_info.last_block_gas_used,
             nonce,
-            *last_block_log_index,
+            last_block_info.last_block_log_index,
         )
         .unwrap();
 
-        *last_block_log_index += output.logs().len() as u64;
+        last_block_info.last_block_log_index += output.logs().len() as u64;
 
         Ok(db.get_tx_receipt(txhash).unwrap().unwrap())
     }
@@ -372,35 +393,29 @@ impl ServerInstance {
     pub fn finalise_block(
         &self,
         timestamp: u64,
+        block_number: u64,
         block_hash: B256,
         block_tx_cnt: u64,
-        mut start_time: Option<Instant>,
     ) -> Result<(), &'static str> {
-        if start_time.is_none() {
-            start_time = Some(Instant::now());
-        }
-        let mut waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
-        let mut last_ts = self.last_ts_mutex.lock().unwrap();
-        let mut last_block_hash = self.last_block_hash_mutex.lock().unwrap();
-        let mut last_block_gas_used = self.last_block_gas_used_mutex.lock().unwrap();
-        let mut last_block_log_index = self.last_block_log_index_mutex.lock().unwrap();
+        let mut last_block_info = self.last_block_info.lock().unwrap();
 
-        if *waiting_tx_cnt != 0 {
-            if timestamp != *last_ts {
+        if last_block_info.last_block_start_time.is_none() {
+            last_block_info.last_block_start_time = Some(Instant::now());
+        }
+
+        if last_block_info.waiting_tx_cnt != 0 {
+            if timestamp != last_block_info.last_ts {
                 return Err("timestamp is different from other txes in block!!");
             }
 
-            if block_hash != *last_block_hash {
+            if block_hash != last_block_info.last_block_hash {
                 return Err("block hash is different from other txes in block!!");
             }
-        } else {
-            *last_block_gas_used = 0; // not needed but just for sanity
         }
-        if *waiting_tx_cnt != block_tx_cnt {
+        if last_block_info.waiting_tx_cnt != block_tx_cnt {
             return Err("block tx cnt is different from waiting tx cnt for block!!");
         }
 
-        let block_number = self.get_latest_block_height() + 1;
         let mut db = self.db_mutex.lock().unwrap();
 
         #[cfg(debug_assertions)]
@@ -411,18 +426,19 @@ impl ServerInstance {
 
         db.set_block_hash(block_number, block_hash).unwrap();
 
-        db.set_gas_used(block_number, *last_block_gas_used).unwrap();
-        let total_time_took = start_time.unwrap().elapsed().as_nanos();
+        db.set_gas_used(block_number, last_block_info.last_block_gas_used)
+            .unwrap();
+        let total_time_took = last_block_info
+            .last_block_start_time
+            .unwrap()
+            .elapsed()
+            .as_nanos();
         db.set_mine_timestamp(block_number, total_time_took)
             .unwrap();
         db.set_block_timestamp(block_number, timestamp).unwrap();
         db.set_block_hash(block_number, block_hash).unwrap();
 
-        *waiting_tx_cnt = 0;
-        *last_ts = 0;
-        *last_block_hash = B256::ZERO;
-        *last_block_gas_used = 0;
-        *last_block_log_index = 0;
+        *last_block_info = LastBlockInfo::new();
 
         Ok(())
     }
@@ -430,32 +446,20 @@ impl ServerInstance {
     pub fn finalise_block_with_txes(
         &self,
         timestamp: u64,
+        block_number: u64,
         block_hash: B256,
         txes: Vec<TxInfo>,
     ) -> Result<Vec<TxReceiptED>, &'static str> {
         #[cfg(debug_assertions)]
         println!("Finalising block with {:?} txes", txes.len());
+        self.require_no_waiting_txes()?;
 
-        {
-            let mut waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
-
-            if *waiting_tx_cnt != 0 {
-                return Err("there are waiting txes, either finalise block or clear caches!!");
-            }
-
-            let mut last_block_gas_used = self.last_block_gas_used_mutex.lock().unwrap();
-
-            *waiting_tx_cnt = 0;
-            *last_block_gas_used = 0;
-        }
-
-        let start_time = Instant::now();
         let tx_len = txes.len();
 
         let mut tx_receipts: Vec<TxReceiptED> = Vec::new();
         let mut tx_idx = 0;
         for tx in txes {
-            let result = self.add_tx_to_block(timestamp, &tx, tx_idx, block_hash);
+            let result = self.add_tx_to_block(timestamp, &tx, tx_idx, block_number, block_hash);
             tx_idx += 1;
 
             if result.is_err() {
@@ -465,7 +469,7 @@ impl ServerInstance {
             }
         }
 
-        let result = self.finalise_block(timestamp, block_hash, tx_len as u64, Some(start_time));
+        let result = self.finalise_block(timestamp, block_number, block_hash, tx_len as u64);
 
         if result.is_err() {
             return Err(result.unwrap_err());
@@ -479,11 +483,8 @@ impl ServerInstance {
             "Calling contract from: {:?} to: {:?}",
             tx_info.from, tx_info.to
         );
+        self.require_no_waiting_txes()?;
 
-        let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
-        if *waiting_tx_cnt != 0 {
-            return Err("There are waiting txes committed to db, cannot mine empty block!");
-        }
         let number = self.get_latest_block_height() + 1;
 
         let timestamp = U256::from(std::time::UNIX_EPOCH.elapsed().unwrap().as_secs());
@@ -605,28 +606,17 @@ impl ServerInstance {
         #[cfg(debug_assertions)]
         println!("Clearing caches");
 
-        let mut waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
-        let mut last_ts = self.last_ts_mutex.lock().unwrap();
-        let mut last_block_hash = self.last_block_hash_mutex.lock().unwrap();
-        let mut last_block_gas_used = self.last_block_gas_used_mutex.lock().unwrap();
         let mut db = self.db_mutex.lock().unwrap();
+        let mut last_block_info = self.last_block_info.lock().unwrap();
 
         db.clear_caches();
-
-        *waiting_tx_cnt = 0;
-        *last_ts = 0;
-        *last_block_hash = B256::ZERO;
-        *last_block_gas_used = 0;
+        *last_block_info = LastBlockInfo::new();
     }
 
     pub fn commit_to_db(&self) -> Result<(), &'static str> {
         #[cfg(debug_assertions)]
         println!("Committing to db");
-
-        let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
-        if *waiting_tx_cnt != 0 {
-            return Err("there are waiting txes, first finalise the block or clear the cache!!");
-        }
+        self.require_no_waiting_txes()?;
 
         let mut db = self.db_mutex.lock().unwrap();
         db.commit_changes().unwrap();
@@ -640,13 +630,18 @@ impl ServerInstance {
             latest_valid_block_number, latest_valid_block_number
         );
 
-        let waiting_tx_cnt = self.waiting_tx_cnt_mutex.lock().unwrap();
-        if *waiting_tx_cnt != 0 {
-            return Err("there are waiting txes, first finalise the block or clear the cache!!");
-        }
+        self.require_no_waiting_txes()?;
 
         let mut db = self.db_mutex.lock().unwrap();
         db.reorg(latest_valid_block_number).unwrap();
+        Ok(())
+    }
+
+    fn require_no_waiting_txes(&self) -> Result<(), &'static str> {
+        let last_block_info = self.last_block_info.lock().unwrap();
+        if last_block_info.waiting_tx_cnt != 0 {
+            return Err("there are waiting txes, either finalise block or clear caches!!");
+        }
         Ok(())
     }
 

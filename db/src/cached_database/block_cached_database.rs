@@ -49,6 +49,7 @@ where
     pub fn new(path: &Path, name: &str) -> Self {
         let mut opts = Options::default();
         opts.create_if_missing(true);
+        opts.set_max_open_files(256);
         let db = DB::open(&opts, &path.join(Path::new(name))).unwrap();
         let cache_db = DB::open(&opts, &path.join(Path::new(&format!("{}_cache", name)))).unwrap();
         let cache = HashMap::new();

@@ -13,6 +13,7 @@ use crate::{
     brc20_controller::{
         decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
     },
+    evm::get_evm_address,
     server_instance::ServerInstance,
     types::TxInfo,
     Brc20ProgApiServer,
@@ -38,7 +39,7 @@ impl RpcServer {
 impl Brc20ProgApiServer for RpcServer {
     async fn deposit(
         &self,
-        to: String,
+        to_pkscript: String,
         ticker: String,
         amount: String,
         timestamp: u64,
@@ -50,10 +51,11 @@ impl Brc20ProgApiServer for RpcServer {
                 timestamp,
                 &load_brc20_mint_tx(
                     ticker,
-                    to.parse().unwrap(),
+                    get_evm_address(&to_pkscript),
                     U256::from_str(&amount).unwrap(),
                 ),
                 tx_idx,
+                self.server_instance.get_latest_block_height() + 1,
                 hash.parse().unwrap(),
             )
             .map_err(|e| RpcServerError::new(e).into())
@@ -62,7 +64,7 @@ impl Brc20ProgApiServer for RpcServer {
 
     async fn withdraw(
         &self,
-        to: String,
+        from_pkscript: String,
         ticker: String,
         amount: String,
         timestamp: u64,
@@ -74,19 +76,23 @@ impl Brc20ProgApiServer for RpcServer {
                 timestamp,
                 &load_brc20_burn_tx(
                     ticker,
-                    to.parse().unwrap(),
+                    get_evm_address(&from_pkscript),
                     U256::from_str(&amount).unwrap(),
                 ),
                 tx_idx,
+                self.server_instance.get_latest_block_height() + 1,
                 hash.parse().unwrap(),
             )
             .map_err(|e| RpcServerError::new(e).into())
             .map(|receipt| receipt.status == 1)
     }
 
-    async fn balance(&self, address: String, ticker: String) -> RpcResult<String> {
+    async fn balance(&self, address_pkscript: String, ticker: String) -> RpcResult<String> {
         self.server_instance
-            .call_contract(&load_brc20_balance_tx(ticker, address.parse().unwrap()))
+            .call_contract(&load_brc20_balance_tx(
+                ticker,
+                get_evm_address(&address_pkscript),
+            ))
             .map(|receipt| {
                 format!(
                     "0x{:x}",
@@ -209,11 +215,11 @@ impl Brc20ProgApiServer for RpcServer {
 
     async fn call(
         &self,
-        from: String,
+        from_pkscript: String,
         to: Option<String>,
         mut data: String,
     ) -> RpcResult<TxReceiptED> {
-        let from = from.parse().unwrap();
+        let from = get_evm_address(&from_pkscript);
         let to = to.map(|x| x.parse().unwrap());
         if data.starts_with("0x") {
             data = data[2..].to_string();
@@ -252,23 +258,39 @@ impl Brc20ProgApiServer for RpcServer {
         Ok(format!("0x{:x}", storage))
     }
 
+    async fn initialise(&self, genesis_hash: String, genesis_timestamp: u64) -> RpcResult<()> {
+        self.server_instance
+            .initialise(genesis_hash.parse().unwrap(), genesis_timestamp)
+            .map_err(|e| RpcServerError::new(e).into())
+    }
+
     async fn add_tx_to_block(
         &self,
-        from: String,
+        from_pkscript: String,
         to: Option<String>,
-        data: String,
+        mut data: String,
         timestamp: u64,
         hash: String,
         tx_idx: u64,
     ) -> RpcResult<TxReceiptED> {
-        let from = from.parse().unwrap();
+        let from = get_evm_address(&from_pkscript);
         let to = to.map(|x| x.parse().unwrap());
+        if data.starts_with("0x") {
+            data = data[2..].to_string();
+        }
         let data = hex::decode(data).unwrap();
         let data = Bytes::from(data);
         let hash = hash.parse().unwrap();
         let tx_info = TxInfo { from, to, data };
+
         self.server_instance
-            .add_tx_to_block(timestamp, &tx_info, tx_idx, hash)
+            .add_tx_to_block(
+                timestamp,
+                &tx_info,
+                tx_idx,
+                self.server_instance.get_latest_block_height() + 1,
+                hash,
+            )
             .map_err(|e| RpcServerError::new(e).into())
     }
 
@@ -281,9 +303,14 @@ impl Brc20ProgApiServer for RpcServer {
         self.server_instance
             .finalise_block(
                 timestamp,
-                B256::from_str(&hash[2..]).unwrap(),
+                self.server_instance.get_latest_block_height() + 1,
+                B256::from_str(if hash.starts_with("0x") {
+                    &hash[2..]
+                } else {
+                    &hash
+                })
+                .unwrap(),
                 block_tx_cnt,
-                None,
             )
             .map_err(|e| RpcServerError::new(e).into())
     }
@@ -295,7 +322,12 @@ impl Brc20ProgApiServer for RpcServer {
         txes: Vec<TxInfo>,
     ) -> RpcResult<Vec<TxReceiptED>> {
         self.server_instance
-            .finalise_block_with_txes(timestamp, hash.parse().unwrap(), txes)
+            .finalise_block_with_txes(
+                timestamp,
+                self.server_instance.get_latest_block_height() + 1,
+                hash.parse().unwrap(),
+                txes,
+            )
             .map_err(|e| RpcServerError::new(e).into())
     }
 
