@@ -10,18 +10,38 @@
         "name": "getBitcoinTxDetails",
         "outputs": [
             {
+                "internalType": "uint256",
+                "name": "block_height",
+                "type": "uint256"
+            },
+            {
                 "internalType": "string",
-                "name": "",
+                "name": "vin_txid",
                 "type": "string"
             },
             {
                 "internalType": "uint256",
-                "name": "",
+                "name": "vin_vout",
                 "type": "uint256"
             },
             {
+                "internalType": "string",
+                "name": "vin_scriptPubKey_hex",
+                "type": "string"
+            },
+            {
                 "internalType": "uint256",
-                "name": "",
+                "name": "vin_value",
+                "type": "uint256"
+            },
+            {
+                "internalType": "string",
+                "name": "vout_scriptPubKey_hex",
+                "type": "string"
+            },
+            {
+                "internalType": "uint256",
+                "name": "vout_value",
                 "type": "uint256"
             }
         ],
@@ -45,7 +65,7 @@
         "outputs": [
             {
                 "internalType": "uint256",
-                "name": "",
+                "name": "balance",
                 "type": "uint256"
             }
         ],
@@ -74,7 +94,7 @@
         "outputs": [
             {
                 "internalType": "bool",
-                "name": "",
+                "name": "verified",
                 "type": "bool"
             }
         ],
