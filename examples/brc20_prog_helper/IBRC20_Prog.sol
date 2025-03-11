@@ -16,15 +16,31 @@ interface IBIP322_Verifier {
 /**
  * @dev Get non-module BRC-20 balance of a given Bitcoin wallet script and BRC-20 ticker.
  */
-interface IBRC20_Balance {    
-    function balanceOf(string calldata ticker, address account) external view returns (uint256);
+interface IBRC20_Balance {
+    function balanceOf(
+        string calldata ticker,
+        address account
+    ) external view returns (uint256);
 }
 
 /**
  * Get Bitcoin transaction details using tx ids.
  */
 interface IBTC_Transaction {
-    function getTxDetails(string calldata txid) external view returns (string memory, uint256, uint256);
+    function getTxDetails(
+        string calldata txid
+    )
+        external
+        view
+        returns (
+            uint256 block_height,
+            string memory vin_txid,
+            uint256 vin_vout,
+            string memory vin_scriptPubKey_hex,
+            uint256 vin_value,
+            string memory vout_scriptPubKey_hex,
+            uint256 vout_value
+        );
 }
 
 /**
@@ -38,15 +54,31 @@ interface IBRC20_Prog {
         string calldata addr,
         string calldata message_base64,
         string calldata signature_base64
-    ) external returns (bool);
+    ) external returns (bool verified);
 
     /**
      * @dev Get non-module BRC-20 balance of a given Bitcoin wallet script and BRC-20 ticker.
      */
-    function getBrc20BalanceOf(string calldata ticker, address account) external view returns (uint256);
+    function getBrc20BalanceOf(
+        string calldata ticker,
+        address account
+    ) external view returns (uint256 balance);
 
     /**
      * @dev Get Bitcoin transaction details using tx ids.
      */
-    function getBitcoinTxDetails(string calldata txid) external view returns (string memory, uint256, uint256);
+    function getBitcoinTxDetails(
+        string calldata txid
+    )
+        external
+        view
+        returns (
+            uint256 block_height,
+            string memory vin_txid,
+            uint256 vin_vout,
+            string memory vin_scriptPubKey_hex,
+            uint256 vin_value,
+            string memory vout_scriptPubKey_hex,
+            uint256 vout_value
+        );
 }

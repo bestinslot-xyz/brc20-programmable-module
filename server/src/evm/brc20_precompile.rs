@@ -6,6 +6,12 @@ use revm::{
 };
 use solabi::{selector, FunctionEncoder};
 
+lazy_static::lazy_static! {
+    static ref BRC20_CLIENT: reqwest::blocking::Client = reqwest::blocking::Client::new();
+    static ref BRC20_PROG_BALANCE_SERVER_URL: String = std::env::var("BRC20_PROG_BALANCE_SERVER_URL")
+            .unwrap_or("http://localhost:18546".to_string());
+}
+
 pub struct BRC20Precompile;
 
 const BALANCE_OF: FunctionEncoder<(solabi::Address, String), (solabi::U256,)> =
@@ -21,11 +27,8 @@ impl ContextStatefulPrecompile<DB> for BRC20Precompile {
         let gas_used = 100000;
         let params = BALANCE_OF.decode_params(&bytes).unwrap();
 
-        let server_address = std::env::var("BRC20_PROG_BALANCE_SERVER_URL")
-            .unwrap_or("http://localhost:18546".to_string());
-
-        let response = reqwest::blocking::Client::new()
-            .get(&server_address)
+        let response = BRC20_CLIENT
+            .get(&*BRC20_PROG_BALANCE_SERVER_URL)
             .query(&[
                 ("address", params.0.to_string()),
                 ("ticker", params.1.to_string()),

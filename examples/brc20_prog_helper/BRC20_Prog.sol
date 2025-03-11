@@ -19,7 +19,7 @@ contract BRC20_Prog is IBRC20_Prog {
         string calldata addr,
         string calldata message_base64,
         string calldata signature_base64
-    ) external override returns (bool) {
+    ) external override returns (bool verified) {
         return
             IBIP322_Verifier(_bip322_address).verify(
                 addr,
@@ -34,7 +34,7 @@ contract BRC20_Prog is IBRC20_Prog {
     function getBrc20BalanceOf(
         string calldata ticker,
         address account
-    ) external view returns (uint256) {
+    ) external view returns (uint256 balance) {
         return
             IBRC20_Balance(_brc20_controller_address).balanceOf(
                 ticker,
@@ -49,7 +49,19 @@ contract BRC20_Prog is IBRC20_Prog {
      */
     function getBitcoinTxDetails(
         string calldata txid
-    ) external view returns (string memory, uint256, uint256) {
+    )
+        external
+        view
+        returns (
+            uint256 block_height,
+            string memory vin_txid,
+            uint256 vin_vout,
+            string memory vin_scriptPubKey_hex,
+            uint256 vin_value,
+            string memory vout_scriptPubKey_hex,
+            uint256 vout_value
+        )
+    {
         return IBTC_Transaction(_btc_transaction_address).getTxDetails(txid);
     }
 }

@@ -2730,6 +2730,7 @@ dependencies = [
  "db",
  "hex",
  "jsonrpsee",
+ "lazy_static",
  "reqwest",
  "revm",
  "rust-embed",
