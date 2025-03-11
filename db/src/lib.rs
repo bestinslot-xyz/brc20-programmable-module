@@ -88,6 +88,8 @@ impl Default for DB {
 
 impl DB {
     pub fn new(base_path: &Path) -> Result<Self, Box<dyn Error>> {
+        rlimit::Resource::NOFILE.set(4096, 8192)?;
+
         Ok(Self {
             db_account_memory: Some(BlockCachedDatabase::new(&base_path, "account_memory")),
             db_code: Some(BlockCachedDatabase::new(&base_path, "code")),

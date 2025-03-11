@@ -14,8 +14,8 @@ lazy_static::lazy_static! {
 
 pub struct BRC20Precompile;
 
-const BALANCE_OF: FunctionEncoder<(solabi::Address, String), (solabi::U256,)> =
-    FunctionEncoder::new(selector!("balanceOf(address,string)"));
+const BALANCE_OF: FunctionEncoder<(String, String), (solabi::U256,)> =
+    FunctionEncoder::new(selector!("balanceOf(string,string)"));
 
 impl ContextStatefulPrecompile<DB> for BRC20Precompile {
     fn call(
@@ -25,14 +25,19 @@ impl ContextStatefulPrecompile<DB> for BRC20Precompile {
         _evmctx: &mut InnerEvmContext<DB>,
     ) -> PrecompileResult {
         let gas_used = 100000;
-        let params = BALANCE_OF.decode_params(&bytes).unwrap();
+        let result = BALANCE_OF.decode_params(&bytes);
+
+        if result.is_err() {
+            return Err(PrecompileErrors::Error(Error::Other(
+                "Invalid params".to_string(),
+            )));
+        }
+
+        let (ticker, address) = result.unwrap();
 
         let response = BRC20_CLIENT
             .get(&*BRC20_PROG_BALANCE_SERVER_URL)
-            .query(&[
-                ("address", params.0.to_string()),
-                ("ticker", params.1.to_string()),
-            ])
+            .query(&[("ticker", ticker), ("address", address)])
             .send()
             .unwrap();
 

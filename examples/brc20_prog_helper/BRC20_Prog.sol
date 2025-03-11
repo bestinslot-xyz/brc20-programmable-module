@@ -33,12 +33,12 @@ contract BRC20_Prog is IBRC20_Prog {
      */
     function getBrc20BalanceOf(
         string calldata ticker,
-        address account
+        string calldata address_pkscript
     ) external view returns (uint256 balance) {
         return
             IBRC20_Balance(_brc20_controller_address).balanceOf(
                 ticker,
-                account
+                address_pkscript
             );
     }
 
