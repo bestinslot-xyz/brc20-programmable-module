@@ -14,5 +14,6 @@ serde_json = "1.0.138"
 tracing = "0.1.41"
 solabi = "0.2.0"
 bip322 = "0.0.9"
+reqwest = { version = "0.12.12", features = [ "blocking" ] }
 # evm-coder = "0.4.2"
 # solabi = "0.2.0"
