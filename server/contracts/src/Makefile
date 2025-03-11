@@ -1,12 +1,8 @@
 
 compile:
 	rm -rf target
-	solcjs BRC20_Prog.sol --bin --abi
 	solcjs BRC20_Controller.sol --bin --abi
-	cat BRC20_Prog_sol_BRC20_Prog.abi | python3 -m json.tool > ../BRC20_Prog.abi
-	cat BRC20_Controller_sol_BRC20_Controller.abi | python3 -m json.tool > ../BRC20_Controller.abi
-	cp BRC20_Prog_sol_BRC20_Prog.bin ../BRC20_Prog.bin
-	cp BRC20_Controller_sol_BRC20_Controller.bin  ../BRC20_Controller.bin
+	find . -type f -name "*.abi" -exec sh -c 'python3 -m json.tool "$$1" > "$$1.tmp" && mv "$$1.tmp" "$$1"' _ {} \;
 	mkdir -p target
 	mv *.abi target/
 	mv *.bin target/
