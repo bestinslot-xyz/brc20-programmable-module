@@ -7,6 +7,7 @@ use jsonrpsee::{
     types::{ErrorObject, ErrorObjectOwned},
 };
 use revm::primitives::{Bytes, B256, U256};
+use tracing::{event, instrument};
 
 use crate::{
     api::GetLogsFilter,
@@ -35,8 +36,14 @@ impl RpcServer {
     }
 }
 
+fn wrap_error_message(message: &'static str) -> ErrorObject<'static> {
+    event!(tracing::Level::ERROR, "Error: {:?}", message);
+    RpcServerError::new(message).into()
+}
+
 #[async_trait]
 impl Brc20ProgApiServer for RpcServer {
+    #[instrument(skip(self))]
     async fn deposit(
         &self,
         to_pkscript: String,
@@ -46,6 +53,8 @@ impl Brc20ProgApiServer for RpcServer {
         hash: String,
         tx_idx: u64,
     ) -> RpcResult<bool> {
+        event!(tracing::Level::DEBUG, "Depositing");
+
         self.server_instance
             .add_tx_to_block(
                 timestamp,
@@ -58,10 +67,11 @@ impl Brc20ProgApiServer for RpcServer {
                 self.server_instance.get_latest_block_height() + 1,
                 hash.parse().unwrap(),
             )
-            .map_err(|e| RpcServerError::new(e).into())
+            .map_err(wrap_error_message)
             .map(|receipt| receipt.status == 1)
     }
 
+    #[instrument(skip(self))]
     async fn withdraw(
         &self,
         from_pkscript: String,
@@ -71,6 +81,8 @@ impl Brc20ProgApiServer for RpcServer {
         hash: String,
         tx_idx: u64,
     ) -> RpcResult<bool> {
+        event!(tracing::Level::DEBUG, "Withdrawing");
+
         self.server_instance
             .add_tx_to_block(
                 timestamp,
@@ -83,11 +95,14 @@ impl Brc20ProgApiServer for RpcServer {
                 self.server_instance.get_latest_block_height() + 1,
                 hash.parse().unwrap(),
             )
-            .map_err(|e| RpcServerError::new(e).into())
+            .map_err(wrap_error_message)
             .map(|receipt| receipt.status == 1)
     }
 
+    #[instrument(skip(self))]
     async fn balance(&self, address_pkscript: String, ticker: String) -> RpcResult<String> {
+        event!(tracing::Level::DEBUG, "Checking balance");
+
         self.server_instance
             .call_contract(&load_brc20_balance_tx(
                 ticker,
@@ -99,7 +114,7 @@ impl Brc20ProgApiServer for RpcServer {
                     decode_brc20_balance_result(receipt.result_bytes.as_ref())
                 )
             })
-            .map_err(|e| RpcServerError::new(e).into())
+            .map_err(wrap_error_message)
     }
 
     async fn block_number(&self) -> RpcResult<String> {
@@ -206,11 +221,12 @@ impl Brc20ProgApiServer for RpcServer {
         ))
     }
 
+    #[instrument(skip(self))]
     async fn mine(&self, block_cnt: u64, timestamp: u64) -> RpcResult<()> {
         let hash = B256::ZERO;
         self.server_instance
             .mine_block(block_cnt, timestamp, hash)
-            .map_err(|e| RpcServerError::new(e).into())
+            .map_err(wrap_error_message)
     }
 
     async fn call(
@@ -229,7 +245,7 @@ impl Brc20ProgApiServer for RpcServer {
         let tx_info = TxInfo { from, to, data };
         self.server_instance
             .call_contract(&tx_info)
-            .map_err(|e| RpcServerError::new(e).into())
+            .map_err(wrap_error_message)
     }
 
     async fn estimate_gas(
@@ -258,12 +274,15 @@ impl Brc20ProgApiServer for RpcServer {
         Ok(format!("0x{:x}", storage))
     }
 
+    #[instrument(skip(self))]
     async fn initialise(&self, genesis_hash: String, genesis_timestamp: u64) -> RpcResult<()> {
+        event!(tracing::Level::INFO, "Initialising server");
         self.server_instance
             .initialise(genesis_hash.parse().unwrap(), genesis_timestamp)
-            .map_err(|e| RpcServerError::new(e).into())
+            .map_err(wrap_error_message)
     }
 
+    #[instrument(skip(self, data))]
     async fn add_tx_to_block(
         &self,
         from_pkscript: String,
@@ -273,6 +292,7 @@ impl Brc20ProgApiServer for RpcServer {
         hash: String,
         tx_idx: u64,
     ) -> RpcResult<TxReceiptED> {
+        event!(tracing::Level::INFO, "Adding tx to block");
         let from = get_evm_address(&from_pkscript);
         let to = to.map(|x| x.parse().unwrap());
         if data.starts_with("0x") {
@@ -291,15 +311,17 @@ impl Brc20ProgApiServer for RpcServer {
                 self.server_instance.get_latest_block_height() + 1,
                 hash,
             )
-            .map_err(|e| RpcServerError::new(e).into())
+            .map_err(wrap_error_message)
     }
 
+    #[instrument(skip(self))]
     async fn finalise_block(
         &self,
         timestamp: u64,
         hash: String,
         block_tx_cnt: u64,
     ) -> RpcResult<()> {
+        event!(tracing::Level::INFO, "Finalising block");
         self.server_instance
             .finalise_block(
                 timestamp,
@@ -312,15 +334,17 @@ impl Brc20ProgApiServer for RpcServer {
                 .unwrap(),
                 block_tx_cnt,
             )
-            .map_err(|e| RpcServerError::new(e).into())
+            .map_err(wrap_error_message)
     }
 
+    #[instrument(skip(self, txes))]
     async fn finalise_block_with_txes(
         &self,
         timestamp: u64,
         hash: String,
         txes: Vec<TxInfo>,
     ) -> RpcResult<Vec<TxReceiptED>> {
+        event!(tracing::Level::INFO, "Finalising block with txes");
         self.server_instance
             .finalise_block_with_txes(
                 timestamp,
@@ -328,22 +352,28 @@ impl Brc20ProgApiServer for RpcServer {
                 hash.parse().unwrap(),
                 txes,
             )
-            .map_err(|e| RpcServerError::new(e).into())
+            .map_err(wrap_error_message)
     }
 
+    #[instrument(skip(self))]
     async fn reorg(&self, latest_valid_block_number: u64) -> RpcResult<()> {
+        event!(tracing::Level::WARN, "Reorg!");
         self.server_instance
             .reorg(latest_valid_block_number)
-            .map_err(|e| RpcServerError::new(e).into())
+            .map_err(wrap_error_message)
     }
 
+    #[instrument(skip(self))]
     async fn commit_to_database(&self) -> RpcResult<()> {
+        event!(tracing::Level::INFO, "Committing to database");
         self.server_instance
             .commit_to_db()
-            .map_err(|e| RpcServerError::new(e).into())
+            .map_err(wrap_error_message)
     }
 
+    #[instrument(skip(self))]
     async fn clear_caches(&self) -> RpcResult<()> {
+        event!(tracing::Level::INFO, "Clearing caches");
         self.server_instance.clear_caches();
         Ok(())
     }
@@ -379,11 +409,6 @@ pub async fn start_rpc_server(
     addr: &str,
     server_instance: ServerInstance,
 ) -> Result<ServerHandle, Box<dyn Error>> {
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(tracing::Level::WARN)
-            .finish(),
-    )?;
     let server = Server::builder()
         .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(1024))
         .build(addr.parse::<SocketAddr>()?)

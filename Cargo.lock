@@ -471,6 +471,8 @@ dependencies = [
  "db",
  "server",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -2249,7 +2251,6 @@ dependencies = [
  "serde_json",
  "solabi",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

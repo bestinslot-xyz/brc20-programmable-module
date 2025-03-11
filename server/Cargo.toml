@@ -12,7 +12,6 @@ jsonrpsee = { version = "0.24.8", features = [ "server", "macros", "jsonrpsee-co
 rust-embed = "8.5.0"
 serde_json = "1.0.138"
 tracing = "0.1.41"
-tracing-subscriber = "0.3.19"
 solabi = "0.2.0"
 bip322 = "0.0.9"
 # evm-coder = "0.4.2"
