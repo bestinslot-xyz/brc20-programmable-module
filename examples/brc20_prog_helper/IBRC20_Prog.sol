@@ -19,7 +19,7 @@ interface IBIP322_Verifier {
 interface IBRC20_Balance {
     function balanceOf(
         string calldata ticker,
-        address account
+        string calldata address_pkscript
     ) external view returns (uint256);
 }
 
@@ -61,7 +61,7 @@ interface IBRC20_Prog {
      */
     function getBrc20BalanceOf(
         string calldata ticker,
-        address account
+        string calldata address_pkscript
     ) external view returns (uint256 balance);
 
     /**

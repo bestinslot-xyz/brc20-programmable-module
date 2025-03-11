@@ -36,7 +36,15 @@ impl ContextStatefulPrecompile<DB> for BTCPrecompile {
         gas_limit: u64,
         _evmctx: &mut revm::InnerEvmContext<DB>,
     ) -> PrecompileResult {
-        let txid = TX_DETAILS.decode_params(&bytes).unwrap();
+        let result = TX_DETAILS.decode_params(&bytes);
+
+        if result.is_err() {
+            return Err(PrecompileErrors::Error(Error::Other(
+                "Invalid params".to_string(),
+            )));
+        }
+
+        let txid = result.unwrap();
 
         let response = get_raw_transaction(&txid);
         if response["error"].is_object() {

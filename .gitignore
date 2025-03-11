@@ -1,6 +1,7 @@
 /target
 /db/target
 /server/contracts/src/target
+/examples/brc20_prog_helper/output
 /examples/simple_contract/output
 test_db
 node_modules
