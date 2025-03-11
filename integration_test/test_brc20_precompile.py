@@ -18,7 +18,7 @@ def test_brc20_balance_precompile():
     assert response.status_code == 200
     assert (
         response.json()["result"]["resultBytes"]
-        == "0x000000000000000000000000000000000000000000000000000000000000002a"  # 42
+        == "0x0000000000000000000000000000000000000000000000000000000000000045"  # 69
     )
 
 
