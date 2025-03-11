@@ -223,6 +223,7 @@ impl Brc20ProgApiServer for RpcServer {
 
     #[instrument(skip(self))]
     async fn mine(&self, block_cnt: u64, timestamp: u64) -> RpcResult<()> {
+        event!(tracing::Level::INFO, "Mining empty blocks");
         let hash = B256::ZERO;
         self.server_instance
             .mine_block(block_cnt, timestamp, hash)

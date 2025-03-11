@@ -123,8 +123,6 @@ impl ServerInstance {
 
         let mut number = self.get_latest_block_height() + 1;
 
-        let mut db = self.db_mutex.lock().unwrap();
-
         #[cfg(debug_assertions)]
         println!(
             "Mining blocks from 0x{:x} ({}) to 0x{:x} ({})",
@@ -135,10 +133,7 @@ impl ServerInstance {
         );
 
         for _ in 0..block_cnt {
-            db.set_block_hash(number, hash).unwrap();
-            db.set_block_timestamp(number, timestamp).unwrap();
-            db.set_gas_used(number, 0).unwrap();
-            db.set_mine_timestamp(number, 0).unwrap();
+            self.finalise_block(timestamp, number, hash, 0)?;
             number += 1;
         }
 
@@ -326,9 +321,6 @@ impl ServerInstance {
         let tx_hash = db
             .get_tx_hash_by_block_hash_and_index(block_hash, tx_idx)
             .unwrap();
-        if tx_hash == None {
-            return None;
-        }
         tx_hash
             .map(|x| db.get_tx_by_hash(x.0).unwrap_or(None))
             .unwrap()
