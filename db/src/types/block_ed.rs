@@ -1,7 +1,8 @@
+use revm::primitives::{Address, FixedBytes};
 use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex, StrictPfx};
 
-use super::{AddressED, B2048ED, B256ED, U128ED};
+use super::{AddressED, BEncodeDecode, Decode, Encode, B2048ED, B256ED, U128ED};
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct BlockResponseED {
@@ -75,4 +76,141 @@ pub struct BlockResponseED {
 
     #[serde(rename = "blobGasUsed", with = "SerHex::<CompactPfx>")]
     pub blob_gas_used: u64,
+}
+
+impl BlockResponseED {
+    pub fn new(
+        difficulty: u64,
+        gas_limit: u64,
+        gas_used: u64,
+        hash: B256ED,
+        logs_bloom: B2048ED,
+        nonce: u64,
+        number: u64,
+        timestamp: u64,
+        mine_timestamp: U128ED,
+        transactions: Vec<B256ED>,
+        transactions_root: B256ED,
+        total_difficulty: u64,
+        parent_hash: B256ED,
+        receipts_root: B256ED,
+        size: u64,
+    ) -> Self {
+        Self {
+            difficulty,
+            gas_limit,
+            gas_used,
+            hash,
+            logs_bloom,
+            nonce,
+            number,
+            timestamp,
+            mine_timestamp,
+            transactions,
+            transactions_root,
+            size,
+            parent_hash,
+            receipts_root,
+            total_difficulty,
+            base_fee_per_gas: 0,
+            uncles: Vec::new(),
+            withdrawals: Vec::new(),
+            withdrawals_root: BEncodeDecode(FixedBytes([0u8; 32])),
+            parent_beacon_block_root: BEncodeDecode(FixedBytes([0u8; 32])),
+            sha3_uncles: BEncodeDecode(FixedBytes([0u8; 32])),
+            state_root: BEncodeDecode(FixedBytes([0u8; 32])),
+            miner: AddressED(Address::new([0u8; 20])),
+            mix_hash: BEncodeDecode(FixedBytes([0u8; 32])),
+            excess_blob_gas: 0,
+            extra_data: BEncodeDecode(FixedBytes([0u8; 32])),
+            blob_gas_used: 0,
+        }
+    }
+}
+
+impl Encode for BlockResponseED {
+    fn encode(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&self.difficulty.to_be_bytes());
+        bytes.extend_from_slice(&self.gas_limit.to_be_bytes());
+        bytes.extend_from_slice(&self.gas_used.to_be_bytes());
+        bytes.extend_from_slice(&self.hash.encode()?);
+        bytes.extend_from_slice(&self.logs_bloom.encode()?);
+        bytes.extend_from_slice(&self.nonce.to_be_bytes());
+        bytes.extend_from_slice(&self.number.to_be_bytes());
+        bytes.extend_from_slice(&self.timestamp.to_be_bytes());
+        bytes.extend_from_slice(&self.mine_timestamp.encode()?);
+        let transactions_count = self.transactions.len() as u64;
+        bytes.extend_from_slice(&transactions_count.to_be_bytes());
+        for tx in &self.transactions {
+            bytes.extend_from_slice(&tx.encode()?);
+        }
+        bytes.extend_from_slice(&self.transactions_root.encode()?);
+        bytes.extend_from_slice(&self.total_difficulty.to_be_bytes());
+        bytes.extend_from_slice(&self.parent_hash.encode()?);
+        bytes.extend_from_slice(&self.receipts_root.encode()?);
+        bytes.extend_from_slice(&self.size.to_be_bytes());
+        Ok(bytes)
+    }
+}
+
+impl Decode for BlockResponseED {
+    fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        Self: Sized {
+        let mut i = 0;
+        let difficulty = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        i += 4;
+        let gas_limit = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        i += 4;
+        let gas_used = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        i += 4;
+        let hash = B256ED::decode(bytes[i..i + 32].to_vec())?;
+        i += 32;
+        let logs_bloom = B2048ED::decode(bytes[i..i + 256].to_vec())?;
+        i += 256;
+        let nonce = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        i += 4;
+        let number = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        i += 4;
+        let timestamp = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        i += 4;
+        let mine_timestamp = U128ED::decode(bytes[i..i + 16].to_vec())?;
+        i += 16;
+        let transactions_count = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        i += 4;
+        let mut transactions = Vec::new();
+        for _ in 0..transactions_count {
+            let tx = B256ED::decode(bytes[i..i + 32].to_vec())?;
+            transactions.push(tx);
+            i += 32;
+        }
+        let transactions_root = B256ED::decode(bytes[i..i + 32].to_vec())?;
+        i += 32;
+        let total_difficulty = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        i += 4;
+        let parent_hash = B256ED::decode(bytes[i..i + 32].to_vec())?;
+        i += 32;
+        let receipts_root = B256ED::decode(bytes[i..i + 32].to_vec())?;
+        i += 32;
+        let size = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+
+        Ok(BlockResponseED::new(
+            difficulty,
+            gas_limit,
+            gas_used,
+            hash,
+            logs_bloom,
+            nonce,
+            number,
+            timestamp,
+            mine_timestamp,
+            transactions,
+            transactions_root,
+            total_difficulty,
+            parent_hash,
+            receipts_root,
+            size
+        ))
+    }
 }

@@ -11,7 +11,7 @@ var express = require('express');
 const indexer_addr = '0x0000000000000000000000000000000000003Ca6'
 const brc20_controller_addr = '0xc54dd4581af2dbf18e4d90840226756e9d2b3cdb'
 // const block_hash_after_initialization = '0xf10af31fab134991a3241ef302446cc206260cfbecae5e9c361d3db5aa5be635'
-const block_hash_after_initialization = '0x0000000000000000000000000000000000000000000000000000000000000000'
+const block_hash_after_initialization = '0x000000000000000000000000000000000000000000000000000000000017cc70'
 const module_activation_height = 779832
 // const module_activation_height = 827473
 const extra_arg_types = [
@@ -102,24 +102,18 @@ async function initialise_chain() {
   let init_st_tm = +(new Date())
 
   let current_block_height = parseInt(await provider_send("eth_blockNumber", {}))
-  // if (current_block_height == 0) {
-  //   console.log("deploying BRC20_Controller")
-  //   const deploy_brc20_controller_tx = await get_deploy_brc20_controller_tx();
-  //   let resp = await brc20_mine_with_txes(0, "0x0000000000000000000000000000000000000000000000000000000000000000", [deploy_brc20_controller_tx]);
-  //   let brc20_controller_deploy_receipt = resp[0];
-
-  //   if (brc20_controller_deploy_receipt.contractAddress != brc20_controller_addr) {
-  //     console.error(`BRC20_Controller deployed to ${brc20_controller_deploy_receipt.contractAddress} instead of ${brc20_controller_addr}`);
-  //     throw new Error("BRC20_Controller address does not match")
-  //   }
-
-  //   current_block_height = 1
-  // }
+  if (current_block_height == 0) {
+    // calling brc20_initialise to deploy genesis block
+    await provider_send("brc20_initialise", {
+      "genesis_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "genesis_timestamp": 0,
+    })
+  }
 
   let st_tm = +(new Date())
   for (let i = current_block_height; i < module_activation_height - 1;) {
     console.log(`initialising block ${i} time per block ${(+(new Date()) - st_tm) / (i - current_block_height + 1)}`)
-    let block_count = Math.min(1000, module_activation_height - i - 1)
+    let block_count = Math.min(100000, module_activation_height - i - 1)
     await brc20_mine(block_count, 0);
     i += block_count
   }

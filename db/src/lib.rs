@@ -47,6 +47,9 @@ pub struct DB {
     db_block_hash_to_number:
         Option<BlockCachedDatabase<B256ED, U64ED, BlockHistoryCacheData<U64ED>>>,
 
+    // Block number to Block
+    db_block_number_to_block: Option<BlockDatabase<BlockResponseED>>,
+
     /// Block number to block hash
     db_block_number_to_hash: Option<BlockDatabase<B256ED>>,
 
@@ -72,6 +75,7 @@ impl Default for DB {
             db_number_and_index_to_tx_hash: None,
             db_tx_receipt: None,
             db_tx: None,
+            db_block_number_to_block: None,
             db_block_number_to_hash: None,
             db_block_hash_to_number: None,
             db_block_number_to_timestamp: None,
@@ -98,6 +102,7 @@ impl DB {
                 &base_path,
                 "block_hash_to_number",
             )),
+            db_block_number_to_block: Some(BlockDatabase::new(&base_path, "block_number_to_block")),
             db_block_number_to_hash: Some(BlockDatabase::new(&base_path, "block_number_to_hash")),
             db_block_number_to_timestamp: Some(BlockDatabase::new(
                 &base_path,
@@ -446,6 +451,15 @@ impl DB {
             return Ok(None);
         }
 
+        let stored_block = self
+            .db_block_number_to_block
+            .as_mut()
+            .unwrap()
+            .get(block_number)?;
+        if stored_block.is_some() {
+            return Ok(Some(stored_block.unwrap()));
+        }
+
         let block_hash = block_hash.unwrap();
         let block_timestamp = self.get_block_timestamp(block_number)?;
         let gas_used = self.get_gas_used(block_number)?;
@@ -477,35 +491,30 @@ impl DB {
             transactions.push(tx_id);
         }
 
-        Ok(Some(BlockResponseED {
-            difficulty: 0,
-            gas_limit: 36000000,
-            gas_used: gas_used.unwrap_or(U64::ZERO).as_limbs()[0],
-            nonce: transactions.len() as u64,
-            number: block_number,
-            timestamp: block_timestamp.unwrap_or(U64::ZERO).as_limbs()[0],
-            mine_timestamp: UintEncodeDecode(mine_timestamp.unwrap_or(U128::ZERO)),
-            hash: BEncodeDecode(block_hash),
-            logs_bloom: BEncodeDecode(FixedBytes([0u8; 256])),
+        let block_response = BlockResponseED::new(
+            0,
+            36000000,
+            gas_used.unwrap_or(U64::ZERO).as_limbs()[0],
+            BEncodeDecode(block_hash),
+            BEncodeDecode(FixedBytes([0u8; 256])),
+            transactions.len() as u64,
+            block_number,
+            block_timestamp.unwrap_or(U64::ZERO).as_limbs()[0],
+            UintEncodeDecode(mine_timestamp.unwrap_or(U128::ZERO)),
             transactions,
-            parent_hash: BEncodeDecode(parent_hash),
-            blob_gas_used: 0,
-            base_fee_per_gas: 0,
-            transactions_root: BEncodeDecode(FixedBytes(tx_merkle.root().unwrap_or([0; 32]))),
-            uncles: Vec::new(),
-            withdrawals: Vec::new(),
-            withdrawals_root: BEncodeDecode(FixedBytes([0; 32])),
-            total_difficulty: 0,
-            parent_beacon_block_root: BEncodeDecode(FixedBytes([0; 32])),
-            receipts_root: BEncodeDecode(FixedBytes([0; 32])),
-            sha3_uncles: BEncodeDecode(FixedBytes([0; 32])),
-            size: 0,
-            state_root: BEncodeDecode(FixedBytes([0; 32])),
-            miner: AddressED(Address::ZERO),
-            mix_hash: BEncodeDecode(FixedBytes([0; 32])),
-            excess_blob_gas: 0,
-            extra_data: BEncodeDecode(FixedBytes([0; 32])),
-        }))
+            BEncodeDecode(FixedBytes(tx_merkle.root().unwrap_or([0; 32]))),
+            0,
+            BEncodeDecode(parent_hash),
+            BEncodeDecode(FixedBytes([0; 32])),
+            0,
+        );
+
+        self.db_block_number_to_block
+            .as_mut()
+            .unwrap()
+            .set(block_number, block_response.clone());
+
+        Ok(Some(block_response))
     }
 
     pub fn get_block_number(&mut self, block_hash: B256) -> Result<Option<U64ED>, Box<dyn Error>> {
