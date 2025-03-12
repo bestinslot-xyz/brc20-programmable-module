@@ -157,7 +157,8 @@ impl Encode for BlockResponseED {
 impl Decode for BlockResponseED {
     fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn std::error::Error>>
     where
-        Self: Sized {
+        Self: Sized,
+    {
         let mut i = 0;
         let difficulty = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
         i += 4;
@@ -210,7 +211,7 @@ impl Decode for BlockResponseED {
             total_difficulty,
             parent_hash,
             receipts_root,
-            size
+            size,
         ))
     }
 }

@@ -1,4 +1,6 @@
-use revm::primitives::{Address, ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason};
+use revm::primitives::{
+    Address, ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason,
+};
 
 pub fn get_result_type(result: &ExecutionResult) -> String {
     match result {

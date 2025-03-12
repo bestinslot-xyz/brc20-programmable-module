@@ -1,9 +1,7 @@
 use serde::Deserialize;
 
 use revm::primitives::alloy_primitives::Bytes;
-use revm::primitives::{
-    keccak256, Address, B256,
-};
+use revm::primitives::{keccak256, Address, B256};
 
 #[derive(Deserialize, Clone)]
 pub struct TxInfo {

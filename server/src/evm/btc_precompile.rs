@@ -23,7 +23,7 @@ pub struct BTCPrecompile;
 /// Signature for the getTxDetails function in the BTCPrecompile contract
 /// Uses get raw tx details from the blockchain using the json rpc and returns the details from the transaction
 /// ScriptPubKey for the vin transaction is fetched using the txid and vout
-/// 
+///
 /// # Returns (block_height, vin_txid, vin_vout, vin_scriptPubKey_hex, vin_value, vout_scriptPubKey_hex, vout_value) in a tuple
 /// # Errors - Returns an error if the transaction details are not found
 const TX_DETAILS: FunctionEncoder<String, (U256, String, U256, String, U256, String, U256)> =
