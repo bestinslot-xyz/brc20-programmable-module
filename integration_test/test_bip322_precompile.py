@@ -1,5 +1,6 @@
 import requests
 
+
 def test_bip322_verification_true():
     response = requests.post(
         "http://localhost:18545",
