@@ -70,7 +70,11 @@ pub fn decode_brc20_balance_result(data: Option<&Bytes>) -> U256 {
     if data.is_none() {
         return U256::ZERO;
     }
-    let (result,) = BALANCE_OF.decode_returns(data.as_ref().unwrap()).unwrap();
+    let result = BALANCE_OF.decode_returns(data.as_ref().unwrap());
+    if result.is_err() {
+        return U256::ZERO;
+    }
+    let (result,) = result.unwrap();
     let result = result.to_be_bytes();
     U256::from_be_bytes(result)
 }
