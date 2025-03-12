@@ -53,7 +53,7 @@ impl Brc20ProgApiServer for RpcServer {
         hash: String,
         tx_idx: u64,
     ) -> RpcResult<bool> {
-        event!(tracing::Level::DEBUG, "Depositing");
+        event!(tracing::Level::INFO, "Depositing");
 
         self.server_instance
             .add_tx_to_block(
@@ -81,7 +81,7 @@ impl Brc20ProgApiServer for RpcServer {
         hash: String,
         tx_idx: u64,
     ) -> RpcResult<bool> {
-        event!(tracing::Level::DEBUG, "Withdrawing");
+        event!(tracing::Level::INFO, "Withdrawing");
 
         self.server_instance
             .add_tx_to_block(
@@ -101,7 +101,7 @@ impl Brc20ProgApiServer for RpcServer {
 
     #[instrument(skip(self))]
     async fn balance(&self, address_pkscript: String, ticker: String) -> RpcResult<String> {
-        event!(tracing::Level::DEBUG, "Checking balance");
+        event!(tracing::Level::INFO, "Checking balance");
 
         self.server_instance
             .call_contract(&load_brc20_balance_tx(
@@ -322,11 +322,12 @@ impl Brc20ProgApiServer for RpcServer {
         hash: String,
         block_tx_cnt: u64,
     ) -> RpcResult<()> {
-        event!(tracing::Level::INFO, "Finalising block");
+        let block_height = self.server_instance.get_latest_block_height() + 1;
+        event!(tracing::Level::INFO, "Finalising block {}", block_height);
         self.server_instance
             .finalise_block(
                 timestamp,
-                self.server_instance.get_latest_block_height() + 1,
+                block_height,
                 B256::from_str(if hash.starts_with("0x") {
                     &hash[2..]
                 } else {
