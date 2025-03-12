@@ -508,8 +508,8 @@ data_mine = {
   "txes": [
     {
       "inscription": {
-        "op": "deploy2",
-        "bc": ""
+        "op": "deploy",
+        "d": ""
       },
       "btc_pkscript": "512037679ea62eab55ebfd442c53c4ad46b6b75e45d8a8fa9cb31a87d0df268b029a"
     }
@@ -521,7 +521,7 @@ data_call = {
   "txes": [
     {
       "inscription": {
-        "op": "call2", "c": "", "d": "0x"
+        "op": "call", "c": "", "d": "0x"
       },
       "btc_pkscript": "512037679ea62eab55ebfd442c53c4ad46b6b75e45d8a8fa9cb31a87d0df268b029a"
     }
@@ -542,7 +542,7 @@ for i in range(len(codes)):
   code = codes[i]
   params = params_list[i]
   print("deploying: ", get(params[0]), params[1])
-  data_mine['txes'][0]['inscription']['bc'] = code
+  data_mine['txes'][0]['inscription']['d'] = code
   response = requests.post(url_mine, json=data_mine, headers={'Content-Type': 'application/json'})
   js = response.json()
   contractAddress = js["result"]["responses"][0]["receipt"]["contractAddress"]

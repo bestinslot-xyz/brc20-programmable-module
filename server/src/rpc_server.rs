@@ -52,7 +52,7 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: String,
         tx_idx: u64,
-    ) -> RpcResult<bool> {
+    ) -> RpcResult<TxReceiptED> {
         event!(tracing::Level::INFO, "Depositing");
 
         self.server_instance
@@ -68,7 +68,6 @@ impl Brc20ProgApiServer for RpcServer {
                 hash.parse().unwrap(),
             )
             .map_err(wrap_error_message)
-            .map(|receipt| receipt.status == 1)
     }
 
     #[instrument(skip(self))]
@@ -80,7 +79,7 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: String,
         tx_idx: u64,
-    ) -> RpcResult<bool> {
+    ) -> RpcResult<TxReceiptED> {
         event!(tracing::Level::INFO, "Withdrawing");
 
         self.server_instance
@@ -96,7 +95,6 @@ impl Brc20ProgApiServer for RpcServer {
                 hash.parse().unwrap(),
             )
             .map_err(wrap_error_message)
-            .map(|receipt| receipt.status == 1)
     }
 
     #[instrument(skip(self))]
@@ -335,24 +333,6 @@ impl Brc20ProgApiServer for RpcServer {
                 })
                 .unwrap(),
                 block_tx_cnt,
-            )
-            .map_err(wrap_error_message)
-    }
-
-    #[instrument(skip(self, txes))]
-    async fn finalise_block_with_txes(
-        &self,
-        timestamp: u64,
-        hash: String,
-        txes: Vec<TxInfo>,
-    ) -> RpcResult<Vec<TxReceiptED>> {
-        event!(tracing::Level::INFO, "Finalising block with txes");
-        self.server_instance
-            .finalise_block_with_txes(
-                timestamp,
-                self.server_instance.get_latest_block_height() + 1,
-                hash.parse().unwrap(),
-                txes,
             )
             .map_err(wrap_error_message)
     }

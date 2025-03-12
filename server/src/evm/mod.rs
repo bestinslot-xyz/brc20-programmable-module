@@ -12,3 +12,6 @@ pub use btc_precompile::*;
 
 mod brc20_precompile;
 pub use brc20_precompile::*;
+
+mod utils;
+pub use utils::*;

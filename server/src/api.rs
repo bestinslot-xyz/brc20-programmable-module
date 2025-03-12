@@ -1,7 +1,6 @@
 use db::types::{BlockResponseED, LogResponseED, TxED, TxReceiptED};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-use crate::types::TxInfo;
 
 #[rpc(server)]
 pub trait Brc20ProgApi {
@@ -26,7 +25,7 @@ pub trait Brc20ProgApi {
         timestamp: u64,
         hash: String,
         tx_idx: u64,
-    ) -> RpcResult<bool>;
+    ) -> RpcResult<TxReceiptED>;
 
     /// Withdraws brc20 tokens from the given address
     #[method(name = "brc20_withdraw")]
@@ -38,7 +37,7 @@ pub trait Brc20ProgApi {
         timestamp: u64,
         hash: String,
         tx_idx: u64,
-    ) -> RpcResult<bool>;
+    ) -> RpcResult<TxReceiptED>;
 
     /// Checks BRC20 balance for given address
     #[method(name = "brc20_balance")]
@@ -68,15 +67,6 @@ pub trait Brc20ProgApi {
         hash: String,
         block_tx_cnt: u64,
     ) -> RpcResult<()>;
-
-    /// Finalises the block with the given parameters and transactions
-    #[method(name = "brc20_finaliseBlockWithTxes")]
-    async fn finalise_block_with_txes(
-        &self,
-        timestamp: u64,
-        hash: String,
-        txes: Vec<TxInfo>,
-    ) -> RpcResult<Vec<TxReceiptED>>;
 
     /// Reverts the state to the given latest valid block number
     #[method(name = "brc20_reorg")]

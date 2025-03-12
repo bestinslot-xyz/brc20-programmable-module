@@ -552,7 +552,7 @@ impl DB {
 
         if block_hash == B256::ZERO {
             // just hash the number
-            let bytes = (1 + block_number << 1).to_be_bytes();
+            let bytes = block_number.to_be_bytes();
             let full_bytes = [0u8; 24]
                 .iter()
                 .chain(bytes.iter())
