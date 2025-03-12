@@ -18,12 +18,9 @@ use revm::{
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
 
-use crate::{
-    evm::{get_evm, modify_evm_with_tx_env},
-    types::get_contract_address,
-};
+use crate::evm::{get_evm, modify_evm_with_tx_env, get_contract_address, get_result_reason, get_result_type};
 
-use crate::types::{get_result_reason, get_result_type, get_tx_hash, TxInfo};
+use crate::types::{get_tx_hash, TxInfo};
 
 pub struct LastBlockInfo {
     pub waiting_tx_cnt: u64,
@@ -433,40 +430,6 @@ impl ServerInstance {
         *last_block_info = LastBlockInfo::new();
 
         Ok(())
-    }
-
-    pub fn finalise_block_with_txes(
-        &self,
-        timestamp: u64,
-        block_number: u64,
-        block_hash: B256,
-        txes: Vec<TxInfo>,
-    ) -> Result<Vec<TxReceiptED>, &'static str> {
-        #[cfg(debug_assertions)]
-        println!("Finalising block with {:?} txes", txes.len());
-        self.require_no_waiting_txes()?;
-
-        let tx_len = txes.len();
-
-        let mut tx_receipts: Vec<TxReceiptED> = Vec::new();
-        let mut tx_idx = 0;
-        for tx in txes {
-            let result = self.add_tx_to_block(timestamp, &tx, tx_idx, block_number, block_hash);
-            tx_idx += 1;
-
-            if result.is_err() {
-                return Err(result.unwrap_err());
-            } else {
-                tx_receipts.push(result.unwrap());
-            }
-        }
-
-        let result = self.finalise_block(timestamp, block_number, block_hash, tx_len as u64);
-
-        if result.is_err() {
-            return Err(result.unwrap_err());
-        }
-        Ok(tx_receipts)
     }
 
     pub fn call_contract(&self, tx_info: &TxInfo) -> Result<TxReceiptED, &'static str> {
