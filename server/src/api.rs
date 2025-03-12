@@ -1,7 +1,6 @@
 use db::types::{BlockResponseED, LogResponseED, TxED, TxReceiptED};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-
 #[rpc(server)]
 pub trait Brc20ProgApi {
     ///

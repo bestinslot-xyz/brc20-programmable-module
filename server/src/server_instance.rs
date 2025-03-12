@@ -18,7 +18,9 @@ use revm::{
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
 
-use crate::evm::{get_evm, modify_evm_with_tx_env, get_contract_address, get_result_reason, get_result_type};
+use crate::evm::{
+    get_contract_address, get_evm, get_result_reason, get_result_type, modify_evm_with_tx_env,
+};
 
 use crate::types::{get_tx_hash, TxInfo};
 

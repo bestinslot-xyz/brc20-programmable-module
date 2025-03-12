@@ -2,10 +2,7 @@ use db::DB;
 
 use std::{str::FromStr, sync::Arc};
 
-use revm::{
-    primitives::Address,
-    ContextPrecompile,
-};
+use revm::{primitives::Address, ContextPrecompile};
 
 use super::{BIP322Precompile, BRC20Precompile, BTCPrecompile};
 
