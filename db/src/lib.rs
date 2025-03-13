@@ -651,6 +651,11 @@ impl DB {
             .unwrap()
             .commit()?;
         self.db_block_number_to_mine_tm.as_mut().unwrap().commit()?;
+        self.db_block_number_to_block
+            .as_mut()
+            .unwrap()
+            .commit()?;
+
         self.db_number_and_index_to_tx_hash
             .as_mut()
             .unwrap()
@@ -660,7 +665,6 @@ impl DB {
             .as_mut()
             .unwrap()
             .commit(latest_block_number)?;
-
         self.db_account_memory
             .as_mut()
             .unwrap()
@@ -703,6 +707,7 @@ impl DB {
             .as_mut()
             .unwrap()
             .clear_cache();
+        self.db_block_number_to_block.as_mut().unwrap().clear_cache();
 
         self.latest_block_number = None;
     }
@@ -750,6 +755,10 @@ impl DB {
             .unwrap()
             .reorg(latest_valid_block_number)?;
         self.db_block_number_to_mine_tm
+            .as_mut()
+            .unwrap()
+            .reorg(latest_valid_block_number)?;
+        self.db_block_number_to_block
             .as_mut()
             .unwrap()
             .reorg(latest_valid_block_number)?;
