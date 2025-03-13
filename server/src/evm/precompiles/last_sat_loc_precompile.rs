@@ -57,13 +57,13 @@ impl ContextStatefulPrecompile<DB> for LastSatLocationPrecompile {
 
         let response = response["result"].clone();
 
-        if response["vout"].as_array().unwrap().len() < vout as usize {
+        if response["vout"].as_array().unwrap().len() < vout {
             return Err(PrecompileErrors::Error(Error::Other(
                 "Vout index out of bounds".to_string(),
             )));
         }
 
-        if to_sats(response["vout"][vout as usize]["value"].as_f64().unwrap()) < sat {
+        if to_sats(response["vout"][vout]["value"].as_f64().unwrap()) < sat {
             return Err(PrecompileErrors::Error(Error::Other(
                 "Sat value out of bounds".to_string(),
             )));
@@ -77,7 +77,7 @@ impl ContextStatefulPrecompile<DB> for LastSatLocationPrecompile {
         let mut current_vout_index = 0;
         while current_vout_index < vout {
             let value = to_sats(
-                response["vout"][current_vout_index as usize]["value"]
+                response["vout"][current_vout_index]["value"]
                     .as_f64()
                     .unwrap(),
             );
@@ -92,28 +92,28 @@ impl ContextStatefulPrecompile<DB> for LastSatLocationPrecompile {
         let mut current_vin_vout = 0;
         let mut current_vin_script_pub_key_hex = "".to_string();
         let mut current_vin_value = 0;
-        let vin_count = response["vin"].as_array().unwrap().len() as u64;
+        let vin_count = response["vin"].as_array().unwrap().len();
         while total_vin_sat_count < total_vout_sat_count && current_vin_index < vin_count {
-            current_vin_txid = response["vin"][current_vin_index as usize]["txid"]
+            current_vin_txid = response["vin"][current_vin_index]["txid"]
                 .as_str()
                 .unwrap()
                 .to_string();
-            current_vin_vout = response["vin"][current_vin_index as usize]["vout"]
+            current_vin_vout = response["vin"][current_vin_index]["vout"]
                 .as_u64()
-                .unwrap();
+                .unwrap() as usize;
             gas_used += GAS_PER_RPC_CALL;
             if gas_used > gas_limit {
                 return Err(PrecompileErrors::Error(Error::OutOfGas));
             }
             let vin_response = get_raw_transaction(&current_vin_txid);
             let vin_response = vin_response["result"].clone();
-            current_vin_script_pub_key_hex = vin_response["vout"][current_vin_vout as usize]
+            current_vin_script_pub_key_hex = vin_response["vout"][current_vin_vout]
                 ["scriptPubKey"]["hex"]
                 .as_str()
                 .unwrap()
                 .to_string();
             current_vin_value = to_sats(
-                vin_response["vout"][current_vin_vout as usize]["value"]
+                vin_response["vout"][current_vin_vout]["value"]
                     .as_f64()
                     .unwrap(),
             );
@@ -130,7 +130,7 @@ impl ContextStatefulPrecompile<DB> for LastSatLocationPrecompile {
 
         let bytes = LAST_SAT_LOCATION.encode_returns(&(
             current_vin_txid,
-            U256::from(current_vin_vout),
+            U256::from(current_vin_vout as u64),
             U256::from(total_vout_sat_count - (total_vin_sat_count - current_vin_value)),
             current_vin_script_pub_key_hex,
             new_pkscript.to_string(),
