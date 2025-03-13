@@ -25,6 +25,10 @@ impl ContextStatefulPrecompile<DB> for BRC20Precompile {
         _evmctx: &mut InnerEvmContext<DB>,
     ) -> PrecompileResult {
         let gas_used = 100000;
+        if gas_used > gas_limit {
+            return Err(PrecompileErrors::Error(Error::OutOfGas));
+        }
+
         let result = BALANCE_OF.decode_params(&bytes);
 
         if result.is_err() {
@@ -46,9 +50,6 @@ impl ContextStatefulPrecompile<DB> for BRC20Precompile {
         let balance = solabi::U256::from(balance);
         let bytes = BALANCE_OF.encode_returns(&(balance,));
 
-        if gas_used > gas_limit {
-            return Err(PrecompileErrors::Error(Error::OutOfGas));
-        }
         Ok(PrecompileOutput {
             bytes: Bytes::from(bytes),
             gas_used,
