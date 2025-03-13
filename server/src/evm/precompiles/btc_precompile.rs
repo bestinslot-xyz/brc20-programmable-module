@@ -65,8 +65,15 @@ impl ContextStatefulPrecompile<DB> for BTCPrecompile {
             .db
             .get_block_number(B256::from_str(&block_hash).unwrap_or(B256::ZERO))
             .unwrap()
-            .map(|x| x.0.as_limbs()[0])
-            .unwrap_or(0);
+            .map(|x| x.0.as_limbs()[0]);
+
+        if block_height.is_none() {
+            return Err(PrecompileErrors::Error(Error::Other(
+                "Block height not found".to_string(),
+            )));
+        }
+
+        let block_height = U256::from(block_height.unwrap());
 
         let mut vin_txids = Vec::new();
         let mut vin_vouts = Vec::new();
