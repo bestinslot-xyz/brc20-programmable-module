@@ -20,7 +20,7 @@ impl ContextStatefulPrecompile<DB> for BIP322Precompile {
         gas_limit: u64,
         _evmctx: &mut InnerEvmContext<DB>,
     ) -> PrecompileResult {
-        let gas_used = 100000;
+        let gas_used = 20000;
         let result = VERIFY.decode_params(&bytes);
 
         if result.is_err() {
