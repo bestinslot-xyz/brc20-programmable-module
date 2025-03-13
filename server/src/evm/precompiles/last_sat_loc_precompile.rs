@@ -57,6 +57,12 @@ impl ContextStatefulPrecompile<DB> for LastSatLocationPrecompile {
 
         let response = response["result"].clone();
 
+        if response["vin"][0]["coinbase"].is_string() {
+            return Err(PrecompileErrors::Error(Error::Other(
+                "Coinbase transactions not supported".to_string(),
+            )));
+        }
+
         if response["vout"].as_array().unwrap().len() < vout {
             return Err(PrecompileErrors::Error(Error::Other(
                 "Vout index out of bounds".to_string(),
@@ -72,21 +78,6 @@ impl ContextStatefulPrecompile<DB> for LastSatLocationPrecompile {
         let new_pkscript = response["vout"][vout]["scriptPubKey"]["hex"]
             .as_str()
             .unwrap();
-
-        if response["vin"][0]["coinbase"].is_string() {
-            let bytes = LAST_SAT_LOCATION.encode_returns(&(
-                "".to_string(),
-                U256::from(0u64),
-                U256::from(0u64),
-                "".to_string(),
-                new_pkscript.to_string(),
-            ));
-    
-            return Ok(PrecompileOutput {
-                bytes: Bytes::from(bytes),
-                gas_used,
-            });
-        }
 
         let mut total_vout_sat_count = 0;
         let mut current_vout_index = 0;
@@ -254,22 +245,11 @@ mod tests {
             1000000,
             &mut InnerEvmContext::new(db::DB::default()),
         );
-        let result = result.unwrap();
-        let returns = LAST_SAT_LOCATION.decode_returns(&result.bytes).unwrap();
+        let result = result.unwrap_err();
 
         assert_eq!(
-            result.gas_used, 100000
-        );
-
-        assert_eq!(
-            returns,
-            (
-                "".to_string(),
-                U256::from(0u64),
-                U256::from(0u64),
-                "".to_string(),
-                "0014536182d440abe6e9895e75066fc9dfff1737497f".to_string()
-            )
+            result.to_string(),
+            "Coinbase transactions not supported"
         );
     }
 }
