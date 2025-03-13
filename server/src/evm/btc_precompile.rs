@@ -2,9 +2,7 @@ use std::str::FromStr;
 
 use db::DB;
 use revm::{
-    precompile::Error,
-    primitives::{Bytes, PrecompileErrors, PrecompileOutput, PrecompileResult, B256},
-    ContextStatefulPrecompile,
+    precompile::Error, primitives::{Bytes, PrecompileErrors, PrecompileOutput, PrecompileResult, B256}, ContextStatefulPrecompile
 };
 use solabi::{selector, FunctionEncoder, U256};
 
@@ -18,6 +16,9 @@ lazy_static::lazy_static! {
             .unwrap_or("password".to_string());
 }
 
+static INITIAL_GAS: u64 = 50000;
+static GAS_PER_RPC_CALL: u64 = 100000;
+
 pub struct BTCPrecompile;
 
 /// Signature for the getTxDetails function in the BTCPrecompile contract
@@ -26,7 +27,7 @@ pub struct BTCPrecompile;
 ///
 /// # Returns (block_height, vin_txid, vin_vout, vin_scriptPubKey_hex, vin_value, vout_scriptPubKey_hex, vout_value) in a tuple
 /// # Errors - Returns an error if the transaction details are not found
-const TX_DETAILS: FunctionEncoder<String, (U256, String, U256, String, U256, String, U256)> =
+const TX_DETAILS: FunctionEncoder<String, (U256, Vec<String>, Vec<U256>, Vec<String>, Vec<U256>, Vec<String>, Vec<U256>)> =
     FunctionEncoder::new(selector!("getTxDetails(string)"));
 
 impl ContextStatefulPrecompile<DB> for BTCPrecompile {
@@ -36,6 +37,11 @@ impl ContextStatefulPrecompile<DB> for BTCPrecompile {
         gas_limit: u64,
         _evmctx: &mut revm::InnerEvmContext<DB>,
     ) -> PrecompileResult {
+        let gas_used = INITIAL_GAS + GAS_PER_RPC_CALL;
+        if gas_used > gas_limit {
+            return Err(PrecompileErrors::Error(Error::OutOfGas));
+        }
+
         let result = TX_DETAILS.decode_params(&bytes);
 
         if result.is_err() {
@@ -47,13 +53,20 @@ impl ContextStatefulPrecompile<DB> for BTCPrecompile {
         let txid = result.unwrap();
 
         let response = get_raw_transaction(&txid);
+
         if response["error"].is_object() {
             return Err(PrecompileErrors::Error(Error::Other(
                 response["error"]["message"].as_str().unwrap().to_string(),
             )));
         }
 
+
         let response = response["result"].clone();
+
+        let vin_count = response["vin"].as_array();
+        if gas_used + (vin_count.unwrap().len() as u64 * GAS_PER_RPC_CALL) > gas_limit {
+            return Err(PrecompileErrors::Error(Error::OutOfGas));
+        }
 
         let block_hash = response["blockhash"].as_str().unwrap_or("").to_string();
         let block_height = _evmctx
@@ -63,54 +76,68 @@ impl ContextStatefulPrecompile<DB> for BTCPrecompile {
             .map(|x| x.0.as_limbs()[0])
             .unwrap_or(0);
 
-        let vin = response["vin"][0].clone();
-        let vin_txid = vin["txid"].as_str().unwrap_or("").to_string();
-        let vin_vout = vin["vout"].as_u64().unwrap_or(0);
-        let vout = response["vout"][0].clone();
-        let vout_script_pub_key_hex = vout["scriptPubKey"]["hex"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
-        let vout_value = vout["value"].as_f64().unwrap_or(0.0);
-        let vout_value = (vout_value * 100000000.0) as u64;
+        let mut vin_txids = Vec::new();
+        let mut vin_vouts = Vec::new();
+        let mut vin_script_pub_key_hexes = Vec::new();
+        let mut vin_values = Vec::new();
+        let mut vout_script_pub_key_hexes = Vec::new();
+        let mut vout_values = Vec::new();
 
-        // Get the scriptPubKey from the vin transaction, using the txid and vout
-        let vin_script_pub_key_response = get_raw_transaction(&vin_txid);
-        if vin_script_pub_key_response["error"].is_object() {
-            return Err(PrecompileErrors::Error(Error::Other(
-                vin_script_pub_key_response["error"]["message"]
-                    .as_str()
-                    .unwrap()
-                    .to_string(),
-            )));
+        for vin in response["vin"].as_array().unwrap().into_iter() {
+            let vin_txid = vin["txid"].as_str().unwrap_or("").to_string();
+            let vin_vout = vin["vout"].as_u64().unwrap_or(0);
+
+            // Get the scriptPubKey from the vin transaction, using the txid and vout
+            let vin_script_pub_key_response = get_raw_transaction(&vin_txid);
+            if vin_script_pub_key_response["error"].is_object() {
+                return Err(PrecompileErrors::Error(Error::Other(
+                    vin_script_pub_key_response["error"]["message"]
+                        .as_str()
+                        .unwrap()
+                        .to_string(),
+                )));
+            }
+
+            let vin_script_pub_key_response = vin_script_pub_key_response["result"].clone();
+            let vin_script_pub_key_hex = vin_script_pub_key_response["vout"][vin_vout as usize]
+                ["scriptPubKey"]["hex"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+
+            let vin_value = vin_script_pub_key_response["vout"][vin_vout as usize]["value"]
+                .as_f64()
+                .unwrap_or(0.0);
+            let vin_value = (vin_value * 100000000.0) as u64;
+
+            vin_txids.push(vin_txid);
+            vin_vouts.push(U256::from(vin_vout));
+            vin_script_pub_key_hexes.push(vin_script_pub_key_hex);
+            vin_values.push(U256::from(vin_value));
         }
 
-        let vin_script_pub_key_response = vin_script_pub_key_response["result"].clone();
-        let vin_script_pub_key_hex = vin_script_pub_key_response["vout"][vin_vout as usize]
-            ["scriptPubKey"]["hex"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
-
-        let vin_value = vin_script_pub_key_response["vout"][vin_vout as usize]["value"]
-            .as_f64()
-            .unwrap_or(0.0);
-        let vin_value = (vin_value * 100000000.0) as u64;
+        for vout in response["vout"].as_array().unwrap().into_iter() {
+            let vout_script_pub_key_hex = vout["scriptPubKey"]["hex"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            let vout_value = vout["value"].as_f64().unwrap_or(0.0);
+            let vout_value = (vout_value * 100000000.0) as u64;
+            
+            vout_script_pub_key_hexes.push(vout_script_pub_key_hex);
+            vout_values.push(U256::from(vout_value));
+        }
 
         let bytes = TX_DETAILS.encode_returns(&(
             U256::from(block_height),
-            vin_txid,
-            U256::from(vin_vout),
-            vin_script_pub_key_hex,
-            U256::from(vin_value),
-            vout_script_pub_key_hex,
-            U256::from(vout_value),
+            vin_txids,
+            vin_vouts,
+            vin_script_pub_key_hexes,
+            vin_values,
+            vout_script_pub_key_hexes,
+            vout_values,
         ));
 
-        let gas_used = 100000;
-        if gas_used > gas_limit {
-            return Err(PrecompileErrors::Error(Error::OutOfGas));
-        }
         Ok(PrecompileOutput {
             bytes: Bytes::from(bytes),
             gas_used,
@@ -158,34 +185,51 @@ mod tests {
 
     #[test]
     fn test_get_tx_details_decode_returns() {
-        let data = "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000005a5b600000000000000000000000000000000000000000000000000000000000001c0000000000000000000000000000000000000000000000000000000000000014a00000000000000000000000000000000000000000000000000000000000000403630393262653136353461363939373365663034316366633932353736303939393734623762633366383035633762336162666364346337613430363238616100000000000000000000000000000000000000000000000000000000000000443531323062353339656566646438633237346161613934623738666635626263346437363834363438303330363363353735383238313438633364393134306165366236000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044353132306663646335613762643636623464336138633931663161316366393461643764353631663361333034626631386661663536373862316565343765373833623700000000000000000000000000000000000000000000000000000000";
+        // https://mempool.space/testnet4/tx/ce1d2d142eb12fa4fbbb2c361c286483e5c74ca67640496de23beb5ee56d0406
+        let data = "0000000000000000000000000000000000000000000000000000000000011d7600000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000028000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000058000000000000000000000000000000000000000000000000000000000000007e00000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000000403162613331333332323662313866313865636339653333333539613063356131323433323033613734666334666466383839386639653730396138323630616100000000000000000000000000000000000000000000000000000000000000406561326135353337343733336433633336313432373235623366343538353762663464373862323931353365613464636466386162356238383062343934663800000000000000000000000000000000000000000000000000000000000000406233663138663062343139656335653435323731363737373633343930656637626532653662346264353531396462613932346564316333316537383764346400000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000004435313230353436656231386135643435396262353964393637396665386638643539386662663735363862663035636464613361663662323631386238666438633366340000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000443531323035343665623138613564343539626235396439363739666538663864353938666266373536386266303563646461336166366232363138623866643863336634000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044353132303534366562313861356434353962623539643936373966653866386435393866626637353638626630356364646133616636623236313862386664386333663400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000002220000000000000000000000000000000000000000000000000000000000000222000000000000000000000000000000000000000000000000000000000012cb220000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001c0000000000000000000000000000000000000000000000000000000000000001c36613564306231363031303065393964303431656633383436613032000000000000000000000000000000000000000000000000000000000000000000000044353132303534366562313861356434353962623539643936373966653866386435393866626637353638626630356364646133616636623236313862386664386333663400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004435313230623430633036356266636335393632653137303266303964653161356432646663306137323336626261663563313637323532396234313462336565346366350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000443531323035343665623138613564343539626235396439363739666538663864353938666266373536386266303563646461336166366232363138623866643863336634000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002220000000000000000000000000000000000000000000000000000000000000222000000000000000000000000000000000000000000000000000000000012b211";
         let (
             block_height,
-            vin_txid,
-            vin_vout,
-            vin_script_pub_key_hex,
-            vin_value,
-            vout_script_pub_key_hex,
-            vout_value,
+            vin_txids,
+            vin_vouts,
+            vin_script_pub_key_hexes,
+            vin_values,
+            vout_script_pub_key_hexes,
+            vout_values,
         ) = TX_DETAILS
             .decode_returns(hex::decode(data).unwrap().as_slice())
             .unwrap();
 
-        assert_eq!(block_height, U256::from(0u64));
-        assert_eq!(
-            vin_txid,
-            "6092be1654a69973ef041cfc92576099974b7bc3f805c7b3abfcd4c7a40628aa"
-        );
-        assert_eq!(vin_vout, U256::from(0u64));
-        assert_eq!(
-            vin_script_pub_key_hex,
-            "5120b539eefdd8c274aaa94b78ff5bbc4d768464803063c575828148c3d9140ae6b6"
-        );
-        assert_eq!(vin_value, U256::from(370102u64));
-        assert_eq!(
-            vout_script_pub_key_hex,
-            "5120fcdc5a7bd66b4d3a8c91f1a1cf94ad7d561f3a304bf18faf5678b1ee47e783b7"
-        );
-        assert_eq!(vout_value, U256::from(330u64));
+        assert_eq!(block_height, U256::from(73078u64));
+        assert_eq!(vin_txids.len(), 3);
+        assert_eq!(vin_vouts.len(), 3);
+        assert_eq!(vin_script_pub_key_hexes.len(), 3);
+        assert_eq!(vin_values.len(), 3);
+
+        assert_eq!(vout_script_pub_key_hexes.len(), 4);
+        assert_eq!(vout_values.len(), 4);
+
+        assert_eq!(vin_txids[0], "1ba3133226b18f18ecc9e33359a0c5a1243203a74fc4fdf8898f9e709a8260aa");
+        assert_eq!(vin_vouts[0], U256::from(2u64));
+        assert_eq!(vin_script_pub_key_hexes[0], "5120546eb18a5d459bb59d9679fe8f8d598fbf7568bf05cdda3af6b2618b8fd8c3f4");
+        assert_eq!(vin_values[0], U256::from(546u64));
+
+        assert_eq!(vin_txids[1], "ea2a55374733d3c36142725b3f45857bf4d78b29153ea4dcdf8ab5b880b494f8");
+        assert_eq!(vin_vouts[1], U256::from(2u64));
+        assert_eq!(vin_script_pub_key_hexes[1], "5120546eb18a5d459bb59d9679fe8f8d598fbf7568bf05cdda3af6b2618b8fd8c3f4");
+        assert_eq!(vin_values[1], U256::from(546u64));
+
+        assert_eq!(vin_txids[2], "b3f18f0b419ec5e45271677763490ef7be2e6b4bd5519dba924ed1c31e787d4d");
+        assert_eq!(vin_vouts[2], U256::from(0u64));
+        assert_eq!(vin_script_pub_key_hexes[2], "5120546eb18a5d459bb59d9679fe8f8d598fbf7568bf05cdda3af6b2618b8fd8c3f4");
+        assert_eq!(vin_values[2], U256::from(1231650u64));
+
+        assert_eq!(vout_script_pub_key_hexes[0], "6a5d0b160100e99d041ef3846a02");
+        assert_eq!(vout_values[0], U256::from(0u64));
+        assert_eq!(vout_script_pub_key_hexes[1], "5120546eb18a5d459bb59d9679fe8f8d598fbf7568bf05cdda3af6b2618b8fd8c3f4");
+        assert_eq!(vout_values[1], U256::from(546u64));
+        assert_eq!(vout_script_pub_key_hexes[2], "5120b40c065bfcc5962e1702f09de1a5d2dfc0a7236bbaf5c1672529b414b3ee4cf5");
+        assert_eq!(vout_values[2], U256::from(546u64));
+        assert_eq!(vout_script_pub_key_hexes[3], "5120546eb18a5d459bb59d9679fe8f8d598fbf7568bf05cdda3af6b2618b8fd8c3f4");
+        assert_eq!(vout_values[3], U256::from(1225233u64));
     }
 }

@@ -161,25 +161,25 @@ impl Decode for BlockResponseED {
     {
         let mut i = 0;
         let difficulty = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
-        i += 4;
+        i += 8;
         let gas_limit = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
-        i += 4;
+        i += 8;
         let gas_used = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
-        i += 4;
+        i += 8;
         let hash = B256ED::decode(bytes[i..i + 32].to_vec())?;
         i += 32;
         let logs_bloom = B2048ED::decode(bytes[i..i + 256].to_vec())?;
         i += 256;
         let nonce = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
-        i += 4;
+        i += 8;
         let number = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
-        i += 4;
+        i += 8;
         let timestamp = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
-        i += 4;
+        i += 8;
         let mine_timestamp = U128ED::decode(bytes[i..i + 16].to_vec())?;
         i += 16;
         let transactions_count = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
-        i += 4;
+        i += 8;
         let mut transactions = Vec::new();
         for _ in 0..transactions_count {
             let tx = B256ED::decode(bytes[i..i + 32].to_vec())?;
@@ -189,7 +189,7 @@ impl Decode for BlockResponseED {
         let transactions_root = B256ED::decode(bytes[i..i + 32].to_vec())?;
         i += 32;
         let total_difficulty = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
-        i += 4;
+        i += 8;
         let parent_hash = B256ED::decode(bytes[i..i + 32].to_vec())?;
         i += 32;
         let receipts_root = B256ED::decode(bytes[i..i + 32].to_vec())?;
@@ -213,5 +213,36 @@ impl Decode for BlockResponseED {
             receipts_root,
             size,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_block_response_encode_decode() {
+        let block = BlockResponseED::new(
+            1,
+            2,
+            3,
+            BEncodeDecode(FixedBytes([4u8; 32])),
+            BEncodeDecode(FixedBytes([5u8; 256])),
+            6,
+            7,
+            8,
+            U128ED::from_u128(9),
+            vec![BEncodeDecode(FixedBytes([10u8; 32])), BEncodeDecode(FixedBytes([11u8; 32]))],
+            BEncodeDecode(FixedBytes([12u8; 32])),
+            13,
+            BEncodeDecode(FixedBytes([14u8; 32])),
+            BEncodeDecode(FixedBytes([15u8; 32])),
+            16,
+        );
+
+        let encoded = block.encode().unwrap();
+        let decoded = BlockResponseED::decode(encoded).unwrap();
+
+        assert_eq!(block, decoded);
     }
 }
