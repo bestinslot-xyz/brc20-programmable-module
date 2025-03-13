@@ -13,7 +13,7 @@ use revm::{
 
 use db::DB;
 
-use super::load_precompiles;
+use super::precompiles::load_precompiles;
 
 const CURRENT_SPEC: SpecId = SpecId::CANCUN;
 
