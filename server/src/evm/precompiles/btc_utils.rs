@@ -1,3 +1,7 @@
+use bitcoin::{
+    Network, KnownHrp
+};
+
 lazy_static::lazy_static! {
     static ref BTC_CLIENT: reqwest::blocking::Client = reqwest::blocking::Client::new();
     static ref BITCOIN_RPC_URL: String = std::env::var("BITCOIN_RPC_URL")
@@ -6,6 +10,28 @@ lazy_static::lazy_static! {
             .unwrap_or("user".to_string());
     static ref BITCOIN_RPC_PASSWORD: String = std::env::var("BITCOIN_RPC_PASSWORD")
             .unwrap_or("password".to_string());
+    static ref BITCOIN_NETWORK_STRING: String = std::env::var("BITCOIN_NETWORK")
+            .unwrap_or("testnet4".to_string());
+    pub static ref BITCOIN_NETWORK : Network = {
+        match BITCOIN_NETWORK_STRING.as_str() {
+            "mainnet" => Network::Bitcoin,
+            "signet" => Network::Signet,
+            "testnet" => Network::Testnet,
+            "testnet4" => Network::Testnet4,
+            "regtest" => Network::Regtest,
+            _ => Network::Testnet4,
+        }
+    };
+    pub static ref BITCOIN_HRP: KnownHrp = {
+        match *BITCOIN_NETWORK {
+            Network::Bitcoin => KnownHrp::Mainnet,
+            Network::Testnet => KnownHrp::Testnets,
+            Network::Testnet4 => KnownHrp::Testnets,
+            Network::Signet => KnownHrp::Testnets,
+            Network::Regtest => KnownHrp::Regtest,
+            _ => KnownHrp::Testnets,
+        }
+    };
 }
 
 pub fn get_raw_transaction(txid: &str) -> serde_json::Value {
