@@ -39,6 +39,13 @@ impl ContextStatefulPrecompile<DB> for GetLockedPkScriptPrecompile {
         }
 
         let (pkscript, lock_block_count) = result.unwrap();
+
+        if lock_block_count == 0 {
+            return Err(PrecompileErrors::Error(Error::Other(
+                "Invalid lock block count".to_string(),
+            )));
+        }
+
         let result = get_p2tr_lock_addr(&pkscript, lock_block_count.as_u32());
 
         Ok(PrecompileOutput {
@@ -74,7 +81,7 @@ fn build_lock_script(pkscript: &String, lock_block_count: u32) -> bitcoin::Scrip
     let mut script = ScriptBuf::new();
     if lock_block_count <= 16 {
         script
-            .push_opcode((opcodes::all::OP_PUSHNUM_1.to_u8() + lock_block_count as u8 - 1).into());
+            .push_opcode((opcodes::all::OP_PUSHNUM_1.to_u8() - 1 + lock_block_count as u8).into());
     } else {
         let mut lock_block_count_hex = lock_block_count.to_be_bytes().to_vec();
         while lock_block_count_hex.len() > 1 && lock_block_count_hex[0] == 0 {
