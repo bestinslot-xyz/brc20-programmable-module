@@ -232,7 +232,10 @@ mod tests {
             7,
             8,
             U128ED::from_u128(9),
-            vec![BEncodeDecode(FixedBytes([10u8; 32])), BEncodeDecode(FixedBytes([11u8; 32]))],
+            vec![
+                BEncodeDecode(FixedBytes([10u8; 32])),
+                BEncodeDecode(FixedBytes([11u8; 32])),
+            ],
             BEncodeDecode(FixedBytes([12u8; 32])),
             13,
             BEncodeDecode(FixedBytes([14u8; 32])),

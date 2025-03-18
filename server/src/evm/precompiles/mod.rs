@@ -1,4 +1,3 @@
-
 mod bip322_verify_precompile;
 pub use bip322_verify_precompile::*;
 
