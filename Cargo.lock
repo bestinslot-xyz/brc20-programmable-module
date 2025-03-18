@@ -2737,6 +2737,7 @@ name = "server"
 version = "0.1.0"
 dependencies = [
  "bip322",
+ "bitcoin",
  "db",
  "hex",
  "jsonrpsee",
