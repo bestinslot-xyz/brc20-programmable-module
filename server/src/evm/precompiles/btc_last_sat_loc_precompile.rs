@@ -104,17 +104,16 @@ impl ContextStatefulPrecompile<DB> for LastSatLocationPrecompile {
                 .as_str()
                 .unwrap()
                 .to_string();
-            current_vin_vout = response["vin"][current_vin_index]["vout"]
-                .as_u64()
-                .unwrap() as usize;
+            current_vin_vout =
+                response["vin"][current_vin_index]["vout"].as_u64().unwrap() as usize;
             gas_used += GAS_PER_RPC_CALL;
             if gas_used > gas_limit {
                 return Err(PrecompileErrors::Error(Error::OutOfGas));
             }
             let vin_response = get_raw_transaction(&current_vin_txid);
             let vin_response = vin_response["result"].clone();
-            current_vin_script_pub_key_hex = vin_response["vout"][current_vin_vout]
-                ["scriptPubKey"]["hex"]
+            current_vin_script_pub_key_hex = vin_response["vout"][current_vin_vout]["scriptPubKey"]
+                ["hex"]
                 .as_str()
                 .unwrap()
                 .to_string();
@@ -180,9 +179,7 @@ mod tests {
         let result = result.unwrap();
         let returns = LAST_SAT_LOCATION.decode_returns(&result.bytes).unwrap();
 
-        assert_eq!(
-            result.gas_used, 200000
-        );
+        assert_eq!(result.gas_used, 200000);
 
         assert_eq!(
             returns,
@@ -214,9 +211,7 @@ mod tests {
         let result = result.unwrap();
         let returns = LAST_SAT_LOCATION.decode_returns(&result.bytes).unwrap();
 
-        assert_eq!(
-            result.gas_used, 400000
-        );
+        assert_eq!(result.gas_used, 400000);
 
         assert_eq!(
             returns,
@@ -247,9 +242,6 @@ mod tests {
         );
         let result = result.unwrap_err();
 
-        assert_eq!(
-            result.to_string(),
-            "Coinbase transactions not supported"
-        );
+        assert_eq!(result.to_string(), "Coinbase transactions not supported");
     }
 }

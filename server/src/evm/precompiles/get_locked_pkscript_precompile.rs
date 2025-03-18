@@ -198,7 +198,11 @@ mod tests {
         )));
         let result = precompile.call(&bytes, 100000, &mut evmctx);
         assert!(result.is_err());
-        assert!(result.err().unwrap().to_string().contains("Invalid lock block count"));
+        assert!(result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("Invalid lock block count"));
     }
 
     #[test]
@@ -211,6 +215,10 @@ mod tests {
         )));
         let result = precompile.call(&bytes, 100000, &mut evmctx);
         assert!(result.is_err());
-        assert!(result.err().unwrap().to_string().contains("Invalid lock block count"));
+        assert!(result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("Invalid lock block count"));
     }
 }

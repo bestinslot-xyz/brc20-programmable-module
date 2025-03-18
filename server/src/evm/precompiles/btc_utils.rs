@@ -1,6 +1,4 @@
-use bitcoin::{
-    Network, KnownHrp
-};
+use bitcoin::{KnownHrp, Network};
 
 lazy_static::lazy_static! {
     static ref BTC_CLIENT: reqwest::blocking::Client = reqwest::blocking::Client::new();
