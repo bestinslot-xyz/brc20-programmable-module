@@ -40,7 +40,7 @@ impl ContextStatefulPrecompile<DB> for GetLockedPkScriptPrecompile {
 
         let (pkscript, lock_block_count) = result.unwrap();
 
-        if lock_block_count == 0 {
+        if lock_block_count == 0 || lock_block_count > U256::from(65535u32) {
             return Err(PrecompileErrors::Error(Error::Other(
                 "Invalid lock block count".to_string(),
             )));
@@ -170,12 +170,12 @@ mod tests {
     }
 
     #[test]
-    fn test_get_locked_pkscript_five_year_lock() {
+    fn test_get_locked_pkscript_max_lock() {
         let precompile = GetLockedPkScriptPrecompile;
         let mut evmctx = InnerEvmContext::new(DB::default());
         let bytes = Bytes::from(GET_LOCKED_PKSCRIPT.encode_params(&(
             "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
-            U256::from(262800u32),
+            U256::from(65535u32),
         )));
         let result = precompile.call(&bytes, 100000, &mut evmctx);
         assert!(result.is_ok());
@@ -184,7 +184,33 @@ mod tests {
         let (pkscript,) = result.unwrap();
         assert_eq!(
             pkscript,
-            "tb1pxpru76hvld099nduvf5ynzpgujgesdk64l8y4ek5fnggr5e3qvvqqx0z2l"
+            "tb1pp7kk3e79nhvt5pyjhqfwgaxq8zfm5vze4duy2f7xds4mfv0z24ssvnkfzw"
         )
+    }
+
+    #[test]
+    fn test_get_locked_pkscript_zero_lock() {
+        let precompile = GetLockedPkScriptPrecompile;
+        let mut evmctx = InnerEvmContext::new(DB::default());
+        let bytes = Bytes::from(GET_LOCKED_PKSCRIPT.encode_params(&(
+            "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
+            U256::from(0u32),
+        )));
+        let result = precompile.call(&bytes, 100000, &mut evmctx);
+        assert!(result.is_err());
+        assert!(result.err().unwrap().to_string().contains("Invalid lock block count"));
+    }
+
+    #[test]
+    fn test_get_locked_pkscript_max_plus_one_lock() {
+        let precompile = GetLockedPkScriptPrecompile;
+        let mut evmctx = InnerEvmContext::new(DB::default());
+        let bytes = Bytes::from(GET_LOCKED_PKSCRIPT.encode_params(&(
+            "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
+            U256::from(65536u32),
+        )));
+        let result = precompile.call(&bytes, 100000, &mut evmctx);
+        assert!(result.is_err());
+        assert!(result.err().unwrap().to_string().contains("Invalid lock block count"));
     }
 }
