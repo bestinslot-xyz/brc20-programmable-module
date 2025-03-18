@@ -440,7 +440,9 @@ impl ServerInstance {
             "Calling contract from: {:?} to: {:?}",
             tx_info.from, tx_info.to
         );
-        self.require_no_waiting_txes()?;
+        self.require_no_waiting_txes().expect(
+            "Currently indexing transactions, please wait for the block to be finalised",
+        );
 
         let number = self.get_latest_block_height() + 1;
 
