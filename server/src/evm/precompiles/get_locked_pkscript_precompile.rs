@@ -1,6 +1,6 @@
 use bitcoin::{
     address::NetworkUnchecked, key::UntweakedPublicKey, opcodes, secp256k1,
-    taproot::TaprootBuilder, Address, KnownHrp, ScriptBuf,
+    taproot::TaprootBuilder, Address, ScriptBuf,
 };
 use db::DB;
 use revm::{
@@ -10,6 +10,8 @@ use revm::{
 };
 
 use solabi::{selector, FunctionEncoder, U256};
+
+use super::btc_utils::{BITCOIN_HRP, BITCOIN_NETWORK};
 
 pub struct GetLockedPkScriptPrecompile;
 
@@ -24,6 +26,10 @@ impl ContextStatefulPrecompile<DB> for GetLockedPkScriptPrecompile {
         _evmctx: &mut InnerEvmContext<DB>,
     ) -> PrecompileResult {
         let gas_used = 20000;
+        if gas_used > gas_limit {
+            return Err(PrecompileErrors::Error(Error::OutOfGas));
+        }
+
         let result = GET_LOCKED_PKSCRIPT.decode_params(&bytes);
 
         if result.is_err() {
@@ -35,10 +41,6 @@ impl ContextStatefulPrecompile<DB> for GetLockedPkScriptPrecompile {
         let (pkscript, lock_block_count) = result.unwrap();
         let result = get_p2tr_lock_addr(&pkscript, lock_block_count.as_u32());
 
-        if gas_used > gas_limit {
-            return Err(PrecompileErrors::Error(Error::OutOfGas));
-        }
-
         Ok(PrecompileOutput {
             bytes: Bytes::from(GET_LOCKED_PKSCRIPT.encode_returns(&(result,))),
             gas_used,
@@ -48,7 +50,8 @@ impl ContextStatefulPrecompile<DB> for GetLockedPkScriptPrecompile {
 
 fn get_p2tr_lock_addr(pkscript: &String, lock_block_count: u32) -> String {
     let secp256k1 = secp256k1::Secp256k1::new();
-    let lock_address = "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0";
+    let lock_address = "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0"; // Unspendable address
+
     let lock_script = TaprootBuilder::new()
         .add_leaf(0, build_lock_script(pkscript, lock_block_count))
         .unwrap()
@@ -57,14 +60,15 @@ fn get_p2tr_lock_addr(pkscript: &String, lock_block_count: u32) -> String {
             UntweakedPublicKey::from_slice(&hex::decode(lock_address).unwrap()).unwrap(),
         )
         .unwrap();
-    Address::p2tr_tweaked(lock_script.output_key(), KnownHrp::Testnets).to_string()
+
+    Address::p2tr_tweaked(lock_script.output_key(), *BITCOIN_HRP).to_string()
 }
 
 fn build_lock_script(pkscript: &String, lock_block_count: u32) -> bitcoin::ScriptBuf {
     let pkscript = pkscript
         .parse::<Address<NetworkUnchecked>>()
         .unwrap()
-        .require_network(bitcoin::Network::Signet)
+        .require_network(*BITCOIN_NETWORK)
         .unwrap();
     let pubkey = pkscript.script_pubkey();
     let mut script = ScriptBuf::new();
