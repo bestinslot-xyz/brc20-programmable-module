@@ -46,7 +46,7 @@ pub trait Brc20ProgApi {
 
     /// Initialises the BRC20 prog module with the given genesis hash and timestamp
     #[method(name = "brc20_initialise")]
-    async fn initialise(&self, genesis_hash: String, genesis_timestamp: u64) -> RpcResult<()>;
+    async fn initialise(&self, genesis_hash: String, genesis_timestamp: u64, genesis_height: u64) -> RpcResult<()>;
 
     /// Adds a transaction to the block
     #[method(name = "brc20_addTxToBlock")]

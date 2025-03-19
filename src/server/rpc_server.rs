@@ -272,10 +272,10 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn initialise(&self, genesis_hash: String, genesis_timestamp: u64) -> RpcResult<()> {
+    async fn initialise(&self, genesis_hash: String, genesis_timestamp: u64, genesis_height: u64) -> RpcResult<()> {
         event!(tracing::Level::INFO, "Initialising server");
         self.server_instance
-            .initialise(genesis_hash.parse().unwrap(), genesis_timestamp)
+            .initialise(genesis_hash.parse().unwrap(), genesis_timestamp, genesis_height)
             .map_err(wrap_error_message)
     }
 

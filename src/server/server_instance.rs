@@ -59,15 +59,17 @@ impl ServerInstance {
         &self,
         genesis_hash: B256,
         genesis_timestamp: u64,
+        genesis_height: u64,
     ) -> Result<(), &'static str> {
         #[cfg(debug_assertions)]
         println!(
-            "Initialising server instance with genesis hash {:?} and timestamp {}",
-            genesis_hash, genesis_timestamp
+            "Initialising server instance with genesis hash {:?} and timestamp {} at height {}",
+            genesis_hash, genesis_timestamp, genesis_height
         );
 
-        let genesis = self.get_block_by_number(0);
+        let genesis = self.get_block_by_number(genesis_height);
 
+        println!("Genesis block: {:?}", genesis);
         if genesis.is_some() {
             let genesis = genesis.unwrap();
             if genesis.hash.0 == genesis_hash {
@@ -82,16 +84,15 @@ impl ServerInstance {
             genesis_timestamp,
             &load_brc20_deploy_tx(),
             0,
-            0,
+            genesis_height,
             genesis_hash,
         )?;
 
         let brc20_controller_contract = result.contract_address.unwrap().0;
         verify_brc20_contract_address(&brc20_controller_contract.to_string());
 
-        self.finalise_block(genesis_timestamp, 0, genesis_hash, 1)?;
+        self.finalise_block(genesis_timestamp, genesis_height, genesis_hash, 1)?;
 
-        assert!(self.get_latest_block_height() == 0);
         Ok(())
     }
 
@@ -105,13 +106,25 @@ impl ServerInstance {
 
     pub fn mine_block(
         &self,
-        block_cnt: u64,
+        mut block_cnt: u64,
         timestamp: u64,
         hash: B256,
     ) -> Result<(), &'static str> {
         self.require_no_waiting_txes()?;
 
         let mut number = self.get_latest_block_height() + 1;
+
+        if self.get_block_by_number(0).is_none() {
+            #[cfg(debug_assertions)]
+            println!("Mining genesis block");
+
+            let genesis_hash = B256::ZERO;
+            let genesis_timestamp = timestamp;
+            let genesis_height = 0;
+
+            self.finalise_block(genesis_timestamp, genesis_height, genesis_hash, 0)?;
+            block_cnt -= 1;
+        }
 
         #[cfg(debug_assertions)]
         println!(
