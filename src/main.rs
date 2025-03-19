@@ -1,6 +1,13 @@
-use std::{error::Error, path::Path};
+use std::error::Error;
+use std::path::Path;
 
+mod brc20_controller;
+pub mod evm;
+
+mod db;
 use db::DB;
+
+mod server;
 use server::{start_rpc_server, ServerInstance};
 
 #[tokio::main]

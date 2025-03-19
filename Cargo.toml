@@ -4,15 +4,27 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-db = { path = "db" }
-server = { path = "server" }
+bip322 = "0.0.9"
+bitcoin = "0.32.5"
+hex = "0.4.3"
+jsonrpsee = { version = "0.24.8", features = [ "server", "macros", "jsonrpsee-core", "jsonrpsee-types" ] }
+lazy_static = "1.5.0"
+reqwest = { version = "0.12.12", features = [ "blocking", "json" ] }
+revm = "19.4.0"
+rlimit = "0.10.2"
+rocksdb = "0.23.0"
+rs_merkle = "1.4.2"
+rust-embed = "8.5.0"
+serde = { version = "1.0.217", features = ["derive"] }
+serde-hex = "0.1.0"
+serde_json = "1.0.138"
+solabi = "0.2.0"
 tokio = "1.43.0"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 
-[workspace]
-members = [ ".", "db", "server" ]
-default-members = [ ".", "db", "server"]
+[dev-dependencies]
+tempfile = "3.16.0"
 
 [profile.release]
 debug = true
