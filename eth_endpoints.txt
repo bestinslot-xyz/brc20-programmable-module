@@ -12,6 +12,7 @@ Legend:
 ✅ [M] eth_call: Add gas limit check, input output types should match with eth endpoint
 ✅ [M] eth_getBlockByNumber: BlockRes should be on par with eth endpoint
 ✅ [XS] eth_getBlockByHash: Same as above ^
+✅ [M] eth_getBlockByNumber: calculate logsBloom
 
 -- New endpoints
 
@@ -53,7 +54,6 @@ Legend:
 [M] eth_uninstallFilter
 [M] eth_getFilterChanges
 [M] eth_getFilterLogs
-[M] eth_getBlockByNumber: calculate logsBloom
 
 - Not supported in BRC2.0 Prog
 
@@ -78,9 +78,11 @@ Legend:
 
 -- Non-RPC Tasks left
 
-[M] BRC20 contract / Deposit & Withdrawal endpoints
-[M] Precompiles
-  [S] BIP-322 / library
-  [M] BRC20 balance / indexer + execution engine balance
-  [M] Bitcoin transaction verification / via Bitcoin-RPC
+✅ [M] BRC20 contract / Deposit & Withdrawal endpoints
+✅ [M] Precompiles
+✅   [S] BIP-322 / library
+✅   [M] BRC20 balance / indexer + execution engine balance
+✅   [M] Bitcoin transaction verification / via Bitcoin-RPC
+✅   [S] Get locked pkScript
+✅   [M] Get last sat location
 [M] Gas price / limit calculations
