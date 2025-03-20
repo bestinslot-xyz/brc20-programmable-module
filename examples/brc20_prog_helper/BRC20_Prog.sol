@@ -45,7 +45,35 @@ interface IBTC_Transaction {
         );
 }
 
+/**
+ * @dev Get last satoshi location of a given sat location in a transaction.
+ */
+interface IBTC_LastSatLoc {
+    function getLastSatLocation(
+        string calldata txid,
+        uint256 vout,
+        uint256 sat
+    ) external view returns (string memory last_txid, uint256 last_vout, uint256 last_sat, string memory old_pkscript, string memory new_pkscript);
+}
+
+/**
+ * @dev Get locked pkscript of a given Bitcoin wallet script.
+ */
+interface IBTC_LockedPkscript {
+    function getLockedPkscript(
+        string calldata address_pkscript,
+        uint256 lock_block_count
+    ) external view returns (string memory locked_pkscript);
+}
+
+/**
+ * @dev BRC-20 Prog helper functions.
+ */
 contract BRC20_Prog is IBRC20_Prog {
+    address private _btc_locked_pkscript_address =
+        0x00000000000000000000000000000000000000fb;
+    address private _btc_last_sat_loc_address =
+        0x00000000000000000000000000000000000000fc;
     address private _btc_transaction_address =
         0x00000000000000000000000000000000000000fd;
     address private _bip322_address =
@@ -53,9 +81,6 @@ contract BRC20_Prog is IBRC20_Prog {
     address private _brc20_controller_address =
         0x00000000000000000000000000000000000000ff;
 
-    /**
-     * @dev Verifies BIP322 signature, given address, message and the signature.
-     */
     function verifyBIP322Signature(
         string calldata addr,
         string calldata message_base64,
@@ -69,9 +94,6 @@ contract BRC20_Prog is IBRC20_Prog {
             );
     }
 
-    /**
-     * @dev Get non-module BRC-20 balance of a given Bitcoin wallet script and BRC-20 ticker.
-     */
     function getBrc20BalanceOf(
         string calldata ticker,
         string calldata address_pkscript
@@ -83,9 +105,6 @@ contract BRC20_Prog is IBRC20_Prog {
             );
     }
 
-    /**
-     * @dev Get Bitcoin transaction details using tx ids.
-     */
     function getBitcoinTxDetails(
         string calldata txid
     )
@@ -102,5 +121,29 @@ contract BRC20_Prog is IBRC20_Prog {
         )
     {
         return IBTC_Transaction(_btc_transaction_address).getTxDetails(txid);
+    }
+
+    function getLastSatoshiLocation(
+        string calldata txid,
+        uint256 vout,
+        uint256 sat
+    ) external view returns (string memory last_txid, uint256 last_vout, uint256 last_sat, string memory old_pkscript, string memory new_pkscript) {
+        return
+            IBTC_LastSatLoc(_btc_last_sat_loc_address).getLastSatLocation(
+                txid,
+                vout,
+                sat
+            );
+    }
+
+    function getLockedPkscript(
+        string calldata address_pkscript,
+        uint256 lock_block_count
+    ) external view returns (string memory locked_pkscript) {
+        return
+            IBTC_LockedPkscript(_btc_locked_pkscript_address).getLockedPkscript(
+                address_pkscript,
+                lock_block_count
+            );
     }
 }
