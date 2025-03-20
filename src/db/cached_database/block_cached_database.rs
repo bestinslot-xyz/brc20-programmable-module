@@ -86,7 +86,7 @@ where
     /// This only works if keys can be compared in their encoded form
     ///
     /// start_key: &K - the start key
-    /// end_key: &K - the end key
+    /// end_key: &K - the end key, exclusive
     /// Returns: Vec<(K, V)> - the list of key-value pairs
     pub fn get_range(&self, start_key: &K, end_key: &K) -> Result<Vec<(K, V)>, Error> {
         let mut result = Vec::new();
@@ -113,7 +113,7 @@ where
             rocksdb::Direction::Forward,
         )) {
             let (key, value) = kv_pair?;
-            if *key > *end_key_bytes {
+            if *key >= *end_key_bytes {
                 break;
             }
             let key = K::decode(key.to_vec()).unwrap();
