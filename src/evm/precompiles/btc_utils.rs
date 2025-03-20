@@ -32,6 +32,27 @@ lazy_static::lazy_static! {
     };
 }
 
+#[cfg(test)]
+pub fn skip_btc_tests() -> bool {
+    if std::env::var("BITCOIN_RPC_URL").is_err() {
+        println!("Please set the BITCOIN_RPC_URL environment variable");
+        return true;
+    }
+    if std::env::var("BITCOIN_RPC_USER").is_err() {
+        println!("Please set the BITCOIN_RPC_USER environment variable");
+        return true;
+    }
+    if std::env::var("BITCOIN_RPC_PASSWORD").is_err() {
+        println!("Please set the BITCOIN_RPC_PASSWORD environment variable");
+        return true;
+    }
+    if std::env::var("BITCOIN_NETWORK").is_err() {
+        println!("Please set the BITCOIN_NETWORK environment variable");
+        return true;
+    }
+    false
+}
+
 pub fn get_raw_transaction(txid: &str) -> serde_json::Value {
     let response = BTC_CLIENT
         .post(&*BITCOIN_RPC_URL)

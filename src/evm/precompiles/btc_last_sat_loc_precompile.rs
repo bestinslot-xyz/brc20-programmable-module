@@ -157,10 +157,14 @@ mod tests {
 
     use super::*;
     use crate::db;
+    use crate::evm::precompiles::btc_utils::skip_btc_tests;
     use crate::evm::precompiles::LastSatLocationPrecompile;
 
     #[test]
     fn test_get_last_sat_location_encode_params_single_vin_vout() {
+        if skip_btc_tests() {
+            return;
+        }
         // https://mempool.space/testnet4/tx/cedfb4b62224a4782a4453dff73f3d48bb0d7da4d0f2238b0e949f9342de038a
         let txid = "cedfb4b62224a4782a4453dff73f3d48bb0d7da4d0f2238b0e949f9342de038a";
         let vout = U256::from(0u64);
@@ -193,6 +197,9 @@ mod tests {
 
     #[test]
     fn test_get_last_sat_location_encode_params_multiple_vin_vout() {
+        if skip_btc_tests() {
+            return;
+        }
         // https://mempool.space/testnet4/tx/581f13463e6a97b07b7643dc9bf741938b43bc468a10e918e48c5b8130051d09
         let txid = "581f13463e6a97b07b7643dc9bf741938b43bc468a10e918e48c5b8130051d09";
         let vout = U256::from(0u64);
@@ -225,6 +232,9 @@ mod tests {
 
     #[test]
     fn test_coinbase_tx() {
+        if skip_btc_tests() {
+            return;
+        }
         // https://mempool.space/testnet4/tx/ee7da837ec5807d2adc116c421488120da39f3eb72c8a07ec0e09583498b3ea8
         let txid = "ee7da837ec5807d2adc116c421488120da39f3eb72c8a07ec0e09583498b3ea8";
         let vout = U256::from(0u64);
