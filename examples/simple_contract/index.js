@@ -31,7 +31,7 @@ async function main() {
 
     fs.mkdirSync('output', { recursive: true });
 
-    fs.writeFile('output/Simple.abi', JSON.stringify(abi), function (_) { });
+    fs.writeFile('output/Simple.abi', JSON.stringify(abi, null, 4), function (_) { });
     fs.writeFile('output/Simple.bytecode', bytecode, function (_) { });
 
     fs.writeFile('output/Simple_deploy_tx.json', JSON.stringify(
