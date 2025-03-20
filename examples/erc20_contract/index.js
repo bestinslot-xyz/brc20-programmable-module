@@ -53,6 +53,18 @@ async function main() {
             d: deploy_tx.data
         }
     ), function (_) { });
+
+    btc_pkscript = 'tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48'
+    evm_addr = '0x' + ethers.keccak256(new TextEncoder('UTF-8').encode(btc_pkscript)).slice(-40).toString('hex')
+
+    fs.writeFile('output/BobCoin_transfer_tx.json', JSON.stringify(
+        {
+            p: "brc20-prog",
+            op: "call",
+            c: "REPLACE_THIS_WITH_CONTRACT_ADDRESS",
+            d: contract_factory.interface.encodeFunctionData("transfer", [evm_addr, 100]),
+        }
+    ), function (_) { });
 }
 
 main()
