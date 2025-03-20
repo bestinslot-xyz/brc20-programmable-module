@@ -627,11 +627,9 @@ for i in range(len(codes)):
     blockHeight = js["result"]
     response = requests.get(url_get_block_info + str(blockHeight))
     js = response.json()
-    gasUsed = js["result"]["gasUsed"]
-    mineTm = js["result"]["mineTimestamp"]
-    ratio = convert_hex_or_decimal_to_float(mineTm) / convert_hex_or_decimal_to_float(
-        gasUsed
-    )
+    gasUsed = convert_hex_or_decimal_to_float(js["result"]["gasUsed"])
+    mineTm = convert_hex_or_decimal_to_float(js["result"]["mineTimestamp"])
+    ratio = mineTm / gasUsed
     print("ratio: ", ratio, " gasUsed: ", gasUsed, " mineTimestamp: ", mineTm)
     ress.append([params, ratio, gasUsed, mineTm])
 
