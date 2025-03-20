@@ -11,12 +11,12 @@ use tracing::{event, instrument};
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
 };
-
 use crate::db::types::{BlockResponseED, LogResponseED, TxED, TxReceiptED};
 use crate::evm::get_evm_address;
-use crate::server::{
-    api::GetLogsFilter, server_instance::ServerInstance, types::TxInfo, Brc20ProgApiServer,
-};
+use crate::server::api::GetLogsFilter;
+use crate::server::server_instance::ServerInstance;
+use crate::server::types::TxInfo;
+use crate::server::Brc20ProgApiServer;
 
 pub struct RpcServer {
     server_instance: ServerInstance,
@@ -272,10 +272,19 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn initialise(&self, genesis_hash: String, genesis_timestamp: u64, genesis_height: u64) -> RpcResult<()> {
+    async fn initialise(
+        &self,
+        genesis_hash: String,
+        genesis_timestamp: u64,
+        genesis_height: u64,
+    ) -> RpcResult<()> {
         event!(tracing::Level::INFO, "Initialising server");
         self.server_instance
-            .initialise(genesis_hash.parse().unwrap(), genesis_timestamp, genesis_height)
+            .initialise(
+                genesis_hash.parse().unwrap(),
+                genesis_timestamp,
+                genesis_height,
+            )
             .map_err(wrap_error_message)
     }
 
