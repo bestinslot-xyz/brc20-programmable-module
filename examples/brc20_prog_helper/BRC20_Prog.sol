@@ -123,7 +123,7 @@ contract BRC20_Prog is IBRC20_Prog {
         return IBTC_Transaction(_btc_transaction_address).getTxDetails(txid);
     }
 
-    function getLastSatoshiLocation(
+    function getLastSatLocation(
         string calldata txid,
         uint256 vout,
         uint256 sat

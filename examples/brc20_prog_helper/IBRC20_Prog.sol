@@ -44,11 +44,11 @@ interface IBRC20_Prog {
     /**
      * @dev Get last satoshi location of a given sat location in a transaction.
      */
-    function getLastSatoshiLocation(
+    function getLastSatLocation(
         string calldata txid,
         uint256 vout,
         uint256 sat
-    ) external view returns (string memory last_txid, uint256 last_vout, uint256 last_sat);
+    ) external view returns (string memory last_txid, uint256 last_vout, uint256 last_sat, string memory old_pkscript, string memory new_pkscript);
 
     /**
      * @dev Get locked pkscript of a given Bitcoin wallet script.
