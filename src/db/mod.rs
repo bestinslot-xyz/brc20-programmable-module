@@ -22,6 +22,8 @@ pub use types::{
     TxReceiptED, UintEncodeDecode, B256ED, U128ED, U256ED, U512ED, U64ED,
 };
 
+pub const MAX_HISTORY_SIZE: u64 = 10;
+
 pub struct DB {
     /// Account address to memory location
     /// TODO: If the value is zero, consider deleting it from the database to save space

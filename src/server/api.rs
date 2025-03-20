@@ -14,7 +14,7 @@ pub trait Brc20ProgApi {
 
     /// Mines blocks for the given block count at the timestamp
     #[method(name = "brc20_mine")]
-    async fn mine(&self, block_cnt: u64, timestamp: u64) -> RpcResult<()>;
+    async fn mine(&self, block_count: u64, timestamp: u64) -> RpcResult<()>;
 
     /// Deposits brc20 tokens to the given address
     #[method(name = "brc20_deposit")]
@@ -66,7 +66,7 @@ pub trait Brc20ProgApi {
         &self,
         timestamp: u64,
         hash: String,
-        block_tx_cnt: u64,
+        block_tx_count: u64,
     ) -> RpcResult<()>;
 
     /// Reverts the state to the given latest valid block number

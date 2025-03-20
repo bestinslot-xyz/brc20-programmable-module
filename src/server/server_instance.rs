@@ -9,14 +9,14 @@ use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_addres
 use crate::db::types::{
     AddressED, BlockResponseED, Decode, LogED, LogResponseED, TxED, TxReceiptED, B2048ED, B256ED,
 };
-use crate::db::DB;
+use crate::db::{DB, MAX_HISTORY_SIZE};
 use crate::evm::{
     get_contract_address, get_evm, get_result_reason, get_result_type, modify_evm_with_tx_env,
 };
 use crate::server::types::{get_tx_hash, TxInfo};
 
 pub struct LastBlockInfo {
-    pub waiting_tx_cnt: u64,
+    pub waiting_tx_count: u64,
     pub last_ts: u64,
     pub last_block_hash: B256,
     pub last_block_gas_used: u64,
@@ -27,7 +27,7 @@ pub struct LastBlockInfo {
 impl LastBlockInfo {
     pub fn new() -> Self {
         LastBlockInfo {
-            waiting_tx_cnt: 0,
+            waiting_tx_count: 0,
             last_ts: 0,
             last_block_hash: B256::ZERO,
             last_block_gas_used: 0,
@@ -106,7 +106,7 @@ impl ServerInstance {
 
     pub fn mine_block(
         &self,
-        mut block_cnt: u64,
+        mut block_count: u64,
         timestamp: u64,
         hash: B256,
     ) -> Result<(), &'static str> {
@@ -123,7 +123,7 @@ impl ServerInstance {
             let genesis_height = 0;
 
             self.finalise_block(genesis_timestamp, genesis_height, genesis_hash, 0)?;
-            block_cnt -= 1;
+            block_count -= 1;
         }
 
         #[cfg(debug_assertions)]
@@ -131,11 +131,11 @@ impl ServerInstance {
             "Mining blocks from 0x{:x} ({}) to 0x{:x} ({})",
             number,
             number,
-            number + block_cnt - 1,
-            number + block_cnt - 1
+            number + block_count - 1,
+            number + block_count - 1
         );
 
-        for _ in 0..block_cnt {
+        for _ in 0..block_count {
             self.finalise_block(timestamp, number, hash, 0)?;
             number += 1;
         }
@@ -156,20 +156,20 @@ impl ServerInstance {
 
         let mut last_block_info = self.last_block_info.lock().unwrap();
 
-        if last_block_info.waiting_tx_cnt != tx_idx {
-            return Err("tx_idx is different from waiting tx cnt in block!!");
+        if last_block_info.waiting_tx_count != tx_idx {
+            return Err("tx_idx is different from waiting tx count in block");
         }
-        if last_block_info.waiting_tx_cnt != 0 {
+        if last_block_info.waiting_tx_count != 0 {
             if timestamp != last_block_info.last_ts {
-                return Err("timestamp is different from other txes in block!!");
+                return Err("Timestamp is different from other txes in block");
             }
 
             if block_hash != last_block_info.last_block_hash {
-                return Err("block hash is different from other txes in block!!");
+                return Err("Block hash is different from other txes in block");
             }
         } else {
             *last_block_info = LastBlockInfo {
-                waiting_tx_cnt: 0,
+                waiting_tx_count: 0,
                 last_ts: timestamp,
                 last_block_hash: block_hash,
                 last_block_gas_used: 0,
@@ -222,7 +222,7 @@ impl ServerInstance {
 
         let output = output.unwrap();
 
-        last_block_info.waiting_tx_cnt += 1;
+        last_block_info.waiting_tx_count += 1;
 
         #[cfg(debug_assertions)]
         println!(
@@ -390,7 +390,7 @@ impl ServerInstance {
         timestamp: u64,
         block_number: u64,
         block_hash: B256,
-        block_tx_cnt: u64,
+        block_tx_count: u64,
     ) -> Result<(), &'static str> {
         let mut last_block_info = self.last_block_info.lock().unwrap();
 
@@ -398,25 +398,25 @@ impl ServerInstance {
             last_block_info.last_block_start_time = Some(Instant::now());
         }
 
-        if last_block_info.waiting_tx_cnt != 0 {
+        if last_block_info.waiting_tx_count != 0 {
             if timestamp != last_block_info.last_ts {
-                return Err("timestamp is different from other txes in block!!");
+                return Err("Timestamp is different from other txes in block");
             }
 
             if block_hash != last_block_info.last_block_hash {
-                return Err("block hash is different from other txes in block!!");
+                return Err("Block hash is different from other txes in block");
             }
         }
-        if last_block_info.waiting_tx_cnt != block_tx_cnt {
-            return Err("block tx cnt is different from waiting tx cnt for block!!");
+        if last_block_info.waiting_tx_count != block_tx_count {
+            return Err("Block tx count is different from waiting tx count for block");
         }
 
         let mut db = self.db_mutex.lock().unwrap();
 
         #[cfg(debug_assertions)]
         println!(
-            "Finalising block 0x{:x} ({}), tx cnt: 0x{:x} ({})",
-            block_number, block_number, block_tx_cnt, block_tx_cnt
+            "Finalising block 0x{:x} ({}), tx count: 0x{:x} ({})",
+            block_number, block_number, block_tx_count, block_tx_count
         );
 
         db.set_block_hash(block_number, block_hash).unwrap();
@@ -594,6 +594,14 @@ impl ServerInstance {
 
         self.require_no_waiting_txes()?;
 
+        let current_block_height = self.get_latest_block_height();
+        if latest_valid_block_number >= current_block_height {
+            return Err("Latest valid block number is greater than current block height");
+        }
+        if current_block_height - latest_valid_block_number > MAX_HISTORY_SIZE {
+            return Err("Latest valid block number is too far behind current block height");
+        }
+
         let mut db = self.db_mutex.lock().unwrap();
         db.reorg(latest_valid_block_number).unwrap();
         Ok(())
@@ -601,8 +609,8 @@ impl ServerInstance {
 
     fn require_no_waiting_txes(&self) -> Result<(), &'static str> {
         let last_block_info = self.last_block_info.lock().unwrap();
-        if last_block_info.waiting_tx_cnt != 0 {
-            return Err("there are waiting txes, either finalise block or clear caches!!");
+        if last_block_info.waiting_tx_count != 0 {
+            return Err("There are waiting txes, either finalise the block or clear caches");
         }
         Ok(())
     }
