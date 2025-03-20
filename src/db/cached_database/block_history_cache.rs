@@ -1,9 +1,7 @@
 use std::collections::BTreeMap;
 use std::error::Error;
 
-use crate::db::types::{Decode, Encode};
-
-const MAX_HISTORY_SIZE: u64 = 10;
+use crate::db::{types::{Decode, Encode}, MAX_HISTORY_SIZE};
 
 /// Cache to store the history of a value at different block numbers
 #[derive(Clone)]

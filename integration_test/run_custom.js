@@ -36,15 +36,15 @@ async function brc20_balance(ticker, btc_address) {
 }
 
 async function brc20_mine(n, timestamp) {
-  await provider_send("brc20_mine", { block_cnt: parseInt(n), timestamp: parseInt(timestamp) })
+  await provider_send("brc20_mine", { block_count: parseInt(n), timestamp: parseInt(timestamp) })
 }
 
 async function brc20_add_tx_to_block(timestamp, hash, from, to, data, tx_idx) {
   return await provider_send("brc20_addTxToBlock", { timestamp: parseInt(timestamp), hash: hash, tx_idx: tx_idx, from_pkscript: from, to: to, data: data })
 }
 
-async function brc20_finalise_block(timestamp, hash, block_tx_cnt) {
-  return await provider_send("brc20_finaliseBlock", { timestamp: parseInt(timestamp), hash: hash, block_tx_cnt: block_tx_cnt })
+async function brc20_finalise_block(timestamp, hash, block_tx_count) {
+  return await provider_send("brc20_finaliseBlock", { timestamp: parseInt(timestamp), hash: hash, block_tx_count: block_tx_count })
 }
 
 async function eth_getBlockByNumber(block_number) {

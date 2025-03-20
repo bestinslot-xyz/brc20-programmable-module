@@ -218,11 +218,11 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn mine(&self, block_cnt: u64, timestamp: u64) -> RpcResult<()> {
+    async fn mine(&self, block_count: u64, timestamp: u64) -> RpcResult<()> {
         event!(tracing::Level::INFO, "Mining empty blocks");
         let hash = B256::ZERO;
         self.server_instance
-            .mine_block(block_cnt, timestamp, hash)
+            .mine_block(block_count, timestamp, hash)
             .map_err(wrap_error_message)
     }
 
@@ -316,7 +316,7 @@ impl Brc20ProgApiServer for RpcServer {
         &self,
         timestamp: u64,
         hash: String,
-        block_tx_cnt: u64,
+        block_tx_count: u64,
     ) -> RpcResult<()> {
         let block_height = self.server_instance.get_latest_block_height() + 1;
         event!(tracing::Level::INFO, "Finalising block {}", block_height);
@@ -330,7 +330,7 @@ impl Brc20ProgApiServer for RpcServer {
                     &hash
                 })
                 .unwrap(),
-                block_tx_cnt,
+                block_tx_count,
             )
             .map_err(wrap_error_message)
     }
