@@ -178,7 +178,7 @@ Execution engine has precompiled contracts deployed at given addresses to make i
 
 ### BRC20 Balance Contract
 
-`BRC20_Balance` contract can be used to retrieve non-module BRC20 balance for a given pkscript. BRC2.0 makes an RPC call to the server at `BRC20_PROG_BALANCE_SERVER_URL` environment variable.
+`BRC20_Balance` contract can be used to retrieve non-module BRC20 balance for a given pkscript. BRC2.0 makes an HTTP call to the server at `BRC20_PROG_BALANCE_SERVER_URL` environment variable.
 
 ```
 > curl "http://localhost:18546/?address=1234567890&ticker=blah"
