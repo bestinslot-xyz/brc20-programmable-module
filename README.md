@@ -312,7 +312,13 @@ interface IBTC_LastSatLoc {
         string calldata txid,
         uint256 vout,
         uint256 sat
-    ) external view returns (string memory last_txid, uint256 last_vout, uint256 last_sat, string memory old_pkscript, string memory new_pkscript);
+    ) external view returns (
+        string memory last_txid,
+        uint256 last_vout,
+        uint256 last_sat,
+        string memory old_pkscript,
+        string memory new_pkscript
+    );
 }
 ```
 
@@ -410,16 +416,30 @@ Execution engine deploys a `BRC20_Controller` contract for BRC20 deposits, trans
 In order to skip initial blocks, i.e. empty blocks, miners can call `brc20_mine` to add empty blocks to the system. If the first inscription is at block height 100, then initialisation might look like:
 
 ```
-brc20_mine { block_count: 100, timestamp: 0 }
-brc20_initialise { genesis_hash: "100TH_BLOCK_HASH", genesis_timestamp: "100TH_BLOCK_TIMESTAMP", genesis_height: 100 }
+brc20_mine {
+    block_count: 100,
+    timestamp: 0
+}
+brc20_initialise {
+    genesis_hash: "100TH_BLOCK_HASH",
+    genesis_timestamp: "100TH_BLOCK_TIMESTAMP",
+    genesis_height: 100
+}
 ```
 
 If an indexer wants earlier block hashes and timestamps to be correct, they can also initialise empty blocks using `brc20_finaliseBlock`, and pass the correct hashes and timestamps.
 
 ```
-brc20_initialise { genesis_hash: "GENESIS_HASH", genesis_timestamp: "GENESIS_TIMESTAMP", genesis_height: 0 }
+brc20_initialise {
+    genesis_hash: "GENESIS_HASH",
+    genesis_timestamp: "GENESIS_TIMESTAMP",
+    genesis_height: 0
+}
 for all initial blocks:
-  brc20_finaliseBlock { hash: "KNOWN_HASH", timestamp: "KNOWN_TIMESTAMP", block_tx_count: 0 }
+    brc20_finaliseBlock {
+        hash: "KNOWN_HASH",
+        timestamp: "KNOWN_TIMESTAMP", block_tx_count: 0
+    }
 ```
 ### Loop for adding transactions and finalising blocks
 
@@ -437,7 +457,8 @@ for (inscription, transfer) in block:
     sender = transfer.sender
     receiver = transfer.receiver
 
-    if inscription.op is 'deploy' and receiver.pkscript is OP_RETURN "BRC20PROG":
+    if inscription.op is 'deploy' and
+       receiver.pkscript is OP_RETURN "BRC20PROG":
         # Deploy transactions are added with `to` set to None
         result = brc20_addTxToBlock(
             from_pkscript: sender.pkscript,
@@ -450,7 +471,8 @@ for (inscription, transfer) in block:
             # Contract address is saved for later use
             contract_address_map[inscription_id] = result.contractAddress
 
-    if inscription.op is 'call' and receiver.pkscript is OP_RETURN "BRC20PROG":
+    if inscription.op is 'call' and
+       receiver.pkscript is OP_RETURN "BRC20PROG":
         # Call transactions are added with `to` set to contract address
         brc20_addTxToBlock(
             from_pkscript: sender.pkscript,
@@ -461,7 +483,8 @@ for (inscription, transfer) in block:
             timestamp: block.timestamp,
             tx_idx: current_tx_idx++)
 
-    if inscription.op is 'transfer' and receiver.pkscript is OP_RETURN "BRC20PROG":
+    if inscription.op is 'transfer' and
+       receiver.pkscript is OP_RETURN "BRC20PROG":
         if sender.balance[inscription.tick] > inscription.amt:
             sender.balance[inscription.tick] -= inscription.amt;
             brc20_deposit(
