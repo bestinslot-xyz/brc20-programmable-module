@@ -15,15 +15,18 @@ For questions, comments and requests, use [the issues section](https://github.co
 
 ## Usage
 
+BRC2.0 Execution Engine is written in [Rust](https://www.rust-lang.org/), so you need Cargo installed in order to build and run the server.
+
 **Build and run brc20_prog:**
 
 ```
 cargo run --release
 ```
 
-Bitcoin and BRC20 related precompiled contracts require environment variables to work properly, see the [Precompiles](#precompiles) section to learn how to set them up, otherwise precompiled contracts will fail.
+> [!NOTE]
+> Some precompiled contracts require environment variables to work properly, see the [Precompiles](#precompiles) section and [Indexer Integration Guide](#indexer-integration-guide) to learn how to set them up, otherwise precompiled contracts will fail.
 
-## Supported Methods
+## Supported JSON-RPC methods
 
 BRC2.0 provides a JSON-RPC 2.0 server to interact with the indexers, and chain explorers. `eth_*` methods are supported to provide information on blocks and transactions, while `brc20_*` methods are used for adding new transactions and blocks to run in the execution engine.
 
