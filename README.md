@@ -42,6 +42,8 @@ JSON-RPC methods work the same way as the official implementation, e.g. `eth_blo
 
 BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usage
 
+#### Mine empty blocks
+
 **Method**: `brc20_mine`
 
 **Description**: Inserts empty blocks with unknown/unimportant hashes, this method can be used to speed up the initialisation process by skipping unnecessary blocks and moving the block height to given point for indexing purposes.
@@ -52,6 +54,8 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - timestamp (`int`): Timestamp for the empty blocks
 
 <hr>
+
+#### Initialise and deploy BRC20_Controller contract
 
 **Method**: `brc20_initialise`
 
@@ -64,6 +68,8 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - genesis_height (`int`): Block height
 
 <hr>
+
+#### Add Transaction to Block
 
 **Method**: `brc20_addTxToBlock`
 
@@ -80,6 +86,8 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 <hr>
 
+#### Finalise Block
+
 **Method**: `brc20_finaliseBlock`
 
 **Description**: Finalises a block, this should be called after all the transactions in the block are added via `brc20_addTxToBlock`.
@@ -92,6 +100,8 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 <hr>
 
+#### Commit to Database
+
 **Method**: `brc20_commitToDatabase`
 
 **Description**: Writes pending changes to disk.
@@ -102,6 +112,8 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 <hr>
 
+#### Clear Caches
+
 **Method**: `brc20_clearCaches`
 
 **Description**: Removes pending changes. Can be used to clear recently added transactions and revert to last saved state.
@@ -111,6 +123,8 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - None
 
 <hr>
+
+#### Reorg
 
 **Method**: `brc20_reorg`
 
@@ -124,6 +138,8 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 > Not all of the history is stored, and reorg is only supported up to 10 blocks earlier (this can be modified in code if needed, but will result in increased storage), otherwise this method will fail and return an error.
 
 <hr>
+
+#### BRC20 Deposit
 
 **Method**: `brc20_deposit`
 
@@ -140,6 +156,8 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 <hr>
 
+#### BRC20 Withdraw
+
 **Method**: `brc20_withdraw`
 
 **Description**: Withdraws (burns) BRC20 tokens from given bitcoin pkscript. Method returns an error if the address doesn't have enough tokens. This is a convenience method to replace `brc20_addTxToBlock` calls for BRC20 transactions, and used to transfer BRC20 tokens out of BRC2.0 module.
@@ -155,9 +173,11 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 <hr>
 
+#### BRC20 Balance
+
 **Method**: `brc20_balance`
 
-**Description**: Returns a transaction receipt for retrieving current BRC20 balance for the given pkscript and ticker.
+**Description**: Returns a transaction receipt for retrieving current BRC20 balance (in-module) for the given pkscript and ticker.
 
 **Parameters**:
 
@@ -185,7 +205,7 @@ Execution engine has precompiled contracts deployed at given addresses to make i
 86
 ```
 
-Indexers should expose a server and set the environment variable accordingly.
+BRC20 indexers should expose this HTTP server and set the environment variable accordingly.
 
 **Contract interface**:
 
@@ -200,6 +220,9 @@ interface IBRC20_Balance {
     ) external view returns (uint256);
 }
 ```
+
+> [!WARNING]
+> `BRC20_PROG_BALANCE_SERVER_URL` must be set for this precompile to work.
 
 ### BIP322 Verifier Contract
 
@@ -221,6 +244,13 @@ interface IBIP322_Verifier {
 ```
 
 ### Bitcoin Contracts
+
+BRC2.0 has a set of precompiles that make it easier to work with bitcoin transactions within a smart contract. These can be used to retrieve transaction details, track satoshis across transactions and calculate locked pkscripts. These allow BRC2.0 smart contracts to be aware of the transactions, ordinals and ordinal lockers that happen outside the execution engine.
+
+> [!WARNING]
+> `BTC_Transaction` and `BTC_LastSatLoc` precompiles use Bitcoin JSON-RPC calls to calculate results, so an RPC server needs to be specified in the environment variables.
+> 
+> Associated environment variables are `BITCOIN_RPC_URL`, `BITCOIN_RPC_USER`, `BITCOIN_RPC_PASSWORD` and `BITCOIN_NETWORK`. See [env.sample](env.sample) for a sample environment.
 
 #### Transaction details
 
@@ -289,12 +319,188 @@ interface IBTC_LockedPkscript {
 
 ## Indexer Integration Guide
 
+BRC2.0 execution engine is designed to work together with a BRC20 indexer, and the indexer should recognise inscriptions that are intended for BRC2.0 and execute transactions, deposit and withdraw BRC20 tokens.
+
 ### Deploy/Call inscriptions
+
+Defined in the [proposal](https://github.com/bestinslot-xyz/brc20-prog-module-proposal), deploy inscriptions have the following structure:
+
+```json
+{
+    "p": "brc20-prog",
+    "op": "deploy",
+    "d": "<bytecode + constructor_args in hex>"
+}
+```
+
+Whenever an indexer encounters a deploy inscription, it should inform the programmable module via the `brc20_addTxToBlock` JSON-RPC method, leaving `to` parameter empty, this will allow the EVM to deploy a new smart contract.
+
+Once an inscription is deployed as a smart contract, then methods can be called via call inscriptions with the following structure:
+
+```json
+{
+    "p": "brc20-prog",
+    "op": "call",
+    "c": "<contract_addr>",
+    "i": "<inscription_id>",
+    "d": "<call data>"
+}
+```
+
+Similar to a deploy inscription, call inscriptions should also be added as transactions to the EVM using `brc20_addTxToBlock` JSON-RPC method. For call transaction, `to` field should be set to the contract address to determine which contract should be called.
+
+If the `c` field is set, then it can be used directly as the `to` value. If the `i` field is set instead, then the deployed contract address from corresponding deploy inscription should be used.
+
+> [!NOTE]
+> This requires maintaining a map of deploy inscription id to contract address. `brc20_addTxToBlock` returns a standard transaction receipt that contains contract addresses for deploy transactions.
 
 ### Deposit/Withdrawal inscriptions
 
+Deposit inscriptions are standard BRC20 transfer inscriptions that are sent to `OP_RETURN "BRC20PROG"`:
+
+```json
+{
+  "p": "brc-20",
+  "op": "transfer",
+  "tick": "ordi",
+  "amt": "10"
+}
+```
+
+When an indexer encounters this, it should call `brc20_deposit` JSON-RPC method to create the same amount of BRC20 tokens in the execution engine. These BRC20 tokens then can be transferred and manipulated using BRC2.0 call inscriptions.
+
+Withdraw inscriptions have the following structure:
+
+```json
+{
+  "p": "brc20-module",
+  "op": "withdraw",
+  "tick": "ordi",
+  "amt": "10",
+  "module": "BRC20PROG"
+}
+```
+
+When encountered, an indexer can call `brc20_withdraw` JSON-RPC method, and verify the result, as this can fail in case there isn't enough funds to withdraw, and increase BRC20 balance for the pkscript this inscription was sent to.
+
+> [!WARNING]
+> Tokens should be withdrawn from the sender's address, but deposited to the receiver's address for a withdraw inscription. A withdraw inscription can be sent to the same address, or a different address.
+
 ### Initialisation and empty blocks
 
+Execution engine deploys a `BRC20_Controller` contract for BRC20 deposits, transfers and withdrawals. This deployment should be triggered by an indexer via `brc20_initialise` method at any point, before any of the inscriptions take place. This will add a block with a single transaction that is the `BRC20_Controller` deployment transaction.
+
+In order to skip initial blocks, i.e. empty blocks, miners can call `brc20_mine` to add empty blocks to the system. If the first inscription is at block height 100, then initialisation might look like:
+
+```
+brc20_mine { block_count: 100, timestamp: 0 }
+brc20_initialise { genesis_hash: "100TH_BLOCK_HASH", genesis_timestamp: "100TH_BLOCK_TIMESTAMP", genesis_height: 100 }
+```
+
+If an indexer wants earlier block hashes and timestamps to be correct, they can also initialise empty blocks using `brc20_finaliseBlock`, and pass the correct hashes and timestamps.
+
+```
+brc20_initialise { genesis_hash: "GENESIS_HASH", genesis_timestamp: "GENESIS_TIMESTAMP", genesis_height: 0 }
+for all initial blocks:
+  brc20_finaliseBlock { hash: "KNOWN_HASH", timestamp: "KNOWN_TIMESTAMP", block_tx_count: 0 }
+```
 ### Loop for adding transactions and finalising blocks
 
+When a new block arrives, all its deploy/call/deposit/withdraw transactions should be sent to the execution engine in order, with the correct transaction index using the relevant methods such as `brc20_addTxToBlock`, `brc20_deposit`, and `brc20_withdraw`. Once all inscriptions in the block are processed, block should be finalised using the `brc20_finaliseBlock` JSON-RPC method.
+
+Indexing for a single block in pseudo code would look like the following (field validation is omitted for simplicity):
+
+```
+# contract_address_map is a Map<InscriptionID, ContractAddress>
+
+block = await_new_block()
+current_tx_idx = 0
+for (inscription, transfer) in block:
+    inscription_id = transfer.inscription_id
+    sender = transfer.sender
+    receiver = transfer.receiver
+
+    if inscription.op is 'deploy' and receiver.pkscript is OP_RETURN "BRC20PROG":
+        # Deploy transactions are added with `to` set to None
+        result = brc20_addTxToBlock(
+            from_pkscript: sender.pkscript,
+            to: None,
+            data: inscription.d,
+            hash: block.hash,
+            timestamp: block.timestamp,
+            tx_idx: current_tx_idx++)
+        if result.status is '0x1':
+            # Contract address is saved for later use
+            contract_address_map[inscription_id] = result.contractAddress
+
+    if inscription.op is 'call' and receiver.pkscript is OP_RETURN "BRC20PROG":
+        # Call transactions are added with `to` set to contract address
+        brc20_addTxToBlock(
+            from_pkscript: sender.pkscript,
+            to: inscription.c OR
+                contract_address_map[inscription.i],
+            data: inscription.d,
+            hash: block.hash,
+            timestamp: block.timestamp,
+            tx_idx: current_tx_idx++)
+
+    if inscription.op is 'transfer' and receiver.pkscript is OP_RETURN "BRC20PROG":
+        if sender.balance[inscription.tick] > inscription.amt:
+            sender.balance[inscription.tick] -= inscription.amt;
+            brc20_deposit(
+                to_pkscript: sender.pkscript,
+                ticker: inscription.tick,
+                amount: inscription.amt (padded to 18 decimals),
+                hash: block.hash,
+                timestamp: block.timestamp,
+                tx_idx: current_tx_idx++)
+
+    if inscription.op is 'withdraw' and
+       inscription.p is 'brc20-module' and
+       inscription.module is 'BRC20PROG':
+        # Withdrawals are done from sender's address
+        result = brc20_withdraw(
+            from_pkscript: sender.pkscript,
+            ticker: inscription.tick,
+            amount: inscription.amt (padded to 18 decimals),
+            hash: block.hash,
+            timestamp: block.timestamp,
+            tx_idx: current_tx_idx++)
+        # Withdrawals fail if there is not enough funds
+        if result.status = '0x1':
+            # Note that withdrawals are sent to receiver's address
+            receiver.balance[inscription.tick] += inscription.amt
+
+# Finalise block at the end
+brc20_finaliseBlock(
+    hash: block.hash,
+    timestamp: block.timestamp,
+    block_tx_count: current_tx_idx)
+
+# Committing to database, can be done at any point to write changes to disk
+brc20_commitToDatabase()
+```
+
+When a reorg is detected, `brc20_reorg` should be called to revert the EVM to a previous state.
+
 ### BRC20 Balance Server
+
+Indexers should expose a balance server that returns current overall balance for an address and a ticker, and set the `BRC20_BALANCE_SERVER_URL` environment variable to make sure the `BRC20_Balance` precompiled contract knows where to send these requests to.
+
+```
+> curl "http://localhost:18546/?address=1234567890&ticker=blah"
+86
+```
+
+### Indexer Checklist
+
+- [ ] Set environment variables, check [env.sample](env.sample) for a list
+- [ ] Start a [BRC20 balance server](#brc20-balance-server) for [BRC20_Balance Contract](#brc20-balance-contract)
+- [ ] Mine [`brc20_mine`](#mine-empty-blocks) or finalise empty blocks [`brc20_finaliseBlock`](#finalise-block) to fill the database before the first inscription height
+- [ ] Deploy the `BRC20_Controller` contract by calling [`brc20_initialise`](#initialise-and-deploy-brc20_controller-contract)
+- [ ] Index every block for BRC2.0 transactions
+  - [ ] [Add deploy/call inscriptions](#deploycall-inscriptions) via [`brc20_addTxToBlock`](#add-transaction-to-block)
+  - [ ] [Deposit/Withdraw BRC20 tokens](#depositwithdrawal-inscriptions) via [`brc20_deposit`](#brc20-deposit) and [`brc20_withdraw`](#brc20-withdraw)
+  - [ ] Finalise every block via [`brc20_finaliseBlock`](#finalise-block)
+  - [ ] Commit changes to database via [`brc20_commitToDatabase`](#commit-to-database)
+- [ ] Call [`brc20_reorg`](#reorg) when a reorg is detected
