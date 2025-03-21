@@ -10,6 +10,10 @@ use db::DB;
 mod server;
 use server::{start_rpc_server, ServerInstance};
 
+lazy_static::lazy_static! {
+    static ref BRC20_PROG_RPC_SERVER_URL: String = std::env::var("BRC20_PROG_RPC_SERVER_URL").unwrap_or("127.0.0.1:18545".to_string());
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     tracing::subscriber::set_global_default(
@@ -18,7 +22,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .finish(),
     )?;
 
-    let addr = "127.0.0.1:18545";
     let instance = ServerInstance::new(DB::new(&Path::new("target").join("db")).unwrap());
     println!(
         "Latest block number: {}",
@@ -31,8 +34,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .map(|block| block.hash.0.to_string())
             .unwrap_or("None".to_string())
     );
-    println!("Started JSON-RPC server on {}", addr);
-    let handle = start_rpc_server(addr, instance).await?;
+    println!(
+        "Started JSON-RPC server on {}",
+        BRC20_PROG_RPC_SERVER_URL.as_str()
+    );
+    let handle = start_rpc_server(BRC20_PROG_RPC_SERVER_URL.to_string(), instance).await?;
     handle.stopped().await;
     Ok(())
 }
