@@ -1,4 +1,4 @@
-<h1 align="center">BRC20 Programmable Module</h1>
+<h1 align="center">BRC2.0 - Programmable Module</h1>
 <p align="center">Smart contract execution engine compatible with BRC20 standard.</p>
 <div align="center">
 
@@ -7,15 +7,29 @@
 
 </div>
 
-BRC2.0 provides smart contract execution capabilities for BRC20 indexers.
+BRC2.0 programmable module provides smart contract execution capabilities for BRC20 indexers.
 
-See our proposal at [bestinslot-xyz/brc20-prog-module-proposal](https://github.com/bestinslot-xyz/brc20-prog-module-proposal) for detailed information about how the BRC2.0 module works alongside the indexers.
+This module allows users to inscribe smart contracts and function calls on Bitcoin blockchain to implement decentralised applications.
+
+BRC2.0 runs on a custom `EVM` execution engine using [`revm`](https://github.com/bluealloy/revm). Our main reasons for choosing `EVM` are listed below:
+
+- Rich open-source ecosystem for tooling, including several different execution engines
+- Heavily tested open-source smart contract libraries that are readily available for various financial applications
+- Large and active developer community - many smart contract developers are already familiar with `EVM` and `Solidity`
+- `EVM` is deterministic and Turing complete.
+
+See our proposal at [bestinslot-xyz/brc20-prog-module-proposal](https://github.com/bestinslot-xyz/brc20-prog-module-proposal) for detailed information about how the BRC2.0 programmable module works.
+
+See [Indexer Integration Guide](#indexer-integration-guide) on how to integrate the programmable module your BRC20 indexer.
 
 For questions, comments and requests, use [the issues section](https://github.com/bestinslot-xyz/brc20-programmable-module/issues) or [Best in Slot discord server](https://discord.com/invite/6G8yPAcP3Z).
 
+> [!WARNING]
+> This module is not currently enabled on Bitcoin mainnet.
+
 ## Usage
 
-BRC2.0 Execution Engine is written in [Rust](https://www.rust-lang.org/), so you need Cargo installed in order to build and run the server.
+BRC2.0 Programmable Module is written in [Rust](https://www.rust-lang.org/), so you need Cargo installed in order to build and run the server.
 
 **Build and run brc20_prog:**
 
