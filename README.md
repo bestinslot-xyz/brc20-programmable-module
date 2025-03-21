@@ -76,13 +76,17 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 **Method**: `brc20_initialise`
 
-**Description**: Initialises the execution engine with a known block height and hash, deploys the `BRC20_Controller` contract at address `0xc54dd4581af2dbf18e4d90840226756e9d2b3cdb`. This method can be called before or after `brc20_mine`, but subsequent calls to it must have the same parameters, otherwise it will fail.
+**Description**: Initialises the execution engine with a known block height and hash, deploys the `BRC20_Controller` contract at address `0xc54dd4581af2dbf18e4d90840226756e9d2b3cdb`. This method can be called before or after `brc20_mine`, but subsequent calls to it must have the same genesis parameters, otherwise it will fail.
 
 **Parameters**:
 
 - genesis_hash (`string`): Block hash
 - genesis_timestamp (`int`): Timestamp
 - genesis_height (`int`): Block height
+
+**Returns**:
+
+- Error if block info doesn't match a previous `brc20_initialise` call.
 
 <hr>
 
@@ -101,6 +105,10 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
 
+**Returns**:
+
+- Receipt for the executed transaction, see [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gettransactionreceipt) for details.
+
 <hr>
 
 #### Finalise Block
@@ -114,6 +122,10 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - timestamp (`int`): Current block timestamp
 - hash (`string`): Current block hash
 - block_tx_count (`int`): Number of transactions added to this block
+
+**Returns**:
+
+- Error if any of the parameters don't match previous `brc20_addTxToBlock` calls.
 
 <hr>
 
@@ -171,6 +183,10 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index
 
+**Returns**:
+
+- Receipt for the executed transaction, see [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gettransactionreceipt) for details.
+
 <hr>
 
 #### BRC20 Withdraw
@@ -188,6 +204,10 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index
 
+**Returns**:
+
+- Receipt for the executed transaction, see [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gettransactionreceipt) for details.
+
 <hr>
 
 #### BRC20 Balance
@@ -200,6 +220,10 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 - address_pkscript (`string`): Bitcoin pkscript
 - ticker (`string`): BRC20 ticker
+
+**Returns**:
+
+- (string) BRC20 balance of the address for the given ticker
 
 ## Precompiles
 
