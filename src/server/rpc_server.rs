@@ -395,7 +395,7 @@ impl Into<ErrorObject<'static>> for RpcServerError {
 }
 
 pub async fn start_rpc_server(
-    addr: &str,
+    addr: String,
     server_instance: ServerInstance,
 ) -> Result<ServerHandle, Box<dyn Error>> {
     let server = Server::builder()
