@@ -42,7 +42,7 @@ cargo run --release
 
 ## Supported JSON-RPC methods
 
-BRC2.0 provides a JSON-RPC 2.0 server to interact with the indexers, and chain explorers. `eth_*` methods are supported to provide information on blocks and transactions, while `brc20_*` methods are used for adding new transactions and blocks to run in the execution engine.
+BRC2.0 provides a JSON-RPC 2.0 server to interact with the indexers, and chain explorers at `localhost:18545`. `eth_*` methods are supported to provide information on blocks and transactions, while `brc20_*` methods are used for adding new transactions and blocks to run in the execution engine.
 
 ### eth_* methods
 
