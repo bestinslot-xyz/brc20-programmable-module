@@ -44,7 +44,7 @@ contract_address = client.add_tx_to_block(
 print("Deployed contract with address: " + contract_address)
 
 # Temporarily call the precompile directly, there's a bug in the proxy contract that prevents calling the precompile
-contract_address="0x00000000000000000000000000000000000000fd"
+# contract_address="0x00000000000000000000000000000000000000fd"
 
 for i in range(call_cnt):
     result = client.add_tx_to_block(
