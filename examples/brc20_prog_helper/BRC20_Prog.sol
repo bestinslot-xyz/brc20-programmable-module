@@ -12,7 +12,7 @@ interface IBIP322_Verifier {
         string calldata addr,
         string calldata message_base64,
         string calldata signature_base64
-    ) external returns (bool);
+    ) external view returns (bool);
 }
 
 /**
@@ -81,11 +81,13 @@ contract BRC20_Prog is IBRC20_Prog {
     address private _brc20_controller_address =
         0x00000000000000000000000000000000000000ff;
 
+    constructor() {}
+
     function verifyBIP322Signature(
         string calldata addr,
         string calldata message_base64,
         string calldata signature_base64
-    ) external override returns (bool verified) {
+    ) external override view returns (bool verified) {
         return
             IBIP322_Verifier(_bip322_address).verify(
                 addr,
@@ -97,7 +99,7 @@ contract BRC20_Prog is IBRC20_Prog {
     function getBrc20BalanceOf(
         string calldata ticker,
         string calldata address_pkscript
-    ) external view returns (uint256 balance) {
+    ) external override view returns (uint256 balance) {
         return
             IBRC20_Balance(_brc20_controller_address).balanceOf(
                 ticker,
@@ -105,10 +107,11 @@ contract BRC20_Prog is IBRC20_Prog {
             );
     }
 
-    function getBitcoinTxDetails(
+    function getTxDetails(
         string calldata txid
     )
         external
+        override
         view
         returns (
             uint256 block_height,
@@ -127,7 +130,7 @@ contract BRC20_Prog is IBRC20_Prog {
         string calldata txid,
         uint256 vout,
         uint256 sat
-    ) external view returns (string memory last_txid, uint256 last_vout, uint256 last_sat, string memory old_pkscript, string memory new_pkscript) {
+    ) external override view returns (string memory last_txid, uint256 last_vout, uint256 last_sat, string memory old_pkscript, string memory new_pkscript) {
         return
             IBTC_LastSatLoc(_btc_last_sat_loc_address).getLastSatLocation(
                 txid,
@@ -139,7 +142,7 @@ contract BRC20_Prog is IBRC20_Prog {
     function getLockedPkscript(
         string calldata address_pkscript,
         uint256 lock_block_count
-    ) external view returns (string memory locked_pkscript) {
+    ) external override view returns (string memory locked_pkscript) {
         return
             IBTC_LockedPkscript(_btc_locked_pkscript_address).getLockedPkscript(
                 address_pkscript,

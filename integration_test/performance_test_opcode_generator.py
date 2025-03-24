@@ -567,6 +567,7 @@ def get_all_bench_codes():
 
 codes, params_list = get_all_bench_codes()
 
+import time
 import requests
 
 url_mine = "http://localhost:8000/mine_block"
@@ -602,7 +603,10 @@ def convert_hex_or_decimal_to_float(s):
         return float(s)
 
 
-ress = []
+total_gas_used = 0
+total_mine_tm = 0
+start_time_nanos = time.time() * 1e9
+results = []
 for i in range(len(codes)):
     code = codes[i]
     params = params_list[i]
@@ -630,11 +634,13 @@ for i in range(len(codes)):
     gasUsed = convert_hex_or_decimal_to_float(js["result"]["gasUsed"])
     mineTm = convert_hex_or_decimal_to_float(js["result"]["mineTimestamp"])
     ratio = mineTm / gasUsed
-    print("ratio: ", ratio, " gasUsed: ", gasUsed, " mineTimestamp: ", mineTm)
-    ress.append([params, ratio, gasUsed, mineTm])
+    total_gas_used += gasUsed
+    total_mine_tm += mineTm
+    # print("ratio: ", ratio, " gasUsed: ", gasUsed, " mineTimestamp: ", mineTm)
+    results.append([params, ratio, gasUsed, mineTm])
 
-ress.sort(key=lambda x: x[1], reverse=True)
-for res in ress:
+results.sort(key=lambda x: x[1], reverse=True)
+for res in results:
     params, ratio, gasUsed, mineTm = res
     print(
         "params:",
@@ -647,3 +653,14 @@ for res in ress:
         "mineTm:",
         mineTm,
     )
+
+end_time_nanos = time.time() * 1e9
+
+print("total gas:", total_gas_used, "wei")
+print("total time:", (end_time_nanos - start_time_nanos) / 1e9, "seconds")
+print("indexing time:", total_mine_tm / 1e9, "seconds")
+print("instruction count:", len(codes))
+print("average gas per instruction:", total_gas_used / len(codes), "wei")
+print("average indexing time per instruction:", total_mine_tm / len(codes) / 1e9, "seconds")
+print("average indexing time per gas:", total_mine_tm / total_gas_used / 1e9, "seconds")
+print("RPC overhead in %:", 100 - total_mine_tm / (end_time_nanos - start_time_nanos) * 100)
