@@ -6,7 +6,7 @@ use revm::ContextPrecompile;
 
 use crate::db::DB;
 use crate::evm::precompiles::{
-    BIP322Precompile, BRC20Precompile, BTCPrecompile, GetLockedPkScriptPrecompile,
+    BIP322Precompile, BRC20Precompile, BTCTxDetailsPrecompile, GetLockedPkScriptPrecompile,
     LastSatLocationPrecompile,
 };
 
@@ -22,7 +22,7 @@ pub fn load_precompiles() -> [(Address, ContextPrecompile<DB>); 5] {
         ),
         (
             Address::from_str("0x00000000000000000000000000000000000000fd").unwrap(),
-            ContextPrecompile::ContextStateful(Arc::new(BTCPrecompile)),
+            ContextPrecompile::ContextStateful(Arc::new(BTCTxDetailsPrecompile)),
         ),
         (
             Address::from_str("0x00000000000000000000000000000000000000fc").unwrap(),
