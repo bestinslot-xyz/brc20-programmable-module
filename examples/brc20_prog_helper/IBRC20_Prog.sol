@@ -13,7 +13,7 @@ interface IBRC20_Prog {
         string calldata addr,
         string calldata message_base64,
         string calldata signature_base64
-    ) external returns (bool verified);
+    ) external view returns (bool verified);
 
     /**
      * @dev Get non-module BRC-20 balance of a given Bitcoin wallet script and BRC-20 ticker.
@@ -26,7 +26,7 @@ interface IBRC20_Prog {
     /**
      * @dev Get Bitcoin transaction details using tx ids.
      */
-    function getBitcoinTxDetails(
+    function getTxDetails(
         string calldata txid
     )
         external
