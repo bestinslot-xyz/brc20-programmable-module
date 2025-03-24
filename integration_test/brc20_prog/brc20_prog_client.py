@@ -161,7 +161,7 @@ class BRC20ProgClient:
 
         if "error" in tx_result:
             raise Exception(tx_result["error"])
-        
+
         if tx_result["result"]["status"] == "0x0":
             print("Transaction failed")
             print(tx_result)
