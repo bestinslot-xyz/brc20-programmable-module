@@ -2,116 +2,69 @@
 
 pragma solidity ^0.8.19;
 
-import {IBRC20_Prog} from "./IBRC20_Prog.sol";
-
-/**
- * @dev BIP322 verification method
- */
-interface IBIP322_Verifier {
-    function verify(
-        string calldata addr,
-        string calldata message_base64,
-        string calldata signature_base64
-    ) external view returns (bool);
-}
-
-/**
- * @dev Get non-module BRC-20 balance of a given Bitcoin wallet script and BRC-20 ticker.
- */
-interface IBRC20_Balance {
-    function balanceOf(
-        string calldata ticker,
-        string calldata address_pkscript
-    ) external view returns (uint256);
-}
-
-/**
- * Get Bitcoin transaction details using tx ids.
- */
-interface IBTC_Transaction {
-    function getTxDetails(
-        string calldata txid
-    )
-        external
-        view
-        returns (
-            uint256 block_height,
-            string[] memory vin_txids,
-            uint256[] memory vin_vouts,
-            string[] memory vin_scriptPubKey_hexes,
-            uint256[] memory vin_values,
-            string[] memory vout_scriptPubKey_hexes,
-            uint256[] memory vout_values
-        );
-}
-
-/**
- * @dev Get last satoshi location of a given sat location in a transaction.
- */
-interface IBTC_LastSatLoc {
-    function getLastSatLocation(
-        string calldata txid,
-        uint256 vout,
-        uint256 sat
-    ) external view returns (string memory last_txid, uint256 last_vout, uint256 last_sat, string memory old_pkscript, string memory new_pkscript);
-}
-
-/**
- * @dev Get locked pkscript of a given Bitcoin wallet script.
- */
-interface IBTC_LockedPkscript {
-    function getLockedPkscript(
-        string calldata address_pkscript,
-        uint256 lock_block_count
-    ) external view returns (string memory locked_pkscript);
-}
-
 /**
  * @dev BRC-20 Prog helper functions.
  */
-contract BRC20_Prog is IBRC20_Prog {
+contract BRC20_Prog {
     address private _btc_locked_pkscript_address =
         0x00000000000000000000000000000000000000fb;
     address private _btc_last_sat_loc_address =
         0x00000000000000000000000000000000000000fc;
-    address private _btc_transaction_address =
+    address private _btc_tx_details_address =
         0x00000000000000000000000000000000000000fd;
-    address private _bip322_address =
+    address private _bip322_verify_address =
         0x00000000000000000000000000000000000000fe;
     address private _brc20_controller_address =
         0x00000000000000000000000000000000000000ff;
 
     constructor() {}
 
+    /**
+     * @dev Verifies BIP322 signature, given address, message and the signature.
+     */
     function verifyBIP322Signature(
         string calldata addr,
         string calldata message_base64,
         string calldata signature_base64
-    ) external override view returns (bool verified) {
-        return
-            IBIP322_Verifier(_bip322_address).verify(
+    ) external view returns (bool verified) {
+        (bool success, bytes memory data) = _bip322_verify_address.staticcall(
+            abi.encodeWithSignature(
+                "verify(string,string,string)",
                 addr,
                 message_base64,
                 signature_base64
-            );
+            )
+        );
+        require(success, "Failed to verify BIP322 signature");
+        return abi.decode(data, (bool));
     }
 
+    /**
+     * @dev Get non-module BRC-20 balance of a given Bitcoin wallet script and BRC-20 ticker.
+     */
     function getBrc20BalanceOf(
         string calldata ticker,
         string calldata address_pkscript
-    ) external override view returns (uint256 balance) {
-        return
-            IBRC20_Balance(_brc20_controller_address).balanceOf(
-                ticker,
-                address_pkscript
+    ) external view returns (uint256 balance) {
+        (bool success, bytes memory data) = _brc20_controller_address
+            .staticcall(
+                abi.encodeWithSignature(
+                    "balanceOf(string,string)",
+                    ticker,
+                    address_pkscript
+                )
             );
+        require(success, "Failed to get BRC20 balance");
+        return abi.decode(data, (uint256));
     }
 
+    /**
+     * @dev Get Bitcoin transaction details using tx ids.
+     */
     function getTxDetails(
         string calldata txid
     )
         external
-        override
         view
         returns (
             uint256 block_height,
@@ -123,30 +76,101 @@ contract BRC20_Prog is IBRC20_Prog {
             uint256[] memory vout_values
         )
     {
-        return IBTC_Transaction(_btc_transaction_address).getTxDetails(txid);
+        (bool success, bytes memory data) = _btc_tx_details_address.staticcall(
+            abi.encodeWithSignature("getTxDetails(string)", txid)
+        );
+        require(success, "Failed to get transaction details");
+        (
+            uint256 block_height_out,
+            string[] memory vin_txids_out,
+            uint256[] memory vin_vouts_out,
+            string[] memory vin_scriptPubKey_hexes_out,
+            uint256[] memory vin_values_out,
+            string[] memory vout_scriptPubKey_hexes_out,
+            uint256[] memory vout_values_out
+        ) = abi.decode(
+                data,
+                (
+                    uint256,
+                    string[],
+                    uint256[],
+                    string[],
+                    uint256[],
+                    string[],
+                    uint256[]
+                )
+            );
+        return (
+            block_height_out,
+            vin_txids_out,
+            vin_vouts_out,
+            vin_scriptPubKey_hexes_out,
+            vin_values_out,
+            vout_scriptPubKey_hexes_out,
+            vout_values_out
+        );
     }
 
+    /**
+     * @dev Get last satoshi location of a given sat location in a transaction.
+     */
     function getLastSatLocation(
         string calldata txid,
         uint256 vout,
         uint256 sat
-    ) external override view returns (string memory last_txid, uint256 last_vout, uint256 last_sat, string memory old_pkscript, string memory new_pkscript) {
-        return
-            IBTC_LastSatLoc(_btc_last_sat_loc_address).getLastSatLocation(
-                txid,
-                vout,
-                sat
+    )
+        external
+        view
+        returns (
+            string memory last_txid,
+            uint256 last_vout,
+            uint256 last_sat,
+            string memory old_pkscript,
+            string memory new_pkscript
+        )
+    {
+        (bool success, bytes memory data) = _btc_last_sat_loc_address
+            .staticcall(
+                abi.encodeWithSignature(
+                    "getLastSatLocation(string,uint256,uint256)",
+                    txid,
+                    vout,
+                    sat
+                )
             );
+        require(success, "Failed to get last satoshi location");
+        (
+            string memory last_txid_out,
+            uint256 last_vout_out,
+            uint256 last_sat_out,
+            string memory old_pkscript_out,
+            string memory new_pkscript_out
+        ) = abi.decode(data, (string, uint256, uint256, string, string));
+        return (
+            last_txid_out,
+            last_vout_out,
+            last_sat_out,
+            old_pkscript_out,
+            new_pkscript_out
+        );
     }
 
+    /**
+     * @dev Get locked pkscript of a given Bitcoin wallet script.
+     */
     function getLockedPkscript(
         string calldata address_pkscript,
         uint256 lock_block_count
-    ) external override view returns (string memory locked_pkscript) {
-        return
-            IBTC_LockedPkscript(_btc_locked_pkscript_address).getLockedPkscript(
-                address_pkscript,
-                lock_block_count
+    ) external view returns (string memory locked_pkscript) {
+        (bool success, bytes memory data) = _btc_locked_pkscript_address
+            .staticcall(
+                abi.encodeWithSignature(
+                    "getLockedPkscript(string,uint256)",
+                    address_pkscript,
+                    lock_block_count
+                )
             );
+        require(success, "Failed to get locked pkscript");
+        return abi.decode(data, (string));
     }
 }
