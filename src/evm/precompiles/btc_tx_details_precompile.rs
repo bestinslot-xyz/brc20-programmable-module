@@ -8,9 +8,11 @@ use solabi::{selector, FunctionEncoder, U256};
 use crate::db::DB;
 use crate::evm::precompiles::btc_utils::get_raw_transaction;
 
+use super::btc_utils::get_block_height;
+
 static GAS_PER_RPC_CALL: u64 = 100000;
 
-pub struct BTCPrecompile;
+pub struct BTCTxDetailsPrecompile;
 
 /// Signature for the getTxDetails function in the BTCPrecompile contract
 /// Uses get raw tx details from the blockchain using the json rpc and returns the details from the transaction
@@ -31,7 +33,7 @@ const TX_DETAILS: FunctionEncoder<
     ),
 > = FunctionEncoder::new(selector!("getTxDetails(string)"));
 
-impl ContextStatefulPrecompile<DB> for BTCPrecompile {
+impl ContextStatefulPrecompile<DB> for BTCTxDetailsPrecompile {
     fn call(
         &self,
         bytes: &Bytes,
@@ -56,6 +58,7 @@ impl ContextStatefulPrecompile<DB> for BTCPrecompile {
         let response = get_raw_transaction(&txid);
 
         if response["error"].is_object() {
+            tracing::error!("Error: {}", response["error"]["message"]);
             return Err(PrecompileErrors::Error(Error::Other(
                 response["error"]["message"].as_str().unwrap().to_string(),
             )));
@@ -70,16 +73,25 @@ impl ContextStatefulPrecompile<DB> for BTCPrecompile {
         }
 
         let block_hash = response["blockhash"].as_str().unwrap_or("").to_string();
-        let block_height = _evmctx
+        let mut block_height = _evmctx
             .db
             .get_block_number(B256::from_str(&block_hash).unwrap_or(B256::ZERO))
             .unwrap()
             .map(|x| x.0.as_limbs()[0]);
 
         if block_height.is_none() {
-            return Err(PrecompileErrors::Error(Error::Other(
-                "Block height not found".to_string(),
-            )));
+            gas_used += GAS_PER_RPC_CALL;
+            if gas_used > gas_limit {
+                return Err(PrecompileErrors::Error(Error::OutOfGas));
+            }
+            let block_height_result = get_block_height(&block_hash);
+            if block_height_result["error"].is_object() {
+                return Err(PrecompileErrors::Error(Error::Other(
+                    "Block height not found".to_string(),
+                )));
+            }
+
+            block_height = Some(block_height_result["result"]["height"].as_u64().unwrap());
         }
 
         let block_height = U256::from(block_height.unwrap());
@@ -219,11 +231,11 @@ mod tests {
 
     #[test]
     fn test_get_tx_details_encode_params_multiple_vin_vout() {
-        let txid = "ce1d2d142eb12fa4fbbb2c361c286483e5c74ca67640496de23beb5ee56d0406";
+        let txid = "4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926";
         let data = TX_DETAILS.encode_params(&txid.to_string());
         assert_eq!(
             hex::encode(data),
-            "96327323000000000000000000000000000000000000000000000000000000000000004063653164326431343265623132666134666262623263333631633238363438336535633734636136373634303439366465323362656235656535366430343036"
+            "96327323000000000000000000000000000000000000000000000000000000000000004034313833666237333362393535336361386239333230386339316464613138626565336430623835313037323062313564373664393739616637666439393236"
         );
     }
 

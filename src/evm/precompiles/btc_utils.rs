@@ -74,3 +74,25 @@ pub fn get_raw_transaction(txid: &str) -> serde_json::Value {
 
     response.json().unwrap()
 }
+
+pub fn get_block_height(hash: &str) -> serde_json::Value {
+    let response = BTC_CLIENT
+        .post(&*BITCOIN_RPC_URL)
+        .basic_auth(&*BITCOIN_RPC_USER, Some(&*BITCOIN_RPC_PASSWORD))
+        .body(
+            format!(
+                "{{
+                \"jsonrpc\": \"1.0\",
+                \"id\": \"brc20prog\",
+                \"method\": \"getblock\",
+                \"params\": {{\"blockhash\":\"{}\", \"verbose\": true}}
+                }}",
+                hash
+            )
+            .to_string(),
+        )
+        .send()
+        .unwrap();
+
+    response.json().unwrap()
+}
