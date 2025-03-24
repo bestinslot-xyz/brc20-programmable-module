@@ -656,11 +656,11 @@ for res in results:
 
 end_time_nanos = time.time() * 1e9
 
-print("total gas:", total_gas_used, "wei")
+print("total gas:", total_gas_used)
 print("total time:", (end_time_nanos - start_time_nanos) / 1e9, "seconds")
 print("indexing time:", total_mine_tm / 1e9, "seconds")
 print("instruction count:", len(codes))
-print("average gas per instruction:", total_gas_used / len(codes), "wei")
+print("average gas per instruction:", total_gas_used / len(codes))
 print("average indexing time per instruction:", total_mine_tm / len(codes) / 1e9, "seconds")
 print("average indexing time per gas:", total_mine_tm / total_gas_used / 1e9, "seconds")
 print("RPC overhead in %:", 100 - total_mine_tm / (end_time_nanos - start_time_nanos) * 100)
