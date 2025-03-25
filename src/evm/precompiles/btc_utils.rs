@@ -77,13 +77,27 @@ pub fn get_raw_transaction(txid: &str) -> serde_json::Value {
         panic!("Failed to get raw transaction");
     }
 
-    response
-        .unwrap()
-        .body_mut()
-        .read_to_string()
-        .unwrap()
-        .parse()
-        .unwrap()
+    let mut response = response.unwrap();
+
+    if response.status() != 200 {
+        panic!("Failed to get raw transaction");
+    }
+
+    let body = response.body_mut().read_to_string();
+
+    if body.is_err() {
+        panic!("Failed to get raw transaction");
+    }
+
+    let body = body.unwrap();
+
+    let json_result = body.parse();
+
+    if json_result.is_err() {
+        panic!("Failed to get raw transaction");
+    }
+
+    json_result.unwrap()
 }
 
 pub fn get_block_height(hash: &str) -> serde_json::Value {
@@ -121,4 +135,20 @@ pub fn get_block_height(hash: &str) -> serde_json::Value {
 fn get_basic_auth_header(user: &str, pass: &str) -> String {
     let usrpw = String::from(user) + ":" + pass;
     String::from("Basic ") + &BASE64_URL_SAFE.encode(usrpw.as_bytes())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_raw_transaction() {
+        if skip_btc_tests() {
+            return;
+        }
+
+        let txid = "4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926";
+        let response = get_raw_transaction(txid);
+        assert_eq!(response["result"]["txid"].as_str().unwrap(), txid);
+    }
 }
