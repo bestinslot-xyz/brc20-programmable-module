@@ -52,7 +52,7 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
         return precompile_error(interpreter_result);
     }
 
-    if response["vout"].as_array().unwrap().len() < vout {
+    if response["vout"].as_array().unwrap().len() <= vout {
         // Vout index out of bounds
         return precompile_error(interpreter_result);
     }
@@ -117,6 +117,15 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
         return precompile_error(interpreter_result);
     }
 
+    println!(
+        "txid: {}, vout: {}, sat: {}, old_pkscript: {}, new_pkscript: {}",
+        current_vin_txid,
+        current_vin_vout,
+        total_vout_sat_count - (total_vin_sat_count - current_vin_value),
+        current_vin_script_pub_key_hex,
+        new_pkscript
+    );
+
     let bytes = LAST_SAT_LOCATION.encode_returns(&(
         current_vin_txid,
         U256::from(current_vin_vout as u64),
@@ -144,8 +153,8 @@ mod tests {
         if skip_btc_tests() {
             return;
         }
-        // https://mempool.space/testnet4/tx/cedfb4b62224a4782a4453dff73f3d48bb0d7da4d0f2238b0e949f9342de038a
-        let txid = "cedfb4b62224a4782a4453dff73f3d48bb0d7da4d0f2238b0e949f9342de038a";
+        // https://mempool.space/signet/tx/d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd
+        let txid = "d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd";
         let vout = U256::from(0u64);
         let sat = U256::from(100u64);
         let data = LAST_SAT_LOCATION.encode_params(&(txid.to_string(), vout, sat));
@@ -160,24 +169,24 @@ mod tests {
         assert_eq!(
             returns,
             (
-                "3fc5d49bad92a1bc10c9b0981f13c47600af871ddc9bac15d22d2c05b6ae80f1".to_string(),
-                U256::from(0u64),
+                "8d4bc3ac21211723436e35ffbf32a58f74fe942e0ea10936504db07afb1af7c3".to_string(),
+                U256::from(19u64),
                 U256::from(100u64),
-                "5120154a7cbf83a5ad929e224725b915ca5cd7ca7719a9ba2af90945a74e3431934d".to_string(),
-                "5120fcdc5a7bd66b4d3a8c91f1a1cf94ad7d561f3a304bf18faf5678b1ee47e783b7".to_string()
+                "51204a6041f54b8cf8b2d48c6f725cb0514e51e5e7e7ac429c33da62e98765dd62f3".to_string(),
+                "0014f477952f33561c1b89a1fe9f28682f623263e159".to_string()
             )
         );
     }
 
     #[test]
-    fn test_get_last_sat_location_encode_params_multiple_vin_vout() {
+    fn test_get_last_sat_location_multiple_vin_vout() {
         if skip_btc_tests() {
             return;
         }
-        // https://mempool.space/testnet4/tx/581f13463e6a97b07b7643dc9bf741938b43bc468a10e918e48c5b8130051d09
-        let txid = "581f13463e6a97b07b7643dc9bf741938b43bc468a10e918e48c5b8130051d09";
+        // https://mempool.space/signet/tx/4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926
+        let txid = "4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926";
         let vout = U256::from(0u64);
-        let sat = U256::from(100000u64);
+        let sat = U256::from(250000u64);
         let data = LAST_SAT_LOCATION.encode_params(&(txid.to_string(), vout, sat));
 
         // Consider mocking the RPC call to bitcoind
@@ -190,11 +199,11 @@ mod tests {
         assert_eq!(
             returns,
             (
-                "c5524694ce1664fe2e5221241177aa59c08cb96dcb063c81ef74eb6e23a1ae49".to_string(),
-                U256::from(3u64),
-                U256::from(18298u64),
-                "5120b677a96a8bcf16d9c2b9e4af022654a4398306834f04eff883886a498cd8b47c".to_string(),
-                "5120b40c065bfcc5962e1702f09de1a5d2dfc0a7236bbaf5c1672529b414b3ee4cf5".to_string()
+                "423d28032bb7b47d2df4aaa42789d9817d6419f9747fc10343c6fdf3d081ff2b".to_string(),
+                U256::from(0u64),
+                U256::from(50000u64),
+                "51205174498f5940118461b4f3006e75dfc0ff140afffc9ac9b2937791a1dc3d17d0".to_string(),
+                "512050927e29d0d61b2d0e855fd027f7dcfa8d0c7412db9bcb69aeccf34d87c8071d".to_string()
             )
         );
     }
@@ -204,8 +213,8 @@ mod tests {
         if skip_btc_tests() {
             return;
         }
-        // https://mempool.space/testnet4/tx/ee7da837ec5807d2adc116c421488120da39f3eb72c8a07ec0e09583498b3ea8
-        let txid = "ee7da837ec5807d2adc116c421488120da39f3eb72c8a07ec0e09583498b3ea8";
+        // https://mempool.space/signet/tx/3f6201e955c191e714dcf92240a9dd0eea7c65465f60e4d31f5b6e9fd2003409
+        let txid = "3f6201e955c191e714dcf92240a9dd0eea7c65465f60e4d31f5b6e9fd2003409";
         let vout = U256::from(0u64);
         let sat = U256::from(100u64);
         let data = LAST_SAT_LOCATION.encode_params(&(txid.to_string(), vout, sat));
