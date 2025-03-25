@@ -1,5 +1,6 @@
+use revm::context::result::ExecutionResult;
 use revm::primitives::alloy_primitives::logs_bloom;
-use revm::primitives::{hex, Address, Bytes, ExecutionResult, B256};
+use revm::primitives::{hex, Address, Bytes, B256};
 use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex};
 

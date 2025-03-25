@@ -2,54 +2,56 @@ use bitcoin::address::NetworkUnchecked;
 use bitcoin::key::UntweakedPublicKey;
 use bitcoin::taproot::TaprootBuilder;
 use bitcoin::{opcodes, secp256k1, Address, ScriptBuf};
-use revm::precompile::Error;
-use revm::primitives::{Bytes, PrecompileErrors, PrecompileOutput, PrecompileResult};
-use revm::{ContextStatefulPrecompile, InnerEvmContext};
+use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
+use revm::primitives::Bytes;
 use solabi::{selector, FunctionEncoder, U256};
 
-use crate::db::DB;
 use crate::evm::precompiles::btc_utils::{BITCOIN_HRP, BITCOIN_NETWORK};
-
-pub struct GetLockedPkScriptPrecompile;
 
 const GET_LOCKED_PKSCRIPT: FunctionEncoder<(String, U256), (String,)> =
     FunctionEncoder::new(selector!("getLockedPkscript(string,uint256)"));
 
-impl ContextStatefulPrecompile<DB> for GetLockedPkScriptPrecompile {
-    fn call(
-        &self,
-        bytes: &Bytes,
-        gas_limit: u64,
-        _evmctx: &mut InnerEvmContext<DB>,
-    ) -> PrecompileResult {
-        let gas_used = 20000;
-        if gas_used > gas_limit {
-            return Err(PrecompileErrors::Error(Error::OutOfGas));
-        }
-
-        let result = GET_LOCKED_PKSCRIPT.decode_params(&bytes);
-
-        if result.is_err() {
-            return Err(PrecompileErrors::Error(Error::Other(
-                "Invalid params".to_string(),
-            )));
-        }
-
-        let (pkscript, lock_block_count) = result.unwrap();
-
-        if lock_block_count == 0 || lock_block_count > U256::from(65535u32) {
-            return Err(PrecompileErrors::Error(Error::Other(
-                "Invalid lock block count".to_string(),
-            )));
-        }
-
-        let result = get_p2tr_lock_addr(&pkscript, lock_block_count.as_u32());
-
-        Ok(PrecompileOutput {
-            bytes: Bytes::from(GET_LOCKED_PKSCRIPT.encode_returns(&(result,))),
-            gas_used,
-        })
+pub fn get_locked_pkscript_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
+    let gas_used = 20000;
+    if gas_used > gas_limit {
+        return InterpreterResult::new(
+            InstructionResult::OutOfGas,
+            Bytes::new(),
+            Gas::new_spent(gas_used),
+        );
     }
+
+    let result = GET_LOCKED_PKSCRIPT.decode_params(&bytes);
+
+    if result.is_err() {
+        // Invalid params
+        return InterpreterResult::new(
+            InstructionResult::PrecompileError,
+            Bytes::new(),
+            Gas::new_spent(gas_used),
+        );
+    }
+
+    let (pkscript, lock_block_count) = result.unwrap();
+
+    if lock_block_count == 0 || lock_block_count > U256::from(65535u32) {
+        // Invalid lock block count
+        return InterpreterResult::new(
+            InstructionResult::PrecompileError,
+            Bytes::new(),
+            Gas::new_spent(gas_used),
+        );
+    }
+
+    let result = get_p2tr_lock_addr(&pkscript, lock_block_count.as_u32());
+
+    let bytes = GET_LOCKED_PKSCRIPT.encode_returns(&(result,));
+
+    InterpreterResult::new(
+        InstructionResult::Stop,
+        Bytes::from(bytes),
+        Gas::new_spent(gas_used),
+    )
 }
 
 fn get_p2tr_lock_addr(pkscript: &String, lock_block_count: u32) -> String {
@@ -127,20 +129,15 @@ mod tests {
     use solabi::U256;
 
     use super::*;
-    use crate::db::DB;
 
     #[test]
     fn test_get_locked_pkscript_six_blocks() {
-        let precompile = GetLockedPkScriptPrecompile;
-        let mut evmctx = InnerEvmContext::new(DB::default());
         let bytes = Bytes::from(GET_LOCKED_PKSCRIPT.encode_params(&(
             "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
             U256::from(6u8),
         )));
-        let result = precompile.call(&bytes, 100000, &mut evmctx);
-        assert!(result.is_ok());
-        let result = GET_LOCKED_PKSCRIPT.decode_returns(&result.unwrap().bytes.iter().as_slice());
-        assert!(result.is_ok());
+        let result = get_locked_pkscript_precompile(&bytes, 100000);
+        let result = GET_LOCKED_PKSCRIPT.decode_returns(&result.output.iter().as_slice());
         let (pkscript,) = result.unwrap();
         assert_eq!(
             pkscript,
@@ -150,16 +147,12 @@ mod tests {
 
     #[test]
     fn test_get_locked_pkscript_year_lock() {
-        let precompile = GetLockedPkScriptPrecompile;
-        let mut evmctx = InnerEvmContext::new(DB::default());
         let bytes = Bytes::from(GET_LOCKED_PKSCRIPT.encode_params(&(
             "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
             U256::from(52560u32),
         )));
-        let result = precompile.call(&bytes, 100000, &mut evmctx);
-        assert!(result.is_ok());
-        let result = GET_LOCKED_PKSCRIPT.decode_returns(&result.unwrap().bytes.iter().as_slice());
-        assert!(result.is_ok());
+        let result = get_locked_pkscript_precompile(&bytes, 100000);
+        let result = GET_LOCKED_PKSCRIPT.decode_returns(&result.output.iter().as_slice());
         let (pkscript,) = result.unwrap();
         assert_eq!(
             pkscript,
@@ -169,16 +162,12 @@ mod tests {
 
     #[test]
     fn test_get_locked_pkscript_max_lock() {
-        let precompile = GetLockedPkScriptPrecompile;
-        let mut evmctx = InnerEvmContext::new(DB::default());
         let bytes = Bytes::from(GET_LOCKED_PKSCRIPT.encode_params(&(
             "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
             U256::from(65535u32),
         )));
-        let result = precompile.call(&bytes, 100000, &mut evmctx);
-        assert!(result.is_ok());
-        let result = GET_LOCKED_PKSCRIPT.decode_returns(&result.unwrap().bytes.iter().as_slice());
-        assert!(result.is_ok());
+        let result = get_locked_pkscript_precompile(&bytes, 100000);
+        let result = GET_LOCKED_PKSCRIPT.decode_returns(&result.output.iter().as_slice());
         let (pkscript,) = result.unwrap();
         assert_eq!(
             pkscript,
@@ -188,35 +177,21 @@ mod tests {
 
     #[test]
     fn test_get_locked_pkscript_zero_lock() {
-        let precompile = GetLockedPkScriptPrecompile;
-        let mut evmctx = InnerEvmContext::new(DB::default());
         let bytes = Bytes::from(GET_LOCKED_PKSCRIPT.encode_params(&(
             "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
             U256::from(0u32),
         )));
-        let result = precompile.call(&bytes, 100000, &mut evmctx);
-        assert!(result.is_err());
-        assert!(result
-            .err()
-            .unwrap()
-            .to_string()
-            .contains("Invalid lock block count"));
+        let result = get_locked_pkscript_precompile(&bytes, 100000);
+        assert!(result.is_error());
     }
 
     #[test]
     fn test_get_locked_pkscript_max_plus_one_lock() {
-        let precompile = GetLockedPkScriptPrecompile;
-        let mut evmctx = InnerEvmContext::new(DB::default());
         let bytes = Bytes::from(GET_LOCKED_PKSCRIPT.encode_params(&(
             "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
             U256::from(65536u32),
         )));
-        let result = precompile.call(&bytes, 100000, &mut evmctx);
-        assert!(result.is_err());
-        assert!(result
-            .err()
-            .unwrap()
-            .to_string()
-            .contains("Invalid lock block count"));
+        let result = get_locked_pkscript_precompile(&bytes, 100000);
+        assert!(result.is_error());
     }
 }

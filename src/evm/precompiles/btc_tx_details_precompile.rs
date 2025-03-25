@@ -1,18 +1,10 @@
-use std::str::FromStr;
-
-use revm::precompile::Error;
-use revm::primitives::{Bytes, PrecompileErrors, PrecompileOutput, PrecompileResult, B256};
-use revm::ContextStatefulPrecompile;
+use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
+use revm::primitives::Bytes;
 use solabi::{selector, FunctionEncoder, U256};
 
-use crate::db::DB;
-use crate::evm::precompiles::btc_utils::get_raw_transaction;
-
-use super::btc_utils::get_block_height;
+use crate::evm::precompiles::btc_utils::{get_block_height, get_raw_transaction};
 
 static GAS_PER_RPC_CALL: u64 = 100000;
-
-pub struct BTCTxDetailsPrecompile;
 
 /// Signature for the getTxDetails function in the BTCPrecompile contract
 /// Uses get raw tx details from the blockchain using the json rpc and returns the details from the transaction
@@ -33,143 +25,146 @@ const TX_DETAILS: FunctionEncoder<
     ),
 > = FunctionEncoder::new(selector!("getTxDetails(string)"));
 
-impl ContextStatefulPrecompile<DB> for BTCTxDetailsPrecompile {
-    fn call(
-        &self,
-        bytes: &Bytes,
-        gas_limit: u64,
-        _evmctx: &mut revm::InnerEvmContext<DB>,
-    ) -> PrecompileResult {
-        let mut gas_used = GAS_PER_RPC_CALL;
-        if gas_used > gas_limit {
-            return Err(PrecompileErrors::Error(Error::OutOfGas));
-        }
-
-        let result = TX_DETAILS.decode_params(&bytes);
-
-        if result.is_err() {
-            return Err(PrecompileErrors::Error(Error::Other(
-                "Invalid params".to_string(),
-            )));
-        }
-
-        let txid = result.unwrap();
-
-        let response = get_raw_transaction(&txid);
-
-        if response["error"].is_object() {
-            tracing::error!("Error: {}", response["error"]["message"]);
-            return Err(PrecompileErrors::Error(Error::Other(
-                response["error"]["message"].as_str().unwrap().to_string(),
-            )));
-        }
-
-        let response = response["result"].clone();
-
-        let vin_count = response["vin"].as_array();
-        gas_used += vin_count.unwrap().len() as u64 * GAS_PER_RPC_CALL;
-        if gas_used > gas_limit {
-            return Err(PrecompileErrors::Error(Error::OutOfGas));
-        }
-
-        let block_hash = response["blockhash"].as_str().unwrap_or("").to_string();
-        let mut block_height = _evmctx
-            .db
-            .get_block_number(B256::from_str(&block_hash).unwrap_or(B256::ZERO))
-            .unwrap()
-            .map(|x| x.0.as_limbs()[0]);
-
-        if block_height.is_none() {
-            gas_used += GAS_PER_RPC_CALL;
-            if gas_used > gas_limit {
-                return Err(PrecompileErrors::Error(Error::OutOfGas));
-            }
-            let block_height_result = get_block_height(&block_hash);
-            if block_height_result["error"].is_object() {
-                return Err(PrecompileErrors::Error(Error::Other(
-                    "Block height not found".to_string(),
-                )));
-            }
-
-            block_height = Some(block_height_result["result"]["height"].as_u64().unwrap());
-        }
-
-        let block_height = U256::from(block_height.unwrap());
-
-        let mut vin_txids = Vec::new();
-        let mut vin_vouts = Vec::new();
-        let mut vin_script_pub_key_hexes = Vec::new();
-        let mut vin_values = Vec::new();
-        let mut vout_script_pub_key_hexes = Vec::new();
-        let mut vout_values = Vec::new();
-
-        for vin in response["vin"].as_array().unwrap().into_iter() {
-            let vin_txid = vin["txid"].as_str().unwrap_or("").to_string();
-            let vin_vout = vin["vout"].as_u64().unwrap_or(0);
-
-            // Get the scriptPubKey from the vin transaction, using the txid and vout
-            let vin_script_pub_key_response = get_raw_transaction(&vin_txid);
-            if vin_script_pub_key_response["error"].is_object() {
-                return Err(PrecompileErrors::Error(Error::Other(
-                    vin_script_pub_key_response["error"]["message"]
-                        .as_str()
-                        .unwrap()
-                        .to_string(),
-                )));
-            }
-
-            let vin_script_pub_key_response = vin_script_pub_key_response["result"].clone();
-            let vin_script_pub_key_hex = vin_script_pub_key_response["vout"][vin_vout as usize]
-                ["scriptPubKey"]["hex"]
-                .as_str()
-                .unwrap_or("")
-                .to_string();
-
-            let vin_value = vin_script_pub_key_response["vout"][vin_vout as usize]["value"]
-                .as_f64()
-                .unwrap_or(0.0);
-            let vin_value = (vin_value * 100000000.0) as u64;
-
-            vin_txids.push(vin_txid);
-            vin_vouts.push(U256::from(vin_vout));
-            vin_script_pub_key_hexes.push(vin_script_pub_key_hex);
-            vin_values.push(U256::from(vin_value));
-        }
-
-        for vout in response["vout"].as_array().unwrap().into_iter() {
-            let vout_script_pub_key_hex = vout["scriptPubKey"]["hex"]
-                .as_str()
-                .unwrap_or("")
-                .to_string();
-            let vout_value = vout["value"].as_f64().unwrap_or(0.0);
-            let vout_value = (vout_value * 100000000.0) as u64;
-
-            vout_script_pub_key_hexes.push(vout_script_pub_key_hex);
-            vout_values.push(U256::from(vout_value));
-        }
-
-        let bytes = TX_DETAILS.encode_returns(&(
-            U256::from(block_height),
-            vin_txids,
-            vin_vouts,
-            vin_script_pub_key_hexes,
-            vin_values,
-            vout_script_pub_key_hexes,
-            vout_values,
-        ));
-
-        Ok(PrecompileOutput {
-            bytes: Bytes::from(bytes),
-            gas_used,
-        })
+pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
+    let mut gas_used = GAS_PER_RPC_CALL;
+    if gas_used > gas_limit {
+        return InterpreterResult::new(
+            InstructionResult::OutOfGas,
+            Bytes::new(),
+            Gas::new_spent(gas_used),
+        );
     }
+
+    let result = TX_DETAILS.decode_params(&bytes);
+
+    if result.is_err() {
+        // Invalid params
+        return InterpreterResult::new(
+            InstructionResult::PrecompileError,
+            Bytes::new(),
+            Gas::new_spent(gas_used),
+        );
+    }
+
+    let txid = result.unwrap();
+
+    let response = get_raw_transaction(&txid);
+
+    if response["error"].is_object() {
+        tracing::error!("Error: {}", response["error"]["message"]);
+        return InterpreterResult::new(
+            InstructionResult::PrecompileError,
+            Bytes::new(),
+            Gas::new_spent(gas_used),
+        );
+    }
+
+    let response = response["result"].clone();
+
+    let vin_count = response["vin"].as_array();
+    gas_used += vin_count.unwrap().len() as u64 * GAS_PER_RPC_CALL;
+    if gas_used > gas_limit {
+        return InterpreterResult::new(
+            InstructionResult::OutOfGas,
+            Bytes::new(),
+            Gas::new_spent(gas_used),
+        );
+    }
+
+    let block_hash = response["blockhash"].as_str().unwrap_or("").to_string();
+
+    gas_used += GAS_PER_RPC_CALL;
+    if gas_used > gas_limit {
+        return InterpreterResult::new(
+            InstructionResult::OutOfGas,
+            Bytes::new(),
+            Gas::new_spent(gas_used),
+        );
+    }
+    let block_height_result = get_block_height(&block_hash);
+    if block_height_result["error"].is_object() {
+        return InterpreterResult::new(
+            InstructionResult::PrecompileError,
+            Bytes::new(),
+            Gas::new_spent(gas_used),
+        );
+    }
+
+    let block_height = Some(block_height_result["result"]["height"].as_u64().unwrap());
+
+    let block_height = U256::from(block_height.unwrap());
+
+    let mut vin_txids = Vec::new();
+    let mut vin_vouts = Vec::new();
+    let mut vin_script_pub_key_hexes = Vec::new();
+    let mut vin_values = Vec::new();
+    let mut vout_script_pub_key_hexes = Vec::new();
+    let mut vout_values = Vec::new();
+
+    for vin in response["vin"].as_array().unwrap().into_iter() {
+        let vin_txid = vin["txid"].as_str().unwrap_or("").to_string();
+        let vin_vout = vin["vout"].as_u64().unwrap_or(0);
+
+        // Get the scriptPubKey from the vin transaction, using the txid and vout
+        let vin_script_pub_key_response = get_raw_transaction(&vin_txid);
+        if vin_script_pub_key_response["error"].is_object() {
+            return InterpreterResult::new(
+                InstructionResult::PrecompileError,
+                Bytes::new(),
+                Gas::new_spent(gas_used),
+            );
+        }
+
+        let vin_script_pub_key_response = vin_script_pub_key_response["result"].clone();
+        let vin_script_pub_key_hex = vin_script_pub_key_response["vout"][vin_vout as usize]
+            ["scriptPubKey"]["hex"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+
+        let vin_value = vin_script_pub_key_response["vout"][vin_vout as usize]["value"]
+            .as_f64()
+            .unwrap_or(0.0);
+        let vin_value = (vin_value * 100000000.0) as u64;
+
+        vin_txids.push(vin_txid);
+        vin_vouts.push(U256::from(vin_vout));
+        vin_script_pub_key_hexes.push(vin_script_pub_key_hex);
+        vin_values.push(U256::from(vin_value));
+    }
+
+    for vout in response["vout"].as_array().unwrap().into_iter() {
+        let vout_script_pub_key_hex = vout["scriptPubKey"]["hex"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+        let vout_value = vout["value"].as_f64().unwrap_or(0.0);
+        let vout_value = (vout_value * 100000000.0) as u64;
+
+        vout_script_pub_key_hexes.push(vout_script_pub_key_hex);
+        vout_values.push(U256::from(vout_value));
+    }
+
+    let bytes = TX_DETAILS.encode_returns(&(
+        U256::from(block_height),
+        vin_txids,
+        vin_vouts,
+        vin_script_pub_key_hexes,
+        vin_values,
+        vout_script_pub_key_hexes,
+        vout_values,
+    ));
+
+    InterpreterResult::new(
+        InstructionResult::Stop,
+        Bytes::from(bytes),
+        Gas::new_spent(gas_used),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use solabi::U256;
-
-    use crate::evm::precompiles::btc_utils::skip_btc_tests;
 
     use super::*;
 
@@ -185,9 +180,6 @@ mod tests {
 
     #[test]
     fn test_get_tx_details_decode_returns_single_vin_vout() {
-        if skip_btc_tests() {
-            return;
-        }
         // https://mempool.space/testnet4/tx/cedfb4b62224a4782a4453dff73f3d48bb0d7da4d0f2238b0e949f9342de038a
         let data = "0000000000000000000000000000000000000000000000000000000000011f2d00000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000001c0000000000000000000000000000000000000000000000000000000000000028000000000000000000000000000000000000000000000000000000000000002c000000000000000000000000000000000000000000000000000000000000003800000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000403366633564343962616439326131626331306339623039383166313363343736303061663837316464633962616331356432326432633035623661653830663100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000044353132303135346137636266383361356164393239653232343732356239313563613563643763613737313961396261326166393039343561373465333433313933346400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001e70000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000443531323066636463356137626436366234643361386339316631613163663934616437643536316633613330346266313866616635363738623165653437653738336237000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000014a";
         let (
@@ -241,9 +233,6 @@ mod tests {
 
     #[test]
     fn test_get_tx_details_decode_returns_multiple_vin_vout() {
-        if skip_btc_tests() {
-            return;
-        }
         // https://mempool.space/testnet4/tx/ce1d2d142eb12fa4fbbb2c361c286483e5c74ca67640496de23beb5ee56d0406
         let data = "0000000000000000000000000000000000000000000000000000000000011d7600000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000028000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000058000000000000000000000000000000000000000000000000000000000000007e00000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000000403162613331333332323662313866313865636339653333333539613063356131323433323033613734666334666466383839386639653730396138323630616100000000000000000000000000000000000000000000000000000000000000406561326135353337343733336433633336313432373235623366343538353762663464373862323931353365613464636466386162356238383062343934663800000000000000000000000000000000000000000000000000000000000000406233663138663062343139656335653435323731363737373633343930656637626532653662346264353531396462613932346564316333316537383764346400000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000004435313230353436656231386135643435396262353964393637396665386638643539386662663735363862663035636464613361663662323631386238666438633366340000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000443531323035343665623138613564343539626235396439363739666538663864353938666266373536386266303563646461336166366232363138623866643863336634000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044353132303534366562313861356434353962623539643936373966653866386435393866626637353638626630356364646133616636623236313862386664386333663400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000002220000000000000000000000000000000000000000000000000000000000000222000000000000000000000000000000000000000000000000000000000012cb220000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001c0000000000000000000000000000000000000000000000000000000000000001c36613564306231363031303065393964303431656633383436613032000000000000000000000000000000000000000000000000000000000000000000000044353132303534366562313861356434353962623539643936373966653866386435393866626637353638626630356364646133616636623236313862386664386333663400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004435313230623430633036356266636335393632653137303266303964653161356432646663306137323336626261663563313637323532396234313462336565346366350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000443531323035343665623138613564343539626235396439363739666538663864353938666266373536386266303563646461336166366232363138623866643863336634000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002220000000000000000000000000000000000000000000000000000000000000222000000000000000000000000000000000000000000000000000000000012b211";
         let (

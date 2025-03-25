@@ -1,14 +1,10 @@
-use revm::precompile::Error;
-use revm::primitives::{Bytes, PrecompileErrors, PrecompileOutput, PrecompileResult};
-use revm::ContextStatefulPrecompile;
+use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
+use revm::primitives::Bytes;
 use solabi::{selector, FunctionEncoder, U256};
 
-use crate::db::DB;
 use crate::evm::precompiles::btc_utils::get_raw_transaction;
 
 static GAS_PER_RPC_CALL: u64 = 100000;
-
-pub struct LastSatLocationPrecompile;
 
 /// Signature for the getLastSatLocation function in the LastSatLocationPrecompile contract
 /// Uses bitcoin rpc to get the transaction details for the given txid
@@ -21,129 +17,148 @@ const LAST_SAT_LOCATION: FunctionEncoder<
     (String, U256, U256, String, String),
 > = FunctionEncoder::new(selector!("getLastSatLocation(string, uint256, uint256)"));
 
-impl ContextStatefulPrecompile<DB> for LastSatLocationPrecompile {
-    fn call(
-        &self,
-        bytes: &Bytes,
-        gas_limit: u64,
-        _evmctx: &mut revm::InnerEvmContext<DB>,
-    ) -> PrecompileResult {
-        let result = LAST_SAT_LOCATION.decode_params(&bytes);
+pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
+    let result = LAST_SAT_LOCATION.decode_params(&bytes);
 
-        if result.is_err() {
-            return Err(PrecompileErrors::Error(Error::Other(
-                "Invalid params".to_string(),
-            )));
-        }
-
-        let (txid, vout, sat) = result.unwrap();
-
-        let vout = vout.as_u64() as usize;
-        let sat = sat.as_u64();
-
-        let mut gas_used = GAS_PER_RPC_CALL;
-        if gas_used > gas_limit {
-            return Err(PrecompileErrors::Error(Error::OutOfGas));
-        }
-        let response = get_raw_transaction(&txid);
-
-        if response["error"].is_object() {
-            return Err(PrecompileErrors::Error(Error::Other(
-                response["error"]["message"].as_str().unwrap().to_string(),
-            )));
-        }
-
-        let response = response["result"].clone();
-
-        if response["vin"][0]["coinbase"].is_string() {
-            return Err(PrecompileErrors::Error(Error::Other(
-                "Coinbase transactions not supported".to_string(),
-            )));
-        }
-
-        if response["vout"].as_array().unwrap().len() < vout {
-            return Err(PrecompileErrors::Error(Error::Other(
-                "Vout index out of bounds".to_string(),
-            )));
-        }
-
-        if to_sats(response["vout"][vout]["value"].as_f64().unwrap()) < sat {
-            return Err(PrecompileErrors::Error(Error::Other(
-                "Sat value out of bounds".to_string(),
-            )));
-        }
-
-        let new_pkscript = response["vout"][vout]["scriptPubKey"]["hex"]
-            .as_str()
-            .unwrap();
-
-        let mut total_vout_sat_count = 0;
-        let mut current_vout_index = 0;
-        while current_vout_index < vout {
-            let value = to_sats(
-                response["vout"][current_vout_index]["value"]
-                    .as_f64()
-                    .unwrap(),
-            );
-            total_vout_sat_count += value;
-            current_vout_index += 1;
-        }
-        total_vout_sat_count += sat;
-
-        let mut total_vin_sat_count = 0;
-        let mut current_vin_index = 0;
-        let mut current_vin_txid = "".to_string();
-        let mut current_vin_vout = 0;
-        let mut current_vin_script_pub_key_hex = "".to_string();
-        let mut current_vin_value = 0;
-        let vin_count = response["vin"].as_array().unwrap().len();
-        while total_vin_sat_count < total_vout_sat_count && current_vin_index < vin_count {
-            current_vin_txid = response["vin"][current_vin_index]["txid"]
-                .as_str()
-                .unwrap()
-                .to_string();
-            current_vin_vout =
-                response["vin"][current_vin_index]["vout"].as_u64().unwrap() as usize;
-            gas_used += GAS_PER_RPC_CALL;
-            if gas_used > gas_limit {
-                return Err(PrecompileErrors::Error(Error::OutOfGas));
-            }
-            let vin_response = get_raw_transaction(&current_vin_txid);
-            let vin_response = vin_response["result"].clone();
-            current_vin_script_pub_key_hex = vin_response["vout"][current_vin_vout]["scriptPubKey"]
-                ["hex"]
-                .as_str()
-                .unwrap()
-                .to_string();
-            current_vin_value = to_sats(
-                vin_response["vout"][current_vin_vout]["value"]
-                    .as_f64()
-                    .unwrap(),
-            );
-
-            total_vin_sat_count += current_vin_value;
-            current_vin_index += 1;
-        }
-
-        if total_vin_sat_count < total_vout_sat_count {
-            return Err(PrecompileErrors::Error(Error::Other(
-                "Insufficient satoshis in vin".to_string(),
-            )));
-        }
-
-        let bytes = LAST_SAT_LOCATION.encode_returns(&(
-            current_vin_txid,
-            U256::from(current_vin_vout as u64),
-            U256::from(total_vout_sat_count - (total_vin_sat_count - current_vin_value)),
-            current_vin_script_pub_key_hex,
-            new_pkscript.to_string(),
-        ));
-
-        Ok(PrecompileOutput {
-            bytes: Bytes::from(bytes),
-            gas_used,
-        })
+    if result.is_err() {
+        // Invalid params
+        return InterpreterResult::new(
+            InstructionResult::PrecompileError,
+            Bytes::new(),
+            Gas::new(0),
+        );
     }
+
+    let (txid, vout, sat) = result.unwrap();
+
+    let vout = vout.as_u64() as usize;
+    let sat = sat.as_u64();
+
+    let mut gas_used = GAS_PER_RPC_CALL;
+    if gas_used > gas_limit {
+        return InterpreterResult::new(
+            InstructionResult::OutOfGas,
+            Bytes::new(),
+            Gas::new(gas_used),
+        );
+    }
+    let response = get_raw_transaction(&txid);
+
+    if response["error"].is_object() {
+        // Transaction not found
+        return InterpreterResult::new(
+            InstructionResult::PrecompileError,
+            Bytes::new(),
+            Gas::new(gas_used),
+        );
+    }
+
+    let response = response["result"].clone();
+
+    if response["vin"][0]["coinbase"].is_string() {
+        // Coinbase transactions are not supported
+        return InterpreterResult::new(
+            InstructionResult::PrecompileError,
+            Bytes::new(),
+            Gas::new(gas_used),
+        );
+    }
+
+    if response["vout"].as_array().unwrap().len() < vout {
+        // Vout index out of bounds
+        return InterpreterResult::new(
+            InstructionResult::PrecompileError,
+            Bytes::new(),
+            Gas::new(gas_used),
+        );
+    }
+
+    if to_sats(response["vout"][vout]["value"].as_f64().unwrap()) < sat {
+        // Sat value out of bounds
+        return InterpreterResult::new(
+            InstructionResult::PrecompileError,
+            Bytes::new(),
+            Gas::new(gas_used),
+        );
+    }
+
+    let new_pkscript = response["vout"][vout]["scriptPubKey"]["hex"]
+        .as_str()
+        .unwrap();
+
+    let mut total_vout_sat_count = 0;
+    let mut current_vout_index = 0;
+    while current_vout_index < vout {
+        let value = to_sats(
+            response["vout"][current_vout_index]["value"]
+                .as_f64()
+                .unwrap(),
+        );
+        total_vout_sat_count += value;
+        current_vout_index += 1;
+    }
+    total_vout_sat_count += sat;
+
+    let mut total_vin_sat_count = 0;
+    let mut current_vin_index = 0;
+    let mut current_vin_txid = "".to_string();
+    let mut current_vin_vout = 0;
+    let mut current_vin_script_pub_key_hex = "".to_string();
+    let mut current_vin_value = 0;
+    let vin_count = response["vin"].as_array().unwrap().len();
+    while total_vin_sat_count < total_vout_sat_count && current_vin_index < vin_count {
+        current_vin_txid = response["vin"][current_vin_index]["txid"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        current_vin_vout = response["vin"][current_vin_index]["vout"].as_u64().unwrap() as usize;
+        gas_used += GAS_PER_RPC_CALL;
+        if gas_used > gas_limit {
+            return InterpreterResult::new(
+                InstructionResult::OutOfGas,
+                Bytes::new(),
+                Gas::new(gas_used),
+            );
+        }
+        let vin_response = get_raw_transaction(&current_vin_txid);
+        let vin_response = vin_response["result"].clone();
+        current_vin_script_pub_key_hex = vin_response["vout"][current_vin_vout]["scriptPubKey"]
+            ["hex"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        current_vin_value = to_sats(
+            vin_response["vout"][current_vin_vout]["value"]
+                .as_f64()
+                .unwrap(),
+        );
+
+        total_vin_sat_count += current_vin_value;
+        current_vin_index += 1;
+    }
+
+    if total_vin_sat_count < total_vout_sat_count {
+        // Insufficient satoshis in vin
+        return InterpreterResult::new(
+            InstructionResult::PrecompileError,
+            Bytes::new(),
+            Gas::new(gas_used),
+        );
+    }
+
+    let bytes = LAST_SAT_LOCATION.encode_returns(&(
+        current_vin_txid,
+        U256::from(current_vin_vout as u64),
+        U256::from(total_vout_sat_count - (total_vin_sat_count - current_vin_value)),
+        current_vin_script_pub_key_hex,
+        new_pkscript.to_string(),
+    ));
+
+    InterpreterResult::new(
+        InstructionResult::Stop,
+        Bytes::from(bytes),
+        Gas::new(gas_used),
+    )
 }
 
 fn to_sats(btc_value: f64) -> u64 {
@@ -152,13 +167,10 @@ fn to_sats(btc_value: f64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use revm::{ContextStatefulPrecompile, InnerEvmContext};
     use solabi::U256;
 
     use super::*;
-    use crate::db;
     use crate::evm::precompiles::btc_utils::skip_btc_tests;
-    use crate::evm::precompiles::LastSatLocationPrecompile;
 
     #[test]
     fn test_get_last_sat_location_encode_params_single_vin_vout() {
@@ -172,16 +184,11 @@ mod tests {
         let data = LAST_SAT_LOCATION.encode_params(&(txid.to_string(), vout, sat));
 
         // Consider mocking the RPC call to bitcoind
-        let precompile = LastSatLocationPrecompile;
-        let result = precompile.call(
-            &data.into(),
-            1000000,
-            &mut InnerEvmContext::new(db::DB::default()),
-        );
-        let result = result.unwrap();
-        let returns = LAST_SAT_LOCATION.decode_returns(&result.bytes).unwrap();
+        let result = last_sat_location_precompile(&data.into(), 1000000);
+        let result = result;
+        let returns = LAST_SAT_LOCATION.decode_returns(&result.output).unwrap();
 
-        assert_eq!(result.gas_used, 200000);
+        assert_eq!(result.gas.spent(), 200000);
 
         assert_eq!(
             returns,
@@ -207,16 +214,11 @@ mod tests {
         let data = LAST_SAT_LOCATION.encode_params(&(txid.to_string(), vout, sat));
 
         // Consider mocking the RPC call to bitcoind
-        let precompile = LastSatLocationPrecompile;
-        let result = precompile.call(
-            &data.into(),
-            10000000,
-            &mut InnerEvmContext::new(db::DB::default()),
-        );
-        let result = result.unwrap();
-        let returns = LAST_SAT_LOCATION.decode_returns(&result.bytes).unwrap();
+        let result = last_sat_location_precompile(&data.into(), 10000000);
+        let result = result;
+        let returns = LAST_SAT_LOCATION.decode_returns(&result.output).unwrap();
 
-        assert_eq!(result.gas_used, 400000);
+        assert_eq!(result.gas.spent(), 400000);
 
         assert_eq!(
             returns,
@@ -242,14 +244,8 @@ mod tests {
         let data = LAST_SAT_LOCATION.encode_params(&(txid.to_string(), vout, sat));
 
         // Consider mocking the RPC call to bitcoind
-        let precompile = LastSatLocationPrecompile;
-        let result = precompile.call(
-            &data.into(),
-            1000000,
-            &mut InnerEvmContext::new(db::DB::default()),
-        );
-        let result = result.unwrap_err();
+        let result = last_sat_location_precompile(&data.into(), 1000000);
 
-        assert_eq!(result.to_string(), "Coinbase transactions not supported");
+        assert!(result.is_error());
     }
 }

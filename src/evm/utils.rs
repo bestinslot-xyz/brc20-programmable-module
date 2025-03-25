@@ -1,6 +1,12 @@
-use revm::primitives::{
-    Address, ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason,
-};
+use revm::context::result::{ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason};
+use revm::primitives::{keccak256, Address};
+
+pub fn get_evm_address(btc_pkscript: &str) -> Address {
+    let mut address = [0u8; 20];
+    let pkscript = keccak256(btc_pkscript);
+    address.copy_from_slice(&pkscript[12..32]);
+    Address::from_slice(&address)
+}
 
 pub fn get_result_type(result: &ExecutionResult) -> String {
     match result {
@@ -51,6 +57,9 @@ pub fn get_result_reason(result: &ExecutionResult) -> String {
             HaltReason::OutOfGas(OutOfGasError::InvalidOperand) => {
                 "OutOfGas::InvalidOperand".to_string()
             }
+            HaltReason::OutOfGas(OutOfGasError::ReentrancySentry) => {
+                "OutOfGas::ReentrancySentry".to_string()
+            }
             HaltReason::OpcodeNotFound => "OpcodeNotFound".to_string(),
             HaltReason::InvalidFEOpcode => "InvalidFEOpcode".to_string(),
             HaltReason::InvalidJump => "InvalidJump".to_string(),
@@ -71,7 +80,7 @@ pub fn get_result_reason(result: &ExecutionResult) -> String {
             HaltReason::CallTooDeep => "CallTooDeep".to_string(),
             HaltReason::EofAuxDataOverflow => "EofAuxDataOverflow".to_string(),
             HaltReason::EofAuxDataTooSmall => "EofAuxDataTooSmall".to_string(),
-            HaltReason::EOFFunctionStackOverflow => "EOFFunctionStackOverflow".to_string(),
+            HaltReason::SubRoutineStackOverflow => "SubRoutineStackOverflow".to_string(),
             HaltReason::InvalidEXTCALLTarget => "InvalidEXTCALLTarget".to_string(),
         },
     }
@@ -97,5 +106,22 @@ pub fn get_contract_address(result: &ExecutionResult) -> Option<Address> {
             gas_used: _,
             reason: _,
         } => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn test_get_evm_address() {
+        let btc_pkscript = "76a914f1b8e7e4f3f1f2f1e1f1f1f1f1f1f1f1f1f1f1f188ac";
+        let evm_address = get_evm_address(btc_pkscript);
+        assert_eq!(
+            Address::from_str("0x1f8d3be98dcc4ebb8ae2a46456d3b2754a89283a").unwrap(),
+            evm_address,
+        );
     }
 }

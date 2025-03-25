@@ -1,53 +1,56 @@
 use bip322::verify_simple_encoded;
-use revm::precompile::Error;
-use revm::primitives::{Bytes, PrecompileErrors, PrecompileOutput, PrecompileResult};
-use revm::{ContextStatefulPrecompile, InnerEvmContext};
+use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
+use revm::primitives::Bytes;
 use solabi::{selector, FunctionEncoder};
-
-use crate::db::DB;
-
-pub struct BIP322Precompile;
 
 const VERIFY: FunctionEncoder<(String, String, String), (bool,)> =
     FunctionEncoder::new(selector!("verify(string,string,string)"));
 
-impl ContextStatefulPrecompile<DB> for BIP322Precompile {
-    fn call(
-        &self,
-        bytes: &Bytes,
-        gas_limit: u64,
-        _evmctx: &mut InnerEvmContext<DB>,
-    ) -> PrecompileResult {
-        let gas_used = 20000;
-        let result = VERIFY.decode_params(&bytes);
+pub fn bip322_verify_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
+    let gas_used = 20000;
+    let result = VERIFY.decode_params(&bytes);
 
-        if result.is_err() {
-            return Err(PrecompileErrors::Error(Error::Other(
-                "Invalid params".to_string(),
-            )));
+    if result.is_err() {
+        return InterpreterResult::new(
+            InstructionResult::PrecompileError,
+            Bytes::new(),
+            Gas::new(gas_used),
+        );
+    }
+
+    let (address, message, signature) = result.unwrap();
+    let result = verify_simple_encoded(&address, &message, &signature);
+
+    if gas_used > gas_limit {
+        return InterpreterResult::new(
+            InstructionResult::OutOfGas,
+            Bytes::new(),
+            Gas::new(gas_used),
+        );
+    }
+
+    match result {
+        Ok(_) => {
+            let bytes = VERIFY.encode_returns(&(true,));
+            InterpreterResult::new(
+                InstructionResult::Stop,
+                Bytes::from(bytes),
+                Gas::new(gas_used),
+            )
         }
-
-        let (address, message, signature) = result.unwrap();
-        let result = verify_simple_encoded(&address, &message, &signature);
-
-        if gas_used > gas_limit {
-            return Err(PrecompileErrors::Error(Error::OutOfGas));
-        }
-
-        Ok(PrecompileOutput {
-            bytes: Bytes::from(VERIFY.encode_returns(&(result.is_ok(),))),
-            gas_used,
-        })
+        Err(_) => InterpreterResult::new(
+            InstructionResult::PrecompileError,
+            Bytes::new(),
+            Gas::new(gas_used),
+        ),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use revm::primitives::Bytes;
-    use revm::{ContextStatefulPrecompile, InnerEvmContext};
 
     use super::*;
-    use crate::db::DB;
 
     #[test]
     fn test_verify() {
@@ -57,18 +60,10 @@ mod tests {
 
         let signature = bip322::sign_simple_encoded(&address, &message, &wif_private_key).unwrap();
 
-        let precompile = BIP322Precompile {};
-
         let bytes = VERIFY.encode_params(&(address.to_string(), message.to_string(), signature));
 
-        let result = precompile
-            .call(
-                &Bytes::from_iter(bytes.iter()),
-                1000000,
-                &mut InnerEvmContext::new(DB::default()),
-            )
-            .unwrap();
-        let (success,) = VERIFY.decode_returns(&result.bytes).unwrap();
+        let result = bip322_verify_precompile(&Bytes::from_iter(bytes.iter()), 1000000);
+        let (success,) = VERIFY.decode_returns(&result.output).unwrap();
 
         assert!(success);
     }
