@@ -10,7 +10,8 @@ hex = "0.4.3"
 jsonrpsee = { version = "0.24.8", features = [ "server", "macros", "jsonrpsee-core", "jsonrpsee-types" ] }
 lazy_static = "1.5.0"
 reqwest = { version = "0.12.12", features = [ "blocking", "json" ] }
-revm = "19.4.0"
+revm = "20.0.0"
+revm-state = "1.0.0"
 rlimit = "0.10.2"
 rocksdb = "0.23.0"
 rs_merkle = "1.4.2"
@@ -24,7 +25,7 @@ tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 
 [dev-dependencies]
-tempfile = "3.16.0"
+tempfile = "3.19.1"
 
 [profile.release]
 debug = true

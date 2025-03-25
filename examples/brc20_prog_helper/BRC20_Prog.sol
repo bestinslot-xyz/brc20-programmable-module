@@ -173,4 +173,13 @@ contract BRC20_Prog {
         require(success, "Failed to get locked pkscript");
         return abi.decode(data, (string));
     }
+
+    /**
+     * @dev Sha256 hash of a given message. For testing precompiles.
+     */
+    function getSha256(string calldata message) external view returns (bytes32) {
+        (bool success, bytes memory data) = address(0x02).staticcall(abi.encodePacked(message));
+        require(success, "Failed to get SHA256");
+        return abi.decode(data, (bytes32));
+    }
 }

@@ -14,6 +14,6 @@ mod get_locked_pkscript_precompile;
 pub use get_locked_pkscript_precompile::*;
 
 mod precompiles;
-pub use precompiles::load_precompiles;
+pub use precompiles::*;
 
 mod btc_utils;

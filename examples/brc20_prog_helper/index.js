@@ -113,6 +113,15 @@ async function main() {
             d: contract_factory.interface.encodeFunctionData("getLockedPkscript", [btc_tx_id, lock_block_count]),
         }
     ), function (_) { });
+
+    fs.writeFile('output/BRC20_Prog_get_sha_256_tx.json', JSON.stringify(
+        {
+            p: "brc20-prog",
+            op: "call",
+            c: "REPLACE_THIS_WITH_CONTRACT_ADDRESS",
+            d: contract_factory.interface.encodeFunctionData("getSha256", [message.toString('hex')]),
+        }
+    ), function (_) { });
 }
 
 main()

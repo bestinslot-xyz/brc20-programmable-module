@@ -233,7 +233,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::{AccountInfo, Address, B256, U256};
+    use revm::primitives::{Address, B256, U256};
+    use revm_state::AccountInfo;
     use tempfile::TempDir;
 
     use crate::db::cached_database::{

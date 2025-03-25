@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use revm::primitives::alloy_primitives::Bytes;
-use revm::primitives::Bytecode;
+use revm_state::Bytecode;
 use serde::Serialize;
 
 use crate::db::types::{Decode, Encode};
@@ -38,7 +38,7 @@ impl Decode for BytecodeED {
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::{Bytecode, Bytes};
+    use revm::primitives::Bytes;
 
     use super::*;
 

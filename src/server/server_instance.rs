@@ -1,18 +1,19 @@
 use std::sync::Mutex;
 use std::time::Instant;
 
+use revm::context::result::ExecutionResult;
+use revm::context::{BlockEnv, ContextTr, TransactTo};
+use revm::handler::{EvmTr, ExecuteCommitEvm};
 use revm::primitives::alloy_primitives::logs_bloom;
-use revm::primitives::{Address, BlockEnv, Bytes, ExecutionResult, TransactTo, B256, U256};
-use revm::Database;
+use revm::primitives::{Address, Bytes, B256, U256};
+use revm::{Database, ExecuteEvm};
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
 use crate::db::types::{
     AddressED, BlockResponseED, Decode, LogED, LogResponseED, TxED, TxReceiptED, B2048ED, B256ED,
 };
 use crate::db::{DB, MAX_HISTORY_SIZE};
-use crate::evm::{
-    get_contract_address, get_evm, get_result_reason, get_result_type, modify_evm_with_tx_env,
-};
+use crate::evm::{get_contract_address, get_evm, get_result_reason, get_result_type};
 use crate::server::types::{get_tx_hash, TxInfo};
 
 pub struct LastBlockInfo {
@@ -179,11 +180,8 @@ impl ServerInstance {
         }
 
         let block_info: BlockEnv = BlockEnv {
-            number: U256::from_limbs([0, 0, 0, block_number]),
-            coinbase: "0x0000000000000000000000000000000000003Ca6"
-                .parse()
-                .unwrap(),
-            timestamp: U256::from(timestamp),
+            number: block_number,
+            timestamp: timestamp,
             ..Default::default()
         };
 
@@ -206,18 +204,30 @@ impl ServerInstance {
                 "Adding tx 0x{:x} ({}) from: {:?} to: {:?} with data: {:?}",
                 tx_idx, tx_idx, tx_info.from, tx_info.to, tx_info.data
             );
-            evm = modify_evm_with_tx_env(
-                evm,
-                tx_info.from,
-                tx_info
+
+            let start_time = Instant::now();
+
+            evm.ctx().modify_tx(|tx| {
+                tx.chain_id = Some(331337);
+                tx.caller = tx_info.from;
+                tx.kind = tx_info
                     .to
                     .map(|x| TransactTo::Call(x))
-                    .unwrap_or(TransactTo::Create),
-                tx_info.data.clone(),
-            );
+                    .unwrap_or(TransactTo::Create);
+                tx.data = tx_info.data.clone();
+                tx.nonce = nonce;
+            });
 
-            output = Some(evm.transact_commit().unwrap());
-            core::mem::swap(&mut *db, &mut evm.context.evm.db);
+            let tx = evm.ctx().tx().clone();
+            output = Some(evm.transact_commit(tx).unwrap());
+
+            println!(
+                "Tx 0x{:x} ({}) took {}ms",
+                tx_idx,
+                tx_idx,
+                start_time.elapsed().as_millis()
+            );
+            core::mem::swap(&mut *db, &mut evm.ctx().db());
         }
 
         let output = output.unwrap();
@@ -449,12 +459,9 @@ impl ServerInstance {
 
         let number = self.get_latest_block_height() + 1;
 
-        let timestamp = U256::from(std::time::UNIX_EPOCH.elapsed().unwrap().as_secs());
+        let timestamp = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
         let block_info: BlockEnv = BlockEnv {
-            number: U256::from_limbs([0, 0, 0, number]),
-            coinbase: "0x0000000000000000000000000000000000003Ca6"
-                .parse()
-                .unwrap(),
+            number,
             timestamp,
             ..Default::default()
         };
@@ -467,18 +474,22 @@ impl ServerInstance {
             let mut db = self.db_mutex.lock().unwrap();
             let db_moved = core::mem::take(&mut *db);
             let mut evm = get_evm(block_info, db_moved, None);
-            evm = modify_evm_with_tx_env(
-                evm,
-                tx_info.from,
-                tx_info
+
+            evm.ctx().modify_tx(|tx| {
+                tx.chain_id = Some(331337);
+                tx.caller = tx_info.from;
+                tx.kind = tx_info
                     .to
                     .map(|x| TransactTo::Call(x))
-                    .unwrap_or(TransactTo::Create),
-                tx_info.data.clone(),
-            );
+                    .unwrap_or(TransactTo::Create);
+                tx.data = tx_info.data.clone();
+                tx.nonce = nonce;
+            });
 
-            output = evm.transact().map(|x| x.result);
-            core::mem::swap(&mut *db, &mut evm.context.evm.db);
+            let tx = evm.ctx().tx().clone();
+
+            output = evm.transact(tx).map(|x| x.result);
+            core::mem::swap(&mut *db, &mut evm.ctx().db());
         }
 
         if output.is_err() {

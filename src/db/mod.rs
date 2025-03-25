@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 use std::error::Error;
+use std::fmt::Display;
 use std::path::Path;
 
 use cached_database::BlockDatabase;
+use revm::context::result::ExecutionResult;
+use revm::context::DBErrorMarker;
 use revm::primitives::alloy_primitives::{Bloom, U128, U64};
-use revm::primitives::db::{Database as DatabaseTrait, DatabaseCommit};
 use revm::primitives::ruint::aliases::U256;
-use revm::primitives::{
-    Account, AccountInfo, Address, Bytecode, Bytes, ExecutionResult, FixedBytes, B256,
-};
+use revm::primitives::{Address, Bytes, FixedBytes, B256};
+use revm::{Database as DatabaseTrait, DatabaseCommit};
+use revm_state::{Account, AccountInfo, Bytecode};
 
 mod cached_database;
 use cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
@@ -778,37 +780,58 @@ impl DB {
     }
 }
 
+#[derive(Debug)]
+pub struct DBError(Box<dyn Error>);
+
+impl DBErrorMarker for DBError {}
+
+impl Display for DBError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "DBError: {}", self.0)
+    }
+}
+
+impl Error for DBError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Some(&*self.0)
+    }
+}
+
 impl DatabaseTrait for DB {
-    type Error = Box<dyn Error>;
+    type Error = DBError;
 
     /// Get basic account information.
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        let res = self.get_account_info(address)?;
-
-        if res.is_some() {
-            let mut res = res.unwrap().0;
-            res.code = Some(self.code_by_hash(res.code_hash).unwrap());
-            Ok(Some(res))
-        } else {
-            Ok(None)
-        }
+        let res = self.get_account_info(address);
+        res.map(|x| {
+            x.map(|x| {
+                let mut account_info = x.0;
+                account_info.code = Some(self.code_by_hash(account_info.code_hash).unwrap());
+                account_info
+            })
+        })
+        .map_err(|x| DBError(x))
     }
 
     /// Get account code by its hash.
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
         self.get_code(code_hash)
             .map(|x| x.unwrap_or(BytecodeED(Bytecode::new())).0)
+            .map_err(|x| DBError(x))
     }
 
     /// Get storage value of address at index.
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         self.get_account_memory(address, index)
             .map(|x| x.unwrap_or(U256ED::from_u256(U256::ZERO)).0)
+            .map_err(|x| DBError(x))
     }
 
     /// Get block hash by block number.
     fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
-        self.get_block_hash(number).map(|x| x.unwrap_or(B256::ZERO))
+        self.get_block_hash(number)
+            .map(|x| x.unwrap_or(B256::ZERO))
+            .map_err(|x| DBError(x))
     }
 }
 
@@ -843,7 +866,8 @@ impl DatabaseCommit for DB {
 /// Tests for all set and get methods
 #[cfg(test)]
 mod tests {
-    use revm::primitives::{Address, Bytes, Output, SuccessReason};
+    use revm::context::result::{Output, SuccessReason};
+    use revm::primitives::{Address, Bytes};
     use tempfile::TempDir;
 
     use super::*;
