@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+base64 = "0.22.1"
 bip322 = "0.0.9"
 bitcoin = "0.32.5"
 hex = "0.4.3"
 jsonrpsee = { version = "0.24.8", features = [ "server", "macros", "jsonrpsee-core", "jsonrpsee-types" ] }
 lazy_static = "1.5.0"
-reqwest = { version = "0.12.12", features = [ "blocking", "json" ] }
 revm = "20.0.0"
 revm-state = "1.0.0"
 rlimit = "0.10.2"
@@ -23,6 +23,7 @@ solabi = "0.2.0"
 tokio = "1.43.0"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
+ureq = "3.0.10"
 
 [dev-dependencies]
 tempfile = "3.19.1"
