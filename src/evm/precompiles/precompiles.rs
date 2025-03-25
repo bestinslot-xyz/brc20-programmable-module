@@ -43,8 +43,14 @@ impl Default for BRC20Precompiles {
             HashMap::new();
         custom_precompiles.insert(*BRC20_BALANCE_PRECOMPILE_ADDRESS, brc20_balance_precompile);
         custom_precompiles.insert(*BIP322_PRECOMPILE_ADDRESS, bip322_verify_precompile);
-        custom_precompiles.insert(*BTC_TX_DETAILS_PRECOMPILE_ADDRESS, btc_tx_details_precompile);
-        custom_precompiles.insert(*LAST_SAT_LOCATION_PRECOMPILE_ADDRESS, last_sat_location_precompile);
+        custom_precompiles.insert(
+            *BTC_TX_DETAILS_PRECOMPILE_ADDRESS,
+            btc_tx_details_precompile,
+        );
+        custom_precompiles.insert(
+            *LAST_SAT_LOCATION_PRECOMPILE_ADDRESS,
+            last_sat_location_precompile,
+        );
         custom_precompiles.insert(
             *GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS,
             get_locked_pkscript_precompile,

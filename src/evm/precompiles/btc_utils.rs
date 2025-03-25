@@ -1,4 +1,5 @@
-use base64::{prelude::BASE64_URL_SAFE, Engine};
+use base64::prelude::BASE64_URL_SAFE;
+use base64::Engine;
 use bitcoin::{KnownHrp, Network};
 
 lazy_static::lazy_static! {
@@ -51,6 +52,23 @@ pub fn skip_btc_tests() -> bool {
         return true;
     }
     false
+}
+
+pub fn check_bitcoin_rpc_status() -> bool {
+    let response = ureq::post(&*BITCOIN_RPC_URL)
+        .header(
+            "Authorization",
+            get_basic_auth_header(&*BITCOIN_RPC_USER, &*BITCOIN_RPC_PASSWORD),
+        )
+        .content_type("application/json")
+        .config()
+        .http_status_as_error(false)
+        .build()
+        .send(
+            r#"{"jsonrpc": "1.0", "id": "curltest", "method": "getblockchaininfo", "params":[]}"#,
+        );
+
+    return !response.is_err() && response.unwrap().status() == 200;
 }
 
 pub fn get_raw_transaction(txid: &str) -> serde_json::Value {
