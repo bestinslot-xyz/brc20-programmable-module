@@ -72,7 +72,7 @@ async function main() {
             p: "brc20-prog",
             op: "call",
             c: "REPLACE_THIS_WITH_CONTRACT_ADDRESS",
-            d: contract_factory.interface.encodeFunctionData("verifyBIP322Signature", [address, message, signature]),
+            d: contract_factory.interface.encodeFunctionData("verify", [address, message, signature]),
         }
     ), function (_) { });
 
@@ -85,7 +85,7 @@ async function main() {
             p: "brc20-prog",
             op: "call",
             c: "REPLACE_THIS_WITH_CONTRACT_ADDRESS",
-            d: contract_factory.interface.encodeFunctionData("getBrc20BalanceOf", [ticker, btc_pkscript]),
+            d: contract_factory.interface.encodeFunctionData("balanceOf", [ticker, btc_pkscript]),
         }
     ), function (_) { });
 
