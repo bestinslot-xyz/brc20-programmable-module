@@ -45,7 +45,7 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
 
     let response = get_raw_transaction(&txid);
 
-    if response["error"].is_object() {
+    if response["error"].is_object() || !response["result"].is_object() {
         tracing::error!("Error: {}", response["error"]["message"]);
         return precompile_error(interpreter_result);
     }
@@ -67,7 +67,7 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
     }
 
     let block_height_result = get_block_height(&block_hash);
-    if block_height_result["error"].is_object() {
+    if block_height_result["error"].is_object() || !block_height_result["result"].is_object() {
         return precompile_error(interpreter_result);
     }
 
@@ -88,7 +88,7 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
 
         // Get the scriptPubKey from the vin transaction, using the txid and vout
         let vin_script_pub_key_response = get_raw_transaction(&vin_txid);
-        if vin_script_pub_key_response["error"].is_object() {
+        if vin_script_pub_key_response["error"].is_object() || !vin_script_pub_key_response["result"].is_object() {
             return precompile_error(interpreter_result);
         }
 
@@ -137,6 +137,7 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
 
 #[cfg(test)]
 mod tests {
+
     use solabi::U256;
 
     use crate::evm::precompiles::btc_utils::skip_btc_tests;
@@ -145,11 +146,11 @@ mod tests {
 
     #[test]
     fn test_get_tx_details_encode_params_single_vin_vout() {
-        let txid = "cedfb4b62224a4782a4453dff73f3d48bb0d7da4d0f2238b0e949f9342de038a";
+        let txid = "d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd";
         let data = TX_DETAILS.encode_params(&txid.to_string());
         assert_eq!(
             hex::encode(data),
-            "96327323000000000000000000000000000000000000000000000000000000000000004063656466623462363232323461343738326134343533646666373366336434386262306437646134643066323233386230653934396639333432646530333861"
+            "96327323000000000000000000000000000000000000000000000000000000000000004064303964323637353264306133336431626462303231336366333638313936333564313235386137653466636265363639653132626337646162386365636464"
         );
     }
 

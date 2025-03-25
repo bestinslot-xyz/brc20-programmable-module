@@ -89,8 +89,8 @@ async function main() {
         }
     ), function (_) { });
 
-    // https://mempool.space/signet/tx/4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926
-    let btc_tx_id = "4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926"
+    // https://mempool.space/signet/tx/d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd
+    let btc_tx_id = "d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd"
 
     fs.writeFile('output/BRC20_Prog_btc_tx_details_tx.json', JSON.stringify(
         {

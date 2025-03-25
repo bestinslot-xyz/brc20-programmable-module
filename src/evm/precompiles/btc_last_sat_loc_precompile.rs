@@ -40,7 +40,7 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
 
     let response = get_raw_transaction(&txid);
 
-    if response["error"].is_object() {
+    if response["error"].is_object() || response["result"].is_null() {
         // Transaction not found
         return precompile_error(interpreter_result);
     }
@@ -96,6 +96,10 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
             return interpreter_result;
         }
         let vin_response = get_raw_transaction(&current_vin_txid);
+        if vin_response["error"].is_object() || vin_response["result"].is_null() {
+            // Transaction not found
+            return precompile_error(interpreter_result);
+        }
         let vin_response = vin_response["result"].clone();
         current_vin_script_pub_key_hex = vin_response["vout"][current_vin_vout]["scriptPubKey"]
             ["hex"]
@@ -116,15 +120,6 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
         // Insufficient satoshis in vin
         return precompile_error(interpreter_result);
     }
-
-    println!(
-        "txid: {}, vout: {}, sat: {}, old_pkscript: {}, new_pkscript: {}",
-        current_vin_txid,
-        current_vin_vout,
-        total_vout_sat_count - (total_vin_sat_count - current_vin_value),
-        current_vin_script_pub_key_hex,
-        new_pkscript
-    );
 
     let bytes = LAST_SAT_LOCATION.encode_returns(&(
         current_vin_txid,
