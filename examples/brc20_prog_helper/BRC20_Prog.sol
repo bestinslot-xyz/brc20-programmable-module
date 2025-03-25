@@ -22,7 +22,7 @@ contract BRC20_Prog {
     /**
      * @dev Verifies BIP322 signature, given address, message and the signature.
      */
-    function verifyBIP322Signature(
+    function verify(
         string calldata addr,
         string calldata message_base64,
         string calldata signature_base64
@@ -42,7 +42,7 @@ contract BRC20_Prog {
     /**
      * @dev Get non-module BRC-20 balance of a given Bitcoin wallet script and BRC-20 ticker.
      */
-    function getBrc20BalanceOf(
+    function balanceOf(
         string calldata ticker,
         string calldata address_pkscript
     ) external view returns (uint256 balance) {
