@@ -2,6 +2,8 @@ use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
 use solabi::{selector, FunctionEncoder};
 
+use crate::evm::precompiles::{precompile_error, precompile_output, use_gas};
+
 lazy_static::lazy_static! {
     static ref BRC20_CLIENT: reqwest::blocking::Client = reqwest::blocking::Client::new();
     static ref BRC20_PROG_BALANCE_SERVER_URL: String = std::env::var("BRC20_PROG_BALANCE_SERVER_URL")
@@ -12,23 +14,17 @@ const BALANCE_OF: FunctionEncoder<(String, String), (solabi::U256,)> =
     FunctionEncoder::new(selector!("balanceOf(string,string)"));
 
 pub fn brc20_balance_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
-    let gas_used = 100000;
-    if gas_used > gas_limit {
-        return InterpreterResult::new(
-            InstructionResult::OutOfGas,
-            Bytes::new(),
-            Gas::new_spent(gas_used),
-        );
+    let mut interpreter_result =
+        InterpreterResult::new(InstructionResult::Stop, Bytes::new(), Gas::new(gas_limit));
+
+    if !use_gas(&mut interpreter_result, 100000) {
+        return interpreter_result;
     }
 
     let result = BALANCE_OF.decode_params(&bytes);
 
     if result.is_err() {
-        return InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new_spent(gas_used),
-        );
+        return precompile_error(interpreter_result);
     }
 
     let (ticker, address) = result.unwrap();
@@ -44,9 +40,5 @@ pub fn brc20_balance_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
     let balance = solabi::U256::from(balance);
     let bytes = BALANCE_OF.encode_returns(&(balance,));
 
-    InterpreterResult::new(
-        InstructionResult::Stop,
-        Bytes::from(bytes),
-        Gas::new_spent(gas_used),
-    )
+    return precompile_output(interpreter_result, bytes);
 }

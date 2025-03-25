@@ -3,6 +3,7 @@ use revm::primitives::Bytes;
 use solabi::{selector, FunctionEncoder, U256};
 
 use crate::evm::precompiles::btc_utils::{get_block_height, get_raw_transaction};
+use crate::evm::precompiles::{precompile_error, precompile_output, use_gas};
 
 static GAS_PER_RPC_CALL: u64 = 100000;
 
@@ -26,24 +27,18 @@ const TX_DETAILS: FunctionEncoder<
 > = FunctionEncoder::new(selector!("getTxDetails(string)"));
 
 pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
-    let mut gas_used = GAS_PER_RPC_CALL;
-    if gas_used > gas_limit {
-        return InterpreterResult::new(
-            InstructionResult::OutOfGas,
-            Bytes::new(),
-            Gas::new_spent(gas_used),
-        );
+    let mut interpreter_result =
+        InterpreterResult::new(InstructionResult::Stop, Bytes::new(), Gas::new(gas_limit));
+
+    if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
+        return interpreter_result;
     }
 
     let result = TX_DETAILS.decode_params(&bytes);
 
     if result.is_err() {
         // Invalid params
-        return InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new_spent(gas_used),
-        );
+        return precompile_error(interpreter_result);
     }
 
     let txid = result.unwrap();
@@ -52,42 +47,28 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
 
     if response["error"].is_object() {
         tracing::error!("Error: {}", response["error"]["message"]);
-        return InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new_spent(gas_used),
-        );
+        return precompile_error(interpreter_result);
     }
 
     let response = response["result"].clone();
 
     let vin_count = response["vin"].as_array();
-    gas_used += vin_count.unwrap().len() as u64 * GAS_PER_RPC_CALL;
-    if gas_used > gas_limit {
-        return InterpreterResult::new(
-            InstructionResult::OutOfGas,
-            Bytes::new(),
-            Gas::new_spent(gas_used),
-        );
+    if !use_gas(
+        &mut interpreter_result,
+        vin_count.unwrap().len() as u64 * GAS_PER_RPC_CALL,
+    ) {
+        return interpreter_result;
     }
 
     let block_hash = response["blockhash"].as_str().unwrap_or("").to_string();
 
-    gas_used += GAS_PER_RPC_CALL;
-    if gas_used > gas_limit {
-        return InterpreterResult::new(
-            InstructionResult::OutOfGas,
-            Bytes::new(),
-            Gas::new_spent(gas_used),
-        );
+    if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
+        return interpreter_result;
     }
+
     let block_height_result = get_block_height(&block_hash);
     if block_height_result["error"].is_object() {
-        return InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new_spent(gas_used),
-        );
+        return precompile_error(interpreter_result);
     }
 
     let block_height = Some(block_height_result["result"]["height"].as_u64().unwrap());
@@ -108,11 +89,7 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
         // Get the scriptPubKey from the vin transaction, using the txid and vout
         let vin_script_pub_key_response = get_raw_transaction(&vin_txid);
         if vin_script_pub_key_response["error"].is_object() {
-            return InterpreterResult::new(
-                InstructionResult::PrecompileError,
-                Bytes::new(),
-                Gas::new_spent(gas_used),
-            );
+            return precompile_error(interpreter_result);
         }
 
         let vin_script_pub_key_response = vin_script_pub_key_response["result"].clone();
@@ -155,11 +132,7 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
         vout_values,
     ));
 
-    InterpreterResult::new(
-        InstructionResult::Stop,
-        Bytes::from(bytes),
-        Gas::new_spent(gas_used),
-    )
+    return precompile_output(interpreter_result, bytes);
 }
 
 #[cfg(test)]

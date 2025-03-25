@@ -3,46 +3,33 @@ use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
 use solabi::{selector, FunctionEncoder};
 
+use super::precompile_output;
+use crate::evm::precompiles::{precompile_error, use_gas};
+
 const VERIFY: FunctionEncoder<(String, String, String), (bool,)> =
     FunctionEncoder::new(selector!("verify(string,string,string)"));
 
 pub fn bip322_verify_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
-    let gas_used = 20000;
+    let mut interpreter_result =
+        InterpreterResult::new(InstructionResult::Stop, Bytes::new(), Gas::new(gas_limit));
     let result = VERIFY.decode_params(&bytes);
 
     if result.is_err() {
-        return InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new(gas_used),
-        );
+        return precompile_error(interpreter_result);
     }
 
     let (address, message, signature) = result.unwrap();
     let result = verify_simple_encoded(&address, &message, &signature);
 
-    if gas_used > gas_limit {
-        return InterpreterResult::new(
-            InstructionResult::OutOfGas,
-            Bytes::new(),
-            Gas::new(gas_used),
-        );
+    if !use_gas(&mut interpreter_result, 100000) {
+        return interpreter_result;
     }
 
     match result {
         Ok(_) => {
-            let bytes = VERIFY.encode_returns(&(true,));
-            InterpreterResult::new(
-                InstructionResult::Stop,
-                Bytes::from(bytes),
-                Gas::new(gas_used),
-            )
+            return precompile_output(interpreter_result, VERIFY.encode_returns(&(true,)));
         }
-        Err(_) => InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new(gas_used),
-        ),
+        Err(_) => return precompile_error(interpreter_result),
     }
 }
 

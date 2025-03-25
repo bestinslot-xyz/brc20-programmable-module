@@ -7,51 +7,38 @@ use revm::primitives::Bytes;
 use solabi::{selector, FunctionEncoder, U256};
 
 use crate::evm::precompiles::btc_utils::{BITCOIN_HRP, BITCOIN_NETWORK};
+use crate::evm::precompiles::{precompile_error, precompile_output, use_gas};
 
 const GET_LOCKED_PKSCRIPT: FunctionEncoder<(String, U256), (String,)> =
     FunctionEncoder::new(selector!("getLockedPkscript(string,uint256)"));
 
 pub fn get_locked_pkscript_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
-    let gas_used = 20000;
-    if gas_used > gas_limit {
-        return InterpreterResult::new(
-            InstructionResult::OutOfGas,
-            Bytes::new(),
-            Gas::new_spent(gas_used),
-        );
+    let mut interpreter_result =
+        InterpreterResult::new(InstructionResult::Stop, Bytes::new(), Gas::new(gas_limit));
+
+    if !use_gas(&mut interpreter_result, 20000) {
+        return interpreter_result;
     }
 
     let result = GET_LOCKED_PKSCRIPT.decode_params(&bytes);
 
     if result.is_err() {
         // Invalid params
-        return InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new_spent(gas_used),
-        );
+        return precompile_error(interpreter_result);
     }
 
     let (pkscript, lock_block_count) = result.unwrap();
 
     if lock_block_count == 0 || lock_block_count > U256::from(65535u32) {
         // Invalid lock block count
-        return InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new_spent(gas_used),
-        );
+        return precompile_error(interpreter_result);
     }
 
     let result = get_p2tr_lock_addr(&pkscript, lock_block_count.as_u32());
 
     let bytes = GET_LOCKED_PKSCRIPT.encode_returns(&(result,));
 
-    InterpreterResult::new(
-        InstructionResult::Stop,
-        Bytes::from(bytes),
-        Gas::new_spent(gas_used),
-    )
+    return precompile_output(interpreter_result, bytes);
 }
 
 fn get_p2tr_lock_addr(pkscript: &String, lock_block_count: u32) -> String {

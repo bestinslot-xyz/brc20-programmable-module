@@ -3,6 +3,7 @@ use revm::primitives::Bytes;
 use solabi::{selector, FunctionEncoder, U256};
 
 use crate::evm::precompiles::btc_utils::get_raw_transaction;
+use crate::evm::precompiles::{precompile_error, precompile_output, use_gas};
 
 static GAS_PER_RPC_CALL: u64 = 100000;
 
@@ -18,15 +19,14 @@ const LAST_SAT_LOCATION: FunctionEncoder<
 > = FunctionEncoder::new(selector!("getLastSatLocation(string, uint256, uint256)"));
 
 pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
+    let mut interpreter_result =
+        InterpreterResult::new(InstructionResult::Stop, Bytes::new(), Gas::new(gas_limit));
+
     let result = LAST_SAT_LOCATION.decode_params(&bytes);
 
     if result.is_err() {
         // Invalid params
-        return InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new(0),
-        );
+        return precompile_error(interpreter_result);
     }
 
     let (txid, vout, sat) = result.unwrap();
@@ -34,52 +34,32 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
     let vout = vout.as_u64() as usize;
     let sat = sat.as_u64();
 
-    let mut gas_used = GAS_PER_RPC_CALL;
-    if gas_used > gas_limit {
-        return InterpreterResult::new(
-            InstructionResult::OutOfGas,
-            Bytes::new(),
-            Gas::new(gas_used),
-        );
+    if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
+        return interpreter_result;
     }
+
     let response = get_raw_transaction(&txid);
 
     if response["error"].is_object() {
         // Transaction not found
-        return InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new(gas_used),
-        );
+        return precompile_error(interpreter_result);
     }
 
     let response = response["result"].clone();
 
     if response["vin"][0]["coinbase"].is_string() {
         // Coinbase transactions are not supported
-        return InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new(gas_used),
-        );
+        return precompile_error(interpreter_result);
     }
 
     if response["vout"].as_array().unwrap().len() < vout {
         // Vout index out of bounds
-        return InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new(gas_used),
-        );
+        return precompile_error(interpreter_result);
     }
 
     if to_sats(response["vout"][vout]["value"].as_f64().unwrap()) < sat {
         // Sat value out of bounds
-        return InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new(gas_used),
-        );
+        return precompile_error(interpreter_result);
     }
 
     let new_pkscript = response["vout"][vout]["scriptPubKey"]["hex"]
@@ -112,13 +92,8 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
             .unwrap()
             .to_string();
         current_vin_vout = response["vin"][current_vin_index]["vout"].as_u64().unwrap() as usize;
-        gas_used += GAS_PER_RPC_CALL;
-        if gas_used > gas_limit {
-            return InterpreterResult::new(
-                InstructionResult::OutOfGas,
-                Bytes::new(),
-                Gas::new(gas_used),
-            );
+        if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
+            return interpreter_result;
         }
         let vin_response = get_raw_transaction(&current_vin_txid);
         let vin_response = vin_response["result"].clone();
@@ -139,11 +114,7 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
 
     if total_vin_sat_count < total_vout_sat_count {
         // Insufficient satoshis in vin
-        return InterpreterResult::new(
-            InstructionResult::PrecompileError,
-            Bytes::new(),
-            Gas::new(gas_used),
-        );
+        return precompile_error(interpreter_result);
     }
 
     let bytes = LAST_SAT_LOCATION.encode_returns(&(
@@ -154,11 +125,7 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
         new_pkscript.to_string(),
     ));
 
-    InterpreterResult::new(
-        InstructionResult::Stop,
-        Bytes::from(bytes),
-        Gas::new(gas_used),
-    )
+    return precompile_output(interpreter_result, bytes);
 }
 
 fn to_sats(btc_value: f64) -> u64 {

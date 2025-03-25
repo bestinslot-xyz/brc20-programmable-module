@@ -70,16 +70,26 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
         bytes: &Bytes,
         gas_limit: u64,
     ) -> Result<Option<Self::Output>, String> {
+        let mut gas = Gas::new(gas_limit);
+
         let result;
         if self.eth_precompiles.contains(address) {
             let cancun_result = self.eth_precompiles.get(address).unwrap()(bytes, gas_limit);
             match cancun_result {
                 Ok(output) => {
-                    return Ok(Some(InterpreterResult::new(
-                        InstructionResult::Stop,
-                        output.bytes,
-                        Gas::new_spent(output.gas_used),
-                    )))
+                    if !gas.record_cost(output.gas_used) {
+                        return Ok(Some(InterpreterResult::new(
+                            InstructionResult::OutOfGas,
+                            Bytes::new(),
+                            gas,
+                        )));
+                    } else {
+                        return Ok(Some(InterpreterResult::new(
+                            InstructionResult::Stop,
+                            output.bytes,
+                            gas,
+                        )));
+                    }
                 }
                 Err(e) => return Err(e.to_string()),
             }
@@ -100,4 +110,29 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
     fn contains(&self, address: &Address) -> bool {
         self.all_addresses.contains(address)
     }
+}
+
+/// Records a `gas` cost and fails the instruction if it would exceed the available gas.
+pub fn use_gas(interpreter_result: &mut InterpreterResult, gas: u64) -> bool {
+    if !interpreter_result.gas.record_cost(gas) {
+        interpreter_result.result = revm::interpreter::InstructionResult::OutOfGas;
+        return false;
+    }
+    true
+}
+
+/// Fails the instruction with a `PrecompileError` result.
+pub fn precompile_error(mut interpreter_result: InterpreterResult) -> InterpreterResult {
+    interpreter_result.result = revm::interpreter::InstructionResult::PrecompileError;
+    interpreter_result
+}
+
+// Returns output for the instruction
+pub fn precompile_output(
+    mut interpreter_result: InterpreterResult,
+    output: Vec<u8>,
+) -> InterpreterResult {
+    interpreter_result.result = revm::interpreter::InstructionResult::Stop;
+    interpreter_result.output = Bytes::from(output);
+    interpreter_result
 }
