@@ -17,3 +17,4 @@ mod precompiles;
 pub use precompiles::*;
 
 mod btc_utils;
+pub use btc_utils::*;

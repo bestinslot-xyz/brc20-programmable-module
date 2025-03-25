@@ -88,7 +88,9 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
 
         // Get the scriptPubKey from the vin transaction, using the txid and vout
         let vin_script_pub_key_response = get_raw_transaction(&vin_txid);
-        if vin_script_pub_key_response["error"].is_object() || !vin_script_pub_key_response["result"].is_object() {
+        if vin_script_pub_key_response["error"].is_object()
+            || !vin_script_pub_key_response["result"].is_object()
+        {
             return precompile_error(interpreter_result);
         }
 
@@ -140,9 +142,8 @@ mod tests {
 
     use solabi::U256;
 
-    use crate::evm::precompiles::btc_utils::skip_btc_tests;
-
     use super::*;
+    use crate::evm::precompiles::btc_utils::skip_btc_tests;
 
     #[test]
     fn test_get_tx_details_encode_params_single_vin_vout() {
@@ -308,15 +309,24 @@ mod tests {
 
         assert_eq!(block_height, U256::from(240960u64));
         assert_eq!(vin_txids.len(), 1);
-        assert_eq!(vin_txids[0], "8d4bc3ac21211723436e35ffbf32a58f74fe942e0ea10936504db07afb1af7c3");
+        assert_eq!(
+            vin_txids[0],
+            "8d4bc3ac21211723436e35ffbf32a58f74fe942e0ea10936504db07afb1af7c3"
+        );
         assert_eq!(vin_vouts.len(), 1);
         assert_eq!(vin_vouts[0], U256::from(19u64));
         assert_eq!(vin_script_pub_key_hexes.len(), 1);
-        assert_eq!(vin_script_pub_key_hexes[0], "51204a6041f54b8cf8b2d48c6f725cb0514e51e5e7e7ac429c33da62e98765dd62f3");
+        assert_eq!(
+            vin_script_pub_key_hexes[0],
+            "51204a6041f54b8cf8b2d48c6f725cb0514e51e5e7e7ac429c33da62e98765dd62f3"
+        );
         assert_eq!(vin_values.len(), 1);
         assert_eq!(vin_values[0], U256::from(10000000u64));
         assert_eq!(vout_script_pub_key_hexes.len(), 1);
-        assert_eq!(vout_script_pub_key_hexes[0], "0014f477952f33561c1b89a1fe9f28682f623263e159");
+        assert_eq!(
+            vout_script_pub_key_hexes[0],
+            "0014f477952f33561c1b89a1fe9f28682f623263e159"
+        );
         assert_eq!(vout_values.len(), 1);
         assert_eq!(vout_values[0], U256::from(9658000u64));
     }

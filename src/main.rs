@@ -8,6 +8,7 @@ mod db;
 use db::DB;
 
 mod server;
+use evm::{check_bitcoin_rpc_status, get_brc20_balance};
 use server::{start_rpc_server, ServerInstance};
 
 lazy_static::lazy_static! {
@@ -23,6 +24,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     let instance = ServerInstance::new(DB::new(&Path::new("target").join("db")).unwrap());
+    println!("--- Database ---");
     println!(
         "Latest block number: {}",
         instance.get_latest_block_height()
@@ -34,6 +36,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .map(|block| block.hash.0.to_string())
             .unwrap_or("None".to_string())
     );
+    println!("");
+    println!("--- Services ---");
+    println!(
+        "Bitcoin RPC status: {}",
+        if check_bitcoin_rpc_status() {
+            "OK"
+        } else {
+            "Error"
+        }
+    );
+    println!(
+        "BRC20 balance server status: {}",
+        get_brc20_balance("test", "test")
+            .map(|_| "OK")
+            .unwrap_or("Error")
+    );
+    println!("");
+    println!("--- Server ---");
     println!(
         "Started JSON-RPC server on {}",
         BRC20_PROG_RPC_SERVER_URL.as_str()
