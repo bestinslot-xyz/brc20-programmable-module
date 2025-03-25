@@ -1,7 +1,7 @@
+use base64::{prelude::BASE64_URL_SAFE, Engine};
 use bitcoin::{KnownHrp, Network};
 
 lazy_static::lazy_static! {
-    static ref BTC_CLIENT: reqwest::blocking::Client = reqwest::blocking::Client::new();
     static ref BITCOIN_RPC_URL: String = std::env::var("BITCOIN_RPC_URL")
             .unwrap_or("http://localhost:48332".to_string());
     static ref BITCOIN_RPC_USER: String = std::env::var("BITCOIN_RPC_USER")
@@ -54,10 +54,13 @@ pub fn skip_btc_tests() -> bool {
 }
 
 pub fn get_raw_transaction(txid: &str) -> serde_json::Value {
-    let response = BTC_CLIENT
-        .post(&*BITCOIN_RPC_URL)
-        .basic_auth(&*BITCOIN_RPC_USER, Some(&*BITCOIN_RPC_PASSWORD))
-        .body(
+    let response = ureq::post(&*BITCOIN_RPC_URL)
+        .header(
+            "Authorization",
+            get_basic_auth_header(&*BITCOIN_RPC_USER, &*BITCOIN_RPC_PASSWORD),
+        )
+        .content_type("application/json")
+        .send(
             format!(
                 "{{
                 \"jsonrpc\": \"1.0\",
@@ -68,18 +71,28 @@ pub fn get_raw_transaction(txid: &str) -> serde_json::Value {
                 txid
             )
             .to_string(),
-        )
-        .send()
-        .unwrap();
+        );
 
-    response.json().unwrap()
+    if response.is_err() {
+        panic!("Failed to get raw transaction");
+    }
+
+    response
+        .unwrap()
+        .body_mut()
+        .read_to_string()
+        .unwrap()
+        .parse()
+        .unwrap()
 }
 
 pub fn get_block_height(hash: &str) -> serde_json::Value {
-    let response = BTC_CLIENT
-        .post(&*BITCOIN_RPC_URL)
-        .basic_auth(&*BITCOIN_RPC_USER, Some(&*BITCOIN_RPC_PASSWORD))
-        .body(
+    let response = ureq::post(&*BITCOIN_RPC_URL)
+        .header(
+            "Authorization",
+            get_basic_auth_header(&*BITCOIN_RPC_USER, &*BITCOIN_RPC_PASSWORD),
+        )
+        .send(
             format!(
                 "{{
                 \"jsonrpc\": \"1.0\",
@@ -90,9 +103,22 @@ pub fn get_block_height(hash: &str) -> serde_json::Value {
                 hash
             )
             .to_string(),
-        )
-        .send()
-        .unwrap();
+        );
 
-    response.json().unwrap()
+    if response.is_err() {
+        panic!("Failed to get block height");
+    }
+
+    response
+        .unwrap()
+        .body_mut()
+        .read_to_string()
+        .unwrap()
+        .parse()
+        .unwrap()
+}
+
+fn get_basic_auth_header(user: &str, pass: &str) -> String {
+    let usrpw = String::from(user) + ":" + pass;
+    String::from("Basic ") + &BASE64_URL_SAFE.encode(usrpw.as_bytes())
 }

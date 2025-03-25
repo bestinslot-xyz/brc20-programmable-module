@@ -13,11 +13,11 @@ use crate::evm::precompiles::{
 };
 
 lazy_static::lazy_static! {
-    static ref BRC20_BALANCE_PRECOMPILE: Address = Address::from_str("0x00000000000000000000000000000000000000ff").unwrap();
-    static ref BIP322_PRECOMPILE: Address = Address::from_str("0x00000000000000000000000000000000000000fe").unwrap();
-    static ref BTC_TX_DETAILS_PRECOMPILE: Address = Address::from_str("0x00000000000000000000000000000000000000fd").unwrap();
-    static ref LAST_SAT_LOCATION_PRECOMPILE: Address = Address::from_str("0x00000000000000000000000000000000000000fc").unwrap();
-    static ref GET_LOCKED_PK_SCRIPT_PRECOMPILE: Address = Address::from_str("0x00000000000000000000000000000000000000fb").unwrap();
+    static ref BRC20_BALANCE_PRECOMPILE_ADDRESS: Address = Address::from_str("0x00000000000000000000000000000000000000ff").unwrap();
+    static ref BIP322_PRECOMPILE_ADDRESS: Address = Address::from_str("0x00000000000000000000000000000000000000fe").unwrap();
+    static ref BTC_TX_DETAILS_PRECOMPILE_ADDRESS: Address = Address::from_str("0x00000000000000000000000000000000000000fd").unwrap();
+    static ref LAST_SAT_LOCATION_PRECOMPILE_ADDRESS: Address = Address::from_str("0x00000000000000000000000000000000000000fc").unwrap();
+    static ref GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS: Address = Address::from_str("0x00000000000000000000000000000000000000fb").unwrap();
 }
 
 pub struct BRC20Precompiles {
@@ -33,20 +33,20 @@ impl Default for BRC20Precompiles {
             .addresses()
             .map(|x| x.clone())
             .collect::<HashSet<Address>>();
-        all_addresses.insert(*BRC20_BALANCE_PRECOMPILE);
-        all_addresses.insert(*BIP322_PRECOMPILE);
-        all_addresses.insert(*BTC_TX_DETAILS_PRECOMPILE);
-        all_addresses.insert(*LAST_SAT_LOCATION_PRECOMPILE);
-        all_addresses.insert(*GET_LOCKED_PK_SCRIPT_PRECOMPILE);
+        all_addresses.insert(*BRC20_BALANCE_PRECOMPILE_ADDRESS);
+        all_addresses.insert(*BIP322_PRECOMPILE_ADDRESS);
+        all_addresses.insert(*BTC_TX_DETAILS_PRECOMPILE_ADDRESS);
+        all_addresses.insert(*LAST_SAT_LOCATION_PRECOMPILE_ADDRESS);
+        all_addresses.insert(*GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS);
 
         let mut custom_precompiles: HashMap<Address, fn(&Bytes, u64) -> InterpreterResult> =
             HashMap::new();
-        custom_precompiles.insert(*BRC20_BALANCE_PRECOMPILE, brc20_balance_precompile);
-        custom_precompiles.insert(*BIP322_PRECOMPILE, bip322_verify_precompile);
-        custom_precompiles.insert(*BTC_TX_DETAILS_PRECOMPILE, btc_tx_details_precompile);
-        custom_precompiles.insert(*LAST_SAT_LOCATION_PRECOMPILE, last_sat_location_precompile);
+        custom_precompiles.insert(*BRC20_BALANCE_PRECOMPILE_ADDRESS, brc20_balance_precompile);
+        custom_precompiles.insert(*BIP322_PRECOMPILE_ADDRESS, bip322_verify_precompile);
+        custom_precompiles.insert(*BTC_TX_DETAILS_PRECOMPILE_ADDRESS, btc_tx_details_precompile);
+        custom_precompiles.insert(*LAST_SAT_LOCATION_PRECOMPILE_ADDRESS, last_sat_location_precompile);
         custom_precompiles.insert(
-            *GET_LOCKED_PK_SCRIPT_PRECOMPILE,
+            *GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS,
             get_locked_pkscript_precompile,
         );
 
@@ -70,13 +70,17 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
         bytes: &Bytes,
         gas_limit: u64,
     ) -> Result<Option<Self::Output>, String> {
-        let mut gas = Gas::new(gas_limit);
+        #[cfg(debug_assertions)]
+        if self.all_addresses.contains(address) {
+            println!("BRC20Precompiles handling: {:?}", address);
+        }
 
         let result;
         if self.eth_precompiles.contains(address) {
             let cancun_result = self.eth_precompiles.get(address).unwrap()(bytes, gas_limit);
             match cancun_result {
                 Ok(output) => {
+                    let mut gas = Gas::new(gas_limit);
                     if !gas.record_cost(output.gas_used) {
                         return Ok(Some(InterpreterResult::new(
                             InstructionResult::OutOfGas,

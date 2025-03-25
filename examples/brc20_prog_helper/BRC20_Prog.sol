@@ -80,15 +80,7 @@ contract BRC20_Prog {
             abi.encodeWithSignature("getTxDetails(string)", txid)
         );
         require(success, "Failed to get transaction details");
-        (
-            uint256 block_height_out,
-            string[] memory vin_txids_out,
-            uint256[] memory vin_vouts_out,
-            string[] memory vin_scriptPubKey_hexes_out,
-            uint256[] memory vin_values_out,
-            string[] memory vout_scriptPubKey_hexes_out,
-            uint256[] memory vout_values_out
-        ) = abi.decode(
+        return abi.decode(
                 data,
                 (
                     uint256,
@@ -100,15 +92,6 @@ contract BRC20_Prog {
                     uint256[]
                 )
             );
-        return (
-            block_height_out,
-            vin_txids_out,
-            vin_vouts_out,
-            vin_scriptPubKey_hexes_out,
-            vin_values_out,
-            vout_scriptPubKey_hexes_out,
-            vout_values_out
-        );
     }
 
     /**
@@ -139,20 +122,7 @@ contract BRC20_Prog {
                 )
             );
         require(success, "Failed to get last satoshi location");
-        (
-            string memory last_txid_out,
-            uint256 last_vout_out,
-            uint256 last_sat_out,
-            string memory old_pkscript_out,
-            string memory new_pkscript_out
-        ) = abi.decode(data, (string, uint256, uint256, string, string));
-        return (
-            last_txid_out,
-            last_vout_out,
-            last_sat_out,
-            old_pkscript_out,
-            new_pkscript_out
-        );
+        return abi.decode(data, (string, uint256, uint256, string, string));
     }
 
     /**
@@ -181,5 +151,12 @@ contract BRC20_Prog {
         (bool success, bytes memory data) = address(0x02).staticcall(abi.encodePacked(message));
         require(success, "Failed to get SHA256");
         return abi.decode(data, (bytes32));
+    }
+
+    /**
+     * @dev Get random number.
+     */
+    function getRandomNumber() external pure returns (uint256) {
+        return 42;
     }
 }

@@ -54,6 +54,15 @@ async function main() {
         }
     ), function (_) { });
 
+    // Update the integration test contract deploy tx
+    fs.writeFile('../../integration_test/contracts/brc20_prog_helper/BRC20_Prog_deploy_tx.json', JSON.stringify(
+        {
+            p: "brc20-prog",
+            op: "deploy",
+            d: deploy_tx.data
+        }
+    ), function (_) { });
+
     let address = "bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l"
     let message = "Hello World"
     let signature = "AkgwRQIhAOzyynlqt93lOKJr+wmmxIens//zPzl9tqIOua93wO6MAiBi5n5EyAcPScOjf1lAqIUIQtr3zKNeavYabHyR8eGhowEhAsfxIAMZZEKUPYWI4BruhAQjzFT8FSFSajuFwrDL1Yhy"
@@ -67,6 +76,7 @@ async function main() {
         }
     ), function (_) { });
 
+    let btc_signet_pkscript = "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48"
     let btc_pkscript = "bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l"
     let ticker = "bleh"
 
@@ -110,7 +120,7 @@ async function main() {
             p: "brc20-prog",
             op: "call",
             c: "REPLACE_THIS_WITH_CONTRACT_ADDRESS",
-            d: contract_factory.interface.encodeFunctionData("getLockedPkscript", [btc_tx_id, lock_block_count]),
+            d: contract_factory.interface.encodeFunctionData("getLockedPkscript", [btc_signet_pkscript, lock_block_count]),
         }
     ), function (_) { });
 
@@ -120,6 +130,15 @@ async function main() {
             op: "call",
             c: "REPLACE_THIS_WITH_CONTRACT_ADDRESS",
             d: contract_factory.interface.encodeFunctionData("getSha256", [message.toString('hex')]),
+        }
+    ), function (_) { });
+
+    fs.writeFile('output/BRC20_Prog_get_random_number_tx.json', JSON.stringify(
+        {
+            p: "brc20-prog",
+            op: "call",
+            c: "REPLACE_THIS_WITH_CONTRACT_ADDRESS",
+            d: contract_factory.interface.encodeFunctionData("getRandomNumber", []),
         }
     ), function (_) { });
 }
