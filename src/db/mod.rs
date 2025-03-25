@@ -946,7 +946,7 @@ mod tests {
             db.get_account_info(address).unwrap().unwrap().0,
             account_info
         );
-        assert_eq!(db.get_code(code_hash).unwrap().unwrap().0, bytecode);
+        assert_eq!(db.get_code(code_hash).unwrap().unwrap().0.bytes(), bytecode.bytes());
         assert_eq!(
             db.get_account_memory(address, mem_loc).unwrap().unwrap().0,
             value
