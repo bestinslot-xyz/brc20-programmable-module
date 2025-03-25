@@ -107,7 +107,6 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
     }
 
     fn warm_addresses(&self) -> Box<impl Iterator<Item = Address>> {
-        println!("BRC20Precompiles warm_addresses");
         Box::new(self.all_addresses.iter().cloned())
     }
 

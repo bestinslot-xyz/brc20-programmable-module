@@ -54,12 +54,20 @@ pub fn skip_btc_tests() -> bool {
 }
 
 pub fn get_raw_transaction(txid: &str) -> serde_json::Value {
+    // Check if the txid is a valid hex string
+    if txid.chars().any(|c| !c.is_ascii_hexdigit()) {
+        return serde_json::Value::Null;
+    }
+
     let response = ureq::post(&*BITCOIN_RPC_URL)
         .header(
             "Authorization",
             get_basic_auth_header(&*BITCOIN_RPC_USER, &*BITCOIN_RPC_PASSWORD),
         )
         .content_type("application/json")
+        .config()
+        .http_status_as_error(false)
+        .build()
         .send(
             format!(
                 "{{
@@ -74,19 +82,19 @@ pub fn get_raw_transaction(txid: &str) -> serde_json::Value {
         );
 
     if response.is_err() {
-        panic!("Failed to get raw transaction");
+        panic!("Failed to get raw transaction. Response: {:?}", response);
     }
 
     let mut response = response.unwrap();
 
     if response.status() != 200 {
-        panic!("Failed to get raw transaction");
+        return serde_json::Value::Null;
     }
 
     let body = response.body_mut().read_to_string();
 
     if body.is_err() {
-        panic!("Failed to get raw transaction");
+        panic!("Failed to get raw transaction. Response: {:?}", response);
     }
 
     let body = body.unwrap();
@@ -94,18 +102,27 @@ pub fn get_raw_transaction(txid: &str) -> serde_json::Value {
     let json_result = body.parse();
 
     if json_result.is_err() {
-        panic!("Failed to get raw transaction");
+        panic!("Failed to get raw transaction. Response: {:?}", response);
     }
 
     json_result.unwrap()
 }
 
 pub fn get_block_height(hash: &str) -> serde_json::Value {
+    // Check if the hash is a valid hex string
+    if hash.chars().any(|c| !c.is_ascii_hexdigit()) {
+        return serde_json::Value::Null;
+    }
+
     let response = ureq::post(&*BITCOIN_RPC_URL)
         .header(
             "Authorization",
             get_basic_auth_header(&*BITCOIN_RPC_USER, &*BITCOIN_RPC_PASSWORD),
         )
+        .content_type("application/json")
+        .config()
+        .http_status_as_error(false)
+        .build()
         .send(
             format!(
                 "{{
@@ -120,11 +137,16 @@ pub fn get_block_height(hash: &str) -> serde_json::Value {
         );
 
     if response.is_err() {
-        panic!("Failed to get block height");
+        panic!("Failed to get block height. Response: {:?}", response);
+    }
+
+    let mut response = response.unwrap();
+
+    if response.status() != 200 {
+        return serde_json::Value::Null;
     }
 
     response
-        .unwrap()
         .body_mut()
         .read_to_string()
         .unwrap()
