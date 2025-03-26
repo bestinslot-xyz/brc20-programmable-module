@@ -104,10 +104,28 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - timestamp (`int`): Current block timestamp
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
+- inscription_id (Optional `string`): Inscription ID that triggered this transaction, will be recorded for easier transaction receipt retrieval
 
 **Returns**:
 
 - Receipt for the executed transaction, see [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gettransactionreceipt) for details.
+
+<hr>
+
+#### Get Transaction Receipt by Inscription ID
+
+**Method**: `brc20_getTxReceiptByInscriptionId`
+
+**Description**: Returns the transaction receipt for given inscription ID, previously sent via `brc20_addTxToBlock`. This makes it easier to work with inscriptions rather than transactions in BRC2.0 applications.
+
+**Parameters**:
+
+- inscription_id (`string`): Inscription ID previously added via `brc20_addTxToBlock`, `brc20_deposit`, or `brc20_withdraw`.
+
+**Returns**:
+
+- Transaction receipt, following `eth_getTransactionReceipt` structure.
+- None if the inscription isn't added yet, i.e. doesn't match previous `brc20_addTxToBlock` calls.
 
 <hr>
 
@@ -182,6 +200,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - timestamp (`int`): Current block timestamp
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index
+- inscription_id (`string`): Inscription ID that triggered this transaction
 
 **Returns**:
 
@@ -203,6 +222,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - timestamp (`int`): Current block timestamp
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index
+- inscription_id (`string`): Inscription ID that triggered this transaction
 
 **Returns**:
 

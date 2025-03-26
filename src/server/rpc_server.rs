@@ -50,6 +50,7 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: String,
         tx_idx: u64,
+        inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED> {
         event!(tracing::Level::INFO, "Depositing");
 
@@ -64,6 +65,7 @@ impl Brc20ProgApiServer for RpcServer {
                 tx_idx,
                 self.server_instance.get_latest_block_height() + 1,
                 hash.parse().unwrap(),
+                inscription_id,
             )
             .map_err(wrap_error_message)
     }
@@ -77,6 +79,7 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: String,
         tx_idx: u64,
+        inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED> {
         event!(tracing::Level::INFO, "Withdrawing");
 
@@ -91,6 +94,7 @@ impl Brc20ProgApiServer for RpcServer {
                 tx_idx,
                 self.server_instance.get_latest_block_height() + 1,
                 hash.parse().unwrap(),
+                inscription_id,
             )
             .map_err(wrap_error_message)
     }
@@ -288,6 +292,17 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_error_message)
     }
 
+    #[instrument(skip(self))]
+    async fn get_transaction_receipt_by_inscription_id(
+        &self,
+        inscription_id: String,
+    ) -> RpcResult<Option<TxReceiptED>> {
+        let receipt = self
+            .server_instance
+            .get_transaction_receipt_by_inscription_id(inscription_id);
+        Ok(receipt)
+    }
+
     #[instrument(skip(self, data))]
     async fn add_tx_to_block(
         &self,
@@ -297,6 +312,7 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: String,
         tx_idx: u64,
+        inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED> {
         event!(tracing::Level::INFO, "Adding tx to block");
         let from = get_evm_address(&from_pkscript);
@@ -316,6 +332,7 @@ impl Brc20ProgApiServer for RpcServer {
                 tx_idx,
                 self.server_instance.get_latest_block_height() + 1,
                 hash,
+                inscription_id,
             )
             .map_err(wrap_error_message)
     }
