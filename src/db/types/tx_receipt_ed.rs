@@ -37,7 +37,6 @@ pub struct TxReceiptED {
     #[serde(
         rename = "resultBytes",
         serialize_with = "bytes",
-        skip_serializing_if = "Option::is_none"
     )]
     pub result_bytes: Option<Bytes>,
 }
@@ -47,7 +46,7 @@ where
     S: serde::Serializer,
 {
     if bytes.is_none() {
-        return serializer.serialize_str("0x0");
+        return serializer.serialize_str("");
     }
     serializer.serialize_str(&format!("0x{}", hex::encode(bytes.as_ref().unwrap())))
 }
