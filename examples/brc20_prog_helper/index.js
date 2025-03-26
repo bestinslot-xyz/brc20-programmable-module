@@ -92,7 +92,7 @@ async function main() {
         }
     ), function (_) { });
 
-    let btc_vout = 2
+    let btc_vout = 0
     let btc_sat = 250000
 
     fs.writeFileSync('output/BRC20_Prog_btc_last_sat_loc_tx.json', JSON.stringify(

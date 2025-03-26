@@ -888,7 +888,14 @@ impl DatabaseTrait for DB {
 }
 
 impl DatabaseCommit for DB {
-    fn commit(&mut self, changes: HashMap<Address, Account>) {
+    fn commit(
+        &mut self,
+        changes: HashMap<
+            alloy_primitives::Address,
+            Account,
+            alloy_primitives::map::foldhash::fast::RandomState,
+        >,
+    ) {
         for (address, account) in changes {
             if !account.is_touched() {
                 continue;
