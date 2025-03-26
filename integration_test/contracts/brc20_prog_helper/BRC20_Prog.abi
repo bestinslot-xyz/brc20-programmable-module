@@ -1,0 +1,214 @@
+[
+    {
+        "inputs": [],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "ticker",
+                "type": "string"
+            },
+            {
+                "internalType": "string",
+                "name": "address_pkscript",
+                "type": "string"
+            }
+        ],
+        "name": "balanceOf",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "balance",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "txid",
+                "type": "string"
+            },
+            {
+                "internalType": "uint256",
+                "name": "vout",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "sat",
+                "type": "uint256"
+            }
+        ],
+        "name": "getLastSatLocation",
+        "outputs": [
+            {
+                "internalType": "string",
+                "name": "last_txid",
+                "type": "string"
+            },
+            {
+                "internalType": "uint256",
+                "name": "last_vout",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "last_sat",
+                "type": "uint256"
+            },
+            {
+                "internalType": "string",
+                "name": "old_pkscript",
+                "type": "string"
+            },
+            {
+                "internalType": "string",
+                "name": "new_pkscript",
+                "type": "string"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "address_pkscript",
+                "type": "string"
+            },
+            {
+                "internalType": "uint256",
+                "name": "lock_block_count",
+                "type": "uint256"
+            }
+        ],
+        "name": "getLockedPkscript",
+        "outputs": [
+            {
+                "internalType": "string",
+                "name": "locked_pkscript",
+                "type": "string"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getRandomNumber",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "pure",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "message",
+                "type": "string"
+            }
+        ],
+        "name": "getSha256",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "txid",
+                "type": "string"
+            }
+        ],
+        "name": "getTxDetails",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "block_height",
+                "type": "uint256"
+            },
+            {
+                "internalType": "string[]",
+                "name": "vin_txids",
+                "type": "string[]"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "vin_vouts",
+                "type": "uint256[]"
+            },
+            {
+                "internalType": "string[]",
+                "name": "vin_scriptPubKey_hexes",
+                "type": "string[]"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "vin_values",
+                "type": "uint256[]"
+            },
+            {
+                "internalType": "string[]",
+                "name": "vout_scriptPubKey_hexes",
+                "type": "string[]"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "vout_values",
+                "type": "uint256[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "addr",
+                "type": "string"
+            },
+            {
+                "internalType": "string",
+                "name": "message_base64",
+                "type": "string"
+            },
+            {
+                "internalType": "string",
+                "name": "signature_base64",
+                "type": "string"
+            }
+        ],
+        "name": "verify",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "verified",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]
