@@ -246,10 +246,11 @@ impl ServerInstance {
             output.gas_used(),
             output.gas_used()
         );
-        if output.gas_used() != 0xFFFFFFFFFFFFFFFF {
-            // u64::MAX is used to indicate an error
-            last_block_info.last_block_gas_used += output.gas_used();
-        }
+
+        last_block_info.last_block_gas_used = last_block_info
+            .last_block_gas_used
+            .checked_add(output.gas_used())
+            .unwrap_or(last_block_info.last_block_gas_used);
 
         let mut db = self.db_mutex.lock().unwrap();
         db.set_tx_receipt(
