@@ -43,19 +43,10 @@ async function main() {
 
     fs.mkdirSync('output', { recursive: true });
 
-    fs.writeFile('output/BRC20_Prog.abi', JSON.stringify(abi, null, 4), function (_) { });
-    fs.writeFile('output/BRC20_Prog.bytecode', bytecode, function (_) { });
+    fs.writeFileSync('output/BRC20_Prog.abi', JSON.stringify(abi, null, 4), function (_) { });
+    fs.writeFileSync('output/BRC20_Prog.bytecode', bytecode, function (_) { });
 
-    fs.writeFile('output/BRC20_Prog_deploy_tx.json', JSON.stringify(
-        {
-            p: "brc20-prog",
-            op: "deploy",
-            d: deploy_tx.data
-        }
-    ), function (_) { });
-
-    // Update the integration test contract deploy tx
-    fs.writeFile('../../integration_test/contracts/brc20_prog_helper/BRC20_Prog_deploy_tx.json', JSON.stringify(
+    fs.writeFileSync('output/BRC20_Prog_deploy_tx.json', JSON.stringify(
         {
             p: "brc20-prog",
             op: "deploy",
@@ -67,7 +58,7 @@ async function main() {
     let message = "Hello World"
     let signature = "AkgwRQIhAOzyynlqt93lOKJr+wmmxIens//zPzl9tqIOua93wO6MAiBi5n5EyAcPScOjf1lAqIUIQtr3zKNeavYabHyR8eGhowEhAsfxIAMZZEKUPYWI4BruhAQjzFT8FSFSajuFwrDL1Yhy"
 
-    fs.writeFile('output/BRC20_Prog_bip322_verify_tx.json', JSON.stringify(
+    fs.writeFileSync('output/BRC20_Prog_bip322_verify_tx.json', JSON.stringify(
         {
             p: "brc20-prog",
             op: "call",
@@ -80,7 +71,7 @@ async function main() {
     let btc_pkscript = "bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l"
     let ticker = "bleh"
 
-    fs.writeFile('output/BRC20_Prog_brc20_balance_tx.json', JSON.stringify(
+    fs.writeFileSync('output/BRC20_Prog_brc20_balance_tx.json', JSON.stringify(
         {
             p: "brc20-prog",
             op: "call",
@@ -92,7 +83,7 @@ async function main() {
     // https://mempool.space/signet/tx/d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd
     let btc_tx_id = "d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd"
 
-    fs.writeFile('output/BRC20_Prog_btc_tx_details_tx.json', JSON.stringify(
+    fs.writeFileSync('output/BRC20_Prog_btc_tx_details_tx.json', JSON.stringify(
         {
             p: "brc20-prog",
             op: "call",
@@ -104,7 +95,7 @@ async function main() {
     let btc_vout = 2
     let btc_sat = 250000
 
-    fs.writeFile('output/BRC20_Prog_btc_last_sat_loc_tx.json', JSON.stringify(
+    fs.writeFileSync('output/BRC20_Prog_btc_last_sat_loc_tx.json', JSON.stringify(
         {
             p: "brc20-prog",
             op: "call",
@@ -115,7 +106,7 @@ async function main() {
 
     let lock_block_count = 100
 
-    fs.writeFile('output/BRC20_Prog_btc_locked_pkscript_tx.json', JSON.stringify(
+    fs.writeFileSync('output/BRC20_Prog_btc_locked_pkscript_tx.json', JSON.stringify(
         {
             p: "brc20-prog",
             op: "call",
@@ -124,7 +115,7 @@ async function main() {
         }
     ), function (_) { });
 
-    fs.writeFile('output/BRC20_Prog_get_sha_256_tx.json', JSON.stringify(
+    fs.writeFileSync('output/BRC20_Prog_get_sha_256_tx.json', JSON.stringify(
         {
             p: "brc20-prog",
             op: "call",
@@ -133,7 +124,7 @@ async function main() {
         }
     ), function (_) { });
 
-    fs.writeFile('output/BRC20_Prog_get_random_number_tx.json', JSON.stringify(
+    fs.writeFileSync('output/BRC20_Prog_get_random_number_tx.json', JSON.stringify(
         {
             p: "brc20-prog",
             op: "call",
@@ -141,6 +132,9 @@ async function main() {
             d: contract_factory.interface.encodeFunctionData("getRandomNumber", []),
         }
     ), function (_) { });
+
+    // copy everything from output to integration_test folder
+    fs.cpSync("output", "../../integration_test/contracts/brc20_prog_helper", { recursive: true });
 }
 
 main()
