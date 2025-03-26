@@ -87,6 +87,7 @@ impl ServerInstance {
             0,
             genesis_height,
             genesis_hash,
+            None,
         )?;
 
         let brc20_controller_contract = result.contract_address.unwrap().0;
@@ -151,6 +152,7 @@ impl ServerInstance {
         tx_idx: u64,
         block_number: u64,
         block_hash: B256,
+        inscription_id: Option<String>,
     ) -> Result<TxReceiptED, &'static str> {
         #[cfg(debug_assertions)]
         println!("Adding tx {:?} to block {:?}", tx_idx, block_number);
@@ -266,6 +268,7 @@ impl ServerInstance {
             last_block_info.last_block_gas_used,
             nonce,
             last_block_info.last_block_log_index,
+            inscription_id,
         )
         .unwrap();
 
@@ -368,6 +371,23 @@ impl ServerInstance {
 
         let mut db = self.db_mutex.lock().unwrap();
         db.get_tx_by_hash(tx_hash).unwrap_or(None)
+    }
+
+    pub fn get_transaction_receipt_by_inscription_id(
+        &self,
+        inscription_id: String,
+    ) -> Option<TxReceiptED> {
+        #[cfg(debug_assertions)]
+        println!("Getting tx receipt by inscription id {:?}", inscription_id);
+
+        let mut db = self.db_mutex.lock().unwrap();
+        let tx_hash = db
+            .get_tx_hash_by_inscription_id(inscription_id)
+            .unwrap_or(None);
+        if tx_hash.is_none() {
+            return None;
+        }
+        db.get_tx_receipt(tx_hash.unwrap().0).unwrap_or(None)
     }
 
     pub fn get_transaction_receipt(&self, tx_hash: B256) -> Option<TxReceiptED> {

@@ -26,6 +26,7 @@ pub trait Brc20ProgApi {
         timestamp: u64,
         hash: String,
         tx_idx: u64,
+        inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED>;
 
     /// Withdraws brc20 tokens from the given address
@@ -38,6 +39,7 @@ pub trait Brc20ProgApi {
         timestamp: u64,
         hash: String,
         tx_idx: u64,
+        inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED>;
 
     /// Checks BRC20 balance for given address
@@ -53,6 +55,13 @@ pub trait Brc20ProgApi {
         genesis_height: u64,
     ) -> RpcResult<()>;
 
+    /// Retrieves transaction receipt for given inscription id
+    #[method(name = "brc20_getTxReceiptByInscriptionId")]
+    async fn get_transaction_receipt_by_inscription_id(
+        &self,
+        inscription_id: String,
+    ) -> RpcResult<Option<TxReceiptED>>;
+
     /// Adds a transaction to the block
     #[method(name = "brc20_addTxToBlock")]
     async fn add_tx_to_block(
@@ -63,6 +72,7 @@ pub trait Brc20ProgApi {
         timestamp: u64,
         hash: String,
         tx_idx: u64,
+        inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED>;
 
     /// Finalises the block with the given parameters

@@ -49,6 +49,10 @@ pub struct DB {
     /// Tx hash to Tx
     db_tx: Option<BlockCachedDatabase<B256ED, TxED, BlockHistoryCacheData<TxED>>>,
 
+    /// Hash of Inscription IDs to TxHash
+    db_inscription_id_to_tx_hash:
+        Option<BlockCachedDatabase<String, B256ED, BlockHistoryCacheData<B256ED>>>,
+
     /// Block hash to block number
     db_block_hash_to_number:
         Option<BlockCachedDatabase<B256ED, U64ED, BlockHistoryCacheData<U64ED>>>,
@@ -81,6 +85,7 @@ impl Default for DB {
             db_number_and_index_to_tx_hash: None,
             db_tx_receipt: None,
             db_tx: None,
+            db_inscription_id_to_tx_hash: None,
             db_block_number_to_block: None,
             db_block_number_to_hash: None,
             db_block_hash_to_number: None,
@@ -105,6 +110,10 @@ impl DB {
                 "number_and_index_to_tx_hash",
             )),
             db_tx_receipt: Some(BlockCachedDatabase::new(&base_path, "tx_receipt")),
+            db_inscription_id_to_tx_hash: Some(BlockCachedDatabase::new(
+                &base_path,
+                "inscription_id_to_tx_hash",
+            )),
             db_tx: Some(BlockCachedDatabase::new(&base_path, "tx")),
             db_block_hash_to_number: Some(BlockCachedDatabase::new(
                 &base_path,
@@ -309,6 +318,32 @@ impl DB {
         Ok(count)
     }
 
+    pub fn get_tx_hash_by_inscription_id(
+        &mut self,
+        inscription_id: String,
+    ) -> Result<Option<B256ED>, Box<dyn Error>> {
+        let ret = self
+            .db_inscription_id_to_tx_hash
+            .as_ref()
+            .unwrap()
+            .latest(&inscription_id)?;
+
+        Ok(ret)
+    }
+
+    pub fn set_tx_hash_by_inscription_id(
+        &mut self,
+        inscription_id: String,
+        tx_hash: B256,
+    ) -> Result<(), Box<dyn Error>> {
+        let block_number = self.get_latest_block_height()?;
+        Ok(self.db_inscription_id_to_tx_hash.as_mut().unwrap().set(
+            block_number,
+            inscription_id,
+            B256ED::from_b256(tx_hash),
+        )?)
+    }
+
     pub fn get_tx_hash_by_block_number_and_index(
         &mut self,
         block_number: u64,
@@ -374,6 +409,7 @@ impl DB {
         cumulative_gas_used: u64,
         nonce: u64,
         start_log_index: u64,
+        inscription_id: Option<String>,
     ) -> Result<(), Box<dyn Error>> {
         let tx_receipt = TxReceiptED::new(
             block_hash,
@@ -416,6 +452,10 @@ impl DB {
             U128ED::from_u128(Self::get_number_and_index_key(block_number, tx_idx)),
             B256ED::from_b256(tx_hash),
         )?;
+
+        if inscription_id.is_some() {
+            self.set_tx_hash_by_inscription_id(inscription_id.unwrap(), tx_hash)?;
+        }
 
         Ok(self.db_tx_receipt.as_mut().unwrap().set(
             block_number,
@@ -670,6 +710,10 @@ impl DB {
             .as_mut()
             .unwrap()
             .commit(latest_block_number)?;
+        self.db_inscription_id_to_tx_hash
+            .as_mut()
+            .unwrap()
+            .commit(latest_block_number)?;
         self.db_tx.as_mut().unwrap().commit(latest_block_number)?;
         self.db_tx_receipt
             .as_mut()
@@ -699,6 +743,10 @@ impl DB {
         self.db_account.as_mut().unwrap().clear_cache();
         self.db_block_number_to_hash.as_mut().unwrap().clear_cache();
         self.db_block_hash_to_number.as_mut().unwrap().clear_cache();
+        self.db_inscription_id_to_tx_hash
+            .as_mut()
+            .unwrap()
+            .clear_cache();
         self.db_tx.as_mut().unwrap().clear_cache();
         self.db_tx_receipt.as_mut().unwrap().clear_cache();
         self.db_number_and_index_to_tx_hash
@@ -747,6 +795,10 @@ impl DB {
             .unwrap()
             .reorg(latest_valid_block_number)?;
         self.db_tx_receipt
+            .as_mut()
+            .unwrap()
+            .reorg(latest_valid_block_number)?;
+        self.db_inscription_id_to_tx_hash
             .as_mut()
             .unwrap()
             .reorg(latest_valid_block_number)?;
@@ -1015,6 +1067,7 @@ mod tests {
                 cumulative_gas_used,
                 nonce,
                 start_log_index,
+                Some("inscription_id".to_string()),
             )
             .unwrap();
 
@@ -1023,6 +1076,13 @@ mod tests {
 
         let mut db = DB::new(&path).unwrap();
 
+        assert_eq!(
+            db.get_tx_hash_by_inscription_id("inscription_id".to_string())
+                .unwrap()
+                .unwrap()
+                .0,
+            tx_hash
+        );
         assert_eq!(
             db.get_tx_hash_by_block_number_and_index(block_number, tx_idx)
                 .unwrap()
