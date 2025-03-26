@@ -129,7 +129,7 @@ class BRC20ProgClient:
         data: str,
         timestamp: int,
         block_hash: str,
-    ) -> tuple[str, bool]:
+    ) -> tuple[str, bool, str]:
         if not brc20_prog_enabled:
             return
         self.verify_block_hash_and_timestamp(block_hash, timestamp)
@@ -170,6 +170,7 @@ class BRC20ProgClient:
         return [
             tx_result["result"]["contractAddress"],
             bool(tx_result["result"]["status"] == "0x1"),
+            tx_result["result"]["resultBytes"],
         ]
 
     def mine_blocks(self, block_count: int):
