@@ -1,10 +1,10 @@
-# Block size of 4MB allows around 10k calls per block for BTC tx details, assuming each call is around 512 bytes
+# Block size of 4MB allows around 10k calls per block for BTC tx details precompile, assuming each call is around 512 bytes
 # This is a very rough, potentially worst-case estimate, and the actual number of calls per block will vary.
 
-# The performance test script is a simple script that calls the btc tx details contract 10k times.
+# The performance test script is a simple script that calls a precompile contract 10k times.
 
 # The script is run with the following command:
-# python3 performance_test_single_block_btc_tx_details.py
+# python3 performance_test_single_block_precompile.py
 
 import json
 import sys
@@ -17,11 +17,13 @@ client = BRC20ProgClient()
 print("Starting performance test...")
 start_time = time.time()
 
+
 # Precompile data
 def load_tx_data(file):
     data = open(file).read()
     data = json.loads(data)["d"]
     return data
+
 
 deploy_data = load_tx_data("contracts/brc20_prog_helper/BRC20_Prog_deploy_tx.json")
 
@@ -74,7 +76,7 @@ tx_data_precompiles = [
     ),
 ]
 
-precompile_to_test = 5 # btc tx details
+precompile_to_test = 5  # btc tx details
 
 print("Testing calls to " + tx_data_precompiles[precompile_to_test][0])
 tx_data = tx_data_precompiles[precompile_to_test][2]
@@ -102,20 +104,21 @@ print("Deployed contract with address: " + contract_address)
 # contract_address="0x00000000000000000000000000000000000000fd"
 
 for i in range(call_cnt):
-    result = client.add_tx_to_block(
-        from_pkscript=btc_pkscript,
-        contract_address=contract_address,
-        data=tx_data,
-        timestamp=timestamp,
-        block_hash=block_hash,
-    )
-    if result[1] == False or result[2] != tx_data_precompiles[precompile_to_test][3]:
-        print("Call " + str(i) + " failed")
-        break
-    else:
+    try:
+        result = client.add_tx_to_block(
+            from_pkscript=btc_pkscript,
+            contract_address=contract_address,
+            data=tx_data,
+            timestamp=timestamp,
+            block_hash=block_hash,
+        )
+        if result[1] == False or result[2] != tx_data_precompiles[precompile_to_test][3]:
+            print("Call " + str(i) + " failed")
+            sys.exit(1)
         print("Call " + str(i) + " with result: " + str(result[1]))
-
-client.finalise_block(block_hash=block_hash, timestamp=timestamp)
+    except Exception as e:
+        print("Call " + str(i) + " failed with exception: " + str(e))
+        sys.exit(1)
 
 print("Performance test complete")
 print("Time taken: " + str(time.time() - start_time) + " seconds")

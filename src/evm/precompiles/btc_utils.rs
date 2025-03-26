@@ -1,8 +1,10 @@
 use base64::prelude::BASE64_URL_SAFE;
 use base64::Engine;
 use bitcoin::{KnownHrp, Network};
+use ureq::Agent;
 
 lazy_static::lazy_static! {
+    static ref BTC_CLIENT: Agent = Agent::new_with_defaults();
     static ref BITCOIN_RPC_URL: String = std::env::var("BITCOIN_RPC_URL")
             .unwrap_or("http://localhost:48332".to_string());
     static ref BITCOIN_RPC_USER: String = std::env::var("BITCOIN_RPC_USER")
@@ -55,7 +57,8 @@ pub fn skip_btc_tests() -> bool {
 }
 
 pub fn check_bitcoin_rpc_status() -> bool {
-    let response = ureq::post(&*BITCOIN_RPC_URL)
+    let response = BTC_CLIENT
+        .post(&*BITCOIN_RPC_URL)
         .header(
             "Authorization",
             get_basic_auth_header(&*BITCOIN_RPC_USER, &*BITCOIN_RPC_PASSWORD),
@@ -72,12 +75,17 @@ pub fn check_bitcoin_rpc_status() -> bool {
 }
 
 pub fn get_raw_transaction(txid: &str) -> serde_json::Value {
+    get_raw_transaction_with_retry(txid, 5)
+}
+
+pub fn get_raw_transaction_with_retry(txid: &str, retries_left: u32) -> serde_json::Value {
     // Check if the txid is a valid hex string
     if txid.chars().any(|c| !c.is_ascii_hexdigit()) {
         return serde_json::Value::Null;
     }
 
-    let response = ureq::post(&*BITCOIN_RPC_URL)
+    let response = BTC_CLIENT
+        .post(&*BITCOIN_RPC_URL)
         .header(
             "Authorization",
             get_basic_auth_header(&*BITCOIN_RPC_USER, &*BITCOIN_RPC_PASSWORD),
@@ -100,6 +108,11 @@ pub fn get_raw_transaction(txid: &str) -> serde_json::Value {
         );
 
     if response.is_err() {
+        // wait and retry
+        if retries_left > 0 {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            return get_raw_transaction_with_retry(txid, retries_left - 1);
+        }
         panic!("Failed to get raw transaction. Response: {:?}", response);
     }
 
@@ -132,7 +145,8 @@ pub fn get_block_height(hash: &str) -> serde_json::Value {
         return serde_json::Value::Null;
     }
 
-    let response = ureq::post(&*BITCOIN_RPC_URL)
+    let response = BTC_CLIENT
+        .post(&*BITCOIN_RPC_URL)
         .header(
             "Authorization",
             get_basic_auth_header(&*BITCOIN_RPC_USER, &*BITCOIN_RPC_PASSWORD),
