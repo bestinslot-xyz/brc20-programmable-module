@@ -1,16 +1,17 @@
+use alloy_sol_types::{sol, SolCall};
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::key::UntweakedPublicKey;
 use bitcoin::taproot::TaprootBuilder;
 use bitcoin::{opcodes, secp256k1, Address, ScriptBuf};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
-use solabi::{selector, FunctionEncoder, U256};
 
 use crate::evm::precompiles::btc_utils::{BITCOIN_HRP, BITCOIN_NETWORK};
 use crate::evm::precompiles::{precompile_error, precompile_output, use_gas};
 
-const GET_LOCKED_PKSCRIPT: FunctionEncoder<(String, U256), (String,)> =
-    FunctionEncoder::new(selector!("getLockedPkscript(string,uint256)"));
+sol! {
+    function getLockedPkscript(string, uint256) returns (string);
+}
 
 pub fn get_locked_pkscript_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
     let mut interpreter_result =
@@ -20,28 +21,31 @@ pub fn get_locked_pkscript_precompile(bytes: &Bytes, gas_limit: u64) -> Interpre
         return interpreter_result;
     }
 
-    let result = GET_LOCKED_PKSCRIPT.decode_params(&bytes);
+    let result = getLockedPkscriptCall::abi_decode(&bytes, false);
 
     if result.is_err() {
         // Invalid params
         return precompile_error(interpreter_result);
     }
 
-    let (pkscript, lock_block_count) = result.unwrap();
+    let returns = result.unwrap();
 
-    if lock_block_count == 0 || lock_block_count > U256::from(65535u32) {
+    let pkscript = returns._0;
+    let lock_block_count = returns._1.as_limbs()[0];
+
+    if lock_block_count == 0 || lock_block_count > 65535 {
         // Invalid lock block count
         return precompile_error(interpreter_result);
     }
 
-    let result = get_p2tr_lock_addr(&pkscript, lock_block_count.as_u32());
+    let result = get_p2tr_lock_addr(&pkscript, lock_block_count);
 
-    let bytes = GET_LOCKED_PKSCRIPT.encode_returns(&(result,));
+    let bytes = getLockedPkscriptCall::abi_encode_returns(&(result,));
 
     return precompile_output(interpreter_result, bytes);
 }
 
-fn get_p2tr_lock_addr(pkscript: &String, lock_block_count: u32) -> String {
+fn get_p2tr_lock_addr(pkscript: &String, lock_block_count: u64) -> String {
     let secp256k1 = secp256k1::Secp256k1::new();
     let lock_address = "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0"; // Unspendable address
 
@@ -57,7 +61,7 @@ fn get_p2tr_lock_addr(pkscript: &String, lock_block_count: u32) -> String {
     Address::p2tr_tweaked(lock_script.output_key(), *BITCOIN_HRP).to_string()
 }
 
-fn build_lock_script(pkscript: &String, lock_block_count: u32) -> bitcoin::ScriptBuf {
+fn build_lock_script(pkscript: &String, lock_block_count: u64) -> bitcoin::ScriptBuf {
     let pkscript = pkscript
         .parse::<Address<NetworkUnchecked>>()
         .unwrap()
@@ -112,73 +116,74 @@ fn build_lock_script(pkscript: &String, lock_block_count: u32) -> bitcoin::Scrip
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::Bytes;
-    use solabi::U256;
+    use alloy_primitives::U256;
 
     use super::*;
 
     #[test]
     fn test_get_locked_pkscript_six_blocks() {
-        let bytes = Bytes::from(GET_LOCKED_PKSCRIPT.encode_params(&(
+        let bytes = getLockedPkscriptCall::new((
             "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
             U256::from(6u8),
-        )));
-        let result = get_locked_pkscript_precompile(&bytes, 100000);
-        let result = GET_LOCKED_PKSCRIPT.decode_returns(&result.output.iter().as_slice());
-        let (pkscript,) = result.unwrap();
+        ))
+        .abi_encode();
+        let result = get_locked_pkscript_precompile(&bytes.into(), 100000);
+        let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
         assert_eq!(
-            pkscript,
+            result._0,
             "tb1ppnn9pkm5qrdx99lypxxka3zhs322qse4x88y39r8z2vfjhk7ex4sfu7cgf"
         )
     }
 
     #[test]
     fn test_get_locked_pkscript_year_lock() {
-        let bytes = Bytes::from(GET_LOCKED_PKSCRIPT.encode_params(&(
+        let bytes = getLockedPkscriptCall::new((
             "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
             U256::from(52560u32),
-        )));
-        let result = get_locked_pkscript_precompile(&bytes, 100000);
-        let result = GET_LOCKED_PKSCRIPT.decode_returns(&result.output.iter().as_slice());
-        let (pkscript,) = result.unwrap();
+        ))
+        .abi_encode();
+        let result = get_locked_pkscript_precompile(&bytes.into(), 100000);
+        let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
         assert_eq!(
-            pkscript,
+            result._0,
             "tb1p9p7v3afn2zptdq4cjvl7376p63vhdy7y53uayftmamuh8mp4ynmsvaeu4e"
         )
     }
 
     #[test]
     fn test_get_locked_pkscript_max_lock() {
-        let bytes = Bytes::from(GET_LOCKED_PKSCRIPT.encode_params(&(
+        let bytes = getLockedPkscriptCall::new((
             "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
             U256::from(65535u32),
-        )));
-        let result = get_locked_pkscript_precompile(&bytes, 100000);
-        let result = GET_LOCKED_PKSCRIPT.decode_returns(&result.output.iter().as_slice());
-        let (pkscript,) = result.unwrap();
+        ))
+        .abi_encode();
+        let result = get_locked_pkscript_precompile(&bytes.into(), 100000);
+        let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
         assert_eq!(
-            pkscript,
+            result._0,
             "tb1pp7kk3e79nhvt5pyjhqfwgaxq8zfm5vze4duy2f7xds4mfv0z24ssvnkfzw"
         )
     }
 
     #[test]
     fn test_get_locked_pkscript_zero_lock() {
-        let bytes = Bytes::from(GET_LOCKED_PKSCRIPT.encode_params(&(
+        let bytes = getLockedPkscriptCall::new((
             "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
             U256::from(0u32),
-        )));
-        let result = get_locked_pkscript_precompile(&bytes, 100000);
+        ))
+        .abi_encode();
+        let result = get_locked_pkscript_precompile(&bytes.into(), 100000);
         assert!(result.is_error());
     }
 
     #[test]
     fn test_get_locked_pkscript_max_plus_one_lock() {
-        let bytes = Bytes::from(GET_LOCKED_PKSCRIPT.encode_params(&(
+        let bytes = getLockedPkscriptCall::new((
             "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
             U256::from(65536u32),
-        )));
-        let result = get_locked_pkscript_precompile(&bytes, 100000);
+        ))
+        .abi_encode();
+        let result = get_locked_pkscript_precompile(&bytes.into(), 100000);
         assert!(result.is_error());
     }
 }

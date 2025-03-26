@@ -1,6 +1,7 @@
+use alloy_primitives::U256;
+use alloy_sol_types::{sol, SolCall};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
-use solabi::{selector, FunctionEncoder};
 
 use crate::evm::precompiles::{precompile_error, precompile_output, use_gas};
 
@@ -9,8 +10,9 @@ lazy_static::lazy_static! {
             .unwrap_or("http://localhost:18546".to_string());
 }
 
-const BALANCE_OF: FunctionEncoder<(String, String), (solabi::U256,)> =
-    FunctionEncoder::new(selector!("balanceOf(string,string)"));
+sol! {
+    function balanceOf(string, string) returns (uint256);
+}
 
 pub fn brc20_balance_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
     let mut interpreter_result =
@@ -20,13 +22,16 @@ pub fn brc20_balance_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
         return interpreter_result;
     }
 
-    let result = BALANCE_OF.decode_params(&bytes);
+    let result = balanceOfCall::abi_decode(bytes, false);
 
     if result.is_err() {
         return precompile_error(interpreter_result);
     }
 
-    let (ticker, address) = result.unwrap();
+    let returns = result.unwrap();
+
+    let ticker = returns._0;
+    let address = returns._1;
 
     let balance = get_brc20_balance(&ticker, &address);
 
@@ -34,8 +39,8 @@ pub fn brc20_balance_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
         return precompile_error(interpreter_result);
     }
 
-    let balance = solabi::U256::from(balance.unwrap());
-    let bytes = BALANCE_OF.encode_returns(&(balance,));
+    let balance = U256::from(balance.unwrap());
+    let bytes = balanceOfCall::abi_encode_returns(&(balance,));
 
     return precompile_output(interpreter_result, bytes);
 }

@@ -1,6 +1,7 @@
-use revm::primitives::{Address, Bytes, U256};
+use alloy_primitives::U256;
+use alloy_sol_types::{sol, SolCall};
+use revm::primitives::{Address, Bytes};
 use rust_embed::Embed;
-use solabi::{selector, FunctionEncoder};
 
 use crate::server::types::TxInfo;
 use crate::server::INDEXER_ADDRESS;
@@ -12,50 +13,31 @@ static BRC20_CONTROLLER_ADDRESS: &str = "0xc54dd4581af2dbf18e4d90840226756e9d2b3
 #[folder = "src/brc20_controller/contract/"]
 struct ContractAssets;
 
-const MINT: FunctionEncoder<(String, solabi::Address, solabi::U256), (bool,)> =
-    FunctionEncoder::new(selector!("mint(string,address,uint256)"));
+sol! {
+    function mint(string, address, uint256) returns (bool);
+    function burn(string, address, uint256) returns (bool);
+    function balanceOf(string, address) returns (uint256);
+}
 
 pub fn load_brc20_mint_tx(ticker: String, address: Address, amount: U256) -> TxInfo {
     let to = address.as_slice().try_into().unwrap();
 
-    let amount: [u8; 32] = amount.to_be_bytes();
-    let amount1 = u128::from_be_bytes(amount[0..16].try_into().unwrap());
-    let amount2 = u128::from_be_bytes(amount[16..32].try_into().unwrap());
-
     TxInfo {
         from: INDEXER_ADDRESS.parse().unwrap(),
         to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: Bytes::from(MINT.encode_params(&(
-            ticker,
-            solabi::Address(to),
-            solabi::U256([amount2, amount1]),
-        ))),
+        data: Bytes::from(mintCall::new((ticker, Address(to), amount)).abi_encode()),
     }
 }
-
-const BURN: FunctionEncoder<(String, solabi::Address, solabi::U256), (bool,)> =
-    FunctionEncoder::new(selector!("burn(string,address,uint256)"));
 
 pub fn load_brc20_burn_tx(ticker: String, address: Address, amount: U256) -> TxInfo {
     let from = address.as_slice().try_into().unwrap();
 
-    let amount: [u8; 32] = amount.to_be_bytes();
-    let amount1 = u128::from_be_bytes(amount[0..16].try_into().unwrap());
-    let amount2 = u128::from_be_bytes(amount[16..32].try_into().unwrap());
-
     TxInfo {
         from: INDEXER_ADDRESS.parse().unwrap(),
         to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: Bytes::from(BURN.encode_params(&(
-            ticker,
-            solabi::Address(from),
-            solabi::U256([amount2, amount1]),
-        ))),
+        data: Bytes::from(burnCall::new((ticker, Address(from), amount)).abi_encode()),
     }
 }
-
-const BALANCE_OF: FunctionEncoder<(String, solabi::Address), (solabi::U256,)> =
-    FunctionEncoder::new(selector!("balanceOf(string,address)"));
 
 pub fn load_brc20_balance_tx(ticker: String, address: Address) -> TxInfo {
     let address = address.as_slice().try_into().unwrap();
@@ -63,7 +45,7 @@ pub fn load_brc20_balance_tx(ticker: String, address: Address) -> TxInfo {
     TxInfo {
         from: INDEXER_ADDRESS.parse().unwrap(),
         to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: Bytes::from(BALANCE_OF.encode_params(&(ticker, solabi::Address(address)))),
+        data: Bytes::from(balanceOfCall::new((ticker, Address(address))).abi_encode()),
     }
 }
 
@@ -71,13 +53,11 @@ pub fn decode_brc20_balance_result(data: Option<&Bytes>) -> U256 {
     if data.is_none() {
         return U256::ZERO;
     }
-    let result = BALANCE_OF.decode_returns(data.as_ref().unwrap());
+    let result = balanceOfCall::abi_decode_returns(data.unwrap(), false);
     if result.is_err() {
         return U256::ZERO;
     }
-    let (result,) = result.unwrap();
-    let result = result.to_be_bytes();
-    U256::from_be_bytes(result)
+    result.unwrap()._0
 }
 
 pub fn load_brc20_deploy_tx() -> TxInfo {

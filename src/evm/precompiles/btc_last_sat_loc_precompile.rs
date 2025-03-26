@@ -1,38 +1,41 @@
+use alloy_primitives::U256;
+use alloy_sol_types::{sol, SolCall};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
-use solabi::{selector, FunctionEncoder, U256};
 
 use crate::evm::precompiles::btc_utils::get_raw_transaction;
 use crate::evm::precompiles::{precompile_error, precompile_output, use_gas};
 
 static GAS_PER_RPC_CALL: u64 = 100000;
 
-/// Signature for the getLastSatLocation function in the LastSatLocationPrecompile contract
-/// Uses bitcoin rpc to get the transaction details for the given txid
-/// Then returns the last sat location for the given vout and sat
-///
-/// # Returns (txid, vout, sat, old_pkscript, new_pkscript) in a tuple
-/// # Errors - Returns an error if the transaction details are not found
-const LAST_SAT_LOCATION: FunctionEncoder<
-    (String, U256, U256),
-    (String, U256, U256, String, String),
-> = FunctionEncoder::new(selector!("getLastSatLocation(string, uint256, uint256)"));
+/*
+    Signature for the getLastSatLocation function in the LastSatLocationPrecompile contract
+    Uses bitcoin rpc to get the transaction details for the given txid
+    Then returns the last sat location for the given vout and sat
+
+    # Returns (txid, vout, sat, old_pkscript, new_pkscript) in a tuple
+    # Errors - Returns an error if the transaction details are not found
+*/
+sol! {
+    function getLastSatLocation(string, uint256, uint256) returns (string, uint256, uint256, string, string);
+}
 
 pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
     let mut interpreter_result =
         InterpreterResult::new(InstructionResult::Stop, Bytes::new(), Gas::new(gas_limit));
 
-    let result = LAST_SAT_LOCATION.decode_params(&bytes);
+    let result = getLastSatLocationCall::abi_decode(&bytes, false);
 
     if result.is_err() {
         // Invalid params
         return precompile_error(interpreter_result);
     }
 
-    let (txid, vout, sat) = result.unwrap();
+    let result = result.unwrap();
 
-    let vout = vout.as_u64() as usize;
-    let sat = sat.as_u64();
+    let txid = result._0;
+    let vout = result._1.as_limbs()[0] as usize;
+    let sat = result._2.as_limbs()[0];
 
     if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
         return interpreter_result;
@@ -42,6 +45,7 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
 
     if response["error"].is_object() || response["result"].is_null() {
         // Transaction not found
+        tracing::warn!("Transaction not found");
         return precompile_error(interpreter_result);
     }
 
@@ -49,16 +53,19 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
 
     if response["vin"][0]["coinbase"].is_string() {
         // Coinbase transactions are not supported
+        tracing::warn!("Coinbase transactions are not supported");
         return precompile_error(interpreter_result);
     }
 
     if response["vout"].as_array().unwrap().len() <= vout {
         // Vout index out of bounds
+        tracing::warn!("Vout index out of bounds, vout: {}, vout_len: {}", vout, response["vout"].as_array().unwrap().len());
         return precompile_error(interpreter_result);
     }
 
     if to_sats(response["vout"][vout]["value"].as_f64().unwrap()) < sat {
         // Sat value out of bounds
+        tracing::warn!("Sat value out of bounds");
         return precompile_error(interpreter_result);
     }
 
@@ -121,7 +128,7 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
         return precompile_error(interpreter_result);
     }
 
-    let bytes = LAST_SAT_LOCATION.encode_returns(&(
+    let bytes = getLastSatLocationCall::abi_encode_returns(&(
         current_vin_txid,
         U256::from(current_vin_vout as u64),
         U256::from(total_vout_sat_count - (total_vin_sat_count - current_vin_value)),
@@ -138,8 +145,6 @@ fn to_sats(btc_value: f64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use solabi::U256;
-
     use super::*;
     use crate::evm::precompiles::btc_utils::skip_btc_tests;
 
@@ -152,7 +157,7 @@ mod tests {
         let txid = "d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd";
         let vout = U256::from(0u64);
         let sat = U256::from(100u64);
-        let data = LAST_SAT_LOCATION.encode_params(&(txid.to_string(), vout, sat));
+        let data = getLastSatLocationCall::new((txid.to_string(), vout, sat)).abi_encode();
 
         assert_eq!(
             hex::encode(data.iter().as_slice()),
@@ -162,7 +167,9 @@ mod tests {
         // Consider mocking the RPC call to bitcoind
         let result = last_sat_location_precompile(&data.into(), 1000000);
         let result = result;
-        let returns = LAST_SAT_LOCATION.decode_returns(&result.output).unwrap();
+        let returns = getLastSatLocationCall::abi_decode_returns(&result.output, false).unwrap();
+
+        let returns = (returns._0, returns._1, returns._2, returns._3, returns._4);
 
         assert_eq!(result.gas.spent(), 200000);
 
@@ -187,12 +194,14 @@ mod tests {
         let txid = "4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926";
         let vout = U256::from(0u64);
         let sat = U256::from(250000u64);
-        let data = LAST_SAT_LOCATION.encode_params(&(txid.to_string(), vout, sat));
+        let data = getLastSatLocationCall::new((txid.to_string(), vout, sat)).abi_encode();
 
         // Consider mocking the RPC call to bitcoind
         let result = last_sat_location_precompile(&data.into(), 10000000);
         let result = result;
-        let returns = LAST_SAT_LOCATION.decode_returns(&result.output).unwrap();
+        let returns = getLastSatLocationCall::abi_decode_returns(&result.output, false).unwrap();
+
+        let returns = (returns._0, returns._1, returns._2, returns._3, returns._4);
 
         assert_eq!(result.gas.spent(), 400000);
 
@@ -217,7 +226,7 @@ mod tests {
         let txid = "3f6201e955c191e714dcf92240a9dd0eea7c65465f60e4d31f5b6e9fd2003409";
         let vout = U256::from(0u64);
         let sat = U256::from(100u64);
-        let data = LAST_SAT_LOCATION.encode_params(&(txid.to_string(), vout, sat));
+        let data = getLastSatLocationCall::new((txid.to_string(), vout, sat)).abi_encode();
 
         // Consider mocking the RPC call to bitcoind
         let result = last_sat_location_precompile(&data.into(), 1000000);

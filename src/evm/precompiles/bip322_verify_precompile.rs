@@ -1,24 +1,30 @@
+use alloy_sol_types::{sol, SolCall};
 use bip322::verify_simple_encoded;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
-use solabi::{selector, FunctionEncoder};
 
 use super::precompile_output;
 use crate::evm::precompiles::{precompile_error, use_gas};
 
-const VERIFY: FunctionEncoder<(String, String, String), (bool,)> =
-    FunctionEncoder::new(selector!("verify(string,string,string)"));
+sol! {
+    function verify(string, string, string) returns (bool);
+}
 
 pub fn bip322_verify_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
     let mut interpreter_result =
         InterpreterResult::new(InstructionResult::Stop, Bytes::new(), Gas::new(gas_limit));
-    let result = VERIFY.decode_params(&bytes);
+    let result = verifyCall::abi_decode(&bytes, false);
 
     if result.is_err() {
         return precompile_error(interpreter_result);
     }
 
-    let (address, message, signature) = result.unwrap();
+    let result = result.unwrap();
+
+    let address = result._0;
+    let message = result._1;
+    let signature = result._2;
+
     let result = verify_simple_encoded(&address, &message, &signature);
 
     if !use_gas(&mut interpreter_result, 100000) {
@@ -27,7 +33,7 @@ pub fn bip322_verify_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
 
     match result {
         Ok(_) => {
-            return precompile_output(interpreter_result, VERIFY.encode_returns(&(true,)));
+            return precompile_output(interpreter_result, verifyCall::abi_encode_returns(&(true,)));
         }
         Err(_) => return precompile_error(interpreter_result),
     }
@@ -47,11 +53,12 @@ mod tests {
 
         let signature = bip322::sign_simple_encoded(&address, &message, &wif_private_key).unwrap();
 
-        let bytes = VERIFY.encode_params(&(address.to_string(), message.to_string(), signature));
+        let bytes =
+            verifyCall::new((address.to_string(), message.to_string(), signature)).abi_encode();
 
         let result = bip322_verify_precompile(&Bytes::from_iter(bytes.iter()), 1000000);
-        let (success,) = VERIFY.decode_returns(&result.output).unwrap();
+        let returns = verifyCall::abi_decode_returns(&result.output, false).unwrap();
 
-        assert!(success);
+        assert!(returns._0);
     }
 }
