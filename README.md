@@ -198,7 +198,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - ticker (`string`): Ticker for the BRC20 token
 - amount (`string`): Amount of BRC20 tokens
 - timestamp (`int`): Current block timestamp
-- hash (`string`): Current block hash
+- hash (`string`): Current block hash (starting with 0x)
 - tx_idx (`int`): Transaction index
 - inscription_id (`string`): Inscription ID that triggered this transaction
 
@@ -220,7 +220,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - ticker (`string`): Ticker for the BRC20 token
 - amount (`string`): Amount of BRC20 tokens
 - timestamp (`int`): Current block timestamp
-- hash (`string`): Current block hash
+- hash (`string`): Current block hash (starting with 0x)
 - tx_idx (`int`): Transaction index
 - inscription_id (`string`): Inscription ID that triggered this transaction
 

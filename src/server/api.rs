@@ -1,5 +1,9 @@
+use std::str::FromStr;
+
+use alloy_primitives::{Address, Bytes, B256, U256};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
+use serde::Deserialize;
 
 use crate::db::types::{BlockResponseED, LogResponseED, TxED, TxReceiptED};
 
@@ -22,9 +26,9 @@ pub trait Brc20ProgApi {
         &self,
         to_pkscript: String,
         ticker: String,
-        amount: String,
+        amount: U256Wrapper,
         timestamp: u64,
-        hash: String,
+        hash: B256Wrapper,
         tx_idx: u64,
         inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED>;
@@ -35,9 +39,9 @@ pub trait Brc20ProgApi {
         &self,
         from_pkscript: String,
         ticker: String,
-        amount: String,
+        amount: U256Wrapper,
         timestamp: u64,
-        hash: String,
+        hash: B256Wrapper,
         tx_idx: u64,
         inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED>;
@@ -50,7 +54,7 @@ pub trait Brc20ProgApi {
     #[method(name = "brc20_initialise")]
     async fn initialise(
         &self,
-        genesis_hash: String,
+        genesis_hash: B256Wrapper,
         genesis_timestamp: u64,
         genesis_height: u64,
     ) -> RpcResult<()>;
@@ -67,10 +71,10 @@ pub trait Brc20ProgApi {
     async fn add_tx_to_block(
         &self,
         from_pkscript: String,
-        to: Option<String>,
-        data: String,
+        to: Option<AddressWrapper>,
+        data: BytesWrapper,
         timestamp: u64,
-        hash: String,
+        hash: B256Wrapper,
         tx_idx: u64,
         inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED>;
@@ -80,7 +84,7 @@ pub trait Brc20ProgApi {
     async fn finalise_block(
         &self,
         timestamp: u64,
-        hash: String,
+        hash: B256Wrapper,
         block_tx_count: u64,
     ) -> RpcResult<()>;
 
@@ -112,7 +116,7 @@ pub trait Brc20ProgApi {
 
     /// Returns the block information for the requested block hash
     #[method(name = "eth_getBlockByHash")]
-    async fn get_block_by_hash(&self, block: String) -> RpcResult<BlockResponseED>;
+    async fn get_block_by_hash(&self, block: B256Wrapper) -> RpcResult<BlockResponseED>;
 
     /// Returns the transaction count by address and block number
     #[method(name = "eth_getTransactionCount")]
@@ -124,7 +128,7 @@ pub trait Brc20ProgApi {
 
     /// Returns the transaction count by block hash
     #[method(name = "eth_getBlockTransactionCountByHash")]
-    async fn get_block_transaction_count_by_hash(&self, block: String) -> RpcResult<String>;
+    async fn get_block_transaction_count_by_hash(&self, block: B256Wrapper) -> RpcResult<String>;
 
     /// Gets logs for the given filter
     #[method(name = "eth_getLogs")]
@@ -132,32 +136,44 @@ pub trait Brc20ProgApi {
 
     /// Calls a contract with the given parameters
     #[method(name = "eth_call")]
-    async fn call(&self, from: String, to: Option<String>, data: String) -> RpcResult<TxReceiptED>;
+    async fn call(
+        &self,
+        from: AddressWrapper,
+        to: Option<AddressWrapper>,
+        data: BytesWrapper,
+    ) -> RpcResult<TxReceiptED>;
 
     /// Estimates the gas for the given transaction
     #[method(name = "eth_estimateGas")]
     async fn estimate_gas(
         &self,
-        from: String,
-        to: Option<String>,
-        data: String,
+        from: AddressWrapper,
+        to: Option<AddressWrapper>,
+        data: BytesWrapper,
     ) -> RpcResult<String>;
 
     /// Get storage for the given contract and memory location
     #[method(name = "eth_getStorageAt")]
-    async fn get_storage_at(&self, contract: String, location: String) -> RpcResult<String>;
+    async fn get_storage_at(
+        &self,
+        contract: AddressWrapper,
+        location: U256Wrapper,
+    ) -> RpcResult<String>;
 
     /// Returns the bytecode of the contract at the given address
     #[method(name = "eth_getCode")]
-    async fn get_code(&self, contract: String) -> RpcResult<String>;
+    async fn get_code(&self, contract: AddressWrapper) -> RpcResult<String>;
 
     /// Returns the transaction receipt for the given transaction hash
     #[method(name = "eth_getTransactionReceipt")]
-    async fn get_transaction_receipt(&self, transaction: String) -> RpcResult<Option<TxReceiptED>>;
+    async fn get_transaction_receipt(
+        &self,
+        transaction: B256Wrapper,
+    ) -> RpcResult<Option<TxReceiptED>>;
 
     /// Returns the transaction by hash
     #[method(name = "eth_getTransactionByHash")]
-    async fn get_transaction_by_hash(&self, transaction: String) -> RpcResult<Option<TxED>>;
+    async fn get_transaction_by_hash(&self, transaction: B256Wrapper) -> RpcResult<Option<TxED>>;
 
     /// Returns the transaction by block number and index
     #[method(name = "eth_getTransactionByBlockNumberAndIndex")]
@@ -171,7 +187,7 @@ pub trait Brc20ProgApi {
     #[method(name = "eth_getTransactionByBlockHashAndIndex")]
     async fn get_transaction_by_block_hash_and_index(
         &self,
-        hash: String,
+        hash: B256Wrapper,
         index: u64,
     ) -> RpcResult<Option<TxED>>;
 
@@ -201,7 +217,7 @@ pub trait Brc20ProgApi {
 
     /// Returns the balance of the account at the given address (0 in BRC20)
     #[method(name = "eth_getBalance")]
-    async fn get_balance(&self, _address: String) -> RpcResult<String> {
+    async fn get_balance(&self, _address: B256Wrapper) -> RpcResult<String> {
         Ok("0x0".to_string())
     }
 
@@ -213,7 +229,7 @@ pub trait Brc20ProgApi {
 
     /// Returns the uncle count of the block at the given block hash (0 in BRC20)
     #[method(name = "eth_getUncleCountByBlockHash")]
-    async fn get_uncle_count_by_block_hash(&self, _hash: String) -> RpcResult<String> {
+    async fn get_uncle_count_by_block_hash(&self, _hash: B256Wrapper) -> RpcResult<String> {
         Ok("0x0".to_string())
     }
 
@@ -231,7 +247,7 @@ pub trait Brc20ProgApi {
     #[method(name = "eth_getUncleByBlockHashAndIndex")]
     async fn get_uncle_by_block_hash_and_index(
         &self,
-        _hash: String,
+        _hash: B256Wrapper,
         _index: u64,
     ) -> RpcResult<Option<String>> {
         Ok(None)
@@ -246,4 +262,95 @@ pub struct GetLogsFilter {
     pub to_block: Option<String>,
     pub address: Option<String>,
     pub topics: Option<Vec<String>>,
+}
+
+#[derive(Debug)]
+pub struct U256Wrapper(U256);
+
+impl U256Wrapper {
+    pub fn value(&self) -> U256 {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for U256Wrapper {
+    fn deserialize<D>(deserializer: D) -> Result<U256Wrapper, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if s.starts_with("0x") {
+            let u256 = U256::from_str_radix(&s[2..], 16).map_err(serde::de::Error::custom)?;
+            Ok(U256Wrapper(u256))
+        } else {
+            let u256 = U256::from_str_radix(&s, 10).map_err(serde::de::Error::custom)?;
+            Ok(U256Wrapper(u256))
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct B256Wrapper(B256);
+
+impl B256Wrapper {
+    pub fn value(&self) -> B256 {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for B256Wrapper {
+    fn deserialize<D>(deserializer: D) -> Result<B256Wrapper, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if !s.starts_with("0x") {
+            return Err(serde::de::Error::custom("missing 0x prefix"));
+        }
+        let b256 = B256::from_str(&s[2..]).map_err(serde::de::Error::custom)?;
+        Ok(B256Wrapper(b256))
+    }
+}
+
+#[derive(Debug)]
+pub struct AddressWrapper(Address);
+
+impl AddressWrapper {
+    pub fn value(&self) -> Address {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for AddressWrapper {
+    fn deserialize<D>(deserializer: D) -> Result<AddressWrapper, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let address = Address::from_str(&s).map_err(serde::de::Error::custom)?;
+        Ok(AddressWrapper(address))
+    }
+}
+
+#[derive(Debug)]
+pub struct BytesWrapper(Bytes);
+
+impl BytesWrapper {
+    pub fn value(&self) -> &Bytes {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for BytesWrapper {
+    fn deserialize<D>(deserializer: D) -> Result<BytesWrapper, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if !s.starts_with("0x") {
+            return Err(serde::de::Error::custom("missing 0x prefix"));
+        }
+        let bytes = Bytes::from_str(&s[2..]).map_err(serde::de::Error::custom)?;
+        Ok(BytesWrapper(bytes))
+    }
 }
