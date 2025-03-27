@@ -6,7 +6,7 @@ use ureq::Agent;
 lazy_static::lazy_static! {
     static ref BTC_CLIENT: Agent = Agent::new_with_defaults();
     static ref BITCOIN_RPC_URL: String = std::env::var("BITCOIN_RPC_URL")
-            .unwrap_or("http://localhost:48332".to_string());
+            .unwrap_or("http://localhost:38332".to_string());
     static ref BITCOIN_RPC_USER: String = std::env::var("BITCOIN_RPC_USER")
             .unwrap_or("user".to_string());
     static ref BITCOIN_RPC_PASSWORD: String = std::env::var("BITCOIN_RPC_PASSWORD")
