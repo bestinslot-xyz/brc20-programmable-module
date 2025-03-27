@@ -222,7 +222,9 @@ impl Brc20ProgApiServer for RpcServer {
             .get_transaction_receipt(transaction.value()))
     }
 
+    #[instrument(skip(self))]
     async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogResponseED>> {
+        event!(Level::INFO, "Getting logs");
         Ok(self.server_instance.get_logs(
             Some(self.parse_block_number(&filter.from_block.unwrap_or("latest".to_string()))?),
             Some(self.parse_block_number(&filter.to_block.unwrap_or("latest".to_string()))?),
@@ -241,12 +243,14 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_error_message)
     }
 
+    #[instrument(skip(self, data))]
     async fn call(
         &self,
         from: AddressWrapper,
         to: Option<AddressWrapper>,
         data: BytesWrapper,
     ) -> RpcResult<TxReceiptED> {
+        event!(Level::INFO, "Calling contract");
         self.server_instance
             .call_contract(&TxInfo {
                 from: from.value(),
@@ -256,12 +260,14 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_error_message)
     }
 
+    #[instrument(skip(self, data))]
     async fn estimate_gas(
         &self,
         from: AddressWrapper,
         to: Option<AddressWrapper>,
         data: BytesWrapper,
     ) -> RpcResult<String> {
+        event!(Level::INFO, "Estimating gas");
         Ok(format!(
             "0x{:x}",
             self.server_instance
