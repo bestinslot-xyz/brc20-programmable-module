@@ -12,7 +12,7 @@ lazy_static::lazy_static! {
     static ref BITCOIN_RPC_PASSWORD: String = std::env::var("BITCOIN_RPC_PASSWORD")
             .unwrap_or("password".to_string());
     static ref BITCOIN_NETWORK_STRING: String = std::env::var("BITCOIN_NETWORK")
-            .unwrap_or("testnet4".to_string());
+            .unwrap_or("signet".to_string());
     pub static ref BITCOIN_NETWORK : Network = {
         match BITCOIN_NETWORK_STRING.as_str() {
             "mainnet" => Network::Bitcoin,
