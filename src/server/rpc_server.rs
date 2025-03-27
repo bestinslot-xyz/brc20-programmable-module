@@ -226,10 +226,10 @@ impl Brc20ProgApiServer for RpcServer {
         Ok(self.server_instance.get_logs(
             Some(self.parse_block_number(&filter.from_block.unwrap_or("latest".to_string()))?),
             Some(self.parse_block_number(&filter.to_block.unwrap_or("latest".to_string()))?),
-            filter.address.map(|x| x.parse().unwrap()),
+            filter.address.map(|x| x.value()),
             filter
                 .topics
-                .map(|x| x.into_iter().map(|y| y.parse().unwrap()).collect()),
+                .map(|vec| vec.into_iter().map(|topic| topic.value()).collect()),
         ))
     }
 
