@@ -48,7 +48,8 @@ pub fn brc20_balance_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
 }
 
 pub fn get_brc20_balance(ticker: &str, address: &str) -> Result<u64, String> {
-    let response = BRC20_CLIENT.get(BRC20_PROG_BALANCE_SERVER_URL.as_str())
+    let response = BRC20_CLIENT
+        .get(BRC20_PROG_BALANCE_SERVER_URL.as_str())
         .query("ticker", ticker)
         .query("address", address)
         .call();

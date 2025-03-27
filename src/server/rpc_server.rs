@@ -7,6 +7,7 @@ use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
 use revm::primitives::B256;
 use tracing::{event, instrument, Level};
 
+use super::api::{AddressWrapper, B256Wrapper, BytesWrapper, U256Wrapper};
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
 };
@@ -16,8 +17,6 @@ use crate::server::api::GetLogsFilter;
 use crate::server::server_instance::ServerInstance;
 use crate::server::types::TxInfo;
 use crate::server::Brc20ProgApiServer;
-
-use super::api::{AddressWrapper, B256Wrapper, BytesWrapper, U256Wrapper};
 
 pub struct RpcServer {
     server_instance: ServerInstance,
