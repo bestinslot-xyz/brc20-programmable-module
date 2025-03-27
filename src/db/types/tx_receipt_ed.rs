@@ -34,10 +34,7 @@ pub struct TxReceiptED {
     pub cumulative_gas_used: u64,
     #[serde(with = "SerHex::<CompactPfx>")]
     pub nonce: u64,
-    #[serde(
-        rename = "resultBytes",
-        serialize_with = "bytes",
-    )]
+    #[serde(rename = "resultBytes", serialize_with = "bytes")]
     pub result_bytes: Option<Bytes>,
 }
 

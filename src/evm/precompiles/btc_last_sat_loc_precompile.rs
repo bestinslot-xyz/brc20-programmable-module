@@ -59,7 +59,11 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
 
     if response["vout"].as_array().unwrap().len() <= vout {
         // Vout index out of bounds
-        tracing::warn!("Vout index out of bounds, vout: {}, vout_len: {}", vout, response["vout"].as_array().unwrap().len());
+        tracing::warn!(
+            "Vout index out of bounds, vout: {}, vout_len: {}",
+            vout,
+            response["vout"].as_array().unwrap().len()
+        );
         return precompile_error(interpreter_result);
     }
 
