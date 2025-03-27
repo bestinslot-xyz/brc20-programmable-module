@@ -1,5 +1,5 @@
 import psycopg2, requests, time
-from hashlib import sha3_256 as sha3
+from Crypto.Hash import keccak
 
 """
 real    111m56.182s
@@ -10,7 +10,10 @@ sys     1m15.804s
 session = requests.Session()
 
 conn = psycopg2.connect(
-    host="127.0.0.1", database="postgres", user="postgres", password="password"
+    host="127.0.0.1", 
+    database="postgres", 
+    user="postgres", 
+    password="password"
 )
 conn.autocommit = True
 cur = conn.cursor()
@@ -22,16 +25,17 @@ def get_evm_height():
     return response.json()["result"]
 
 
-initial_block_height = 1
+initial_block_height = 779830
 current_block_height = get_evm_height() + 1
 cur.execute("SELECT max(block_height) from brc20_block_hashes;")
 max_block_height = cur.fetchone()[0]
 
 contract_deploy_tx = {
     "inscription": {
+        "inscription_id": "0000000000000000000000000000000000000000000000000000000000000000i0",
         "op": "deploy",
         "d": "0x"
-        + open("contracts/brc20_deployer/BRC20_Deployer_sol_BRC20_Deployer.bin")
+        + open("contracts/brc20_deployer/BRC20_Deployer.bin")
         .read()
         .strip(),
     },
@@ -40,9 +44,23 @@ contract_deploy_tx = {
 
 
 def get_addr_data(btc_pkscript):
-    k = sha3(bytes.fromhex(btc_pkscript))
+    k = keccak.new(digest_bits=256)
+    k.update(btc_pkscript.encode('ASCII'))
     return k.hexdigest()[-40:].zfill(64)
 
+def get_block_ts(hash):
+    err_cnt = 0
+    while True:
+        try:
+            r = requests.get('https://mempool.space/api/block/' + hash)
+            j = r.json()
+            return j['timestamp']
+        except:
+            err_cnt += 1
+            if err_cnt == 5:
+                print("TOO MANY ERRORS!!")
+                return None
+            time.sleep(1.0)
 
 handled_block_cnt = 0
 while current_block_height <= max_block_height:
@@ -60,27 +78,27 @@ while current_block_height <= max_block_height:
         print("Deploying BRC20 Deployer contract...")
         block_txes.append(contract_deploy_tx)
     cur.execute(
-        "SELECT block_timestamp from block_hashes where block_height = %s;",
-        (current_block_height,),
-    )
-    block_ts = cur.fetchone()[0]
-    btc_ts = int(block_ts.timestamp())
-    cur.execute(
         "SELECT block_hash from brc20_block_hashes where block_height = %s;",
         (current_block_height,),
     )
     btc_hash = "0x" + cur.fetchone()[0]
+    block_ts = get_block_ts(btc_hash[2:])
+    if block_ts is None:
+        exit(5)
+    btc_ts = int(block_ts)
     cur.execute(
-        "SELECT event_type, event from brc20_events where block_height = %s order by id asc;",
+        "SELECT event_type, event, inscription_id from brc20_events where block_height = %s order by id asc;",
         (current_block_height,),
     )
     events = cur.fetchall()
     deploy_cnt = 0
     for event in events:
+        inscription_id = event[2]
         event_tx = {
             "inscription": {
+                "inscription_id": inscription_id,
                 "op": "call",
-                "c": "0x39a0a68ac7e3a74912c65645988f73f81c59982c",
+                "c": "0x11bc79b28ab26101d4cb2cbdd4d5c2ceeea49efb",
                 "d": "0x",
             }
         }
@@ -150,8 +168,8 @@ while current_block_height <= max_block_height:
         "Block "
         + str(current_block_height)
         + " mined in "
-        + str(int((time.time() - st_tm) * 10**9)).rjust(9)
-        + " ns containing "
+        + str(int((time.time() - st_tm) * 10**3)).rjust(9)
+        + " ms containing "
         + str(len(block_txes)).rjust(4)
         + " transactions and "
         + str(deploy_cnt).rjust(2)
