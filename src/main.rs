@@ -46,12 +46,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "Error"
         }
     );
-    println!(
-        "BRC20 balance server status: {}",
-        get_brc20_balance("test", "test")
-            .map(|_| "OK")
-            .unwrap_or("Error")
-    );
     println!("");
     println!("--- Server ---");
     println!(
