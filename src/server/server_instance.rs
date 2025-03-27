@@ -13,7 +13,9 @@ use crate::db::types::{
     AddressED, BlockResponseED, Decode, LogED, LogResponseED, TxED, TxReceiptED, B2048ED, B256ED,
 };
 use crate::db::{DB, MAX_HISTORY_SIZE};
-use crate::evm::{get_contract_address, get_evm, get_result_reason, get_result_type};
+use crate::evm::{
+    get_brc20_balance, get_contract_address, get_evm, get_result_reason, get_result_type,
+};
 use crate::server::types::{get_tx_hash, TxInfo};
 
 pub struct LastBlockInfo {
@@ -94,6 +96,9 @@ impl ServerInstance {
         verify_brc20_contract_address(&brc20_controller_contract.to_string());
 
         self.finalise_block(genesis_timestamp, genesis_height, genesis_hash, 1)?;
+
+        // Check status of BRC20 Balance Server before proceeding
+        get_brc20_balance("test", "test").map_err(|_| "BRC20 Balance Server is down")?;
 
         Ok(())
     }
