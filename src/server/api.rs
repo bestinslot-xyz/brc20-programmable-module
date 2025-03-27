@@ -16,6 +16,12 @@ pub trait Brc20ProgApi {
     ///
     ///
 
+    /// Returns current brc20_prog_version
+    #[method(name = "brc20_version")]
+    async fn version(&self) -> RpcResult<String> {
+        Ok(env!("CARGO_PKG_VERSION").to_string())
+    }
+
     /// Mines blocks for the given block count at the timestamp
     #[method(name = "brc20_mine")]
     async fn mine(&self, block_count: u64, timestamp: u64) -> RpcResult<()>;
