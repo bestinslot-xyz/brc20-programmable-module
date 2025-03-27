@@ -31,6 +31,8 @@ For questions, comments and requests, use [the issues section](https://github.co
 
 BRC2.0 Programmable Module is written in [Rust](https://www.rust-lang.org/), so you need Cargo installed in order to build and run the server.
 
+Precompiled contracts require environment variables to work properly, see the [Precompiles](#precompiles) section and [Indexer Integration Guide](#indexer-integration-guide) to learn how to set them up, otherwise precompiled contracts will fail.
+
 **Build and run brc20_prog:**
 
 ```
@@ -38,7 +40,9 @@ cargo run --release
 ```
 
 > [!NOTE]
-> Some precompiled contracts require environment variables to work properly, see the [Precompiles](#precompiles) section and [Indexer Integration Guide](#indexer-integration-guide) to learn how to set them up, otherwise precompiled contracts will fail.
+> You must use clang as CC. Try installing clang `sudo apt install clang` before running `brc20_prog`.
+> 
+> Eg. CC=/usr/bin/clang CXX=/usr/bin/clang++. Clang llvm version must be the same as the one used by rust compiler. On the rust side you should use RUSTFLAGS="-Clinker-plugin-lto -Clinker=clang -Clink-arg=-fuse-ld=lld".
 
 ## Supported JSON-RPC methods
 
