@@ -260,7 +260,7 @@ pub struct GetLogsFilter {
     pub from_block: Option<String>,
     #[serde(rename = "toBlock")]
     pub to_block: Option<String>,
-    pub address: Option<String>,
+    pub address: Option<AddressWrapper>,
     pub topics: Option<Vec<String>>,
 }
 
