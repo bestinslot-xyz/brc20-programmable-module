@@ -264,7 +264,7 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn get_block_by_number(&self, block: String) -> RpcResult<BlockResponseED> {
+    async fn get_block_by_number(&self, block: String, _: bool) -> RpcResult<BlockResponseED> {
         event!(Level::INFO, "Getting block by number");
         let number = self.parse_block_number(&block)?;
         let block = self.server_instance.get_block_by_number(number);
@@ -276,7 +276,7 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn get_block_by_hash(&self, block: B256Wrapper) -> RpcResult<BlockResponseED> {
+    async fn get_block_by_hash(&self, block: B256Wrapper, _: bool) -> RpcResult<BlockResponseED> {
         event!(Level::INFO, "Getting block by number");
         let block = self.server_instance.get_block_by_hash(block.value());
         if let Some(block) = block {
