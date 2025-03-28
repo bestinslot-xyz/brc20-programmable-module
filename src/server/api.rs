@@ -129,11 +129,11 @@ pub trait Brc20ProgApi {
 
     /// Returns the block information for the requested block number
     #[method(name = "eth_getBlockByNumber")]
-    async fn get_block_by_number(&self, block: String) -> RpcResult<BlockResponseED>;
+    async fn get_block_by_number(&self, block: String, is_full: bool) -> RpcResult<BlockResponseED>;
 
     /// Returns the block information for the requested block hash
     #[method(name = "eth_getBlockByHash")]
-    async fn get_block_by_hash(&self, block: B256Wrapper) -> RpcResult<BlockResponseED>;
+    async fn get_block_by_hash(&self, block: B256Wrapper, is_full: bool) -> RpcResult<BlockResponseED>;
 
     /// Returns the transaction count by address and block number
     #[method(name = "eth_getTransactionCount")]

@@ -56,10 +56,6 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
 
     let block_hash = response["blockhash"].as_str().unwrap_or("").to_string();
 
-    if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
-        return interpreter_result;
-    }
-
     let block_height_result = get_block_height(&block_hash);
     if block_height_result["error"].is_object() || !block_height_result["result"].is_object() {
         return precompile_error(interpreter_result);
