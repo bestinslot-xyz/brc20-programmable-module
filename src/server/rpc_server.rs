@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::net::SocketAddr;
 
+use alloy_primitives::Address;
 use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::server::{RpcServiceBuilder, Server, ServerHandle};
 use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
@@ -44,6 +45,14 @@ fn wrap_error_message(message: &'static str) -> ErrorObject<'static> {
 
 #[async_trait]
 impl Brc20ProgApiServer for RpcServer {
+    #[instrument(skip(self))]
+    async fn mine(&self, block_count: u64, timestamp: u64) -> RpcResult<()> {
+        event!(Level::INFO, "Mining empty blocks");
+        self.server_instance
+            .mine_block(block_count, timestamp, B256::ZERO)
+            .map_err(wrap_error_message)
+    }
+
     #[instrument(skip(self))]
     async fn deposit(
         &self,
@@ -112,6 +121,143 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_error_message)
     }
 
+    #[instrument(skip(self))]
+    async fn initialise(
+        &self,
+        genesis_hash: B256Wrapper,
+        genesis_timestamp: u64,
+        genesis_height: u64,
+    ) -> RpcResult<()> {
+        event!(Level::INFO, "Initialising server");
+        self.server_instance
+            .initialise(genesis_hash.value(), genesis_timestamp, genesis_height)
+            .map_err(wrap_error_message)
+    }
+
+    #[instrument(skip(self))]
+    async fn get_transaction_receipt_by_inscription_id(
+        &self,
+        inscription_id: String,
+    ) -> RpcResult<Option<TxReceiptED>> {
+        event!(Level::INFO, "Getting transaction receipt by inscription id");
+        let receipt = self
+            .server_instance
+            .get_transaction_receipt_by_inscription_id(inscription_id);
+        Ok(receipt)
+    }
+
+    #[instrument(skip(self, data))]
+    async fn deploy_contract(
+        &self,
+        from_pkscript: String,
+        data: BytesWrapper,
+        timestamp: u64,
+        hash: B256Wrapper,
+        tx_idx: u64,
+        inscription_id: Option<String>,
+    ) -> RpcResult<TxReceiptED> {
+        event!(Level::INFO, "Deploying contract");
+        self.server_instance
+            .add_tx_to_block(
+                timestamp,
+                &TxInfo {
+                    from: get_evm_address(&from_pkscript),
+                    to: None,
+                    data: data.value().clone(),
+                },
+                tx_idx,
+                self.server_instance.get_latest_block_height() + 1,
+                hash.value(),
+                inscription_id,
+            )
+            .map_err(wrap_error_message)
+    }
+
+    #[instrument(skip(self, data))]
+    async fn call_contract(
+        &self,
+        from_pkscript: String,
+        contract_address: Option<AddressWrapper>,
+        contract_inscription_id: Option<String>,
+        data: BytesWrapper,
+        timestamp: u64,
+        hash: B256Wrapper,
+        tx_idx: u64,
+        inscription_id: Option<String>,
+    ) -> RpcResult<TxReceiptED> {
+        event!(Level::INFO, "Calling contract");
+        let derived_contract_address;
+        if contract_address.is_none() {
+            if contract_inscription_id.is_none() {
+                return Err(
+                    RpcServerError::new("Contract address or inscription ID is required").into(),
+                );
+            }
+            let inscription_contract_address = self
+                .server_instance
+                .get_contract_address_by_inscription_id(contract_inscription_id.unwrap())
+                .map_err(wrap_error_message)?;
+            derived_contract_address = Some(inscription_contract_address);
+        } else {
+            let contract_address = contract_address.unwrap();
+            if contract_address.value() == Address::ZERO {
+                return Err(RpcServerError::new("Contract address cannot be zero").into());
+            }
+            derived_contract_address = Some(contract_address.value());
+        }
+        self.server_instance
+            .add_tx_to_block(
+                timestamp,
+                &TxInfo {
+                    from: get_evm_address(&from_pkscript),
+                    to: derived_contract_address,
+                    data: data.value().clone(),
+                },
+                tx_idx,
+                self.server_instance.get_latest_block_height() + 1,
+                hash.value(),
+                inscription_id,
+            )
+            .map_err(wrap_error_message)
+    }
+
+    #[instrument(skip(self))]
+    async fn finalise_block(
+        &self,
+        timestamp: u64,
+        hash: B256Wrapper,
+        block_tx_count: u64,
+    ) -> RpcResult<()> {
+        let block_height = self.server_instance.get_latest_block_height() + 1;
+        event!(Level::INFO, "Finalising block {}", block_height);
+        self.server_instance
+            .finalise_block(timestamp, block_height, hash.value(), block_tx_count)
+            .map_err(wrap_error_message)
+    }
+
+    #[instrument(skip(self))]
+    async fn reorg(&self, latest_valid_block_number: u64) -> RpcResult<()> {
+        event!(Level::WARN, "Reorg!");
+        self.server_instance
+            .reorg(latest_valid_block_number)
+            .map_err(wrap_error_message)
+    }
+
+    #[instrument(skip(self))]
+    async fn commit_to_database(&self) -> RpcResult<()> {
+        event!(Level::INFO, "Committing to database");
+        self.server_instance
+            .commit_to_db()
+            .map_err(wrap_error_message)
+    }
+
+    #[instrument(skip(self))]
+    async fn clear_caches(&self) -> RpcResult<()> {
+        event!(Level::INFO, "Clearing caches");
+        self.server_instance.clear_caches();
+        Ok(())
+    }
+
     async fn block_number(&self) -> RpcResult<String> {
         let height = self.server_instance.get_latest_block_height();
         Ok(format!("0x{:x}", height))
@@ -178,50 +324,6 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn get_transaction_by_hash(&self, transaction: B256Wrapper) -> RpcResult<Option<TxED>> {
-        event!(Level::INFO, "Getting transaction by hash");
-        Ok(self
-            .server_instance
-            .get_transaction_by_hash(transaction.value()))
-    }
-
-    #[instrument(skip(self))]
-    async fn get_transaction_by_block_hash_and_index(
-        &self,
-        block_hash: B256Wrapper,
-        tx_idx: u64,
-    ) -> RpcResult<Option<TxED>> {
-        event!(Level::INFO, "Getting transaction by block hash and index");
-        Ok(self
-            .server_instance
-            .get_transaction_by_block_hash_and_index(block_hash.value(), tx_idx))
-    }
-
-    #[instrument(skip(self))]
-    async fn get_transaction_by_block_number_and_index(
-        &self,
-        block_number: u64,
-        tx_idx: u64,
-    ) -> RpcResult<Option<TxED>> {
-        event!(Level::INFO, "Getting transaction by block number and index");
-        let tx = self
-            .server_instance
-            .get_transaction_by_block_number_and_index(block_number, tx_idx);
-        Ok(tx)
-    }
-
-    #[instrument(skip(self))]
-    async fn get_transaction_receipt(
-        &self,
-        transaction: B256Wrapper,
-    ) -> RpcResult<Option<TxReceiptED>> {
-        event!(Level::INFO, "Getting transaction receipt");
-        Ok(self
-            .server_instance
-            .get_transaction_receipt(transaction.value()))
-    }
-
-    #[instrument(skip(self))]
     async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogResponseED>> {
         event!(Level::INFO, "Getting logs");
         Ok(self.server_instance.get_logs(
@@ -232,14 +334,6 @@ impl Brc20ProgApiServer for RpcServer {
                 .topics
                 .map(|vec| vec.into_iter().map(|topic| topic.value()).collect()),
         ))
-    }
-
-    #[instrument(skip(self))]
-    async fn mine(&self, block_count: u64, timestamp: u64) -> RpcResult<()> {
-        event!(Level::INFO, "Mining empty blocks");
-        self.server_instance
-            .mine_block(block_count, timestamp, B256::ZERO)
-            .map_err(wrap_error_message)
     }
 
     #[instrument(skip(self, data))]
@@ -295,96 +389,6 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn initialise(
-        &self,
-        genesis_hash: B256Wrapper,
-        genesis_timestamp: u64,
-        genesis_height: u64,
-    ) -> RpcResult<()> {
-        event!(Level::INFO, "Initialising server");
-        self.server_instance
-            .initialise(genesis_hash.value(), genesis_timestamp, genesis_height)
-            .map_err(wrap_error_message)
-    }
-
-    #[instrument(skip(self))]
-    async fn get_transaction_receipt_by_inscription_id(
-        &self,
-        inscription_id: String,
-    ) -> RpcResult<Option<TxReceiptED>> {
-        event!(Level::INFO, "Getting transaction receipt by inscription id");
-        let receipt = self
-            .server_instance
-            .get_transaction_receipt_by_inscription_id(inscription_id);
-        Ok(receipt)
-    }
-
-    #[instrument(skip(self, data))]
-    async fn add_tx_to_block(
-        &self,
-        from_pkscript: String,
-        to: Option<AddressWrapper>,
-        data: BytesWrapper,
-        timestamp: u64,
-        hash: B256Wrapper,
-        tx_idx: u64,
-        inscription_id: Option<String>,
-    ) -> RpcResult<TxReceiptED> {
-        event!(Level::INFO, "Adding tx to block");
-        self.server_instance
-            .add_tx_to_block(
-                timestamp,
-                &TxInfo {
-                    from: get_evm_address(&from_pkscript),
-                    to: to.map(|x| x.value()),
-                    data: data.value().clone(),
-                },
-                tx_idx,
-                self.server_instance.get_latest_block_height() + 1,
-                hash.value(),
-                inscription_id,
-            )
-            .map_err(wrap_error_message)
-    }
-
-    #[instrument(skip(self))]
-    async fn finalise_block(
-        &self,
-        timestamp: u64,
-        hash: B256Wrapper,
-        block_tx_count: u64,
-    ) -> RpcResult<()> {
-        let block_height = self.server_instance.get_latest_block_height() + 1;
-        event!(Level::INFO, "Finalising block {}", block_height);
-        self.server_instance
-            .finalise_block(timestamp, block_height, hash.value(), block_tx_count)
-            .map_err(wrap_error_message)
-    }
-
-    #[instrument(skip(self))]
-    async fn reorg(&self, latest_valid_block_number: u64) -> RpcResult<()> {
-        event!(Level::WARN, "Reorg!");
-        self.server_instance
-            .reorg(latest_valid_block_number)
-            .map_err(wrap_error_message)
-    }
-
-    #[instrument(skip(self))]
-    async fn commit_to_database(&self) -> RpcResult<()> {
-        event!(Level::INFO, "Committing to database");
-        self.server_instance
-            .commit_to_db()
-            .map_err(wrap_error_message)
-    }
-
-    #[instrument(skip(self))]
-    async fn clear_caches(&self) -> RpcResult<()> {
-        event!(Level::INFO, "Clearing caches");
-        self.server_instance.clear_caches();
-        Ok(())
-    }
-
-    #[instrument(skip(self))]
     async fn get_code(&self, contract: AddressWrapper) -> RpcResult<String> {
         event!(Level::INFO, "Getting contract code");
         let result = self.server_instance.get_contract_bytecode(contract.value());
@@ -393,6 +397,50 @@ impl Brc20ProgApiServer for RpcServer {
         } else {
             Err(RpcServerError::new("Contract bytecode not found").into())
         }
+    }
+
+    #[instrument(skip(self))]
+    async fn get_transaction_receipt(
+        &self,
+        transaction: B256Wrapper,
+    ) -> RpcResult<Option<TxReceiptED>> {
+        event!(Level::INFO, "Getting transaction receipt");
+        Ok(self
+            .server_instance
+            .get_transaction_receipt(transaction.value()))
+    }
+
+    #[instrument(skip(self))]
+    async fn get_transaction_by_hash(&self, transaction: B256Wrapper) -> RpcResult<Option<TxED>> {
+        event!(Level::INFO, "Getting transaction by hash");
+        Ok(self
+            .server_instance
+            .get_transaction_by_hash(transaction.value()))
+    }
+
+    #[instrument(skip(self))]
+    async fn get_transaction_by_block_number_and_index(
+        &self,
+        block_number: u64,
+        tx_idx: u64,
+    ) -> RpcResult<Option<TxED>> {
+        event!(Level::INFO, "Getting transaction by block number and index");
+        let tx = self
+            .server_instance
+            .get_transaction_by_block_number_and_index(block_number, tx_idx);
+        Ok(tx)
+    }
+
+    #[instrument(skip(self))]
+    async fn get_transaction_by_block_hash_and_index(
+        &self,
+        block_hash: B256Wrapper,
+        tx_idx: u64,
+    ) -> RpcResult<Option<TxED>> {
+        event!(Level::INFO, "Getting transaction by block hash and index");
+        Ok(self
+            .server_instance
+            .get_transaction_by_block_hash_and_index(block_hash.value(), tx_idx))
     }
 }
 

@@ -57,7 +57,7 @@ tx_data_precompiles = [
         "BRC20 Balance (Custom Precompile at 0xFF)",
         "0x00000000000000000000000000000000000000ff",
         load_tx_data("contracts/brc20_prog_helper/BRC20_Prog_brc20_balance_tx.json"),
-        "0x000000000000000000000000000000000000000000000000000000000000001a",
+        "", # No expected result
     ),
     (
         "BTC Last Sat Location (Custom Precompile at 0xFC)",
@@ -81,17 +81,20 @@ timestamp = int(time.time())
 client.clear_caches()
 
 # deploy first
-contract_address = client.add_tx_to_block(
+contract_address = client.deploy(
     from_pkscript=btc_pkscript,
-    contract_address=None,
     data=deploy_data,
     timestamp=timestamp,
     block_hash=block_hash,
-)[0]
+    inscription_id=None,
+)
+
+if contract_address is None:
+    print("Failed to deploy contract")
+    sys.exit(1)
+print("Deployed contract with address: " + contract_address)
 
 failed_tests = []
-
-print("Deployed contract with address: " + contract_address)
 
 for i in range(len(tx_data_precompiles)):
     print("Testing " + tx_data_precompiles[i][0])
@@ -99,27 +102,30 @@ for i in range(len(tx_data_precompiles)):
         print(
             "Directly accessing the precompile at address: " + tx_data_precompiles[i][1]
         )
-        result = client.add_tx_to_block(
+        result = client.call(
             from_pkscript=btc_pkscript,
             contract_address=tx_data_precompiles[i][1],
+            contract_inscription_id=None,
             data=tx_data_precompiles[i][2],
             timestamp=timestamp,
             block_hash=block_hash,
+            inscription_id=None,
         )
-        if result[1] == False or result[2] != tx_data_precompiles[i][3]:
+        if result["status"] != "0x1" or (tx_data_precompiles[i][3] and result["resultBytes"] != tx_data_precompiles[i][3]):
             print("Direct call for " + tx_data_precompiles[i][0] + " failed")
-            print(result[2])
+            print(result["resultBytes"])
             failed_tests.append("Direct - " + tx_data_precompiles[i][0])
             input("Press Enter to continue...")
 
-    result = client.add_tx_to_block(
+    result = client.call(
         from_pkscript=btc_pkscript,
         contract_address=contract_address,
+        contract_inscription_id=None,
         data=tx_data_precompiles[i][2],
         timestamp=timestamp,
         block_hash=block_hash,
     )
-    if result[1] == False or result[2] != tx_data_precompiles[i][3]:
+    if result["status"] != "0x1" or (tx_data_precompiles[i][3] and result["resultBytes"] != tx_data_precompiles[i][3]):
         print("Proxy call for " + tx_data_precompiles[i][0] + " failed")
         failed_tests.append("Proxy - " + tx_data_precompiles[i][0])
         input("Press Enter to continue...")

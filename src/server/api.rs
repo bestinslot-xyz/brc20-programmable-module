@@ -26,6 +26,30 @@ pub trait Brc20ProgApi {
     #[method(name = "brc20_mine")]
     async fn mine(&self, block_count: u64, timestamp: u64) -> RpcResult<()>;
 
+    #[method(name = "brc20_deploy")]
+    async fn deploy_contract(
+        &self,
+        from_pkscript: String,
+        data: BytesWrapper,
+        timestamp: u64,
+        hash: B256Wrapper,
+        tx_idx: u64,
+        inscription_id: Option<String>,
+    ) -> RpcResult<TxReceiptED>;
+
+    #[method(name = "brc20_call")]
+    async fn call_contract(
+        &self,
+        from_pkscript: String,
+        contract_address: Option<AddressWrapper>,
+        contract_inscription_id: Option<String>,
+        data: BytesWrapper,
+        timestamp: u64,
+        hash: B256Wrapper,
+        tx_idx: u64,
+        inscription_id: Option<String>,
+    ) -> RpcResult<TxReceiptED>;
+
     /// Deposits brc20 tokens to the given address
     #[method(name = "brc20_deposit")]
     async fn deposit(
@@ -71,19 +95,6 @@ pub trait Brc20ProgApi {
         &self,
         inscription_id: String,
     ) -> RpcResult<Option<TxReceiptED>>;
-
-    /// Adds a transaction to the block
-    #[method(name = "brc20_addTxToBlock")]
-    async fn add_tx_to_block(
-        &self,
-        from_pkscript: String,
-        to: Option<AddressWrapper>,
-        data: BytesWrapper,
-        timestamp: u64,
-        hash: B256Wrapper,
-        tx_idx: u64,
-        inscription_id: Option<String>,
-    ) -> RpcResult<TxReceiptED>;
 
     /// Finalises the block with the given parameters
     #[method(name = "brc20_finaliseBlock")]
