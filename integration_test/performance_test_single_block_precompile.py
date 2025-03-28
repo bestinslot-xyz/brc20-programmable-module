@@ -93,10 +93,10 @@ client.clear_caches()
 # deploy first
 contract_address = client.deploy(
     from_pkscript=btc_pkscript,
-    contract_address=None,
     data=deploy_data,
     timestamp=timestamp,
     block_hash=block_hash,
+    inscription_id=None,
 )
 
 if contract_address is None:
@@ -105,20 +105,17 @@ if contract_address is None:
 print("Deployed contract with address: " + contract_address)
 
 for i in range(call_cnt):
-    try:
-        result = client.call(
-            from_pkscript=btc_pkscript,
-            contract_address=contract_address,
-            data=tx_data,
-            timestamp=timestamp,
-            block_hash=block_hash,
-        )
-        if result[1] == False or result[2] != tx_data_precompiles[precompile_to_test][3]:
-            print("Call " + str(i) + " failed")
-            sys.exit(1)
-        print("Call " + str(i) + " with result: " + str(result[1]))
-    except Exception as e:
-        print("Call " + str(i) + " failed with exception: " + str(e))
+    print("Executing call " + str(i))
+    result = client.call(
+        from_pkscript=btc_pkscript,
+        contract_address=contract_address,
+        contract_inscription_id=None,
+        data=tx_data,
+        timestamp=timestamp,
+        block_hash=block_hash,
+    )
+    if result["status"] != "0x1" or result["resultBytes"] != tx_data_precompiles[precompile_to_test][3]:
+        print("Call " + str(i) + " failed with result: " + str(result))
         sys.exit(1)
 
 print("Performance test complete")
