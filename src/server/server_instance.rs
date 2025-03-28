@@ -665,11 +665,14 @@ impl ServerInstance {
         self.require_no_waiting_txes()?;
 
         let current_block_height = self.get_latest_block_height();
-        if latest_valid_block_number >= current_block_height {
+        if latest_valid_block_number > current_block_height {
             return Err("Latest valid block number is greater than current block height");
         }
         if current_block_height - latest_valid_block_number > MAX_HISTORY_SIZE {
             return Err("Latest valid block number is too far behind current block height");
+        }
+        if latest_valid_block_number == current_block_height {
+            return Ok(())
         }
 
         let mut db = self.db_mutex.lock().unwrap();
