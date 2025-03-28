@@ -91,21 +91,22 @@ block_hash = "0x" + "0" * 64
 client.clear_caches()
 
 # deploy first
-contract_address = client.add_tx_to_block(
+contract_address = client.deploy(
     from_pkscript=btc_pkscript,
     contract_address=None,
     data=deploy_data,
     timestamp=timestamp,
     block_hash=block_hash,
-)[0]
-print("Deployed contract with address: " + contract_address)
+)
 
-# Temporarily call the precompile directly, there's a bug in the proxy contract that prevents calling the precompile
-# contract_address="0x00000000000000000000000000000000000000fd"
+if contract_address is None:
+    print("Failed to deploy contract")
+    sys.exit(1)
+print("Deployed contract with address: " + contract_address)
 
 for i in range(call_cnt):
     try:
-        result = client.add_tx_to_block(
+        result = client.call(
             from_pkscript=btc_pkscript,
             contract_address=contract_address,
             data=tx_data,

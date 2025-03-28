@@ -122,42 +122,30 @@ class BRC20ProgClient:
         self.current_block_tx_idx += 1
         return bool(result["result"]["status"] == "0x1")
 
-    def add_tx_to_block(
+    def deploy(
         self,
         from_pkscript: str,
-        contract_address: str,
         data: str,
         timestamp: int,
         block_hash: str,
+        inscription_id: str,
     ) -> tuple[str, bool, str]:
         if not brc20_prog_enabled:
             return
         self.verify_block_hash_and_timestamp(block_hash, timestamp)
         print("Adding transaction to BRC20PROG")
 
-        if contract_address is None:
-            tx_result = jsonrpc_call(
-                "brc20_addTxToBlock",
-                params={
-                    "from_pkscript": from_pkscript,
-                    "data": data,
-                    "timestamp": timestamp,
-                    "hash": block_hash,
-                    "tx_idx": self.current_block_tx_idx,
-                },
-            )
-        else:
-            tx_result = jsonrpc_call(
-                "brc20_addTxToBlock",
-                params={
-                    "from_pkscript": from_pkscript,
-                    "to": contract_address,
-                    "data": data,
-                    "timestamp": timestamp,
-                    "hash": block_hash,
-                    "tx_idx": self.current_block_tx_idx,
-                },
-            )
+        tx_result = jsonrpc_call(
+            "brc20_deploy",
+            params={
+                "from_pkscript": from_pkscript,
+                "data": data,
+                "timestamp": timestamp,
+                "hash": block_hash,
+                "tx_idx": self.current_block_tx_idx,
+                "inscription_id": inscription_id,
+            },
+        )
 
         if "error" in tx_result:
             raise Exception(tx_result["error"])
@@ -167,11 +155,45 @@ class BRC20ProgClient:
             print(tx_result)
 
         self.current_block_tx_idx += 1
-        return [
-            tx_result["result"]["contractAddress"],
-            bool(tx_result["result"]["status"] == "0x1"),
-            tx_result["result"]["resultBytes"],
-        ]
+        return tx_result["result"]["contractAddress"]
+    
+    def call(
+        self,
+        from_pkscript: str,
+        contract_address: str,
+        contract_inscription_id: str,
+        data: str,
+        timestamp: int,
+        block_hash: str,
+        inscription_id: str = None,
+    ):
+        if not brc20_prog_enabled:
+            return
+        self.verify_block_hash_and_timestamp(block_hash, timestamp)
+        print("Adding transaction to BRC20PROG")
+
+        tx_result = jsonrpc_call(
+            "brc20_call",
+            params={
+                "from_pkscript": from_pkscript,
+                "contract_address": contract_address,
+                "contract_inscription_id": contract_inscription_id,
+                "data": data,
+                "timestamp": timestamp,
+                "hash": block_hash,
+                "tx_idx": self.current_block_tx_idx,
+                "inscription_id": inscription_id,
+            },
+        )
+
+        if "error" in tx_result:
+            raise Exception(tx_result["error"])
+
+        if tx_result["result"]["status"] == "0x0":
+            print("Transaction failed")
+
+        self.current_block_tx_idx += 1
+        return tx_result["result"]
 
     def mine_blocks(self, block_count: int):
         if not brc20_prog_enabled:

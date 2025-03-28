@@ -8,7 +8,7 @@ mod db;
 use db::DB;
 
 mod server;
-use evm::{check_bitcoin_rpc_status, get_brc20_balance};
+use evm::check_bitcoin_rpc_status;
 use server::{start_rpc_server, ServerInstance};
 
 lazy_static::lazy_static! {

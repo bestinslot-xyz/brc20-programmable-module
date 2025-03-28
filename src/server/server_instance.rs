@@ -98,7 +98,8 @@ impl ServerInstance {
         self.finalise_block(genesis_timestamp, genesis_height, genesis_hash, 1)?;
 
         // Check status of BRC20 Balance Server before proceeding
-        get_brc20_balance("test", "test").map_err(|_| "BRC20 Balance Server is down")?;
+        get_brc20_balance("test", "test")
+            .map_err(|_| "BRC20 Balance Server is down. This error can be ignored in tests that doesn't involve the BRC20 indexer.")?;
 
         Ok(())
     }
@@ -148,6 +149,35 @@ impl ServerInstance {
         }
 
         Ok(())
+    }
+
+    pub fn get_contract_address_by_inscription_id(
+        &self,
+        inscription_id: String,
+    ) -> Result<Address, &'static str> {
+        #[cfg(debug_assertions)]
+        println!(
+            "Getting contract address by inscription id {:?}",
+            inscription_id
+        );
+
+        let mut db = self.db_mutex.lock().unwrap();
+        let tx_hash = db
+            .get_tx_hash_by_inscription_id(inscription_id)
+            .unwrap_or(None);
+        if tx_hash.is_none() {
+            return Err("inscription not found");
+        }
+        let tx_hash = tx_hash.unwrap().0;
+        let tx = db.get_tx_receipt(tx_hash).unwrap_or(None);
+        if tx.is_none() {
+            return Err("inscription transaction not found");
+        }
+        let tx = tx.unwrap();
+        if tx.contract_address.is_none() {
+            return Err("inscription transaction is not a contract creation");
+        }
+        Ok(tx.contract_address.unwrap().0)
     }
 
     pub fn add_tx_to_block(

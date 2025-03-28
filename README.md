@@ -94,17 +94,39 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 <hr>
 
-#### Add Transaction to Block
+#### Deploy contract
 
-**Method**: `brc20_addTxToBlock`
+**Method**: `brc20_deploy`
 
-**Description**: Used to deploy or call a contract, this adds a transaction to current block.
+**Description**: Used to deploy a contract, this adds a transaction to current block.
 
 **Parameters**:
 
 - from_pkscript (`string`): Bitcoin pkscript that created the deploy/call inscription
-- to (Optional `string`): Contract address, if this is a call inscription, and can be skipped if this is a deploy inscription
 - data (`string`): Call or deploy data for EVM
+- timestamp (`int`): Current block timestamp
+- hash (`string`): Current block hash
+- tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
+- inscription_id (Optional `string`): Source inscription ID that triggered this transaction, will be recorded for easier contract address retrieval
+
+**Returns**:
+
+- Receipt for the executed transaction, see [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gettransactionreceipt) for details.
+
+<hr>
+
+#### Call contract
+
+**Method**: `brc20_call`
+
+**Description**: Used to call a contract, this adds a transaction to current block.
+
+**Parameters**:
+
+- from_pkscript (`string`): Bitcoin pkscript that created the deploy/call inscription
+- contract_address (`string`): Address of the contract to call, corresponds to the "c" (Contract Address) field of a call inscription
+- contract_inscription_id (`string`): Contract deployed by the inscription ID to call, corresponds to the "i" (Inscription ID) field of a call inscription
+- data (`string`): Call or deploy data for EVM, corresponds to the "d" (Data) field of a call inscription
 - timestamp (`int`): Current block timestamp
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
@@ -120,16 +142,16 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 **Method**: `brc20_getTxReceiptByInscriptionId`
 
-**Description**: Returns the transaction receipt for given inscription ID, previously sent via `brc20_addTxToBlock`. This makes it easier to work with inscriptions rather than transactions in BRC2.0 applications.
+**Description**: Returns the transaction receipt for given inscription ID, previously sent via `brc20_deploy` or `brc20_call`. This makes it easier to work with inscriptions rather than transactions in BRC2.0 applications.
 
 **Parameters**:
 
-- inscription_id (`string`): Inscription ID previously added via `brc20_addTxToBlock`, `brc20_deposit`, or `brc20_withdraw`.
+- inscription_id (`string`): Inscription ID previously added via `brc20_deploy`, `brc20_call`, `brc20_deposit`, or `brc20_withdraw`.
 
 **Returns**:
 
 - Transaction receipt, following `eth_getTransactionReceipt` structure.
-- None if the inscription isn't added yet, i.e. doesn't match previous `brc20_addTxToBlock` calls.
+- None if the inscription isn't added yet, i.e. it doesn't match previous calls.
 
 <hr>
 
@@ -137,7 +159,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 **Method**: `brc20_finaliseBlock`
 
-**Description**: Finalises a block, this should be called after all the transactions in the block are added via `brc20_addTxToBlock`.
+**Description**: Finalises a block, this should be called after all the transactions in the block are added via `brc20_deploy`, `brc20_call`, `brc20_deposit`, or `brc20_withdraw`.
 
 **Parameters**:
 
@@ -147,7 +169,8 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 **Returns**:
 
-- Error if any of the parameters don't match previous `brc20_addTxToBlock` calls.
+- Error if any of the `timestamp` or `hash` parameters don't match previous calls.
+- Error if `block_tx_count` doesn't match transaction count for this block.
 
 <hr>
 
@@ -194,7 +217,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 **Method**: `brc20_deposit`
 
-**Description**: Deposits (mints) BRC20 tokens to given bitcoin pkscript. This is a convenience method to replace `brc20_addTxToBlock` calls for BRC20 transactions, and used to transfer BRC20 tokens into BRC2.0 module.
+**Description**: Deposits (mints) BRC20 tokens to given bitcoin pkscript. This is a convenience method to replace `brc20_call` calls for BRC20 transactions, and used to transfer BRC20 tokens into BRC2.0 module.
 
 **Parameters**:
 
@@ -216,7 +239,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 **Method**: `brc20_withdraw`
 
-**Description**: Withdraws (burns) BRC20 tokens from given bitcoin pkscript. Method returns an error if the address doesn't have enough tokens. This is a convenience method to replace `brc20_addTxToBlock` calls for BRC20 transactions, and used to transfer BRC20 tokens out of BRC2.0 module.
+**Description**: Withdraws (burns) BRC20 tokens from given bitcoin pkscript. Method returns an error if the address doesn't have enough tokens. This is a convenience method to replace `brc20_call` calls for BRC20 transactions, and used to transfer BRC20 tokens out of BRC2.0 module.
 
 **Parameters**:
 
@@ -253,8 +276,8 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 Execution engine has precompiled contracts deployed at given addresses to make it easier to work with bitcoin transactions.
 
-| Precompile | Address |
-| --- | --- |
+| Precompile         | Address                                    |
+| ------------------ | ------------------------------------------ |
 | BRC20_Balance      | 0x00000000000000000000000000000000000000ff |
 | BIP322_Verifier    | 0x00000000000000000000000000000000000000fe |
 | BTC_Transaction    | 0x00000000000000000000000000000000000000fd |
@@ -404,7 +427,7 @@ Defined in the [proposal](https://github.com/bestinslot-xyz/brc20-prog-module-pr
 }
 ```
 
-Whenever an indexer encounters a deploy inscription, it should inform the programmable module via the `brc20_addTxToBlock` JSON-RPC method, leaving `to` parameter empty, this will allow the EVM to deploy a new smart contract.
+Whenever an indexer encounters a deploy inscription, it should inform the programmable module via the `brc20_deploy` JSON-RPC method, this will allow the EVM to deploy a new smart contract.
 
 Once an inscription is deployed as a smart contract, then methods can be called via call inscriptions with the following structure:
 
@@ -418,12 +441,7 @@ Once an inscription is deployed as a smart contract, then methods can be called 
 }
 ```
 
-Similar to a deploy inscription, call inscriptions should also be added as transactions to the EVM using `brc20_addTxToBlock` JSON-RPC method. For call transaction, `to` field should be set to the contract address to determine which contract should be called.
-
-If the `c` field is set, then it can be used directly as the `to` value. If the `i` field is set instead, then the deployed contract address from corresponding deploy inscription should be used.
-
-> [!NOTE]
-> This requires maintaining a map of deploy inscription id to contract address. `brc20_addTxToBlock` returns a standard transaction receipt that contains contract addresses for deploy transactions.
+Call inscriptions should be added as transactions to the EVM using `brc20_call` JSON-RPC method. BRC2.0 maintains a map of contract addresses and deploy inscriptions, so at least one of the `"c"` or `"i"` fields should be set to call the contract `"c"`, or a contract deployed by the inscription `"i"`.
 
 ### Deposit/Withdrawal inscriptions
 
@@ -491,45 +509,39 @@ for all initial blocks:
 ```
 ### Loop for adding transactions and finalising blocks
 
-When a new block arrives, all its deploy/call/deposit/withdraw transactions should be sent to the execution engine in order, with the correct transaction index using the relevant methods such as `brc20_addTxToBlock`, `brc20_deposit`, and `brc20_withdraw`. Once all inscriptions in the block are processed, block should be finalised using the `brc20_finaliseBlock` JSON-RPC method.
+When a new block arrives, all its deploy/call/deposit/withdraw transactions should be sent to the execution engine in order, with the correct transaction index using the relevant methods such as `brc20_deploy`, `brc20_call`, `brc20_deposit`, and `brc20_withdraw`. Once all inscriptions in the block are processed, block should be finalised using the `brc20_finaliseBlock` JSON-RPC method.
 
 Indexing for a single block in pseudo code would look like the following (field validation is omitted for simplicity):
 
 ```
-# contract_address_map is a Map<InscriptionID, ContractAddress>
-
 block = await_new_block()
 current_tx_idx = 0
 for (inscription, transfer) in block:
-    inscription_id = transfer.inscription_id
+    current_inscription_id = transfer.inscription_id
     sender = transfer.sender
     receiver = transfer.receiver
 
     if inscription.op is 'deploy' and
        receiver.pkscript is OP_RETURN "BRC20PROG":
-        # Deploy transactions are added with `to` set to None
-        result = brc20_addTxToBlock(
+        brc20_deploy(
             from_pkscript: sender.pkscript,
-            to: None,
             data: inscription.d,
             hash: block.hash,
             timestamp: block.timestamp,
-            tx_idx: current_tx_idx++)
-        if result.status is '0x1':
-            # Contract address is saved for later use
-            contract_address_map[inscription_id] = result.contractAddress
+            tx_idx: current_tx_idx++,
+            inscription_id: current_inscription_id)
 
     if inscription.op is 'call' and
        receiver.pkscript is OP_RETURN "BRC20PROG":
-        # Call transactions are added with `to` set to contract address
-        brc20_addTxToBlock(
+        brc20_call(
             from_pkscript: sender.pkscript,
-            to: inscription.c OR
-                contract_address_map[inscription.i],
+            contract_address: inscription.c
+            contract_inscription_id: inscription.i,
             data: inscription.d,
             hash: block.hash,
             timestamp: block.timestamp,
-            tx_idx: current_tx_idx++)
+            tx_idx: current_tx_idx++,
+            inscription_id: current_inscription_id)
 
     if inscription.op is 'transfer' and
        receiver.pkscript is OP_RETURN "BRC20PROG":
@@ -541,7 +553,8 @@ for (inscription, transfer) in block:
                 amount: inscription.amt (padded to 18 decimals),
                 hash: block.hash,
                 timestamp: block.timestamp,
-                tx_idx: current_tx_idx++)
+                tx_idx: current_tx_idx++,
+                inscription_id: current_inscription_id)
 
     if inscription.op is 'withdraw' and
        inscription.p is 'brc20-module' and
@@ -553,7 +566,8 @@ for (inscription, transfer) in block:
             amount: inscription.amt (padded to 18 decimals),
             hash: block.hash,
             timestamp: block.timestamp,
-            tx_idx: current_tx_idx++)
+            tx_idx: current_tx_idx++,
+            inscription_id: current_inscription_id)
         # Withdrawals fail if there is not enough funds
         if result.status = '0x1':
             # Note that withdrawals are sent to receiver's address
@@ -587,7 +601,7 @@ Indexers should expose a balance server that returns current overall balance for
 - [ ] Mine [`brc20_mine`](#mine-empty-blocks) or finalise empty blocks [`brc20_finaliseBlock`](#finalise-block) to fill the database before the first inscription height
 - [ ] Deploy the `BRC20_Controller` contract by calling [`brc20_initialise`](#initialise-and-deploy-brc20_controller-contract)
 - [ ] Index every block for BRC2.0 transactions
-  - [ ] [Add deploy/call inscriptions](#deploycall-inscriptions) via [`brc20_addTxToBlock`](#add-transaction-to-block)
+  - [ ] [Add deploy/call inscriptions](#deploycall-inscriptions) via [`brc20_deploy`](#deploy-contract) or [`brc20_call`](#call-contract)
   - [ ] [Deposit/Withdraw BRC20 tokens](#depositwithdrawal-inscriptions) via [`brc20_deposit`](#brc20-deposit) and [`brc20_withdraw`](#brc20-withdraw)
   - [ ] Finalise every block via [`brc20_finaliseBlock`](#finalise-block)
   - [ ] Commit changes to database via [`brc20_commitToDatabase`](#commit-to-database)
