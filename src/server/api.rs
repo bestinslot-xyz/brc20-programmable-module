@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
-use alloy_primitives::{Address, Bytes, B256, U256};
+use alloy_primitives::hex::FromHex;
+use alloy_primitives::{Address, Bytes, FixedBytes, B256, U256};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::Deserialize;
@@ -78,7 +79,7 @@ pub trait Brc20ProgApi {
 
     /// Checks BRC20 balance for given address
     #[method(name = "brc20_balance")]
-    async fn balance(&self, address_pkscript: String, ticker: String) -> RpcResult<String>;
+    async fn balance(&self, pkscript: String, ticker: String) -> RpcResult<String>;
 
     /// Initialises the BRC20 prog module with the given genesis hash and timestamp
     #[method(name = "brc20_initialise")]
@@ -129,11 +130,19 @@ pub trait Brc20ProgApi {
 
     /// Returns the block information for the requested block number
     #[method(name = "eth_getBlockByNumber")]
-    async fn get_block_by_number(&self, block: String, is_full: bool) -> RpcResult<BlockResponseED>;
+    async fn get_block_by_number(
+        &self,
+        block: String,
+        is_full: Option<bool>,
+    ) -> RpcResult<BlockResponseED>;
 
     /// Returns the block information for the requested block hash
     #[method(name = "eth_getBlockByHash")]
-    async fn get_block_by_hash(&self, block: B256Wrapper, is_full: bool) -> RpcResult<BlockResponseED>;
+    async fn get_block_by_hash(
+        &self,
+        block: B256Wrapper,
+        is_full: Option<bool>,
+    ) -> RpcResult<BlockResponseED>;
 
     /// Returns the transaction count by address and block number
     #[method(name = "eth_getTransactionCount")]
@@ -321,10 +330,7 @@ impl<'de> Deserialize<'de> for B256Wrapper {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        if !s.starts_with("0x") {
-            return Err(serde::de::Error::custom("missing 0x prefix"));
-        }
-        let b256 = B256::from_str(&s[2..]).map_err(serde::de::Error::custom)?;
+        let b256 = FixedBytes::from_hex(&s).map_err(serde::de::Error::custom)?;
         Ok(B256Wrapper(b256))
     }
 }
@@ -364,10 +370,7 @@ impl<'de> Deserialize<'de> for BytesWrapper {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        if !s.starts_with("0x") {
-            return Err(serde::de::Error::custom("missing 0x prefix"));
-        }
-        let bytes = Bytes::from_str(&s[2..]).map_err(serde::de::Error::custom)?;
+        let bytes = Bytes::from_hex(&s).map_err(serde::de::Error::custom)?;
         Ok(BytesWrapper(bytes))
     }
 }

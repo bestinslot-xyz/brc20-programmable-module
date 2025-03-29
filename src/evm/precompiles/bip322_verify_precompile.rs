@@ -7,7 +7,7 @@ use super::precompile_output;
 use crate::evm::precompiles::{precompile_error, use_gas};
 
 sol! {
-    function verify(string, string, string) returns (bool);
+    function verify(string address, string message_base64, string signature_base64) returns (bool);
 }
 
 pub fn bip322_verify_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
@@ -21,11 +21,11 @@ pub fn bip322_verify_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
 
     let result = result.unwrap();
 
-    let address = result._0;
-    let message = result._1;
-    let signature = result._2;
-
-    let result = verify_simple_encoded(&address, &message, &signature);
+    let result = verify_simple_encoded(
+        &result.address,
+        &result.message_base64,
+        &result.signature_base64,
+    );
 
     if !use_gas(&mut interpreter_result, 100000) {
         return interpreter_result;

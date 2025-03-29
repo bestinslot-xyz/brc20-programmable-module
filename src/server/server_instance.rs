@@ -70,7 +70,7 @@ impl ServerInstance {
             genesis_hash, genesis_timestamp, genesis_height
         );
 
-        let genesis = self.get_block_by_number(genesis_height);
+        let genesis = self.get_block_by_number(genesis_height, false);
 
         println!("Genesis block: {:?}", genesis);
         if genesis.is_some() {
@@ -98,10 +98,27 @@ impl ServerInstance {
         self.finalise_block(genesis_timestamp, genesis_height, genesis_hash, 1)?;
 
         // Check status of BRC20 Balance Server before proceeding
-        get_brc20_balance("test", "test")
+        get_brc20_balance(&Bytes::new(), &Bytes::new())
             .map_err(|_| "BRC20 Balance Server is down. This error can be ignored in tests that doesn't involve the BRC20 indexer.")?;
 
         Ok(())
+    }
+
+    pub fn get_next_block_height(&self) -> u64 {
+        let mut db = self.db_mutex.lock().unwrap();
+        let latest_block_height = db.get_latest_block_height();
+
+        let block_height = latest_block_height.unwrap_or(0);
+        if block_height == 0 {
+            // Check if block 0 exists, then next block would be genesis
+            let block_hash = db.get_block_hash(0);
+            if block_hash.is_err() || block_hash.unwrap().is_none() {
+                return 0;
+            }
+            return 1;
+        }
+
+        block_height + 1
     }
 
     pub fn get_latest_block_height(&self) -> u64 {
@@ -120,9 +137,9 @@ impl ServerInstance {
     ) -> Result<(), &'static str> {
         self.require_no_waiting_txes()?;
 
-        let mut number = self.get_latest_block_height() + 1;
+        let mut number = self.get_next_block_height();
 
-        if self.get_block_by_number(0).is_none() {
+        if self.get_block_by_number(0, false).is_none() {
             #[cfg(debug_assertions)]
             println!("Mining genesis block");
 
@@ -513,10 +530,9 @@ impl ServerInstance {
             "Calling contract from: {:?} to: {:?}",
             tx_info.from, tx_info.to
         );
-        self.require_no_waiting_txes()
-            .expect("Currently indexing transactions, please wait for the block to be finalised");
+        self.require_no_waiting_txes()?;
 
-        let number = self.get_latest_block_height() + 1;
+        let number = self.get_next_block_height();
 
         let timestamp = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
         let block_info: BlockEnv = BlockEnv {
@@ -592,7 +608,7 @@ impl ServerInstance {
         storage.unwrap_or(U256::ZERO)
     }
 
-    pub fn get_block_by_number(&self, block_number: u64) -> Option<BlockResponseED> {
+    pub fn get_block_by_number(&self, block_number: u64, is_full: bool) -> Option<BlockResponseED> {
         #[cfg(debug_assertions)]
         println!(
             "Getting block by number 0x{:x} ({})",
@@ -600,10 +616,31 @@ impl ServerInstance {
         );
 
         let mut db = self.db_mutex.lock().unwrap();
-        db.get_block(block_number).unwrap()
+        let block = db.get_block(block_number).unwrap();
+        if block.is_none() || !is_full {
+            return block;
+        }
+        // Fill in transaction receipts
+        let mut block = block.unwrap();
+        let tx_ids = block.transactions.unwrap_or(vec![]);
+        let mut tx_receipts = Vec::new();
+        for tx_id in tx_ids {
+            let tx_receipt = db.get_tx_receipt(tx_id.0);
+            if tx_receipt.is_err() {
+                continue;
+            }
+            let tx_receipt = tx_receipt.unwrap();
+            if tx_receipt.is_none() {
+                continue;
+            }
+            tx_receipts.insert(tx_receipts.len(), tx_receipt.unwrap());
+        }
+        block.full_transactions = Some(tx_receipts);
+        block.transactions = None;
+        Some(block)
     }
 
-    pub fn get_block_by_hash(&self, block_hash: B256) -> Option<BlockResponseED> {
+    pub fn get_block_by_hash(&self, block_hash: B256, is_full: bool) -> Option<BlockResponseED> {
         #[cfg(debug_assertions)]
         println!("Getting block by hash {:?}", block_hash);
 
@@ -617,7 +654,7 @@ impl ServerInstance {
         #[cfg(debug_assertions)]
         println!("Got block {:?} hash {:?}", block_number, block_hash);
 
-        db.get_block(block_number.unwrap().to_u64()).unwrap()
+        self.get_block_by_number(block_number.unwrap().to_u64(), is_full)
     }
 
     pub fn get_contract_bytecode(&self, addr: Address) -> Option<Bytes> {
@@ -672,7 +709,7 @@ impl ServerInstance {
             return Err("Latest valid block number is too far behind current block height");
         }
         if latest_valid_block_number == current_block_height {
-            return Ok(())
+            return Ok(());
         }
 
         let mut db = self.db_mutex.lock().unwrap();

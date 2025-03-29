@@ -1,4 +1,5 @@
-use alloy_primitives::U256;
+use alloy_primitives::hex::FromHex;
+use alloy_primitives::{FixedBytes, U256};
 use alloy_sol_types::{sol, SolCall};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
@@ -17,7 +18,7 @@ static GAS_PER_RPC_CALL: u64 = 100000;
     # Errors - Returns an error if the transaction details are not found
 */
 sol! {
-    function getLastSatLocation(string, uint256, uint256) returns (string, uint256, uint256, string, string);
+    function getLastSatLocation(bytes32 txid, uint256 vout, uint256 sat) returns (bytes32 last_txid, uint256 last_vout, uint256 last_sat, bytes old_pkscript, bytes new_pkscript);
 }
 
 pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
@@ -33,15 +34,15 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
 
     let result = result.unwrap();
 
-    let txid = result._0;
-    let vout = result._1.as_limbs()[0] as usize;
-    let sat = result._2.as_limbs()[0];
+    let txid = result.txid;
+    let vout = result.vout.as_limbs()[0] as usize;
+    let sat = result.sat.as_limbs()[0];
 
     if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
         return interpreter_result;
     }
 
-    let response = get_raw_transaction(&txid);
+    let response = get_raw_transaction(&hex::encode(txid));
 
     if response["error"].is_object() || response["result"].is_null() {
         // Transaction not found
@@ -133,11 +134,11 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
     }
 
     let bytes = getLastSatLocationCall::abi_encode_returns(&(
-        current_vin_txid,
+        FixedBytes::from_hex(current_vin_txid).unwrap(),
         U256::from(current_vin_vout as u64),
         U256::from(total_vout_sat_count - (total_vin_sat_count - current_vin_value)),
-        current_vin_script_pub_key_hex,
-        new_pkscript.to_string(),
+        Bytes::from_hex(current_vin_script_pub_key_hex).unwrap(),
+        Bytes::from_hex(new_pkscript).unwrap(),
     ));
 
     return precompile_output(interpreter_result, bytes);
@@ -158,14 +159,17 @@ mod tests {
             return;
         }
         // https://mempool.space/signet/tx/d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd
-        let txid = "d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd";
+        let txid = FixedBytes::from_hex(
+            "d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd",
+        )
+        .unwrap();
         let vout = U256::from(0u64);
         let sat = U256::from(100u64);
-        let data = getLastSatLocationCall::new((txid.to_string(), vout, sat)).abi_encode();
+        let data = getLastSatLocationCall::new((txid, vout, sat)).abi_encode();
 
         assert_eq!(
             hex::encode(data.iter().as_slice()),
-            "bd1b7b13000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064000000000000000000000000000000000000000000000000000000000000004064303964323637353264306133336431626462303231336366333638313936333564313235386137653466636265363639653132626337646162386365636464"
+            "2aa29404d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064"
         );
 
         // Consider mocking the RPC call to bitcoind
@@ -173,18 +177,30 @@ mod tests {
         let result = result;
         let returns = getLastSatLocationCall::abi_decode_returns(&result.output, false).unwrap();
 
-        let returns = (returns._0, returns._1, returns._2, returns._3, returns._4);
+        let returns = (
+            returns.last_txid,
+            returns.last_vout,
+            returns.last_sat,
+            returns.old_pkscript,
+            returns.new_pkscript,
+        );
 
         assert_eq!(result.gas.spent(), 200000);
 
         assert_eq!(
             returns,
             (
-                "8d4bc3ac21211723436e35ffbf32a58f74fe942e0ea10936504db07afb1af7c3".to_string(),
+                FixedBytes::from_hex(
+                    "8d4bc3ac21211723436e35ffbf32a58f74fe942e0ea10936504db07afb1af7c3"
+                )
+                .unwrap(),
                 U256::from(19u64),
                 U256::from(100u64),
-                "51204a6041f54b8cf8b2d48c6f725cb0514e51e5e7e7ac429c33da62e98765dd62f3".to_string(),
-                "0014f477952f33561c1b89a1fe9f28682f623263e159".to_string()
+                Bytes::from_hex(
+                    "51204a6041f54b8cf8b2d48c6f725cb0514e51e5e7e7ac429c33da62e98765dd62f3"
+                )
+                .unwrap(),
+                Bytes::from_hex("0014f477952f33561c1b89a1fe9f28682f623263e159").unwrap(),
             )
         );
     }
@@ -195,28 +211,46 @@ mod tests {
             return;
         }
         // https://mempool.space/signet/tx/4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926
-        let txid = "4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926";
+        let txid = FixedBytes::from_hex(
+            "4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926",
+        )
+        .unwrap();
         let vout = U256::from(0u64);
         let sat = U256::from(250000u64);
-        let data = getLastSatLocationCall::new((txid.to_string(), vout, sat)).abi_encode();
+        let data = getLastSatLocationCall::new((txid, vout, sat)).abi_encode();
 
         // Consider mocking the RPC call to bitcoind
         let result = last_sat_location_precompile(&data.into(), 10000000);
         let result = result;
         let returns = getLastSatLocationCall::abi_decode_returns(&result.output, false).unwrap();
 
-        let returns = (returns._0, returns._1, returns._2, returns._3, returns._4);
+        let returns = (
+            returns.last_txid,
+            returns.last_vout,
+            returns.last_sat,
+            returns.old_pkscript,
+            returns.new_pkscript,
+        );
 
         assert_eq!(result.gas.spent(), 400000);
 
         assert_eq!(
             returns,
             (
-                "423d28032bb7b47d2df4aaa42789d9817d6419f9747fc10343c6fdf3d081ff2b".to_string(),
+                FixedBytes::from_hex(
+                    "423d28032bb7b47d2df4aaa42789d9817d6419f9747fc10343c6fdf3d081ff2b"
+                )
+                .unwrap(),
                 U256::from(0u64),
                 U256::from(50000u64),
-                "51205174498f5940118461b4f3006e75dfc0ff140afffc9ac9b2937791a1dc3d17d0".to_string(),
-                "512050927e29d0d61b2d0e855fd027f7dcfa8d0c7412db9bcb69aeccf34d87c8071d".to_string()
+                Bytes::from_hex(
+                    "51205174498f5940118461b4f3006e75dfc0ff140afffc9ac9b2937791a1dc3d17d0"
+                )
+                .unwrap(),
+                Bytes::from_hex(
+                    "512050927e29d0d61b2d0e855fd027f7dcfa8d0c7412db9bcb69aeccf34d87c8071d"
+                )
+                .unwrap(),
             )
         );
     }
@@ -227,10 +261,13 @@ mod tests {
             return;
         }
         // https://mempool.space/signet/tx/3f6201e955c191e714dcf92240a9dd0eea7c65465f60e4d31f5b6e9fd2003409
-        let txid = "3f6201e955c191e714dcf92240a9dd0eea7c65465f60e4d31f5b6e9fd2003409";
+        let txid = FixedBytes::from_hex(
+            "3f6201e955c191e714dcf92240a9dd0eea7c65465f60e4d31f5b6e9fd2003409",
+        )
+        .unwrap();
         let vout = U256::from(0u64);
         let sat = U256::from(100u64);
-        let data = getLastSatLocationCall::new((txid.to_string(), vout, sat)).abi_encode();
+        let data = getLastSatLocationCall::new((txid, vout, sat)).abi_encode();
 
         // Consider mocking the RPC call to bitcoind
         let result = last_sat_location_precompile(&data.into(), 1000000);

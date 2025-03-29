@@ -1,16 +1,16 @@
+use alloy_primitives::U256;
 use alloy_sol_types::{sol, SolCall};
-use bitcoin::address::NetworkUnchecked;
 use bitcoin::key::UntweakedPublicKey;
+use bitcoin::script::PushBytesBuf;
 use bitcoin::taproot::TaprootBuilder;
-use bitcoin::{opcodes, secp256k1, Address, ScriptBuf};
+use bitcoin::{opcodes, secp256k1, ScriptBuf};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
 
-use crate::evm::precompiles::btc_utils::{BITCOIN_HRP, BITCOIN_NETWORK};
 use crate::evm::precompiles::{precompile_error, precompile_output, use_gas};
 
 sol! {
-    function getLockedPkscript(string, uint256) returns (string);
+    function getLockedPkscript(bytes pkscript, uint256 lock_block_count) returns (bytes locked_pkscript);
 }
 
 pub fn get_locked_pkscript_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
@@ -30,27 +30,39 @@ pub fn get_locked_pkscript_precompile(bytes: &Bytes, gas_limit: u64) -> Interpre
 
     let returns = result.unwrap();
 
-    let pkscript = returns._0;
-    let lock_block_count = returns._1.as_limbs()[0];
-
-    if lock_block_count == 0 || lock_block_count > 65535 {
+    if returns.lock_block_count == U256::ZERO
+        || returns.lock_block_count > U256::from_limbs([65535u64, 0u64, 0u64, 0u64])
+    {
         // Invalid lock block count
         return precompile_error(interpreter_result);
     }
 
-    let result = get_p2tr_lock_addr(&pkscript, lock_block_count);
+    let lock_block_count = returns.lock_block_count.as_limbs()[0];
 
-    let bytes = getLockedPkscriptCall::abi_encode_returns(&(result,));
+    let result = get_p2tr_lock_addr(&returns.pkscript, lock_block_count);
+
+    if result.is_err() {
+        // Invalid pkscript
+        return precompile_error(interpreter_result);
+    }
+
+    let bytes = getLockedPkscriptCall::abi_encode_returns(&(result.unwrap(),));
 
     return precompile_output(interpreter_result, bytes);
 }
 
-fn get_p2tr_lock_addr(pkscript: &String, lock_block_count: u64) -> String {
+fn get_p2tr_lock_addr(pkscript: &Bytes, lock_block_count: u64) -> Result<Bytes, &'static str> {
     let secp256k1 = secp256k1::Secp256k1::new();
     let lock_address = "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0"; // Unspendable address
 
+    let lock_script_leaf = build_lock_script(pkscript, lock_block_count);
+    if lock_script_leaf.is_err() {
+        return Err(lock_script_leaf.unwrap_err());
+    }
+    let lock_script_leaf = lock_script_leaf.unwrap();
+
     let lock_script = TaprootBuilder::new()
-        .add_leaf(0, build_lock_script(pkscript, lock_block_count))
+        .add_leaf(0, lock_script_leaf)
         .unwrap()
         .finalize(
             &secp256k1,
@@ -58,16 +70,13 @@ fn get_p2tr_lock_addr(pkscript: &String, lock_block_count: u64) -> String {
         )
         .unwrap();
 
-    Address::p2tr_tweaked(lock_script.output_key(), *BITCOIN_HRP).to_string()
+    Ok(lock_script.output_key().serialize().into())
 }
 
-fn build_lock_script(pkscript: &String, lock_block_count: u64) -> bitcoin::ScriptBuf {
-    let pkscript = pkscript
-        .parse::<Address<NetworkUnchecked>>()
-        .unwrap()
-        .require_network(*BITCOIN_NETWORK)
-        .unwrap();
-    let pubkey = pkscript.script_pubkey();
+fn build_lock_script(
+    pkscript: &Bytes,
+    lock_block_count: u64,
+) -> Result<bitcoin::ScriptBuf, &'static str> {
     let mut script = ScriptBuf::new();
     if lock_block_count <= 16 {
         script
@@ -107,11 +116,20 @@ fn build_lock_script(pkscript: &String, lock_block_count: u64) -> bitcoin::Scrip
 
     script.push_opcode(opcodes::all::OP_CSV);
     script.push_opcode(opcodes::all::OP_DROP);
-    let pubkey_bytes: [u8; 32] = pubkey.to_bytes().as_slice()[2..].try_into().unwrap();
-    script.push_slice(pubkey_bytes);
+
+    let mut push_bytes = PushBytesBuf::new();
+    let result = push_bytes.extend_from_slice(pkscript.iter().as_slice());
+    if result.is_err() {
+        return Err("Invalid PkScript");
+    }
+
+    script.push_instruction(bitcoin::script::Instruction::PushBytes(
+        &push_bytes.as_push_bytes(),
+    ));
+
     script.push_opcode(opcodes::all::OP_CHECKSIG);
 
-    script
+    Ok(script)
 }
 
 #[cfg(test)]
@@ -123,52 +141,60 @@ mod tests {
     #[test]
     fn test_get_locked_pkscript_six_blocks() {
         let bytes = getLockedPkscriptCall::new((
-            "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
+            hex::decode("5120e0e224cd541454519b62047aa0891ea7b81a16598556aeb83a412a0b06a20aab")
+                .unwrap()
+                .into(),
             U256::from(6u8),
         ))
         .abi_encode();
         let result = get_locked_pkscript_precompile(&bytes.into(), 100000);
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
         assert_eq!(
-            result._0,
-            "tb1ppnn9pkm5qrdx99lypxxka3zhs322qse4x88y39r8z2vfjhk7ex4sfu7cgf"
+            hex::encode(result.locked_pkscript),
+            "e7b4a96c9beec8711f12c0d9956d6313a592c5abd8f8a90de8cf5b6d16e9e58d"
         )
     }
 
     #[test]
     fn test_get_locked_pkscript_year_lock() {
         let bytes = getLockedPkscriptCall::new((
-            "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
+            hex::decode("5120e0e224cd541454519b62047aa0891ea7b81a16598556aeb83a412a0b06a20aab")
+                .unwrap()
+                .into(),
             U256::from(52560u32),
         ))
         .abi_encode();
         let result = get_locked_pkscript_precompile(&bytes.into(), 100000);
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
         assert_eq!(
-            result._0,
-            "tb1p9p7v3afn2zptdq4cjvl7376p63vhdy7y53uayftmamuh8mp4ynmsvaeu4e"
+            hex::encode(result.locked_pkscript),
+            "6b6f9e9324995ef82b3dea1ee288f59214145d64f88d1a76c3424e5539bb6c5f"
         )
     }
 
     #[test]
     fn test_get_locked_pkscript_max_lock() {
         let bytes = getLockedPkscriptCall::new((
-            "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
+            hex::decode("5120e0e224cd541454519b62047aa0891ea7b81a16598556aeb83a412a0b06a20aab")
+                .unwrap()
+                .into(),
             U256::from(65535u32),
         ))
         .abi_encode();
         let result = get_locked_pkscript_precompile(&bytes.into(), 100000);
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
         assert_eq!(
-            result._0,
-            "tb1pp7kk3e79nhvt5pyjhqfwgaxq8zfm5vze4duy2f7xds4mfv0z24ssvnkfzw"
+            hex::encode(result.locked_pkscript),
+            "e9c89c9102b18073802e24b5e4c39736aa8c1634b646c3c854bb0d3455af0d7a"
         )
     }
 
     #[test]
     fn test_get_locked_pkscript_zero_lock() {
         let bytes = getLockedPkscriptCall::new((
-            "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
+            hex::decode("5120e0e224cd541454519b62047aa0891ea7b81a16598556aeb83a412a0b06a20aab")
+                .unwrap()
+                .into(),
             U256::from(0u32),
         ))
         .abi_encode();
@@ -179,7 +205,9 @@ mod tests {
     #[test]
     fn test_get_locked_pkscript_max_plus_one_lock() {
         let bytes = getLockedPkscriptCall::new((
-            "tb1plnw9577kddxn4ry37xsul99d04tp7w3sf0cclt6k0zc7u3l8swms7vfp48".to_string(),
+            hex::decode("5120e0e224cd541454519b62047aa0891ea7b81a16598556aeb83a412a0b06a20aab")
+                .unwrap()
+                .into(),
             U256::from(65536u32),
         ))
         .abi_encode();

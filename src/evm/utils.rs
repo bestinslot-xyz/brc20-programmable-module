@@ -1,10 +1,10 @@
 use revm::context::result::{ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason};
 use revm::primitives::{keccak256, Address};
 
-pub fn get_evm_address(btc_pkscript: &str) -> Address {
+pub fn get_evm_address(pkscript: &str) -> Address {
     let mut address = [0u8; 20];
-    let pkscript = keccak256(btc_pkscript);
-    address.copy_from_slice(&pkscript[12..32]);
+    let pkscript_hash = keccak256(hex::decode(pkscript).unwrap());
+    address.copy_from_slice(&pkscript_hash[12..32]);
     Address::from_slice(&address)
 }
 
@@ -120,8 +120,8 @@ mod tests {
         let btc_pkscript = "76a914f1b8e7e4f3f1f2f1e1f1f1f1f1f1f1f1f1f1f1f188ac";
         let evm_address = get_evm_address(btc_pkscript);
         assert_eq!(
-            Address::from_str("0x1f8d3be98dcc4ebb8ae2a46456d3b2754a89283a").unwrap(),
             evm_address,
+            Address::from_str("0x7f217045127859b40ef1a27a5bfe73aa16687467").unwrap(),
         );
     }
 }
