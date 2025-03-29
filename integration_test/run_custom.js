@@ -25,16 +25,16 @@ async function provider_send(method, params) {
   return j
 }
 
-async function brc20_deposit(ticker, btc_address, amount, timestamp, hash, tx_idx, inscription_id) {
-  await provider_send("brc20_deposit", { ticker: ticker, to_pkscript: btc_address, amount: amount, timestamp: timestamp, hash: hash, tx_idx: tx_idx, inscription_id: inscription_id })
+async function brc20_deposit(ticker, pkscript, amount, timestamp, hash, tx_idx, inscription_id) {
+  await provider_send("brc20_deposit", { ticker: ticker, to_pkscript: pkscript, amount: amount, timestamp: timestamp, hash: hash, tx_idx: tx_idx, inscription_id: inscription_id })
 }
 
-async function brc20_withdraw(ticker, btc_address, amount, timestamp, hash, tx_idx, inscription_id) {
-  await provider_send("brc20_withdraw", { ticker: ticker, from_pkscript: btc_address, amount: amount, timestamp: timestamp, hash: hash, tx_idx: tx_idx, inscription_id: inscription_id })
+async function brc20_withdraw(ticker, pkscript, amount, timestamp, hash, tx_idx, inscription_id) {
+  await provider_send("brc20_withdraw", { ticker: ticker, from_pkscript: pkscript, amount: amount, timestamp: timestamp, hash: hash, tx_idx: tx_idx, inscription_id: inscription_id })
 }
 
-async function brc20_balance(ticker, btc_address) {
-  return parseInt(await provider_send("brc20_balance", { ticker: ticker, address_pkscript: btc_address }, 16))
+async function brc20_balance(ticker, pkscript) {
+  return parseInt(await provider_send("brc20_balance", { ticker: ticker, pkscript: pkscript }, 16))
 }
 
 async function brc20_mine(n, timestamp) {

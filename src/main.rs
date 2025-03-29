@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!(
         "Genesis block hash: {}",
         instance
-            .get_block_by_number(0)
+            .get_block_by_number(0, false)
             .map(|block| block.hash.0.to_string())
             .unwrap_or("None".to_string())
     );

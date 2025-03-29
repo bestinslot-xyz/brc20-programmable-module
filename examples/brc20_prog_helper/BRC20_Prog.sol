@@ -43,15 +43,15 @@ contract BRC20_Prog {
      * @dev Get non-module BRC-20 balance of a given Bitcoin wallet script and BRC-20 ticker.
      */
     function balanceOf(
-        string calldata ticker,
-        string calldata address_pkscript
+        bytes calldata ticker,
+        bytes calldata pkscript
     ) external view returns (uint256 balance) {
         (bool success, bytes memory data) = _brc20_controller_address
             .staticcall(
                 abi.encodeWithSignature(
-                    "balanceOf(string,string)",
+                    "balanceOf(bytes,bytes)",
                     ticker,
-                    address_pkscript
+                    pkscript
                 )
             );
         require(success, "Failed to get BRC20 balance");
@@ -62,33 +62,33 @@ contract BRC20_Prog {
      * @dev Get Bitcoin transaction details using tx ids.
      */
     function getTxDetails(
-        string calldata txid
+        bytes32 txid
     )
         external
         view
         returns (
             uint256 block_height,
-            string[] memory vin_txids,
+            bytes32[] memory vin_txids,
             uint256[] memory vin_vouts,
-            string[] memory vin_scriptPubKey_hexes,
+            bytes[] memory vin_scriptPubKeys,
             uint256[] memory vin_values,
-            string[] memory vout_scriptPubKey_hexes,
+            bytes[] memory vout_scriptPubKeys,
             uint256[] memory vout_values
         )
     {
         (bool success, bytes memory data) = _btc_tx_details_address.staticcall(
-            abi.encodeWithSignature("getTxDetails(string)", txid)
+            abi.encodeWithSignature("getTxDetails(bytes32)", txid)
         );
         require(success, "Failed to get transaction details");
         return abi.decode(
                 data,
                 (
                     uint256,
-                    string[],
+                    bytes32[],
                     uint256[],
-                    string[],
+                    bytes[],
                     uint256[],
-                    string[],
+                    bytes[],
                     uint256[]
                 )
             );
@@ -98,50 +98,50 @@ contract BRC20_Prog {
      * @dev Get last satoshi location of a given sat location in a transaction.
      */
     function getLastSatLocation(
-        string calldata txid,
+        bytes32 txid,
         uint256 vout,
         uint256 sat
     )
         external
         view
         returns (
-            string memory last_txid,
+            bytes32 last_txid,
             uint256 last_vout,
             uint256 last_sat,
-            string memory old_pkscript,
-            string memory new_pkscript
+            bytes memory old_pkscript,
+            bytes memory new_pkscript
         )
     {
         (bool success, bytes memory data) = _btc_last_sat_loc_address
             .staticcall(
                 abi.encodeWithSignature(
-                    "getLastSatLocation(string,uint256,uint256)",
+                    "getLastSatLocation(bytes32,uint256,uint256)",
                     txid,
                     vout,
                     sat
                 )
             );
         require(success, "Failed to get last satoshi location");
-        return abi.decode(data, (string, uint256, uint256, string, string));
+        return abi.decode(data, (bytes32, uint256, uint256, bytes, bytes));
     }
 
     /**
-     * @dev Get locked pkscript of a given Bitcoin wallet script.
+     * @dev Get locked pkscript of a given Bitcoin pkscript.
      */
     function getLockedPkscript(
-        string calldata address_pkscript,
+        bytes calldata pkscript,
         uint256 lock_block_count
-    ) external view returns (string memory locked_pkscript) {
+    ) external view returns (bytes memory locked_pkscript) {
         (bool success, bytes memory data) = _btc_locked_pkscript_address
             .staticcall(
                 abi.encodeWithSignature(
-                    "getLockedPkscript(string,uint256)",
-                    address_pkscript,
+                    "getLockedPkscript(bytes,uint256)",
+                    pkscript,
                     lock_block_count
                 )
             );
         require(success, "Failed to get locked pkscript");
-        return abi.decode(data, (string));
+        return abi.decode(data, (bytes));
     }
 
     /**

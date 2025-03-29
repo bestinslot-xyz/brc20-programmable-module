@@ -13,7 +13,7 @@ lazy_static::lazy_static! {
 }
 
 sol! {
-    function balanceOf(string, string) returns (uint256);
+    function balanceOf(bytes ticker, bytes pkscript) returns (uint256);
 }
 
 pub fn brc20_balance_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
@@ -32,10 +32,10 @@ pub fn brc20_balance_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
 
     let returns = result.unwrap();
 
-    let ticker = returns._0;
-    let address = returns._1;
+    let ticker = returns.ticker;
+    let pkscript = returns.pkscript;
 
-    let balance = get_brc20_balance(&ticker, &address);
+    let balance = get_brc20_balance(&ticker, &pkscript);
 
     if balance.is_err() {
         return precompile_error(interpreter_result);
@@ -47,11 +47,11 @@ pub fn brc20_balance_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
     return precompile_output(interpreter_result, bytes);
 }
 
-pub fn get_brc20_balance(ticker: &str, address: &str) -> Result<u64, String> {
+pub fn get_brc20_balance(ticker: &Bytes, pkscript: &Bytes) -> Result<u64, String> {
     let response = BRC20_CLIENT
         .get(BRC20_PROG_BALANCE_SERVER_URL.as_str())
-        .query("ticker", ticker)
-        .query("address", address)
+        .query("ticker", hex::encode(ticker))
+        .query("pkscript", hex::encode(pkscript))
         .call();
 
     if response.is_err() {

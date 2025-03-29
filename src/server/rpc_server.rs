@@ -71,7 +71,7 @@ impl Brc20ProgApiServer for RpcServer {
                 timestamp,
                 &load_brc20_mint_tx(ticker, get_evm_address(&to_pkscript), amount.value()),
                 tx_idx,
-                self.server_instance.get_latest_block_height() + 1,
+                self.server_instance.get_next_block_height(),
                 hash.value(),
                 inscription_id,
             )
@@ -96,7 +96,7 @@ impl Brc20ProgApiServer for RpcServer {
                 timestamp,
                 &load_brc20_burn_tx(ticker, get_evm_address(&from_pkscript), amount.value()),
                 tx_idx,
-                self.server_instance.get_latest_block_height() + 1,
+                self.server_instance.get_next_block_height(),
                 hash.value(),
                 inscription_id,
             )
@@ -104,14 +104,11 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn balance(&self, address_pkscript: String, ticker: String) -> RpcResult<String> {
+    async fn balance(&self, pkscript: String, ticker: String) -> RpcResult<String> {
         event!(Level::INFO, "Checking balance");
 
         self.server_instance
-            .call_contract(&load_brc20_balance_tx(
-                ticker,
-                get_evm_address(&address_pkscript),
-            ))
+            .call_contract(&load_brc20_balance_tx(ticker, get_evm_address(&pkscript)))
             .map(|receipt| {
                 format!(
                     "0x{:x}",
@@ -166,7 +163,7 @@ impl Brc20ProgApiServer for RpcServer {
                     data: data.value().clone(),
                 },
                 tx_idx,
-                self.server_instance.get_latest_block_height() + 1,
+                self.server_instance.get_next_block_height(),
                 hash.value(),
                 inscription_id,
             )
@@ -214,7 +211,7 @@ impl Brc20ProgApiServer for RpcServer {
                     data: data.value().clone(),
                 },
                 tx_idx,
-                self.server_instance.get_latest_block_height() + 1,
+                self.server_instance.get_next_block_height(),
                 hash.value(),
                 inscription_id,
             )
@@ -228,7 +225,7 @@ impl Brc20ProgApiServer for RpcServer {
         hash: B256Wrapper,
         block_tx_count: u64,
     ) -> RpcResult<()> {
-        let block_height = self.server_instance.get_latest_block_height() + 1;
+        let block_height = self.server_instance.get_next_block_height();
         event!(Level::INFO, "Finalising block {}", block_height);
         self.server_instance
             .finalise_block(timestamp, block_height, hash.value(), block_tx_count)
@@ -264,10 +261,16 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn get_block_by_number(&self, block: String, _: bool) -> RpcResult<BlockResponseED> {
+    async fn get_block_by_number(
+        &self,
+        block: String,
+        is_full: Option<bool>,
+    ) -> RpcResult<BlockResponseED> {
         event!(Level::INFO, "Getting block by number");
         let number = self.parse_block_number(&block)?;
-        let block = self.server_instance.get_block_by_number(number);
+        let block = self
+            .server_instance
+            .get_block_by_number(number, is_full.unwrap_or(false));
         if let Some(block) = block {
             Ok(block)
         } else {
@@ -276,9 +279,15 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn get_block_by_hash(&self, block: B256Wrapper, _: bool) -> RpcResult<BlockResponseED> {
+    async fn get_block_by_hash(
+        &self,
+        block: B256Wrapper,
+        is_full: Option<bool>,
+    ) -> RpcResult<BlockResponseED> {
         event!(Level::INFO, "Getting block by number");
-        let block = self.server_instance.get_block_by_hash(block.value());
+        let block = self
+            .server_instance
+            .get_block_by_hash(block.value(), is_full.unwrap_or(false));
         if let Some(block) = block {
             Ok(block)
         } else {

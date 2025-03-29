@@ -12,18 +12,18 @@ interface IBRC20_Controller {
      *
      * Note that `value` may be zero.
      */
-    event Transfer(string indexed ticker, address indexed from, address indexed to, uint256 value);
+    event Transfer(bytes indexed ticker, address indexed from, address indexed to, uint256 value);
 
     /**
      * @dev Emitted when the allowance of a `spender` for an `owner` is set by
      * a call to {approve}. `value` is the new allowance.
      */
-    event Approval(string indexed ticker, address indexed owner, address indexed spender, uint256 value);
+    event Approval(bytes indexed ticker, address indexed owner, address indexed spender, uint256 value);
 
     /**
      * @dev Returns the value of tokens owned by `account`.
      */
-    function balanceOf(string calldata ticker, address account) external view returns (uint256);
+    function balanceOf(bytes calldata ticker, address account) external view returns (uint256);
 
     /**
      * @dev Moves a `value` amount of tokens from the caller's account to `to`.
@@ -32,7 +32,7 @@ interface IBRC20_Controller {
      *
      * Emits a {Transfer} event.
      */
-    function transfer(string calldata ticker, address to, uint256 value) external returns (bool);
+    function transfer(bytes calldata ticker, address to, uint256 value) external returns (bool);
 
     /**
      * @dev Returns the remaining number of tokens that `spender` will be
@@ -41,7 +41,7 @@ interface IBRC20_Controller {
      *
      * This value changes when {approve} or {transferFrom} are called.
      */
-    function allowance(string calldata ticker, address owner, address spender) external view returns (uint256);
+    function allowance(bytes calldata ticker, address owner, address spender) external view returns (uint256);
 
     /**
      * @dev Sets a `value` amount of tokens as the allowance of `spender` over the
@@ -58,7 +58,7 @@ interface IBRC20_Controller {
      *
      * Emits an {Approval} event.
      */
-    function approve(string calldata ticker, address spender, uint256 value) external returns (bool);
+    function approve(bytes calldata ticker, address spender, uint256 value) external returns (bool);
 
     /**
      * @dev Moves a `value` amount of tokens from `from` to `to` using the
@@ -69,5 +69,5 @@ interface IBRC20_Controller {
      *
      * Emits a {Transfer} event.
      */
-    function transferFrom(string calldata ticker, address from, address to, uint256 value) external returns (bool);
+    function transferFrom(bytes calldata ticker, address from, address to, uint256 value) external returns (bool);
 }

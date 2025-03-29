@@ -2,6 +2,7 @@ use revm::primitives::{Address, FixedBytes};
 use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex, StrictPfx};
 
+use super::TxReceiptED;
 use crate::db::types::{AddressED, BEncodeDecode, Decode, Encode, B2048ED, B256ED, U128ED};
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
@@ -24,7 +25,11 @@ pub struct BlockResponseED {
     #[serde(rename = "mineTimestamp")]
     pub mine_timestamp: U128ED,
 
-    pub transactions: Vec<B256ED>,
+    #[serde(rename = "transactions", skip_serializing_if = "Option::is_none")]
+    pub transactions: Option<Vec<B256ED>>,
+
+    #[serde(rename = "transactions", skip_serializing_if = "Option::is_none")]
+    pub full_transactions: Option<Vec<TxReceiptED>>,
 
     // Always empty values
     #[serde(with = "SerHex::<CompactPfx>", rename = "baseFeePerGas")]
@@ -106,7 +111,8 @@ impl BlockResponseED {
             number,
             timestamp,
             mine_timestamp,
-            transactions,
+            transactions: Some(transactions),
+            full_transactions: None,
             transactions_root,
             size,
             parent_hash,
@@ -140,9 +146,10 @@ impl Encode for BlockResponseED {
         bytes.extend_from_slice(&self.number.to_be_bytes());
         bytes.extend_from_slice(&self.timestamp.to_be_bytes());
         bytes.extend_from_slice(&self.mine_timestamp.encode()?);
-        let transactions_count = self.transactions.len() as u64;
+        let transactions = self.transactions.clone().unwrap_or(vec![]);
+        let transactions_count = transactions.len() as u64;
         bytes.extend_from_slice(&transactions_count.to_be_bytes());
-        for tx in &self.transactions {
+        for tx in &transactions {
             bytes.extend_from_slice(&tx.encode()?);
         }
         bytes.extend_from_slice(&self.transactions_root.encode()?);

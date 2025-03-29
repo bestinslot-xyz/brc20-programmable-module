@@ -1,3 +1,4 @@
+use alloy_primitives::hex::FromHex;
 use alloy_primitives::U256;
 use alloy_sol_types::{sol, SolCall};
 use revm::primitives::{Address, Bytes};
@@ -14,38 +15,38 @@ static BRC20_CONTROLLER_ADDRESS: &str = "0xc54dd4581af2dbf18e4d90840226756e9d2b3
 struct ContractAssets;
 
 sol! {
-    function mint(string, address, uint256) returns (bool);
-    function burn(string, address, uint256) returns (bool);
-    function balanceOf(string, address) returns (uint256);
+    function mint(bytes, address, uint256) returns (bool);
+    function burn(bytes, address, uint256) returns (bool);
+    function balanceOf(bytes, address) returns (uint256);
 }
 
 pub fn load_brc20_mint_tx(ticker: String, address: Address, amount: U256) -> TxInfo {
-    let to = address.as_slice().try_into().unwrap();
-
     TxInfo {
         from: INDEXER_ADDRESS.parse().unwrap(),
         to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: Bytes::from(mintCall::new((ticker, Address(to), amount)).abi_encode()),
+        data: Bytes::from(
+            mintCall::new((Bytes::from_hex(ticker).unwrap(), address, amount)).abi_encode(),
+        ),
     }
 }
 
 pub fn load_brc20_burn_tx(ticker: String, address: Address, amount: U256) -> TxInfo {
-    let from = address.as_slice().try_into().unwrap();
-
     TxInfo {
         from: INDEXER_ADDRESS.parse().unwrap(),
         to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: Bytes::from(burnCall::new((ticker, Address(from), amount)).abi_encode()),
+        data: Bytes::from(
+            burnCall::new((Bytes::from_hex(ticker).unwrap(), address, amount)).abi_encode(),
+        ),
     }
 }
 
 pub fn load_brc20_balance_tx(ticker: String, address: Address) -> TxInfo {
-    let address = address.as_slice().try_into().unwrap();
-
     TxInfo {
         from: INDEXER_ADDRESS.parse().unwrap(),
         to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: Bytes::from(balanceOfCall::new((ticker, Address(address))).abi_encode()),
+        data: Bytes::from(
+            balanceOfCall::new((Bytes::from_hex(ticker).unwrap(), address)).abi_encode(),
+        ),
     }
 }
 

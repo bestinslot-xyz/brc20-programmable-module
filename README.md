@@ -239,7 +239,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 **Method**: `brc20_withdraw`
 
-**Description**: Withdraws (burns) BRC20 tokens from given bitcoin pkscript. Method returns an error if the address doesn't have enough tokens. This is a convenience method to replace `brc20_call` calls for BRC20 transactions, and used to transfer BRC20 tokens out of BRC2.0 module.
+**Description**: Withdraws (burns) BRC20 tokens from given bitcoin pkscript. Method returns an error if the given pkscript doesn't have enough tokens. This is a convenience method to replace `brc20_call` calls for BRC20 transactions, and used to transfer BRC20 tokens out of BRC2.0 module.
 
 **Parameters**:
 
@@ -265,12 +265,12 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 **Parameters**:
 
-- address_pkscript (`string`): Bitcoin pkscript
+- pkscript (`string`): Bitcoin pkscript
 - ticker (`string`): BRC20 ticker
 
 **Returns**:
 
-- (string) BRC20 balance of the address for the given ticker
+- (string) BRC20 balance of the bitcoin pkscript for the given ticker
 
 ## Precompiles
 
@@ -289,9 +289,12 @@ Execution engine has precompiled contracts deployed at given addresses to make i
 `BRC20_Balance` contract can be used to retrieve non-module BRC20 balance for a given pkscript. BRC2.0 makes an HTTP call to the server at `BRC20_PROG_BALANCE_SERVER_URL` environment variable.
 
 ```
-> curl "http://localhost:18546/?address=1234567890&ticker=blah"
+> curl "http://localhost:18546/?pkscript=1234567890ABCDEF&ticker=0x12345678"
 86
 ```
+
+> [!NOTE]
+> `ticker` parameter is hex encoded to avoid passing invalid URL strings.
 
 BRC20 indexers should expose this HTTP server and set the environment variable accordingly.
 
@@ -303,8 +306,8 @@ BRC20 indexers should expose this HTTP server and set the environment variable a
  */
 interface IBRC20_Balance {
     function balanceOf(
-        string calldata ticker,
-        string calldata address_pkscript
+        bytes calldata ticker,
+        bytes calldata pkscript
     ) external view returns (uint256);
 }
 ```
@@ -352,17 +355,17 @@ BRC2.0 has a set of precompiles that make it easier to work with bitcoin transac
  */
 interface IBTC_Transaction {
     function getTxDetails(
-        string calldata txid
+        bytes32 txid
     )
         external
         view
         returns (
             uint256 block_height,
-            string[] memory vin_txids,
+            bytes32[] memory vin_txids,
             uint256[] memory vin_vouts,
-            string[] memory vin_scriptPubKey_hexes,
+            bytes[] memory vin_scriptPubKey_hexes,
             uint256[] memory vin_values,
-            string[] memory vout_scriptPubKey_hexes,
+            bytes[] memory vout_scriptPubKey_hexes,
             uint256[] memory vout_values
         );
 }
@@ -380,15 +383,15 @@ interface IBTC_Transaction {
  */
 interface IBTC_LastSatLoc {
     function getLastSatLocation(
-        string calldata txid,
+        bytes32 txid,
         uint256 vout,
         uint256 sat
     ) external view returns (
-        string memory last_txid,
+        bytes32 last_txid,
         uint256 last_vout,
         uint256 last_sat,
-        string memory old_pkscript,
-        string memory new_pkscript
+        bytes memory old_pkscript,
+        bytes memory new_pkscript
     );
 }
 ```
@@ -405,9 +408,9 @@ interface IBTC_LastSatLoc {
  */
 interface IBTC_LockedPkscript {
     function getLockedPkscript(
-        string calldata address_pkscript,
+        bytes calldata pkscript,
         uint256 lock_block_count
-    ) external view returns (string memory locked_pkscript);
+    ) external view returns (bytes memory locked_pkscript);
 }
 ```
 
@@ -473,7 +476,7 @@ Withdraw inscriptions have the following structure:
 When encountered, an indexer can call `brc20_withdraw` JSON-RPC method, and verify the result, as this can fail in case there isn't enough funds to withdraw, and increase BRC20 balance for the pkscript this inscription was sent to.
 
 > [!WARNING]
-> Tokens should be withdrawn from the sender's address, but deposited to the receiver's address for a withdraw inscription. A withdraw inscription can be sent to the same address, or a different address.
+> Tokens should be withdrawn from the sender's pkscript, but deposited to the receiver's pkscript for a withdraw inscription. A withdraw inscription can be sent to the same pkscript, or a different pkscript.
 
 ### Initialisation and empty blocks
 
@@ -559,7 +562,7 @@ for (inscription, transfer) in block:
     if inscription.op is 'withdraw' and
        inscription.p is 'brc20-module' and
        inscription.module is 'BRC20PROG':
-        # Withdrawals are done from sender's address
+        # Withdrawals are done from sender's pkscript
         result = brc20_withdraw(
             from_pkscript: sender.pkscript,
             ticker: inscription.tick,
@@ -570,7 +573,7 @@ for (inscription, transfer) in block:
             inscription_id: current_inscription_id)
         # Withdrawals fail if there is not enough funds
         if result.status = '0x1':
-            # Note that withdrawals are sent to receiver's address
+            # Note that withdrawals are sent to receiver's wallet
             receiver.balance[inscription.tick] += inscription.amt
 
 # Finalise block at the end
@@ -587,10 +590,10 @@ When a reorg is detected, `brc20_reorg` should be called to revert the EVM to a 
 
 ### BRC20 Balance Server
 
-Indexers should expose a balance server that returns current overall balance for an address and a ticker, and set the `BRC20_BALANCE_SERVER_URL` environment variable to make sure the `BRC20_Balance` precompiled contract knows where to send these requests to.
+Indexers should expose a balance server that returns current overall balance for a pkscript and a ticker, and set the `BRC20_BALANCE_SERVER_URL` environment variable to make sure the `BRC20_Balance` precompiled contract knows where to send these requests to.
 
 ```
-> curl "http://localhost:18546/?address=1234567890&ticker=blah"
+> curl "http://localhost:18546/?pkscript=1234567890ABCDEF&ticker=0x123456789"
 86
 ```
 

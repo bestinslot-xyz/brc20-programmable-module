@@ -7,14 +7,14 @@
     {
         "inputs": [
             {
-                "internalType": "string",
+                "internalType": "bytes",
                 "name": "ticker",
-                "type": "string"
+                "type": "bytes"
             },
             {
-                "internalType": "string",
-                "name": "address_pkscript",
-                "type": "string"
+                "internalType": "bytes",
+                "name": "pkscript",
+                "type": "bytes"
             }
         ],
         "name": "balanceOf",
@@ -31,9 +31,9 @@
     {
         "inputs": [
             {
-                "internalType": "string",
+                "internalType": "bytes32",
                 "name": "txid",
-                "type": "string"
+                "type": "bytes32"
             },
             {
                 "internalType": "uint256",
@@ -49,9 +49,9 @@
         "name": "getLastSatLocation",
         "outputs": [
             {
-                "internalType": "string",
+                "internalType": "bytes32",
                 "name": "last_txid",
-                "type": "string"
+                "type": "bytes32"
             },
             {
                 "internalType": "uint256",
@@ -64,14 +64,14 @@
                 "type": "uint256"
             },
             {
-                "internalType": "string",
+                "internalType": "bytes",
                 "name": "old_pkscript",
-                "type": "string"
+                "type": "bytes"
             },
             {
-                "internalType": "string",
+                "internalType": "bytes",
                 "name": "new_pkscript",
-                "type": "string"
+                "type": "bytes"
             }
         ],
         "stateMutability": "view",
@@ -80,9 +80,9 @@
     {
         "inputs": [
             {
-                "internalType": "string",
-                "name": "address_pkscript",
-                "type": "string"
+                "internalType": "bytes",
+                "name": "pkscript",
+                "type": "bytes"
             },
             {
                 "internalType": "uint256",
@@ -93,9 +93,9 @@
         "name": "getLockedPkscript",
         "outputs": [
             {
-                "internalType": "string",
+                "internalType": "bytes",
                 "name": "locked_pkscript",
-                "type": "string"
+                "type": "bytes"
             }
         ],
         "stateMutability": "view",
@@ -136,9 +136,9 @@
     {
         "inputs": [
             {
-                "internalType": "string",
+                "internalType": "bytes32",
                 "name": "txid",
-                "type": "string"
+                "type": "bytes32"
             }
         ],
         "name": "getTxDetails",
@@ -149,9 +149,9 @@
                 "type": "uint256"
             },
             {
-                "internalType": "string[]",
+                "internalType": "bytes32[]",
                 "name": "vin_txids",
-                "type": "string[]"
+                "type": "bytes32[]"
             },
             {
                 "internalType": "uint256[]",
@@ -159,9 +159,9 @@
                 "type": "uint256[]"
             },
             {
-                "internalType": "string[]",
+                "internalType": "bytes[]",
                 "name": "vin_scriptPubKey_hexes",
-                "type": "string[]"
+                "type": "bytes[]"
             },
             {
                 "internalType": "uint256[]",
@@ -169,9 +169,9 @@
                 "type": "uint256[]"
             },
             {
-                "internalType": "string[]",
+                "internalType": "bytes[]",
                 "name": "vout_scriptPubKey_hexes",
-                "type": "string[]"
+                "type": "bytes[]"
             },
             {
                 "internalType": "uint256[]",
