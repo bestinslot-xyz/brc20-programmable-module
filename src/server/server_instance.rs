@@ -98,7 +98,7 @@ impl ServerInstance {
         self.finalise_block(genesis_timestamp, genesis_height, genesis_hash, 1)?;
 
         // Check status of BRC20 Balance Server before proceeding
-        get_brc20_balance(&Bytes::new(), &Bytes::new())
+        get_brc20_balance(&Bytes::from([10]), &Bytes::from([10]))
             .map_err(|_| "BRC20 Balance Server is down. This error can be ignored in tests that doesn't involve the BRC20 indexer.")?;
 
         Ok(())
