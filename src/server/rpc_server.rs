@@ -2,10 +2,12 @@ use std::error::Error;
 use std::net::SocketAddr;
 
 use alloy_primitives::Address;
+use hyper::Method;
 use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::server::{RpcServiceBuilder, Server, ServerHandle};
 use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
 use revm::primitives::B256;
+use tower_http::cors::{Any, CorsLayer};
 use tracing::{event, instrument, Level};
 
 use super::api::{AddressWrapper, B256Wrapper, BytesWrapper, U256Wrapper};
@@ -479,7 +481,16 @@ pub async fn start_rpc_server(
     addr: String,
     server_instance: ServerInstance,
 ) -> Result<ServerHandle, Box<dyn Error>> {
+    let cors = CorsLayer::new()
+        // Allow `POST` when accessing the resource
+        .allow_methods([Method::POST])
+        // Allow requests from any origin
+        .allow_origin(Any)
+        .allow_headers([hyper::header::CONTENT_TYPE]);
+    let middleware = tower::ServiceBuilder::new().layer(cors);
+
     let server = Server::builder()
+        .set_http_middleware(middleware)
         .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(1024))
         .build(addr.parse::<SocketAddr>()?)
         .await?;
