@@ -23,15 +23,22 @@ pub struct TxReceiptED {
     pub contract_address: Option<AddressED>,
     #[serde(rename = "logsBloom")]
     pub logs_bloom: B2048ED,
+    #[serde(rename = "blockHash")]
     pub hash: B256ED,
     #[serde(rename = "blockNumber", with = "SerHex::<CompactPfx>")]
     pub block_number: u64,
+    #[serde(rename = "blockTimestamp", with = "SerHex::<CompactPfx>")]
+    pub block_timestamp: u64,
     #[serde(rename = "transactionHash")]
     pub transaction_hash: B256ED,
     #[serde(rename = "transactionIndex", with = "SerHex::<CompactPfx>")]
     pub transaction_index: u64,
     #[serde(rename = "cumulativeGasUsed", with = "SerHex::<CompactPfx>")]
     pub cumulative_gas_used: u64,
+    #[serde(rename = "effectiveGasPrice", with = "SerHex::<CompactPfx>")]
+    pub effective_gas_price: u64,
+    #[serde(rename = "type", with = "SerHex::<CompactPfx>")]
+    pub transaction_type: u8,
     #[serde(with = "SerHex::<CompactPfx>")]
     pub nonce: u64,
     #[serde(rename = "resultBytes", serialize_with = "bytes")]
@@ -63,6 +70,7 @@ impl TxReceiptED {
     pub fn new(
         block_hash: B256,
         block_number: u64,
+        block_timestamp: u64,
         contract_address: Option<Address>,
         from: Address,
         to: Option<Address>,
@@ -93,11 +101,14 @@ impl TxReceiptED {
             logs_bloom,
             hash: B256ED::from_b256(block_hash),
             block_number: block_number,
+            block_timestamp: block_timestamp,
             transaction_hash: B256ED::from_b256(tx_hash),
             transaction_index: tx_idx,
             cumulative_gas_used,
             nonce,
             result_bytes: output_bytes.cloned(),
+            effective_gas_price: 0,
+            transaction_type: 0,
         }
     }
 }
@@ -141,6 +152,7 @@ impl Encode for TxReceiptED {
         bytes.extend_from_slice(&self.logs_bloom.encode()?);
         bytes.extend_from_slice(&self.hash.encode()?);
         bytes.extend_from_slice(&self.block_number.to_be_bytes());
+        bytes.extend_from_slice(&self.block_timestamp.to_be_bytes());
         bytes.extend_from_slice(&self.transaction_hash.encode()?);
         bytes.extend_from_slice(&self.transaction_index.to_be_bytes());
         bytes.extend_from_slice(&self.cumulative_gas_used.to_be_bytes());
@@ -195,6 +207,8 @@ impl Decode for TxReceiptED {
         i += 32;
         let block_number = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
         i += 8;
+        let block_timestamp = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
+        i += 8;
         let transaction_hash = B256ED::decode(bytes[i..i + 32].to_vec())?;
         i += 32;
         let transaction_index = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
@@ -230,9 +244,12 @@ impl Decode for TxReceiptED {
             logs_bloom,
             hash: block_hash,
             block_number,
+            block_timestamp,
             transaction_hash,
             transaction_index,
             cumulative_gas_used,
+            effective_gas_price: 0,
+            transaction_type: 0,
             nonce,
             result_bytes: result_bytes,
         })
@@ -270,11 +287,14 @@ mod tests {
             logs_bloom: BEncodeDecode(B2048::from([9u8; 256])),
             hash: BEncodeDecode(B256::from([10u8; 32])),
             block_number: 11,
+            block_timestamp: 12,
             transaction_hash: BEncodeDecode(B256::from([12u8; 32])),
             transaction_index: 13,
             cumulative_gas_used: 14,
             nonce: 15,
             result_bytes: None,
+            effective_gas_price: 0,
+            transaction_type: 0,
         };
         let bytes = TxReceiptED::encode(&tx_receipt_ed).unwrap();
         let decoded = TxReceiptED::decode(bytes).unwrap();

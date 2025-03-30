@@ -399,6 +399,7 @@ impl DB {
         result: Option<&Bytes>,
         block_hash: B256,
         block_number: u64,
+        block_timestamp: u64,
         contract_address: Option<Address>,
         from: Address,
         to: Option<Address>,
@@ -414,6 +415,7 @@ impl DB {
         let tx_receipt = TxReceiptED::new(
             block_hash,
             block_number,
+            block_timestamp,
             contract_address,
             from,
             to,
@@ -1038,6 +1040,7 @@ mod tests {
         let data = vec![0u8; 32];
         let block_hash = B256::from([1u8; 32]);
         let block_number = 2;
+        let block_timestamp = 11;
         let contract_address = Address::from([3u8; 20]);
         let from = Address::from([4u8; 20]);
         let to = Address::from([5u8; 20]);
@@ -1064,6 +1067,7 @@ mod tests {
                 Some(&Bytes::from(vec![11u8; 32])),
                 block_hash,
                 block_number,
+                block_timestamp,
                 Some(contract_address),
                 from,
                 Some(to),
@@ -1109,6 +1113,7 @@ mod tests {
             TxReceiptED::new(
                 block_hash,
                 block_number,
+                block_timestamp,
                 Some(contract_address),
                 from,
                 Some(to),

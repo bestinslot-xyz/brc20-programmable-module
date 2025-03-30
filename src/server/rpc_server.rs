@@ -272,8 +272,8 @@ impl Brc20ProgApiServer for RpcServer {
         block: String,
         is_full: Option<bool>,
     ) -> RpcResult<BlockResponseED> {
-        event!(Level::INFO, "Getting block by number");
         let number = self.parse_block_number(&block)?;
+        event!(Level::INFO, "Getting block by number: {}", number);
         let block = self
             .server_instance
             .get_block_by_number(number, is_full.unwrap_or(false));

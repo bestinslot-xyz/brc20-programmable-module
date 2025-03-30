@@ -315,6 +315,7 @@ impl ServerInstance {
             output.output(),
             block_hash,
             block_number,
+            timestamp,
             get_contract_address(&output),
             tx_info.from,
             tx_info.to,
@@ -592,10 +593,13 @@ impl ServerInstance {
                 .unwrap(),
             hash: B256ED::from_b256(txhash),
             block_number: number,
+            block_timestamp: timestamp,
             transaction_hash: B256ED::from_b256(txhash),
             transaction_index: 0,
             cumulative_gas_used: output.as_ref().unwrap().gas_used(),
             nonce,
+            effective_gas_price: 0,
+            transaction_type: 0,
         })
     }
 
