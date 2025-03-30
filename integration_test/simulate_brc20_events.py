@@ -1,12 +1,6 @@
 import psycopg2, requests, time
 from Crypto.Hash import keccak
 
-"""
-real    111m56.182s
-user    19m27.343s
-sys     1m15.804s
-"""
-
 session = requests.Session()
 
 conn = psycopg2.connect(
@@ -82,10 +76,10 @@ while current_block_height <= max_block_height:
         (current_block_height,),
     )
     btc_hash = "0x" + cur.fetchone()[0]
-    block_ts = get_block_ts(btc_hash[2:])
-    if block_ts is None:
-        exit(5)
-    btc_ts = int(block_ts)
+    #block_ts = get_block_ts(btc_hash[2:])
+    #if block_ts is None:
+    #    exit(5)
+    btc_ts = 0 #int(block_ts)
     cur.execute(
         "SELECT event_type, event, inscription_id from brc20_events where block_height = %s order by id asc;",
         (current_block_height,),
@@ -96,6 +90,7 @@ while current_block_height <= max_block_height:
         inscription_id = event[2]
         event_tx = {
             "inscription": {
+                "inscription_len": 1000, ## dummy value
                 "inscription_id": inscription_id,
                 "op": "call",
                 "c": "0x11bc79b28ab26101d4cb2cbdd4d5c2ceeea49efb",
@@ -109,8 +104,10 @@ while current_block_height <= max_block_height:
             data += hex(int(event[1]["limit_per_mint"]))[2:].zfill(64)
             data += hex(int(event[1]["max_supply"]))[2:].zfill(64)
             data += hex(int(event[1]["decimals"]))[2:].zfill(64)
-            data += "0000000000000000000000000000000000000000000000000000000000000004"  ## length of string
-            data += event[1]["tick"].encode("utf-8").hex().ljust(64, "0")
+            tick_hex = event[1]["tick"].encode("utf-8").hex()
+            ln = len(tick_hex) // 2
+            data += hex(ln)[2:].zfill(64)
+            data += tick_hex.ljust(64, "0")
 
             event_tx["inscription"]["d"] = data
             event_tx["btc_pkscript"] = event[1]["deployer_pkScript"]
@@ -120,8 +117,10 @@ while current_block_height <= max_block_height:
             # event_tx['inscription']['f'] = "mint_inscribe"
             data += "0000000000000000000000000000000000000000000000000000000000000040"  ## offset of string
             data += hex(int(event[1]["amount"]))[2:].zfill(64)
-            data += "0000000000000000000000000000000000000000000000000000000000000004"  ## length of string
-            data += event[1]["tick"].encode("utf-8").hex().ljust(64, "0")
+            tick_hex = event[1]["tick"].encode("utf-8").hex()
+            ln = len(tick_hex) // 2
+            data += hex(ln)[2:].zfill(64)
+            data += tick_hex.ljust(64, "0")
 
             event_tx["inscription"]["d"] = data
             event_tx["btc_pkscript"] = event[1]["minted_pkScript"]
@@ -131,10 +130,13 @@ while current_block_height <= max_block_height:
             data += "0000000000000000000000000000000000000000000000000000000000000060"  ## offset of string
             data += hex(int(event[1]["amount"]))[2:].zfill(64)
             data += get_addr_data(event[1]["source_pkScript"])
-            data += "0000000000000000000000000000000000000000000000000000000000000004"  ## length of string
-            data += event[1]["tick"].encode("utf-8").hex().ljust(64, "0")
+            tick_hex = event[1]["tick"].encode("utf-8").hex()
+            ln = len(tick_hex) // 2
+            data += hex(ln)[2:].zfill(64)
+            data += tick_hex.ljust(64, "0")
 
             event_tx["inscription"]["d"] = data
+            event_tx["inscription"]["inscription_id"] += '0' ## since event type 3 also uses the same inscr_id, add another 0 to differentiate
             event_tx["btc_pkscript"] = event[1]["source_pkScript"]
         elif event[0] == 3:
             data = "0x3b63e221"
@@ -145,8 +147,10 @@ while current_block_height <= max_block_height:
             if to is None:
                 to = event[1]["source_pkScript"]
             data += get_addr_data(to)
-            data += "0000000000000000000000000000000000000000000000000000000000000004"  ## length of string
-            data += event[1]["tick"].encode("utf-8").hex().ljust(64, "0")
+            tick_hex = event[1]["tick"].encode("utf-8").hex()
+            ln = len(tick_hex) // 2
+            data += hex(ln)[2:].zfill(64)
+            data += tick_hex.ljust(64, "0")
 
             event_tx["inscription"]["d"] = data
             event_tx["btc_pkscript"] = event[1]["source_pkScript"]

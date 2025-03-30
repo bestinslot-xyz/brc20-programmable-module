@@ -149,6 +149,10 @@ contract BRC20 is Ownable {
     mapping(address => uint256) public total_balance;
     mapping(address => uint256) public transferrable_balance;
 
+    event MintInscribe(address indexed to, uint256 total, uint256 transferrable, uint256 remaining_supply);
+    event TransferInscribe(address indexed to, uint256 total, uint256 transferrable);
+    event TransferTransfer(address indexed from, address indexed to, uint256 total_from, uint256 transferrable_from, uint256 total_to, uint256 transferrable_to);
+
     constructor(string memory _ticker, uint256 _mint_limit, uint256 _supply, uint8 _decimals) 
                 Ownable(msg.sender) {
         ticker = _ticker;
@@ -173,12 +177,14 @@ contract BRC20 is Ownable {
         uint256 to_mint = min(amount, remaining_supply);
         remaining_supply -= to_mint;
         total_balance[to] += to_mint;
+        emit MintInscribe(to, total_balance[to], transferrable_balance[to], remaining_supply);
     }
 
     function transfer_inscribe(uint256 amount, address to) public onlyOwner {
         uint256 available_balance = total_balance[to] - transferrable_balance[to];
         require(available_balance >= amount, "not enough available balance");
         transferrable_balance[to] += amount;
+        emit TransferInscribe(to, total_balance[to], transferrable_balance[to]);
     }
 
     function transfer_transfer(uint256 amount, address from, address to) public onlyOwner {
@@ -187,6 +193,7 @@ contract BRC20 is Ownable {
         transferrable_balance[from] -= amount;
         total_balance[from] -= amount;
         total_balance[to] += amount;
+        emit TransferTransfer(from, to, total_balance[from], transferrable_balance[from], total_balance[to], transferrable_balance[to]);
     }
 }
 // File: BRC20_Deployer/BRC20_Deployer.sol
