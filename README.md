@@ -332,10 +332,10 @@ interface IBRC20_Balance {
  */
 interface IBIP322_Verifier {
     function verify(
-        string calldata addr,
-        string calldata message_base64,
-        string calldata signature_base64
-    ) external returns (bool);
+        bytes calldata pkscript,
+        bytes calldata message,
+        bytes calldata signature
+    ) external returns (bool success);
 }
 ```
 
@@ -368,9 +368,9 @@ interface IBTC_Transaction {
             uint256 block_height,
             bytes32[] memory vin_txids,
             uint256[] memory vin_vouts,
-            bytes[] memory vin_scriptPubKey_hexes,
+            bytes[] memory vin_scriptPubKeys,
             uint256[] memory vin_values,
-            bytes[] memory vout_scriptPubKey_hexes,
+            bytes[] memory vout_scriptPubKeys,
             uint256[] memory vout_values
         );
 }
