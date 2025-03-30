@@ -108,6 +108,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
 - inscription_id (Optional `string`): Source inscription ID that triggered this transaction, will be recorded for easier contract address retrieval
+- inscription_byte_len (Optional `number`): Length of the insription content, used to determine the gas limit for this transaction
 
 **Returns**:
 
@@ -131,10 +132,14 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
 - inscription_id (Optional `string`): Inscription ID that triggered this transaction, will be recorded for easier transaction receipt retrieval
+- inscription_byte_len (Optional `number`): Length of the insription content, used to determine the gas limit for this transaction
 
 **Returns**:
 
 - Receipt for the executed transaction, see [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gettransactionreceipt) for details.
+
+> [!NOTE]
+> `inscription_byte_len` parameter is used to determine the gas limit for `brc20_deploy` and `brc20_call` transactions, currently BRC2.0 sets an allowance of 12000 gas per byte (object to change, but generously set). In case of calling expensive methods and contracts, inscriptions should be padded to increase the gas allowance. Minimum gas limit is set to 32 bytes per transaction. `eth_estimateGas` JSON-RPC method can be used to estimate how much gas this transaction might consume.
 
 <hr>
 
@@ -532,7 +537,8 @@ for (inscription, transfer) in block:
             hash: block.hash,
             timestamp: block.timestamp,
             tx_idx: current_tx_idx++,
-            inscription_id: current_inscription_id)
+            inscription_id: current_inscription_id,
+            inscription_byte_len: inscription.content.length)
 
     if inscription.op is 'call' and
        receiver.pkscript is OP_RETURN "BRC20PROG":
@@ -544,7 +550,8 @@ for (inscription, transfer) in block:
             hash: block.hash,
             timestamp: block.timestamp,
             tx_idx: current_tx_idx++,
-            inscription_id: current_inscription_id)
+            inscription_id: current_inscription_id,
+            inscription_byte_len: inscription.content.length)
 
     if inscription.op is 'transfer' and
        receiver.pkscript is OP_RETURN "BRC20PROG":

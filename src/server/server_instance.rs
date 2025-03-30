@@ -14,7 +14,8 @@ use crate::db::types::{
 };
 use crate::db::{DB, MAX_HISTORY_SIZE};
 use crate::evm::{
-    get_brc20_balance, get_contract_address, get_evm, get_result_reason, get_result_type,
+    get_brc20_balance, get_contract_address, get_evm, get_gas_limit, get_result_reason,
+    get_result_type,
 };
 use crate::server::types::{get_tx_hash, TxInfo};
 
@@ -90,6 +91,7 @@ impl ServerInstance {
             genesis_height,
             genesis_hash,
             None,
+            Some(u64::MAX),
         )?;
 
         let brc20_controller_contract = result.contract_address.unwrap().0;
@@ -205,6 +207,7 @@ impl ServerInstance {
         block_number: u64,
         block_hash: B256,
         inscription_id: Option<String>,
+        inscription_byte_len: Option<u64>,
     ) -> Result<TxReceiptED, &'static str> {
         #[cfg(debug_assertions)]
         println!("Adding tx {:?} to block {:?}", tx_idx, block_number);
@@ -270,6 +273,7 @@ impl ServerInstance {
                     .unwrap_or(TransactTo::Create);
                 tx.data = tx_info.data.clone();
                 tx.nonce = nonce;
+                tx.gas_limit = get_gas_limit(inscription_byte_len.unwrap_or(tx.data.len() as u64));
             });
 
             let tx = evm.ctx().tx().clone();

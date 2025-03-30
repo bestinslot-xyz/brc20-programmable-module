@@ -1,5 +1,17 @@
+use std::cmp::max;
+
 use revm::context::result::{ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason};
 use revm::primitives::{keccak256, Address};
+
+static GAS_PER_BYTE: u64 = 12000; // 12M gas per byte
+static MINIMUM_GAS_LIMIT: u64 = 384000; // GAS_PER_BYTE * 32
+
+pub fn get_gas_limit(inscription_byte_len: u64) -> u64 {
+    max(
+        inscription_byte_len.saturating_mul(GAS_PER_BYTE),
+        MINIMUM_GAS_LIMIT,
+    )
+}
 
 pub fn get_evm_address(pkscript: &str) -> Address {
     let mut address = [0u8; 20];
