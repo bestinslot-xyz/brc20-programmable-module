@@ -151,6 +151,7 @@ impl ServerInstance {
 
             self.finalise_block(genesis_timestamp, genesis_height, genesis_hash, 0)?;
             block_count -= 1;
+            number += 1;
         }
 
         #[cfg(debug_assertions)]
