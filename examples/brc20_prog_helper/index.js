@@ -54,16 +54,16 @@ async function main() {
         }
     ), function (_) { });
 
-    let address = "bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l"
-    let message = "Hello World"
-    let signature = "AkgwRQIhAOzyynlqt93lOKJr+wmmxIens//zPzl9tqIOua93wO6MAiBi5n5EyAcPScOjf1lAqIUIQtr3zKNeavYabHyR8eGhowEhAsfxIAMZZEKUPYWI4BruhAQjzFT8FSFSajuFwrDL1Yhy"
+    let pkscript = "0x00142b05d564e6a7a33c087f16e0f730d1440123799d"
+    let message = "0x48656c6c6f20576f726c64" // "Hello World"
+    let signature = "0x02483045022100ecf2ca796ab7dde538a26bfb09a6c487a7b3fff33f397db6a20eb9af77c0ee8c022062e67e44c8070f49c3a37f5940a8850842daf7cca35e6af61a6c7c91f1e1a1a3012102c7f12003196442943d8588e01aee840423cc54fc1521526a3b85c2b0cbd58872"
 
     fs.writeFileSync('output/BRC20_Prog_bip322_verify_tx.json', JSON.stringify(
         {
             p: "brc20-prog",
             op: "call",
             c: "REPLACE_THIS_WITH_CONTRACT_ADDRESS",
-            d: contract_factory.interface.encodeFunctionData("verify", [address, message, signature]),
+            d: contract_factory.interface.encodeFunctionData("verify", [pkscript, message, signature]),
         }
     ), function (_) { });
 
@@ -119,7 +119,7 @@ async function main() {
             p: "brc20-prog",
             op: "call",
             c: "REPLACE_THIS_WITH_CONTRACT_ADDRESS",
-            d: contract_factory.interface.encodeFunctionData("getSha256", [message.toString('hex')]),
+            d: contract_factory.interface.encodeFunctionData("getSha256", [message]),
         }
     ), function (_) { });
 

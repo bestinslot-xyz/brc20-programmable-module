@@ -117,9 +117,9 @@
     {
         "inputs": [
             {
-                "internalType": "string",
+                "internalType": "bytes",
                 "name": "message",
-                "type": "string"
+                "type": "bytes"
             }
         ],
         "name": "getSha256",
@@ -160,7 +160,7 @@
             },
             {
                 "internalType": "bytes[]",
-                "name": "vin_scriptPubKey_hexes",
+                "name": "vin_scriptPubKeys",
                 "type": "bytes[]"
             },
             {
@@ -170,7 +170,7 @@
             },
             {
                 "internalType": "bytes[]",
-                "name": "vout_scriptPubKey_hexes",
+                "name": "vout_scriptPubKeys",
                 "type": "bytes[]"
             },
             {
@@ -185,19 +185,19 @@
     {
         "inputs": [
             {
-                "internalType": "string",
-                "name": "addr",
-                "type": "string"
+                "internalType": "bytes",
+                "name": "pkscript",
+                "type": "bytes"
             },
             {
-                "internalType": "string",
-                "name": "message_base64",
-                "type": "string"
+                "internalType": "bytes",
+                "name": "message",
+                "type": "bytes"
             },
             {
-                "internalType": "string",
-                "name": "signature_base64",
-                "type": "string"
+                "internalType": "bytes",
+                "name": "signature",
+                "type": "bytes"
             }
         ],
         "name": "verify",

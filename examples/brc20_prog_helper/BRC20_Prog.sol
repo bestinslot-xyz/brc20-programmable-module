@@ -23,16 +23,16 @@ contract BRC20_Prog {
      * @dev Verifies BIP322 signature, given address, message and the signature.
      */
     function verify(
-        string calldata addr,
-        string calldata message_base64,
-        string calldata signature_base64
+        bytes calldata pkscript,
+        bytes calldata message,
+        bytes calldata signature
     ) external view returns (bool verified) {
         (bool success, bytes memory data) = _bip322_verify_address.staticcall(
             abi.encodeWithSignature(
-                "verify(string,string,string)",
-                addr,
-                message_base64,
-                signature_base64
+                "verify(bytes,bytes,bytes)",
+                pkscript,
+                message,
+                signature
             )
         );
         require(success, "Failed to verify BIP322 signature");
@@ -147,7 +147,7 @@ contract BRC20_Prog {
     /**
      * @dev Sha256 hash of a given message. For testing precompiles.
      */
-    function getSha256(string calldata message) external view returns (bytes32) {
+    function getSha256(bytes calldata message) external view returns (bytes32) {
         (bool success, bytes memory data) = address(0x02).staticcall(abi.encodePacked(message));
         require(success, "Failed to get SHA256");
         return abi.decode(data, (bytes32));

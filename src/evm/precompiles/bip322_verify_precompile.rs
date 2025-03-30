@@ -1,18 +1,25 @@
 use alloy_sol_types::{sol, SolCall};
-use bip322::verify_simple_encoded;
+use bip322::verify_simple;
+use bitcoin::consensus::Decodable;
+use bitcoin::Witness;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
 
-use super::precompile_output;
+use super::{precompile_output, BITCOIN_NETWORK};
 use crate::evm::precompiles::{precompile_error, use_gas};
 
 sol! {
-    function verify(string address, string message_base64, string signature_base64) returns (bool);
+    function verify(bytes pkscript, bytes message, bytes signature) returns (bool success);
 }
 
 pub fn bip322_verify_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
     let mut interpreter_result =
         InterpreterResult::new(InstructionResult::Stop, Bytes::new(), Gas::new(gas_limit));
+
+    if !use_gas(&mut interpreter_result, 100000) {
+        return interpreter_result;
+    }
+
     let result = verifyCall::abi_decode(&bytes, false);
 
     if result.is_err() {
@@ -21,15 +28,31 @@ pub fn bip322_verify_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
 
     let result = result.unwrap();
 
-    let result = verify_simple_encoded(
-        &result.address,
-        &result.message_base64,
-        &result.signature_base64,
+    let (pkscript, message, signature) = (result.pkscript, result.message, result.signature);
+
+    let address = bitcoin::Address::from_script(
+        &bitcoin::Script::from_bytes(pkscript.iter().as_slice()),
+        *BITCOIN_NETWORK,
     );
 
-    if !use_gas(&mut interpreter_result, 100000) {
-        return interpreter_result;
+    if address.is_err() {
+        // Invalid pkscript
+        return precompile_error(interpreter_result);
     }
+
+    let address = address.unwrap();
+    let message = message.iter().as_slice();
+    let signature = signature.iter().as_slice();
+    let signature = Witness::consensus_decode(&mut signature.iter().as_slice());
+
+    if signature.is_err() {
+        // Invalid signature
+        return precompile_error(interpreter_result);
+    }
+
+    let signature = signature.unwrap();
+
+    let result = verify_simple(&address, &message, signature);
 
     match result {
         Ok(_) => {
@@ -41,24 +64,44 @@ pub fn bip322_verify_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
 
 #[cfg(test)]
 mod tests {
+    use bitcoin::consensus::Encodable;
     use revm::primitives::Bytes;
 
     use super::*;
 
     #[test]
     fn test_verify() {
-        let address = "bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l";
-        let message = "Hello World";
+        let pkscript =
+            Bytes::from(hex::decode("00142b05d564e6a7a33c087f16e0f730d1440123799d").unwrap());
+
+        let address = bitcoin::Address::from_script(
+            &bitcoin::Script::from_bytes(pkscript.iter().as_slice()),
+            bitcoin::Network::Signet,
+        )
+        .unwrap();
+
+        let message = Bytes::from("Hello World".as_bytes());
+
         let wif_private_key = "L3VFeEujGtevx9w18HD1fhRbCH67Az2dpCymeRE1SoPK6XQtaN2k";
+        let wif_private_key = bitcoin::PrivateKey::from_wif(wif_private_key).unwrap();
 
-        let signature = bip322::sign_simple_encoded(&address, &message, &wif_private_key).unwrap();
+        let signature = bip322::sign_simple(&address, &message, wif_private_key).unwrap();
 
-        let bytes =
-            verifyCall::new((address.to_string(), message.to_string(), signature)).abi_encode();
+        let mut signature_bytes = Vec::new();
+        signature.consensus_encode(&mut signature_bytes).unwrap();
+
+        let bytes = verifyCall::new((
+            pkscript.clone(),
+            message.clone(),
+            Bytes::from(signature_bytes.clone()),
+        ))
+        .abi_encode();
 
         let result = bip322_verify_precompile(&Bytes::from_iter(bytes.iter()), 1000000);
-        let returns = verifyCall::abi_decode_returns(&result.output, false).unwrap();
 
-        assert!(returns._0);
+        assert!(result.is_ok());
+
+        let returns = verifyCall::abi_decode_returns(&result.output, false).unwrap();
+        assert!(returns.success);
     }
 }
