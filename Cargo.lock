@@ -617,6 +617,7 @@ dependencies = [
  "bip322",
  "bitcoin",
  "hex",
+ "hyper",
  "jsonrpsee",
  "lazy_static",
  "revm",
@@ -630,6 +631,8 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "tower",
+ "tower-http",
  "tracing",
  "tracing-subscriber",
  "ureq",
@@ -3182,6 +3185,22 @@ dependencies = [
  "futures-core",
  "futures-util",
  "pin-project",
+ "pin-project-lite",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "403fa3b783d4b626a8ad51d766ab03cb6d2dbfc46b1c5d4448395e6628dc9697"
+dependencies = [
+ "bitflags",
+ "bytes",
+ "http",
+ "http-body",
  "pin-project-lite",
  "tower-layer",
  "tower-service",

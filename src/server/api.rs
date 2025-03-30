@@ -8,6 +8,8 @@ use serde::Deserialize;
 
 use crate::db::types::{BlockResponseED, LogResponseED, TxED, TxReceiptED};
 
+use super::INDEXER_ADDRESS;
+
 #[rpc(server)]
 pub trait Brc20ProgApi {
     ///
@@ -279,6 +281,18 @@ pub trait Brc20ProgApi {
         _index: u64,
     ) -> RpcResult<Option<String>> {
         Ok(None)
+    }
+
+    /// Returns net version
+    #[method(name = "net_version")]
+    async fn net_version(&self) -> RpcResult<String> {
+        Ok("0x4252433230".to_string())
+    }
+
+    /// Returns accounts (BRC20 indexer address)
+    #[method(name = "eth_accounts")]
+    async fn accounts(&self) -> RpcResult<Vec<String>> {
+        Ok(vec![INDEXER_ADDRESS.to_string()])
     }
 }
 
