@@ -36,6 +36,7 @@ pub trait Brc20ProgApi {
         hash: B256Wrapper,
         tx_idx: u64,
         inscription_id: Option<String>,
+        inscription_byte_len: Option<u64>,
     ) -> RpcResult<TxReceiptED>;
 
     #[method(name = "brc20_call")]
@@ -49,6 +50,7 @@ pub trait Brc20ProgApi {
         hash: B256Wrapper,
         tx_idx: u64,
         inscription_id: Option<String>,
+        inscription_byte_len: Option<u64>,
     ) -> RpcResult<TxReceiptED>;
 
     /// Deposits brc20 tokens to the given address

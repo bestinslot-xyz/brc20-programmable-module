@@ -571,13 +571,14 @@ import time
 import requests
 
 url_mine = "http://localhost:8000/mine_block"
-data_mine = {
+data_deploy = {
     "ts": 5,
     "hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
     "txes": [
         {
             "inscription": {"op": "deploy", "d": ""},
             "btc_pkscript": "512037679ea62eab55ebfd442c53c4ad46b6b75e45d8a8fa9cb31a87d0df268b029a",
+            "inscription_len": "10000",
         }
     ],
 }
@@ -588,6 +589,7 @@ data_call = {
         {
             "inscription": {"op": "call", "c": "", "d": "0x"},
             "btc_pkscript": "512037679ea62eab55ebfd442c53c4ad46b6b75e45d8a8fa9cb31a87d0df268b029a",
+            "inscription_len": "15000",
         }
     ],
 }
@@ -611,9 +613,9 @@ for i in range(len(codes)):
     code = codes[i]
     params = params_list[i]
     print("deploying: ", get(params[0]), params[1])
-    data_mine["txes"][0]["inscription"]["d"] = code
+    data_deploy["txes"][0]["inscription"]["d"] = code
     response = requests.post(
-        url_mine, json=data_mine, headers={"Content-Type": "application/json"}
+        url_mine, json=data_deploy, headers={"Content-Type": "application/json"}
     )
     js = response.json()
     contractAddress = js["result"]["responses"][0]["receipt"]["contractAddress"]
@@ -625,6 +627,8 @@ for i in range(len(codes)):
     js = response.json()
     if js["result"]["responses"][0]["receipt"]["txResult"] != "Success":
         print("failed: ", params)
+        print("result: " + js["result"]["responses"][0]["receipt"]["txResult"])
+        print("reason: " + js["result"]["responses"][0]["receipt"]["reason"])
         exit(1)
     response = requests.get(url_current_block_height)
     js = response.json()

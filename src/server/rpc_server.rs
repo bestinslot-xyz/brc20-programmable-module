@@ -74,6 +74,7 @@ impl Brc20ProgApiServer for RpcServer {
                 self.server_instance.get_next_block_height(),
                 hash.value(),
                 inscription_id,
+                Some(u64::MAX),
             )
             .map_err(wrap_error_message)
     }
@@ -99,6 +100,7 @@ impl Brc20ProgApiServer for RpcServer {
                 self.server_instance.get_next_block_height(),
                 hash.value(),
                 inscription_id,
+                Some(u64::MAX),
             )
             .map_err(wrap_error_message)
     }
@@ -152,6 +154,7 @@ impl Brc20ProgApiServer for RpcServer {
         hash: B256Wrapper,
         tx_idx: u64,
         inscription_id: Option<String>,
+        inscription_byte_len: Option<u64>,
     ) -> RpcResult<TxReceiptED> {
         event!(Level::INFO, "Deploying contract");
         self.server_instance
@@ -166,6 +169,7 @@ impl Brc20ProgApiServer for RpcServer {
                 self.server_instance.get_next_block_height(),
                 hash.value(),
                 inscription_id,
+                inscription_byte_len,
             )
             .map_err(wrap_error_message)
     }
@@ -181,6 +185,7 @@ impl Brc20ProgApiServer for RpcServer {
         hash: B256Wrapper,
         tx_idx: u64,
         inscription_id: Option<String>,
+        inscription_byte_len: Option<u64>,
     ) -> RpcResult<TxReceiptED> {
         event!(Level::INFO, "Calling contract");
         let derived_contract_address;
@@ -214,6 +219,7 @@ impl Brc20ProgApiServer for RpcServer {
                 self.server_instance.get_next_block_height(),
                 hash.value(),
                 inscription_id,
+                inscription_byte_len,
             )
             .map_err(wrap_error_message)
     }

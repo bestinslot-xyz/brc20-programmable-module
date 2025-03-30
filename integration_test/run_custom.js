@@ -41,12 +41,12 @@ async function brc20_mine(n, timestamp) {
   await provider_send("brc20_mine", { block_count: parseInt(n), timestamp: parseInt(timestamp) })
 }
 
-async function brc20_deploy(timestamp, hash, from, data, tx_idx, inscription_id) {
-  return await provider_send("brc20_deploy", { timestamp: parseInt(timestamp), hash: hash, tx_idx: tx_idx, from_pkscript: from, data: data, inscription_id: inscription_id })
+async function brc20_deploy(timestamp, hash, from, data, tx_idx, inscription_id, inscription_byte_len) {
+  return await provider_send("brc20_deploy", { timestamp: parseInt(timestamp), hash: hash, tx_idx: tx_idx, from_pkscript: from, data: data, inscription_id: inscription_id, inscription_byte_len: inscription_byte_len })
 }
 
-async function brc20_call(timestamp, hash, from, contract_address, data, tx_idx, inscription_id) {
-  return await provider_send("brc20_call", { timestamp: parseInt(timestamp), contract_address: contract_address, hash: hash, tx_idx: tx_idx, from_pkscript: from, data: data, inscription_id: inscription_id })
+async function brc20_call(timestamp, hash, from, contract_address, data, tx_idx, inscription_id, inscription_byte_len) {
+  return await provider_send("brc20_call", { timestamp: parseInt(timestamp), contract_address: contract_address, hash: hash, tx_idx: tx_idx, from_pkscript: from, data: data, inscription_id: inscription_id, inscription_byte_len: inscription_byte_len })
 }
 
 async function brc20_finalise_block(timestamp, hash, block_tx_count) {
@@ -136,6 +136,7 @@ app.post('/mine_block', async (request, response) => {
     for (var i = 0; i < request.body.txes.length; i++) {
       let btc_pkscript = request.body.txes[i].btc_pkscript
       let inscription = request.body.txes[i].inscription
+      let inscription_byte_len = parseInt(request.body.txes[i].inscription_len)
       let inscription_id = inscription.inscription_id
       responses[i] = {
         sender: btc_pkscript,
@@ -158,14 +159,14 @@ app.post('/mine_block', async (request, response) => {
           to: inscription.c,
           data: inscription.d,
         }
-        responses[i].receipt = await brc20_call(ts, hash, btc_pkscript, inscription.c, inscription.d, tx_idx, inscription_id)
+        responses[i].receipt = await brc20_call(ts, hash, btc_pkscript, inscription.c, inscription.d, tx_idx, inscription_id, inscription_byte_len)
         tx_idx += 1
       } else if (inscription.op == 'deploy') {
         responses[i].tx = {
           type: PROCESS_TYPES.DEPLOY,
           data: inscription.d,
         }
-        responses[i].receipt = await brc20_deploy(ts, hash, btc_pkscript, inscription.d, tx_idx, inscription_id)
+        responses[i].receipt = await brc20_deploy(ts, hash, btc_pkscript, inscription.d, tx_idx, inscription_id, inscription_byte_len)
         tx_idx += 1
       } else if (inscription.op == "transfer") {
         let amount = inscription.amt
