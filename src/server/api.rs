@@ -6,9 +6,8 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::Deserialize;
 
-use crate::db::types::{BlockResponseED, LogResponseED, TxED, TxReceiptED};
-
 use super::INDEXER_ADDRESS;
+use crate::db::types::{BlockResponseED, LogResponseED, TxED, TxReceiptED};
 
 #[rpc(server)]
 pub trait Brc20ProgApi {
@@ -175,12 +174,7 @@ pub trait Brc20ProgApi {
 
     /// Estimates the gas for the given transaction
     #[method(name = "eth_estimateGas")]
-    async fn estimate_gas(
-        &self,
-        from: AddressWrapper,
-        to: Option<AddressWrapper>,
-        data: BytesWrapper,
-    ) -> RpcResult<String>;
+    async fn estimate_gas(&self, eth_call: EthCall) -> RpcResult<String>;
 
     /// Get storage for the given contract and memory location
     #[method(name = "eth_getStorageAt")]
@@ -247,7 +241,7 @@ pub trait Brc20ProgApi {
 
     /// Returns the balance of the account at the given address (0 in BRC20)
     #[method(name = "eth_getBalance")]
-    async fn get_balance(&self, _address: B256Wrapper) -> RpcResult<String> {
+    async fn get_balance(&self, _address: AddressWrapper, _block: String) -> RpcResult<String> {
         Ok("0x0".to_string())
     }
 
@@ -286,7 +280,7 @@ pub trait Brc20ProgApi {
     /// Returns net version
     #[method(name = "net_version")]
     async fn net_version(&self) -> RpcResult<String> {
-        Ok("0x4252433230".to_string())
+        Ok("4252433230".to_string())
     }
 
     /// Returns accounts (BRC20 indexer address)
@@ -294,6 +288,13 @@ pub trait Brc20ProgApi {
     async fn accounts(&self) -> RpcResult<Vec<String>> {
         Ok(vec![INDEXER_ADDRESS.to_string()])
     }
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct EthCall {
+    pub from: AddressWrapper,
+    pub to: Option<AddressWrapper>,
+    pub data: BytesWrapper,
 }
 
 #[derive(Debug, serde::Deserialize)]

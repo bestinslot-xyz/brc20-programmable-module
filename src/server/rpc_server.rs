@@ -10,7 +10,7 @@ use revm::primitives::B256;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{event, instrument, Level};
 
-use super::api::{AddressWrapper, B256Wrapper, BytesWrapper, U256Wrapper};
+use super::api::{AddressWrapper, B256Wrapper, BytesWrapper, EthCall, U256Wrapper};
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
 };
@@ -370,21 +370,16 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_error_message)
     }
 
-    #[instrument(skip(self, data))]
-    async fn estimate_gas(
-        &self,
-        from: AddressWrapper,
-        to: Option<AddressWrapper>,
-        data: BytesWrapper,
-    ) -> RpcResult<String> {
+    #[instrument(skip(self))]
+    async fn estimate_gas(&self, eth_call: EthCall) -> RpcResult<String> {
         event!(Level::INFO, "Estimating gas");
         Ok(format!(
             "0x{:x}",
             self.server_instance
                 .call_contract(&TxInfo {
-                    from: from.value(),
-                    to: to.map(|x| x.value()),
-                    data: data.value().clone(),
+                    from: eth_call.from.value(),
+                    to: eth_call.to.map(|x| x.value()),
+                    data: eth_call.data.value().clone(),
                 })
                 .unwrap()
                 .gas_used
