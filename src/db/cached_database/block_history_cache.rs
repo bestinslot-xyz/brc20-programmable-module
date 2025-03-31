@@ -123,7 +123,7 @@ impl<V> Encode for BlockHistoryCacheData<V>
 where
     V: Encode + Decode + Clone + Eq,
 {
-    fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>> {
+    fn encode(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         for (block_number, value) in self.cache.iter() {
             bytes.extend_from_slice(&block_number.to_be_bytes());
@@ -131,12 +131,12 @@ where
                 bytes.extend_from_slice(&0u32.to_be_bytes());
                 continue;
             }
-            let value_bytes = value.as_ref().unwrap().encode().unwrap();
+            let value_bytes = value.as_ref().unwrap().encode();
             let size: u32 = value_bytes.len().try_into().unwrap();
             bytes.extend_from_slice(&size.to_be_bytes());
             bytes.extend_from_slice(&value_bytes);
         }
-        Ok(bytes)
+        bytes
     }
 }
 
@@ -227,7 +227,7 @@ mod tests {
         let value_ed = U256ED::from_u256(value);
 
         cache.set(block_number, value_ed.clone());
-        let encoded = BlockHistoryCacheData::<U256ED>::encode(&cache).unwrap();
+        let encoded = cache.encode();
         let decoded = BlockHistoryCacheData::<U256ED>::decode(encoded).unwrap();
 
         assert_eq!(decoded.latest().unwrap().0, value_ed.0);

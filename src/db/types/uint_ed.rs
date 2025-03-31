@@ -60,14 +60,14 @@ impl<const BITS: usize, const LIMBS: usize> Serialize for UintEncodeDecode<BITS,
 }
 
 impl<const BITS: usize, const LIMBS: usize> Encode for UintEncodeDecode<BITS, LIMBS> {
-    fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>> {
+    fn encode(&self) -> Vec<u8> {
         let mut limbs = self.0.as_limbs().to_vec();
         limbs.reverse();
         let bytes = limbs
             .iter()
             .flat_map(|limb| limb.to_be_bytes().to_vec())
             .collect::<Vec<u8>>();
-        Ok(bytes)
+        bytes
     }
 }
 
@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn test_u64_ed() {
         let u64_ed = U256ED::from_u256(U256::from(100u64));
-        let bytes = U256ED::encode(&u64_ed).unwrap();
+        let bytes = u64_ed.encode();
         let decoded = U256ED::decode(bytes).unwrap();
         assert_eq!(u64_ed.0, decoded.0);
     }
@@ -116,7 +116,7 @@ mod tests {
     fn test_u256_ed() {
         let u256: U256 = U256::from(100u64);
         let u256_ed = U256ED::from_u256(u256);
-        let bytes = U256ED::encode(&u256_ed).unwrap();
+        let bytes = u256_ed.encode();
         let decoded = U256ED::decode(bytes).unwrap();
         assert_eq!(u256_ed.0, decoded.0);
     }
@@ -125,7 +125,7 @@ mod tests {
     fn test_u512_ed() {
         let u256: U256 = U256::from(100u64);
         let u256_ed = U256ED::from_u256(u256);
-        let bytes = U256ED::encode(&u256_ed).unwrap();
+        let bytes = u256_ed.encode();
         let decoded = U256ED::decode(bytes).unwrap();
         assert_eq!(u256_ed.0, decoded.0);
     }
@@ -135,7 +135,7 @@ mod tests {
         let address = Address::from([100u8; 20]);
         let u256 = U256::from(1u64);
         let u512_ed = U512ED::from_addr_u256(address, u256);
-        let bytes = U512ED::encode(&u512_ed).unwrap();
+        let bytes = u512_ed.encode();
         let decoded = U512ED::decode(bytes).unwrap();
         assert_eq!(u512_ed.0, decoded.0);
     }
@@ -145,7 +145,7 @@ mod tests {
         let address = Address::from_str("0x1234567890123456789012345678901234567890").unwrap();
         let u256 = U256::from(1u64);
         let u512_ed = U512ED::from_addr_u256(address, u256);
-        let bytes = U512ED::encode(&u512_ed).unwrap();
+        let bytes = u512_ed.encode();
         let decoded = U512ED::decode(bytes).unwrap();
         assert_eq!(u512_ed.0, decoded.0);
     }

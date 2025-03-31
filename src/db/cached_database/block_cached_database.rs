@@ -71,7 +71,7 @@ where
             let cache = self.cache.get(key).unwrap();
             return Ok(cache.latest());
         }
-        let result = self.db.get(key.encode().unwrap())?;
+        let result = self.db.get(key.encode())?;
         if result.is_none() {
             return Ok(None);
         }
@@ -90,11 +90,11 @@ where
     /// Returns: Vec<(K, V)> - the list of key-value pairs
     pub fn get_range(&self, start_key: &K, end_key: &K) -> Result<Vec<(K, V)>, Error> {
         let mut result = Vec::new();
-        let start_key_bytes = start_key.encode().unwrap();
-        let end_key_bytes = end_key.encode().unwrap();
+        let start_key_bytes = start_key.encode();
+        let end_key_bytes = end_key.encode();
 
         for key in self.cache.keys() {
-            let key_bytes = key.encode().unwrap();
+            let key_bytes = key.encode();
             if *key_bytes < *start_key_bytes {
                 continue;
             }
@@ -151,8 +151,8 @@ where
     /// block_number: U256 - the block number to commit at
     pub fn commit(&mut self, block_number: u64) -> Result<(), Error> {
         for (key, cache) in self.cache.iter() {
-            let key_bytes = K::encode(key).unwrap();
-            let cache_bytes = C::encode(cache).unwrap();
+            let key_bytes = key.encode();
+            let cache_bytes = cache.encode();
             if cache.is_old(block_number) {
                 self.cache_db.delete(&key_bytes)?;
             } else {
@@ -162,8 +162,7 @@ where
             if cache.latest().is_none() {
                 self.db.delete(&key_bytes)?;
             } else {
-                self.db
-                    .put(&key_bytes, &cache.latest().unwrap().encode().unwrap())?;
+                self.db.put(&key_bytes, &cache.latest().unwrap().encode())?;
             }
         }
 
@@ -220,7 +219,7 @@ where
             return Ok(());
         }
 
-        let cache_bytes = self.cache_db.get(key.encode().unwrap())?;
+        let cache_bytes = self.cache_db.get(key.encode())?;
         if cache_bytes.is_none() {
             self.cache.insert(key.clone(), C::new(None));
             return Ok(());
@@ -305,7 +304,7 @@ mod tests {
 
         let real_db = db.db;
 
-        let account_info = real_db.get(address_ed.encode().unwrap()).unwrap();
+        let account_info = real_db.get(address_ed.encode()).unwrap();
 
         let account_info = AccountInfoED::decode(account_info.unwrap().to_vec()).unwrap();
         assert_eq!(account_info.0.balance, U256::from(100));
@@ -314,7 +313,7 @@ mod tests {
 
         let cache_db = db.cache_db;
 
-        let cache = cache_db.get(address_ed.encode().unwrap()).unwrap();
+        let cache = cache_db.get(address_ed.encode()).unwrap();
 
         let cache =
             BlockHistoryCacheData::<AccountInfoED>::decode(cache.unwrap().to_vec()).unwrap();
