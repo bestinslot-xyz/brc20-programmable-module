@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::net::SocketAddr;
 
-use alloy_primitives::Address;
+use alloy_primitives::{Address, Bytes};
 use hyper::Method;
 use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::server::{RpcServiceBuilder, Server, ServerHandle};
@@ -353,37 +353,40 @@ impl Brc20ProgApiServer for RpcServer {
         ))
     }
 
-    #[instrument(skip(self, data))]
-    async fn call(
-        &self,
-        from: AddressWrapper,
-        to: Option<AddressWrapper>,
-        data: BytesWrapper,
-    ) -> RpcResult<TxReceiptED> {
+    #[instrument(skip(self))]
+    async fn call(&self, call: EthCall, _: Option<String>) -> RpcResult<String> {
         event!(Level::INFO, "Calling contract");
+        let data = call.data.map(|x| x.value().clone()).unwrap_or(
+            call.input
+                .map(|x| x.value().clone())
+                .unwrap_or(Bytes::new()),
+        );
         self.server_instance
             .call_contract(&TxInfo {
-                from: from.value(),
-                to: to.map(|x| x.value()),
-                data: data.value().clone(),
+                from: call.from.value(),
+                to: call.to.map(|x| x.value()),
+                data: data,
             })
+            .map(|receipt| receipt.result_bytes.unwrap_or(Bytes::new()).to_string())
             .map_err(wrap_error_message)
     }
 
     #[instrument(skip(self))]
-    async fn estimate_gas(&self, eth_call: EthCall) -> RpcResult<String> {
+    async fn estimate_gas(&self, call: EthCall, _: Option<String>) -> RpcResult<String> {
         event!(Level::INFO, "Estimating gas");
-        Ok(format!(
-            "0x{:x}",
-            self.server_instance
-                .call_contract(&TxInfo {
-                    from: eth_call.from.value(),
-                    to: eth_call.to.map(|x| x.value()),
-                    data: eth_call.data.value().clone(),
-                })
-                .unwrap()
-                .gas_used
-        ))
+        let data = call.data.map(|x| x.value().clone()).unwrap_or(
+            call.input
+                .map(|x| x.value().clone())
+                .unwrap_or(Bytes::new()),
+        );
+        self.server_instance
+            .call_contract(&TxInfo {
+                from: call.from.value(),
+                to: call.to.map(|x| x.value()),
+                data: data,
+            })
+            .map(|receipt| format!("0x{:x}", receipt.gas_used))
+            .map_err(wrap_error_message)
     }
 
     #[instrument(skip(self))]

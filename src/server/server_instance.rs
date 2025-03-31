@@ -565,6 +565,8 @@ impl ServerInstance {
                     .unwrap_or(TransactTo::Create);
                 tx.data = tx_info.data.clone();
                 tx.nonce = nonce;
+                // Use 10x gas limit for call
+                tx.gas_limit = get_gas_limit(tx_info.data.len() as u64) * 10;
             });
 
             let tx = evm.ctx().tx().clone();
