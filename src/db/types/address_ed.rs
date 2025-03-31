@@ -19,10 +19,10 @@ impl Serialize for AddressED {
 }
 
 impl Encode for AddressED {
-    fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>> {
+    fn encode(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&self.0.to_vec());
-        Ok(bytes)
+        bytes
     }
 }
 
@@ -49,7 +49,7 @@ mod tests {
             .parse()
             .unwrap();
         let address_ed = AddressED(address);
-        let bytes = AddressED::encode(&address_ed).unwrap();
+        let bytes = address_ed.encode();
         let decoded = AddressED::decode(bytes).unwrap();
         assert_eq!(address_ed.0, decoded.0);
     }
@@ -58,7 +58,7 @@ mod tests {
     fn test_address_ed_empty() {
         let address: Address = Address::ZERO;
         let address_ed = AddressED(address);
-        let bytes = AddressED::encode(&address_ed).unwrap();
+        let bytes = address_ed.encode();
         let decoded = AddressED::decode(bytes).unwrap();
         assert_eq!(address_ed.0, decoded.0);
     }

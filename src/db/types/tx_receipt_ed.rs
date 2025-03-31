@@ -114,7 +114,7 @@ impl TxReceiptED {
 }
 
 impl Encode for TxReceiptED {
-    fn encode(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    fn encode(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.push(self.status);
 
@@ -126,19 +126,19 @@ impl Encode for TxReceiptED {
         bytes.extend_from_slice(&(reason_bytes.len() as u32).to_be_bytes());
         bytes.extend_from_slice(reason_bytes);
 
-        let logs_bytes = self.logs.encode()?;
+        let logs_bytes = self.logs.encode();
 
         bytes.extend_from_slice(&(logs_bytes.len() as u32).to_be_bytes());
         bytes.extend_from_slice(&logs_bytes);
 
         bytes.extend_from_slice(&self.gas_used.to_be_bytes());
-        bytes.extend_from_slice(&self.from.encode()?);
+        bytes.extend_from_slice(&self.from.encode());
         bytes.extend_from_slice(
             &self
                 .to
                 .as_ref()
                 .unwrap_or(&AddressED(Address::ZERO))
-                .encode()?,
+                .encode(),
         );
 
         bytes.extend_from_slice(
@@ -146,14 +146,14 @@ impl Encode for TxReceiptED {
                 .contract_address
                 .as_ref()
                 .unwrap_or(&AddressED(Address::ZERO))
-                .encode()?,
+                .encode(),
         );
 
-        bytes.extend_from_slice(&self.logs_bloom.encode()?);
-        bytes.extend_from_slice(&self.hash.encode()?);
+        bytes.extend_from_slice(&self.logs_bloom.encode());
+        bytes.extend_from_slice(&self.hash.encode());
         bytes.extend_from_slice(&self.block_number.to_be_bytes());
         bytes.extend_from_slice(&self.block_timestamp.to_be_bytes());
-        bytes.extend_from_slice(&self.transaction_hash.encode()?);
+        bytes.extend_from_slice(&self.transaction_hash.encode());
         bytes.extend_from_slice(&self.transaction_index.to_be_bytes());
         bytes.extend_from_slice(&self.cumulative_gas_used.to_be_bytes());
         bytes.extend_from_slice(&self.nonce.to_be_bytes());
@@ -165,7 +165,7 @@ impl Encode for TxReceiptED {
         } else {
             bytes.extend_from_slice(&(0u32).to_be_bytes());
         }
-        Ok(bytes)
+        bytes
     }
 }
 
@@ -296,7 +296,7 @@ mod tests {
             effective_gas_price: 0,
             transaction_type: 0,
         };
-        let bytes = TxReceiptED::encode(&tx_receipt_ed).unwrap();
+        let bytes = tx_receipt_ed.encode();
         let decoded = TxReceiptED::decode(bytes).unwrap();
         assert_eq!(tx_receipt_ed, decoded);
     }

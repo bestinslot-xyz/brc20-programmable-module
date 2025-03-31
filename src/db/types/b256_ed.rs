@@ -27,10 +27,10 @@ impl<const N: usize> Serialize for BEncodeDecode<N> {
 }
 
 impl<const N: usize> Encode for BEncodeDecode<N> {
-    fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>> {
+    fn encode(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(self.0.as_slice());
-        Ok(bytes)
+        bytes
     }
 }
 
@@ -55,7 +55,7 @@ mod tests {
     fn test_b256_ed() {
         let b256: B256 = B256::from([0u8; 32]);
         let b256_ed = B256ED::from_b256(b256);
-        let bytes = B256ED::encode(&b256_ed).unwrap();
+        let bytes = b256_ed.encode();
         let decoded = B256ED::decode(bytes).unwrap();
         assert_eq!(b256_ed.0, decoded.0);
     }

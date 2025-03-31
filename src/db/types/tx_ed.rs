@@ -35,27 +35,27 @@ where
 }
 
 impl Encode for TxED {
-    fn encode(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    fn encode(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.hash.encode()?);
+        bytes.extend_from_slice(&self.hash.encode());
         bytes.extend_from_slice(&self.nonce.to_be_bytes());
-        bytes.extend_from_slice(&self.block_hash.encode()?);
+        bytes.extend_from_slice(&self.block_hash.encode());
         bytes.extend_from_slice(&self.block_number.to_be_bytes());
         bytes.extend_from_slice(&self.transaction_index.to_be_bytes());
-        bytes.extend_from_slice(&self.from.encode()?);
+        bytes.extend_from_slice(&self.from.encode());
         bytes.extend_from_slice(
             &self
                 .to
                 .as_ref()
                 .unwrap_or(&AddressED(Address::ZERO))
-                .encode()?,
+                .encode(),
         );
         bytes.extend_from_slice(&self.value.to_be_bytes());
         bytes.extend_from_slice(&self.gas.to_be_bytes());
         bytes.extend_from_slice(&self.gas_price.to_be_bytes());
         bytes.extend_from_slice(&(self.input.len() as u32).to_be_bytes());
         bytes.extend_from_slice(&self.input as &[u8]);
-        Ok(bytes)
+        bytes
     }
 }
 
@@ -128,7 +128,7 @@ mod tests {
             gas_price: 6,
             input: vec![7, 8, 9].into(),
         };
-        let encoded = tx.encode().unwrap();
+        let encoded = tx.encode();
         let decoded = TxED::decode(encoded).unwrap();
         assert_eq!(tx, decoded);
     }

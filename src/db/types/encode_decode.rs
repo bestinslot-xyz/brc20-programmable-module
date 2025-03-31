@@ -1,7 +1,7 @@
 use std::error::Error;
 
 pub trait Encode {
-    fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>>;
+    fn encode(&self) -> Vec<u8>;
 }
 
 pub trait Decode {
@@ -11,8 +11,8 @@ pub trait Decode {
 }
 
 impl Encode for String {
-    fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>> {
-        Ok(self.as_bytes().to_vec())
+    fn encode(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
     }
 }
 

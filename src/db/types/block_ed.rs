@@ -135,29 +135,29 @@ impl BlockResponseED {
 }
 
 impl Encode for BlockResponseED {
-    fn encode(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    fn encode(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&self.difficulty.to_be_bytes());
         bytes.extend_from_slice(&self.gas_limit.to_be_bytes());
         bytes.extend_from_slice(&self.gas_used.to_be_bytes());
-        bytes.extend_from_slice(&self.hash.encode()?);
-        bytes.extend_from_slice(&self.logs_bloom.encode()?);
+        bytes.extend_from_slice(&self.hash.encode());
+        bytes.extend_from_slice(&self.logs_bloom.encode());
         bytes.extend_from_slice(&self.nonce.to_be_bytes());
         bytes.extend_from_slice(&self.number.to_be_bytes());
         bytes.extend_from_slice(&self.timestamp.to_be_bytes());
-        bytes.extend_from_slice(&self.mine_timestamp.encode()?);
+        bytes.extend_from_slice(&self.mine_timestamp.encode());
         let transactions = self.transactions.clone().unwrap_or(vec![]);
         let transactions_count = transactions.len() as u64;
         bytes.extend_from_slice(&transactions_count.to_be_bytes());
         for tx in &transactions {
-            bytes.extend_from_slice(&tx.encode()?);
+            bytes.extend_from_slice(&tx.encode());
         }
-        bytes.extend_from_slice(&self.transactions_root.encode()?);
+        bytes.extend_from_slice(&self.transactions_root.encode());
         bytes.extend_from_slice(&self.total_difficulty.to_be_bytes());
-        bytes.extend_from_slice(&self.parent_hash.encode()?);
-        bytes.extend_from_slice(&self.receipts_root.encode()?);
+        bytes.extend_from_slice(&self.parent_hash.encode());
+        bytes.extend_from_slice(&self.receipts_root.encode());
         bytes.extend_from_slice(&self.size.to_be_bytes());
-        Ok(bytes)
+        bytes
     }
 }
 
@@ -250,7 +250,7 @@ mod tests {
             16,
         );
 
-        let encoded = block.encode().unwrap();
+        let encoded = block.encode();
         let decoded = BlockResponseED::decode(encoded).unwrap();
 
         assert_eq!(block, decoded);

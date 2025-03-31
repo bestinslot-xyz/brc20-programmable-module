@@ -20,7 +20,7 @@ impl Serialize for BytecodeED {
 }
 
 impl Encode for BytecodeED {
-    fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>> {
+    fn encode(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         let slice = &self.0.bytes_slice();
         // remove last bytes that are 00 (padding)
@@ -30,7 +30,7 @@ impl Encode for BytecodeED {
         }
         let slice = &slice[..i];
         bytes.extend_from_slice(slice);
-        Ok(bytes)
+        bytes
     }
 }
 
@@ -53,7 +53,7 @@ mod tests {
     fn test_bytecode_ed() {
         let bytecode: Bytecode = Bytecode::new_raw(Bytes::from("Hello world"));
         let bytecode_ed = BytecodeED(bytecode);
-        let bytes = BytecodeED::encode(&bytecode_ed).unwrap();
+        let bytes = bytecode_ed.encode();
         let decoded = BytecodeED::decode(bytes).unwrap();
         assert_eq!(bytecode_ed.0.bytes(), decoded.0.bytes());
     }
@@ -62,7 +62,7 @@ mod tests {
     fn test_bytecode_ed_empty() {
         let bytecode: Bytecode = Bytecode::new_raw(Bytes::from(""));
         let bytecode_ed = BytecodeED(bytecode);
-        let bytes = BytecodeED::encode(&bytecode_ed).unwrap();
+        let bytes = bytecode_ed.encode();
         let decoded = BytecodeED::decode(bytes).unwrap();
         assert_eq!(bytecode_ed.0.bytes(), decoded.0.bytes());
     }

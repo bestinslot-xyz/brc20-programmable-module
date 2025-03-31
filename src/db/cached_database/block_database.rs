@@ -57,7 +57,7 @@ where
             return Ok(Some(value.clone()));
         }
 
-        let value_bytes = self.db.get(U64ED::from_u64(key).encode().unwrap())?;
+        let value_bytes = self.db.get(U64ED::from_u64(key).encode())?;
         if value_bytes.is_none() {
             return Ok(None);
         }
@@ -82,9 +82,8 @@ where
     /// It does not clear the cache
     pub fn commit(&mut self) -> Result<(), Error> {
         for (key, value) in self.cache.iter() {
-            let value_bytes = value.encode().unwrap();
-            self.db
-                .put(U64ED::from_u64(*key).encode().unwrap(), &value_bytes)?;
+            let value_bytes = value.encode();
+            self.db.put(U64ED::from_u64(*key).encode(), &value_bytes)?;
         }
         self.db.flush()?;
         Ok(())
@@ -143,9 +142,7 @@ where
         }
         let end = end.unwrap();
         while end >= current {
-            self.db
-                .delete(U64ED::from_u64(current).encode().unwrap())
-                .unwrap();
+            self.db.delete(U64ED::from_u64(current).encode()).unwrap();
             self.cache.remove(&current);
             current += 1;
         }

@@ -10,12 +10,12 @@ use crate::db::types::{Decode, Encode};
 pub struct AccountInfoED(pub AccountInfo);
 
 impl Encode for AccountInfoED {
-    fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>> {
+    fn encode(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&self.0.balance.to_be_bytes::<32>());
         bytes.extend_from_slice(&self.0.nonce.to_be_bytes());
         bytes.extend_from_slice(&self.0.code_hash.0.to_vec());
-        Ok(bytes)
+        bytes
     }
 }
 
@@ -53,7 +53,7 @@ mod tests {
             code_hash: B256::from([1; 32]),
             code: None,
         });
-        let bytes = account_info.encode().unwrap();
+        let bytes = account_info.encode();
         let decoded = AccountInfoED::decode(bytes).unwrap();
         assert_eq!(account_info.0.balance, decoded.0.balance);
         assert_eq!(account_info.0.nonce, decoded.0.nonce);

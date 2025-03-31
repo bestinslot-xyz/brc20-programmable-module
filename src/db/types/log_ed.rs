@@ -73,7 +73,7 @@ impl Serialize for LogED {
 }
 
 impl Encode for LogED {
-    fn encode(&self) -> Result<Vec<u8>, Box<dyn Error>> {
+    fn encode(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&(self.log_index.to_be_bytes()));
         bytes.extend_from_slice(&(self.logs.len() as u32).to_be_bytes());
@@ -86,7 +86,7 @@ impl Encode for LogED {
             bytes.extend_from_slice(&(log.data.data.len() as u32).to_be_bytes());
             bytes.extend_from_slice(&log.data.data);
         }
-        Ok(bytes)
+        bytes
     }
 }
 
@@ -144,7 +144,7 @@ mod tests {
             logs: vec![log],
             log_index: 0,
         };
-        let bytes = LogED::encode(&log_ed).unwrap();
+        let bytes = log_ed.encode();
         assert_eq!(bytes.len(), 104);
         let decoded = LogED::decode(bytes).unwrap();
         assert_eq!(log_ed.logs, decoded.logs);
