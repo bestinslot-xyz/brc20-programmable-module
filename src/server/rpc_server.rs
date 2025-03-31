@@ -405,7 +405,7 @@ impl Brc20ProgApiServer for RpcServer {
         event!(Level::INFO, "Getting contract code");
         let result = self.server_instance.get_contract_bytecode(contract.value());
         if let Some(bytecode) = result {
-            Ok(hex::encode(bytecode))
+            Ok(bytecode.to_string())
         } else {
             Err(RpcServerError::new("Contract bytecode not found").into())
         }
