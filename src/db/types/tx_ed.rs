@@ -108,21 +108,19 @@ impl Decode for TxED {
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::B256;
-
     use super::*;
     use crate::db::types::BEncodeDecode;
 
     #[test]
     fn encode_decode() {
         let tx = TxED {
-            hash: BEncodeDecode(B256::from([1u8; 32])),
+            hash: BEncodeDecode([1u8; 32].into()),
             nonce: 1,
-            block_hash: BEncodeDecode(B256::from([2u8; 32])),
+            block_hash: BEncodeDecode([2u8; 32].into()),
             block_number: 2,
             transaction_index: 3,
-            from: AddressED(Address::from([3u8; 20])),
-            to: Some(AddressED(Address::from([4u8; 20]))),
+            from: AddressED([3u8; 20].into()),
+            to: Some(AddressED([4u8; 20].into())),
             value: 4,
             gas: 5,
             gas_price: 6,
@@ -136,13 +134,13 @@ mod tests {
     #[test]
     fn serialize() {
         let tx = TxED {
-            hash: BEncodeDecode(B256::from([1u8; 32])),
+            hash: BEncodeDecode([1u8; 32].into()),
             nonce: 1,
-            block_hash: BEncodeDecode(B256::from([2u8; 32])),
+            block_hash: BEncodeDecode([2u8; 32].into()),
             block_number: 2,
             transaction_index: 3,
-            from: AddressED(Address::from([3u8; 20])),
-            to: Some(AddressED(Address::from([4u8; 20]))),
+            from: AddressED([3u8; 20].into()),
+            to: Some(AddressED([4u8; 20].into())),
             value: 4,
             gas: 5,
             gas_price: 6,

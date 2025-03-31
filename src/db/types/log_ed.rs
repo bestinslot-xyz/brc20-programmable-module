@@ -128,15 +128,15 @@ impl Decode for LogED {
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::{Address, Log, B256};
+    use revm::primitives::Log;
 
     use super::*;
 
     #[test]
     fn test_log_ed() {
         let log = Log::new(
-            Address::from([1u8; 20]),
-            vec![B256::from([2u8; 32])],
+            [1u8; 20].into(),
+            vec![[2u8; 32].into()],
             [3u8; 32].to_vec().into(),
         )
         .unwrap();
@@ -154,8 +154,8 @@ mod tests {
     #[test]
     fn test_log_ed_serialize() {
         let log = Log::new(
-            Address::from([1u8; 20]),
-            vec![B256::from([2u8; 32])],
+            [1u8; 20].into(),
+            vec![[2u8; 32].into()],
             [3u8; 32].to_vec().into(),
         )
         .unwrap();

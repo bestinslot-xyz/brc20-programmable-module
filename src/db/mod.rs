@@ -928,7 +928,6 @@ impl DatabaseCommit for DB {
 #[cfg(test)]
 mod tests {
     use revm::context::result::{Output, SuccessReason};
-    use revm::primitives::{Address, Bytes};
     use tempfile::TempDir;
 
     use super::*;
@@ -937,9 +936,9 @@ mod tests {
     fn test_db() {
         let path = TempDir::new().unwrap().into_path();
 
-        let address = Address::from([1u8; 20]);
-        let code_hash = B256::from([2u8; 32]);
-        let bytecode = Bytecode::new_raw(Bytes::from(vec![3u8; 32]));
+        let address = [1u8; 20].into();
+        let code_hash = [2u8; 32].into();
+        let bytecode = Bytecode::new_raw(vec![3u8; 32].into());
         let account_info = AccountInfo {
             balance: U256::from(100),
             nonce: 4,
@@ -951,7 +950,7 @@ mod tests {
         let mem_loc = U256::from(6);
         let value = U256::from(7);
         let block_number = 8;
-        let block_hash = B256::from([9u8; 32]);
+        let block_hash = [9u8; 32].into();
         let block_timestamp = 10;
         let gas_used = 11;
 
@@ -1038,20 +1037,20 @@ mod tests {
         let path = TempDir::new().unwrap().into_path();
 
         let data = vec![0u8; 32];
-        let block_hash = B256::from([1u8; 32]);
+        let block_hash = [1u8; 32].into();
         let block_number = 2;
         let block_timestamp = 11;
-        let contract_address = Address::from([3u8; 20]);
-        let from = Address::from([4u8; 20]);
-        let to = Address::from([5u8; 20]);
-        let tx_hash = B256::from([6u8; 32]);
+        let contract_address = [3u8; 20].into();
+        let from = [4u8; 20].into();
+        let to = [5u8; 20].into();
+        let tx_hash = [6u8; 32].into();
         let tx_idx = 7;
         let output = ExecutionResult::Success {
             reason: SuccessReason::Return,
             gas_used: 10,
             gas_refunded: 0,
             logs: Vec::new(),
-            output: Output::Call(Bytes::from(vec![11u8; 32])),
+            output: Output::Call(vec![11u8; 32].into()),
         };
         let cumulative_gas_used = 8;
         let nonce = 9;
@@ -1064,14 +1063,14 @@ mod tests {
             db.set_tx_receipt(
                 "type",
                 "reason",
-                Some(&Bytes::from(vec![11u8; 32])),
+                Some(&vec![11u8; 32].into()),
                 block_hash,
                 block_number,
                 block_timestamp,
                 Some(contract_address),
                 from,
                 Some(to),
-                &Bytes::from(data),
+                &data.into(),
                 tx_hash,
                 tx_idx,
                 &output,
@@ -1125,7 +1124,7 @@ mod tests {
                 start_log_index,
                 "type".to_string(),
                 "reason".to_string(),
-                Some(&Bytes::from(vec![11u8; 32])),
+                Some(&vec![11u8; 32].into()),
             )
         );
     }

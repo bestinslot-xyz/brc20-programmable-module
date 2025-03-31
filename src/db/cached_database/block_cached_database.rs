@@ -256,7 +256,7 @@ mod tests {
         let account_info = AccountInfoED(AccountInfo {
             balance: U256::from(100),
             nonce: 1,
-            code_hash: B256::from([1; 32]),
+            code_hash: [1; 32].into(),
             code: None,
         });
         let address_ed = AddressED(address);
@@ -289,7 +289,7 @@ mod tests {
         let account_info = AccountInfoED(AccountInfo {
             balance: U256::from(100),
             nonce: 1,
-            code_hash: B256::from([1; 32]),
+            code_hash: [1; 32].into(),
             code: None,
         });
         let address_ed = AddressED(address);
@@ -337,7 +337,7 @@ mod tests {
         let account_info = AccountInfoED(AccountInfo {
             balance: U256::from(100),
             nonce: 1,
-            code_hash: B256::from([1; 32]),
+            code_hash: [1; 32].into(),
             code: None,
         });
         let address_ed = AddressED(address);
@@ -377,7 +377,7 @@ mod tests {
                 AccountInfoED(AccountInfo {
                     balance: U256::from(100 + i),
                     nonce: i + 1,
-                    code_hash: B256::from([1; 32]),
+                    code_hash: [1; 32].into(),
                     code: None,
                 }),
             );

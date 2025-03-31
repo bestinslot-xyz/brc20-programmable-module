@@ -68,9 +68,9 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
 
     let mut vin_txids = Vec::new();
     let mut vin_vouts = Vec::new();
-    let mut vin_script_pub_keys = Vec::new();
+    let mut vin_script_pub_keys: Vec<Bytes> = Vec::new();
     let mut vin_values = Vec::new();
-    let mut vout_script_pub_keys = Vec::new();
+    let mut vout_script_pub_keys: Vec<Bytes> = Vec::new();
     let mut vout_values = Vec::new();
 
     for vin in response["vin"].as_array().unwrap().into_iter() {
@@ -91,7 +91,7 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
             .as_str()
             .unwrap_or("")
             .to_string();
-        let vin_script_pub_key_bytes = Bytes::from(hex::decode(vin_script_pub_key_hex).unwrap());
+        let vin_script_pub_key_bytes = hex::decode(vin_script_pub_key_hex).unwrap().into();
 
         let vin_value = vin_script_pub_key_response["vout"][vin_vout as usize]["value"]
             .as_f64()
@@ -109,7 +109,7 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
             .as_str()
             .unwrap_or("")
             .to_string();
-        let vout_script_pub_key_bytes = Bytes::from(hex::decode(vout_script_pub_key_hex).unwrap());
+        let vout_script_pub_key_bytes = hex::decode(vout_script_pub_key_hex).unwrap().into();
         let vout_value = vout["value"].as_f64().unwrap_or(0.0);
         let vout_value = (vout_value * 100000000.0) as u64;
 
@@ -170,10 +170,8 @@ mod tests {
             "d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd",
         )
         .unwrap();
-        let response = btc_tx_details_precompile(
-            &Bytes::from(getTxDetailsCall::new((txid,)).abi_encode()),
-            1000000,
-        );
+        let response =
+            btc_tx_details_precompile(&getTxDetailsCall::new((txid,)).abi_encode().into(), 1000000);
 
         let returns = getTxDetailsCall::abi_decode_returns(&response.output, false).unwrap();
 

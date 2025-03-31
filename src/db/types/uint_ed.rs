@@ -97,10 +97,7 @@ impl<const BITS: usize, const LIMBS: usize> fmt::Display for UintEncodeDecode<BI
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use revm::primitives::ruint::aliases::U256;
-    use revm::primitives::Address;
 
     use super::*;
 
@@ -132,9 +129,8 @@ mod tests {
 
     #[test]
     fn test_u512_ed_from_addr() {
-        let address = Address::from([100u8; 20]);
         let u256 = U256::from(1u64);
-        let u512_ed = U512ED::from_addr_u256(address, u256);
+        let u512_ed = U512ED::from_addr_u256([100u8; 20].into(), u256);
         let bytes = u512_ed.encode();
         let decoded = U512ED::decode(bytes).unwrap();
         assert_eq!(u512_ed.0, decoded.0);
@@ -142,7 +138,9 @@ mod tests {
 
     #[test]
     fn test_u512_ed_from_addr_str() {
-        let address = Address::from_str("0x1234567890123456789012345678901234567890").unwrap();
+        let address = "0x1234567890123456789012345678901234567890"
+            .parse()
+            .unwrap();
         let u256 = U256::from(1u64);
         let u512_ed = U512ED::from_addr_u256(address, u256);
         let bytes = u512_ed.encode();

@@ -191,8 +191,8 @@ pub fn get_block_height(hash: &str) -> serde_json::Value {
 }
 
 fn get_basic_auth_header(user: &str, pass: &str) -> String {
-    let usrpw = String::from(user) + ":" + pass;
-    String::from("Basic ") + &BASE64_URL_SAFE.encode(usrpw.as_bytes())
+    let usrpw = user.to_string() + ":" + pass;
+    "Basic ".to_string() + &BASE64_URL_SAFE.encode(usrpw.as_bytes())
 }
 
 #[cfg(test)]
