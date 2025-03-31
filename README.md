@@ -303,6 +303,9 @@ Execution engine has precompiled contracts deployed at given addresses to make i
 
 BRC20 indexers should expose this HTTP server and set the environment variable accordingly.
 
+> [!WARNING]
+> BRC20 Balance Server exposed by the indexer should return BRC20 balance at the time of current transaction after processing all the BRC20 events up until this point, and NOT the BRC20 balance at the start of the block.
+
 **Contract interface**:
 
 ```solidity
@@ -322,7 +325,7 @@ interface IBRC20_Balance {
 
 ### BIP322 Verifier Contract
 
-`BIP322_Verifier` contract can be used to verify a BIP322 signature.
+`BIP322_Verifier` contract can be used to verify a BIP322 signature. This precompile uses the [rust-bitcoin/bip322](https://github.com/rust-bitcoin/bip322) library.
 
 **Contract interface**:
 
@@ -338,6 +341,9 @@ interface IBIP322_Verifier {
     ) external returns (bool success);
 }
 ```
+
+> [!WARNING]
+> Currently [rust-bitcoin/bip322](https://github.com/rust-bitcoin/bip322) and this precompile only supports `P2TR`, `P2WPKH` and `P2SH-P2WPKH` single-sig addresses.
 
 ### Bitcoin Contracts
 
@@ -378,7 +384,7 @@ interface IBTC_Transaction {
 
 #### Last sat location
 
-`BTC_LastSatLoc` contract can be used to retrieve previous location of a satoshi at given `txid`, `vout` and `sat` number.
+`BTC_LastSatLoc` contract can be used to retrieve previous location of a satoshi at given `txid`, `vout` and `sat` number using the rules detailed at [ordinals/ord/blob/master/bip.mediawiki](https://github.com/ordinals/ord/blob/master/bip.mediawiki).
 
 **Contract interface**:
 
