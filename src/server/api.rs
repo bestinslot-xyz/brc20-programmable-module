@@ -165,16 +165,11 @@ pub trait Brc20ProgApi {
 
     /// Calls a contract with the given parameters
     #[method(name = "eth_call")]
-    async fn call(
-        &self,
-        from: AddressWrapper,
-        to: Option<AddressWrapper>,
-        data: BytesWrapper,
-    ) -> RpcResult<TxReceiptED>;
+    async fn call(&self, eth_call: EthCall, block: Option<String>) -> RpcResult<String>;
 
     /// Estimates the gas for the given transaction
     #[method(name = "eth_estimateGas")]
-    async fn estimate_gas(&self, eth_call: EthCall) -> RpcResult<String>;
+    async fn estimate_gas(&self, eth_call: EthCall, block: Option<String>) -> RpcResult<String>;
 
     /// Get storage for the given contract and memory location
     #[method(name = "eth_getStorageAt")]
@@ -294,7 +289,8 @@ pub trait Brc20ProgApi {
 pub struct EthCall {
     pub from: AddressWrapper,
     pub to: Option<AddressWrapper>,
-    pub data: BytesWrapper,
+    pub data: Option<BytesWrapper>,
+    pub input: Option<BytesWrapper>,
 }
 
 #[derive(Debug, serde::Deserialize)]
