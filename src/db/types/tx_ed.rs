@@ -9,6 +9,7 @@ pub struct TxED {
     pub hash: B256ED,
     #[serde(with = "SerHex::<CompactPfx>")]
     pub nonce: u64,
+    #[serde(rename = "blockHash")]
     pub block_hash: B256ED,
     #[serde(rename = "blockNumber", with = "SerHex::<CompactPfx>")]
     pub block_number: u64,
