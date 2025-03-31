@@ -47,14 +47,11 @@ impl<const N: usize> Decode for BEncodeDecode<N> {
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::B256;
-
     use super::*;
 
     #[test]
     fn test_b256_ed() {
-        let b256: B256 = B256::from([0u8; 32]);
-        let b256_ed = B256ED::from_b256(b256);
+        let b256_ed = B256ED::from_b256([0u8; 32].into());
         let bytes = b256_ed.encode();
         let decoded = B256ED::decode(bytes).unwrap();
         assert_eq!(b256_ed.0, decoded.0);
@@ -62,8 +59,7 @@ mod tests {
 
     #[test]
     fn test_b256_ed_serialize() {
-        let b256: B256 = B256::from([1u8; 32]);
-        let b256_ed = B256ED::from_b256(b256);
+        let b256_ed = B256ED::from_b256([1u8; 32].into());
         let serialized = serde_json::to_string(&b256_ed).unwrap();
         assert_eq!(
             serialized,

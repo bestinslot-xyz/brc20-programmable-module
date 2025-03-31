@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use revm::primitives::ruint::aliases::U64;
-use revm::primitives::{B256, U256};
+use revm::primitives::U256;
 use revm_state::AccountInfo;
 
 use crate::db::types::{Decode, Encode};
@@ -29,7 +29,7 @@ impl Decode for AccountInfoED {
             .try_into()
             .unwrap();
         let code_hash_u = U256::from_be_bytes::<32>(bytes[40..72].try_into().unwrap());
-        let code_hash = B256::from(code_hash_u);
+        let code_hash = code_hash_u.into();
         Ok(AccountInfoED(AccountInfo {
             balance,
             nonce,
@@ -41,7 +41,7 @@ impl Decode for AccountInfoED {
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::{B256, U256};
+    use revm::primitives::U256;
 
     use super::*;
 
@@ -50,7 +50,7 @@ mod tests {
         let account_info = AccountInfoED(AccountInfo {
             balance: U256::from(100),
             nonce: 1,
-            code_hash: B256::from([1; 32]),
+            code_hash: [1; 32].into(),
             code: None,
         });
         let bytes = account_info.encode();

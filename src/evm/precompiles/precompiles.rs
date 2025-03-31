@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use std::str::FromStr;
 
 use revm::context::{Cfg, ContextTr};
 use revm::handler::PrecompileProvider;
@@ -13,11 +12,11 @@ use crate::evm::precompiles::{
 };
 
 lazy_static::lazy_static! {
-    static ref BRC20_BALANCE_PRECOMPILE_ADDRESS: Address = Address::from_str("0x00000000000000000000000000000000000000ff").unwrap();
-    static ref BIP322_PRECOMPILE_ADDRESS: Address = Address::from_str("0x00000000000000000000000000000000000000fe").unwrap();
-    static ref BTC_TX_DETAILS_PRECOMPILE_ADDRESS: Address = Address::from_str("0x00000000000000000000000000000000000000fd").unwrap();
-    static ref LAST_SAT_LOCATION_PRECOMPILE_ADDRESS: Address = Address::from_str("0x00000000000000000000000000000000000000fc").unwrap();
-    static ref GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS: Address = Address::from_str("0x00000000000000000000000000000000000000fb").unwrap();
+    static ref BRC20_BALANCE_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000ff".parse().unwrap();
+    static ref BIP322_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fe".parse().unwrap();
+    static ref BTC_TX_DETAILS_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fd".parse().unwrap();
+    static ref LAST_SAT_LOCATION_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fc".parse().unwrap();
+    static ref GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fb".parse().unwrap();
 }
 
 pub struct BRC20Precompiles {
@@ -142,6 +141,6 @@ pub fn precompile_output(
     output: Vec<u8>,
 ) -> InterpreterResult {
     interpreter_result.result = revm::interpreter::InstructionResult::Stop;
-    interpreter_result.output = Bytes::from(output);
+    interpreter_result.output = output.into();
     interpreter_result
 }

@@ -33,7 +33,7 @@ impl Decode for AddressED {
     {
         let mut bytes_array = [0u8; 20];
         bytes_array.copy_from_slice(&bytes);
-        Ok(AddressED(Address::from(bytes_array)))
+        Ok(AddressED(bytes_array.into()))
     }
 }
 

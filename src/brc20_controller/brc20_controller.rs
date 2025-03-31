@@ -24,9 +24,9 @@ pub fn load_brc20_mint_tx(ticker: String, address: Address, amount: U256) -> TxI
     TxInfo {
         from: INDEXER_ADDRESS.parse().unwrap(),
         to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: Bytes::from(
-            mintCall::new((Bytes::from_hex(ticker).unwrap(), address, amount)).abi_encode(),
-        ),
+        data: mintCall::new((Bytes::from_hex(ticker).unwrap(), address, amount))
+            .abi_encode()
+            .into(),
     }
 }
 
@@ -34,9 +34,9 @@ pub fn load_brc20_burn_tx(ticker: String, address: Address, amount: U256) -> TxI
     TxInfo {
         from: INDEXER_ADDRESS.parse().unwrap(),
         to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: Bytes::from(
-            burnCall::new((Bytes::from_hex(ticker).unwrap(), address, amount)).abi_encode(),
-        ),
+        data: burnCall::new((Bytes::from_hex(ticker).unwrap(), address, amount))
+            .abi_encode()
+            .into(),
     }
 }
 
@@ -44,9 +44,9 @@ pub fn load_brc20_balance_tx(ticker: String, address: Address) -> TxInfo {
     TxInfo {
         from: INDEXER_ADDRESS.parse().unwrap(),
         to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: Bytes::from(
-            balanceOfCall::new((Bytes::from_hex(ticker).unwrap(), address)).abi_encode(),
-        ),
+        data: balanceOfCall::new((Bytes::from_hex(ticker).unwrap(), address))
+            .abi_encode()
+            .into(),
     }
 }
 
@@ -69,7 +69,7 @@ pub fn load_brc20_deploy_tx() -> TxInfo {
     TxInfo {
         from: INDEXER_ADDRESS.parse().unwrap(),
         to: None,
-        data: Bytes::from(hex::decode(data).unwrap()),
+        data: hex::decode(data).unwrap().into(),
     }
 }
 

@@ -222,7 +222,7 @@ impl Decode for TxReceiptED {
         let result_bytes = if output_bytes_len == 0 {
             None
         } else {
-            Some(Bytes::from(bytes[i..i + output_bytes_len].to_vec()))
+            Some(bytes[i..i + output_bytes_len].to_vec().into())
         };
         Ok(TxReceiptED {
             status,
@@ -258,8 +258,7 @@ impl Decode for TxReceiptED {
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::alloy_primitives::aliases::B2048;
-    use revm::primitives::{Address, Log, B256};
+    use revm::primitives::Log;
 
     use super::*;
     use crate::db::types::BEncodeDecode;
@@ -268,8 +267,8 @@ mod tests {
     fn test_tx_receipt_ed() {
         let logs = LogED {
             logs: vec![Log::new(
-                Address::from([1u8; 20]),
-                vec![B256::from([2u8; 32])],
+                [1u8; 20].into(),
+                vec![[2u8; 32].into()],
                 vec![3u8; 32].into(),
             )
             .unwrap()],
@@ -281,14 +280,14 @@ mod tests {
             reason: "reason".to_string(),
             logs,
             gas_used: 5,
-            from: AddressED(Address::from([6u8; 20])),
-            to: Some(AddressED(Address::from([7u8; 20]))),
-            contract_address: Some(AddressED(Address::from([8u8; 20]))),
-            logs_bloom: BEncodeDecode(B2048::from([9u8; 256])),
-            hash: BEncodeDecode(B256::from([10u8; 32])),
+            from: AddressED([6u8; 20].into()),
+            to: Some(AddressED([7u8; 20].into())),
+            contract_address: Some(AddressED([8u8; 20].into())),
+            logs_bloom: BEncodeDecode([9u8; 256].into()),
+            hash: BEncodeDecode([10u8; 32].into()),
             block_number: 11,
             block_timestamp: 12,
-            transaction_hash: BEncodeDecode(B256::from([12u8; 32])),
+            transaction_hash: BEncodeDecode([12u8; 32].into()),
             transaction_index: 13,
             cumulative_gas_used: 14,
             nonce: 15,
