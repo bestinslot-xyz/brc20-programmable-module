@@ -610,6 +610,9 @@ Indexers should expose a balance server that returns current overall balance for
 86
 ```
 
+> [!WARNING]
+> BRC20 Balance Server exposed by the indexer should return BRC20 balance at the time of current transaction after processing all the BRC20 events up until this point, and NOT the BRC20 balance at the start of the block.
+
 ### Indexer Checklist
 
 - [ ] Set environment variables, check [env.sample](env.sample) for a list
