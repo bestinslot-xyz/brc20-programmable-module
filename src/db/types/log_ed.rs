@@ -13,7 +13,7 @@ pub struct LogED {
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
-pub struct LogResponseED {
+pub struct LogResponse {
     pub address: AddressED,
     pub topics: Vec<B256ED>,
     #[serde(serialize_with = "bytes_hex")]
@@ -30,11 +30,42 @@ pub struct LogResponseED {
     pub log_index: U64ED,
 }
 
+impl LogResponse {
+    pub fn new_vec(
+        log: &LogED,
+        transaction_index: u64,
+        transaction_hash: B256ED,
+        block_hash: B256ED,
+        block_number: u64,
+    ) -> Vec<LogResponse> {
+        let mut log_index = log.log_index;
+        let mut result = Vec::new();
+        for log in &log.logs {
+            result.push(LogResponse {
+                address: AddressED(log.address),
+                topics: log
+                    .topics()
+                    .iter()
+                    .map(|topic| B256ED::from_b256(*topic))
+                    .collect(),
+                data: log.data.data.clone(),
+                transaction_index: U64ED::from_u64(transaction_index),
+                transaction_hash: transaction_hash.clone(),
+                block_hash: block_hash.clone(),
+                block_number: U64ED::from_u64(block_number),
+                log_index: U64ED::from_u64(log_index),
+            });
+            log_index += 1;
+        }
+        result
+    }
+}
+
 fn bytes_hex<S>(bytes: &Bytes, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
-    serializer.serialize_str(&format!("0x{:x}", bytes))
+    serializer.serialize_str(&format!("{:x}", bytes))
 }
 
 impl Serialize for LogED {

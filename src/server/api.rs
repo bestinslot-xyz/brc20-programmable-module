@@ -7,7 +7,7 @@ use jsonrpsee::proc_macros::rpc;
 use serde::Deserialize;
 
 use super::INDEXER_ADDRESS;
-use crate::db::types::{BlockResponseED, LogResponseED, TxED, TxReceiptED};
+use crate::db::types::{BlockResponseED, LogResponse, TxED, TxReceiptED};
 
 #[rpc(server)]
 pub trait Brc20ProgApi {
@@ -161,7 +161,7 @@ pub trait Brc20ProgApi {
 
     /// Gets logs for the given filter
     #[method(name = "eth_getLogs")]
-    async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogResponseED>>;
+    async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogResponse>>;
 
     /// Calls a contract with the given parameters
     #[method(name = "eth_call")]

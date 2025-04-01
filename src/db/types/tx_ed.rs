@@ -25,6 +25,12 @@ pub struct TxED {
     pub gas_price: u64,
     #[serde(serialize_with = "bytes_to_hex")]
     pub input: Bytes,
+    #[serde(with = "SerHex::<CompactPfx>")]
+    pub v: u8,
+    #[serde(with = "SerHex::<CompactPfx>")]
+    pub r: u8,
+    #[serde(with = "SerHex::<CompactPfx>")]
+    pub s: u8,
 }
 
 fn bytes_to_hex<S>(bytes: &Bytes, serializer: S) -> Result<S::Ok, S::Error>
@@ -102,6 +108,9 @@ impl Decode for TxED {
             gas,
             gas_price,
             input: input.into(),
+            v: 0,
+            r: 0,
+            s: 0,
         })
     }
 }
@@ -125,6 +134,9 @@ mod tests {
             gas: 5,
             gas_price: 6,
             input: vec![7, 8, 9].into(),
+            v: 0,
+            r: 0,
+            s: 0,
         };
         let encoded = tx.encode();
         let decoded = TxED::decode(encoded).unwrap();
@@ -145,11 +157,14 @@ mod tests {
             gas: 5,
             gas_price: 6,
             input: vec![7, 8, 9].into(),
+            v: 0,
+            r: 0,
+            s: 0,
         };
         let serialized = serde_json::to_string(&tx).unwrap();
         assert_eq!(
             serialized,
-            "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\"}"
+            "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\",\"v\":\"0x0\",\"r\":\"0x0\",\"s\":\"0x0\"}"
         )
     }
 }
