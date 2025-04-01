@@ -363,7 +363,7 @@ impl Brc20ProgApiServer for RpcServer {
         );
         self.server_instance
             .call_contract(&TxInfo {
-                from: call.from.value(),
+                from: call.from.map(|x| x.value()).unwrap_or(Address::ZERO),
                 to: call.to.map(|x| x.value()),
                 data: data,
             })
@@ -381,7 +381,7 @@ impl Brc20ProgApiServer for RpcServer {
         );
         self.server_instance
             .call_contract(&TxInfo {
-                from: call.from.value(),
+                from: call.from.map(|x| x.value()).unwrap_or(Address::ZERO),
                 to: call.to.map(|x| x.value()),
                 data: data,
             })

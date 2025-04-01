@@ -287,7 +287,7 @@ pub trait Brc20ProgApi {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct EthCall {
-    pub from: AddressWrapper,
+    pub from: Option<AddressWrapper>,
     pub to: Option<AddressWrapper>,
     pub data: Option<BytesWrapper>,
     pub input: Option<BytesWrapper>,
