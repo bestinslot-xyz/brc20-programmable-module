@@ -20,7 +20,7 @@ pub mod types;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 pub use types::{
-    AccountInfoED, AddressED, BEncodeDecode, BlockResponseED, BytecodeED, LogResponseED, TxED,
+    AccountInfoED, AddressED, BEncodeDecode, BlockResponseED, BytecodeED, LogResponse, TxED,
     TxReceiptED, UintEncodeDecode, B256ED, U128ED, U256ED, U512ED, U64ED,
 };
 
@@ -208,7 +208,7 @@ impl DB {
         mut block_number_to: Option<u64>,
         contract_address: Option<Address>,
         topics: Vec<B256>,
-    ) -> Result<Vec<LogResponseED>, Box<dyn Error>> {
+    ) -> Result<Vec<LogResponse>, Box<dyn Error>> {
         if block_number_from.is_none() {
             block_number_from = self.latest_block_number.map(|x| x.0);
         }
@@ -270,7 +270,7 @@ impl DB {
                 }
 
                 if matched {
-                    logs.push(LogResponseED {
+                    logs.push(LogResponse {
                         address: AddressED(log.address),
                         topics: log
                             .topics()
@@ -442,6 +442,9 @@ impl DB {
             gas: 0,
             gas_price: 0,
             input: data.clone(),
+            v: 0,
+            r: 0,
+            s: 0,
         };
 
         self.db_tx

@@ -2,7 +2,7 @@ use revm::primitives::{Address, FixedBytes};
 use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex, StrictPfx};
 
-use super::TxReceiptED;
+use super::TxED;
 use crate::db::types::{AddressED, BEncodeDecode, Decode, Encode, B2048ED, B256ED, U128ED};
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
@@ -29,7 +29,7 @@ pub struct BlockResponseED {
     pub transactions: Option<Vec<B256ED>>,
 
     #[serde(rename = "transactions", skip_serializing_if = "Option::is_none")]
-    pub full_transactions: Option<Vec<TxReceiptED>>,
+    pub full_transactions: Option<Vec<TxED>>,
 
     // Always empty values
     #[serde(with = "SerHex::<CompactPfx>", rename = "baseFeePerGas")]

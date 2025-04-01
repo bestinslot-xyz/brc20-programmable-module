@@ -14,7 +14,7 @@ use super::api::{AddressWrapper, B256Wrapper, BytesWrapper, EthCall, U256Wrapper
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
 };
-use crate::db::types::{BlockResponseED, LogResponseED, TxED, TxReceiptED};
+use crate::db::types::{BlockResponseED, LogResponse, TxED, TxReceiptED};
 use crate::evm::get_evm_address;
 use crate::server::api::GetLogsFilter;
 use crate::server::server_instance::ServerInstance;
@@ -341,7 +341,7 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogResponseED>> {
+    async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogResponse>> {
         event!(Level::INFO, "Getting logs");
         Ok(self.server_instance.get_logs(
             Some(self.parse_block_number(&filter.from_block.unwrap_or("latest".to_string()))?),

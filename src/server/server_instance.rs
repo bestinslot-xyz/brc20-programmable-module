@@ -10,7 +10,7 @@ use revm::{Database, ExecuteEvm};
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
 use crate::db::types::{
-    AddressED, BlockResponseED, Decode, LogED, LogResponseED, TxED, TxReceiptED, B2048ED, B256ED,
+    AddressED, BlockResponseED, Decode, LogED, LogResponse, TxED, TxReceiptED, B2048ED, B256ED,
 };
 use crate::db::{DB, MAX_HISTORY_SIZE};
 use crate::evm::{
@@ -463,7 +463,7 @@ impl ServerInstance {
         block_number_to: Option<u64>,
         address: Option<Address>,
         topics: Option<Vec<B256>>,
-    ) -> Vec<LogResponseED> {
+    ) -> Vec<LogResponse> {
         #[cfg(debug_assertions)]
         println!("Getting logs");
 
@@ -588,6 +588,16 @@ impl ServerInstance {
                 logs: output.as_ref().unwrap().logs().to_vec(),
                 log_index: 0,
             },
+            log_responses: LogResponse::new_vec(
+                &LogED {
+                    logs: output.as_ref().unwrap().logs().to_vec(),
+                    log_index: 0,
+                },
+                0,
+                B256ED::from_b256(txhash),
+                B256ED::from_b256(txhash),
+                number,
+            ),
             gas_used: output.as_ref().unwrap().gas_used(),
             from: AddressED(tx_info.from),
             to: tx_info.to.map(AddressED),
@@ -634,19 +644,19 @@ impl ServerInstance {
         // Fill in transaction receipts
         let mut block = block.unwrap();
         let tx_ids = block.transactions.unwrap_or(vec![]);
-        let mut tx_receipts = Vec::new();
+        let mut txes = Vec::new();
         for tx_id in tx_ids {
-            let tx_receipt = db.get_tx_receipt(tx_id.0);
-            if tx_receipt.is_err() {
+            let tx = db.get_tx_by_hash(tx_id.0);
+            if tx.is_err() {
                 continue;
             }
-            let tx_receipt = tx_receipt.unwrap();
-            if tx_receipt.is_none() {
+            let tx = tx.unwrap();
+            if tx.is_none() {
                 continue;
             }
-            tx_receipts.insert(tx_receipts.len(), tx_receipt.unwrap());
+            txes.insert(txes.len(), tx.unwrap());
         }
-        block.full_transactions = Some(tx_receipts);
+        block.full_transactions = Some(txes);
         block.transactions = None;
         Some(block)
     }

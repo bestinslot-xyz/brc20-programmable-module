@@ -6,6 +6,8 @@ use serde_hex::{CompactPfx, SerHex};
 
 use crate::db::types::{AddressED, Decode, Encode, LogED, B2048ED, B256ED};
 
+use super::LogResponse;
+
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct TxReceiptED {
     #[serde(serialize_with = "one_or_zero")]
@@ -14,7 +16,10 @@ pub struct TxReceiptED {
     pub transaction_result: String,
     #[serde(rename = "reason")]
     pub reason: String,
+    #[serde(skip_serializing)]
     pub logs: LogED,
+    #[serde(rename = "logs")]
+    pub log_responses: Vec<LogResponse>,
     #[serde(rename = "gasUsed", with = "SerHex::<CompactPfx>")]
     pub gas_used: u64,
     pub from: AddressED,
@@ -93,7 +98,14 @@ impl TxReceiptED {
             status: output.is_success() as u8,
             transaction_result: r#type,
             reason,
-            logs,
+            logs: logs.clone(),
+            log_responses: LogResponse::new_vec(
+                &logs,
+                tx_idx,
+                B256ED::from_b256(tx_hash),
+                B256ED::from_b256(block_hash),
+                block_number,
+            ),
             gas_used: output.gas_used(),
             from: AddressED(from),
             to: to.map(AddressED),
@@ -228,7 +240,14 @@ impl Decode for TxReceiptED {
             status,
             transaction_result: r#type,
             reason,
-            logs,
+            logs: logs.clone(),
+            log_responses: LogResponse::new_vec(
+                &logs,
+                transaction_index,
+                transaction_hash.clone(),
+                block_hash.clone(),
+                block_number,
+            ),
             gas_used,
             from,
             to: if to.0 == Address::ZERO {
@@ -278,7 +297,14 @@ mod tests {
             status: 4,
             transaction_result: "type".to_string(),
             reason: "reason".to_string(),
-            logs,
+            logs: logs.clone(),
+            log_responses: LogResponse::new_vec(
+                &logs,
+                13,
+                B256ED::from_b256([12u8; 32].into()),
+                B256ED::from_b256([10u8; 32].into()),
+                11,
+            ),
             gas_used: 5,
             from: AddressED([6u8; 20].into()),
             to: Some(AddressED([7u8; 20].into())),
