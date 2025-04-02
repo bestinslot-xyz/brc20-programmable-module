@@ -149,7 +149,11 @@ pub trait Brc20ProgApi {
 
     /// Returns the transaction count by address and block number
     #[method(name = "eth_getTransactionCount")]
-    async fn get_transaction_count(&self, account: String, block: String) -> RpcResult<String>;
+    async fn get_transaction_count(
+        &self,
+        account: AddressWrapper,
+        block: String,
+    ) -> RpcResult<String>;
 
     /// Returns the transaction count by block number
     #[method(name = "eth_getBlockTransactionCountByNumber")]
