@@ -5,8 +5,7 @@ use bitcoin::Witness;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
 
-use super::{precompile_output, BITCOIN_NETWORK};
-use crate::evm::precompiles::{precompile_error, use_gas};
+use crate::evm::precompiles::{precompile_error, precompile_output, use_gas, BITCOIN_NETWORK};
 
 sol! {
     function verify(bytes pkscript, bytes message, bytes signature) returns (bool success);

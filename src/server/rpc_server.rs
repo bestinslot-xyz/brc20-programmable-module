@@ -10,13 +10,14 @@ use revm::primitives::B256;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{event, instrument, Level};
 
-use super::api::{AddressWrapper, B256Wrapper, BytesWrapper, EthCall, U256Wrapper};
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
 };
 use crate::db::types::{BlockResponseED, LogResponse, TxED, TxReceiptED};
 use crate::evm::get_evm_address;
-use crate::server::api::GetLogsFilter;
+use crate::server::api::{
+    AddressWrapper, B256Wrapper, BytesWrapper, EthCall, GetLogsFilter, U256Wrapper,
+};
 use crate::server::server_instance::ServerInstance;
 use crate::server::types::TxInfo;
 use crate::server::Brc20ProgApiServer;
@@ -27,8 +28,12 @@ pub struct RpcServer {
 
 impl RpcServer {
     fn parse_block_number(&self, number: &str) -> Result<u64, ErrorObject<'static>> {
-        if number == "latest" {
+        if number == "latest" || number == "safe" || number == "finalized" {
             Ok(self.server_instance.get_latest_block_height())
+        } else if number == "pending" {
+            Ok(self.server_instance.get_next_block_height())
+        } else if number == "earliest" {
+            Ok(0)
         } else if number.starts_with("0x") {
             u64::from_str_radix(&number[2..], 16)
                 .map_err(|_| wrap_error_message("Invalid block number"))

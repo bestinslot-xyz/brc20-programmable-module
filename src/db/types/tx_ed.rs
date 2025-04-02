@@ -3,6 +3,7 @@ use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex};
 
 use crate::db::types::{AddressED, Decode, Encode, B256ED};
+use crate::server::CHAIN_ID;
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct TxED {
@@ -31,6 +32,10 @@ pub struct TxED {
     pub r: u8,
     #[serde(with = "SerHex::<CompactPfx>")]
     pub s: u8,
+    #[serde(rename = "chainId")]
+    pub chain_id: u64,
+    #[serde(rename = "type")]
+    pub tx_type: u8,
 }
 
 fn bytes_to_hex<S>(bytes: &Bytes, serializer: S) -> Result<S::Ok, S::Error>
@@ -111,6 +116,8 @@ impl Decode for TxED {
             v: 0,
             r: 0,
             s: 0,
+            chain_id: CHAIN_ID,
+            tx_type: 0,
         })
     }
 }
@@ -119,6 +126,7 @@ impl Decode for TxED {
 mod tests {
     use super::*;
     use crate::db::types::BEncodeDecode;
+    use crate::server::CHAIN_ID;
 
     #[test]
     fn encode_decode() {
@@ -137,6 +145,8 @@ mod tests {
             v: 0,
             r: 0,
             s: 0,
+            chain_id: CHAIN_ID,
+            tx_type: 0,
         };
         let encoded = tx.encode();
         let decoded = TxED::decode(encoded).unwrap();
@@ -160,6 +170,8 @@ mod tests {
             v: 0,
             r: 0,
             s: 0,
+            chain_id: CHAIN_ID,
+            tx_type: 0,
         };
         let serialized = serde_json::to_string(&tx).unwrap();
         assert_eq!(

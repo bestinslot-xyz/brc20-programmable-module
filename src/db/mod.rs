@@ -24,6 +24,8 @@ pub use types::{
     TxReceiptED, UintEncodeDecode, B256ED, U128ED, U256ED, U512ED, U64ED,
 };
 
+use crate::server::CHAIN_ID;
+
 pub const MAX_HISTORY_SIZE: u64 = 10;
 
 pub struct DB {
@@ -445,6 +447,8 @@ impl DB {
             v: 0,
             r: 0,
             s: 0,
+            chain_id: CHAIN_ID,
+            tx_type: 0,
         };
 
         self.db_tx
