@@ -75,7 +75,11 @@ impl Brc20ProgApiServer for RpcServer {
         self.server_instance
             .add_tx_to_block(
                 timestamp,
-                &load_brc20_mint_tx(ticker, get_evm_address(&to_pkscript), amount.value()),
+                &load_brc20_mint_tx(
+                    ticker_as_bytes(&ticker),
+                    get_evm_address(&to_pkscript),
+                    amount.value(),
+                ),
                 tx_idx,
                 self.server_instance.get_next_block_height(),
                 hash.value(),
@@ -101,7 +105,11 @@ impl Brc20ProgApiServer for RpcServer {
         self.server_instance
             .add_tx_to_block(
                 timestamp,
-                &load_brc20_burn_tx(ticker, get_evm_address(&from_pkscript), amount.value()),
+                &load_brc20_burn_tx(
+                    ticker_as_bytes(&ticker),
+                    get_evm_address(&from_pkscript),
+                    amount.value(),
+                ),
                 tx_idx,
                 self.server_instance.get_next_block_height(),
                 hash.value(),
@@ -116,7 +124,10 @@ impl Brc20ProgApiServer for RpcServer {
         event!(Level::INFO, "Checking balance");
 
         self.server_instance
-            .call_contract(&load_brc20_balance_tx(ticker, get_evm_address(&pkscript)))
+            .call_contract(&load_brc20_balance_tx(
+                ticker_as_bytes(&ticker),
+                get_evm_address(&pkscript),
+            ))
             .map(|receipt| {
                 format!(
                     "0x{:x}",
@@ -475,6 +486,11 @@ impl Brc20ProgApiServer for RpcServer {
             .server_instance
             .get_transaction_by_block_hash_and_index(block_hash.value(), tx_idx.unwrap_or(0)))
     }
+}
+
+fn ticker_as_bytes(ticker: &str) -> Bytes {
+    let ticker_lowercase = ticker.to_lowercase();
+    Bytes::from(ticker_lowercase.as_bytes().to_vec())
 }
 
 struct RpcServerError {

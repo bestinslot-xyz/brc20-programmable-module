@@ -20,31 +20,31 @@ sol! {
     function balanceOf(bytes, address) returns (uint256);
 }
 
-pub fn load_brc20_mint_tx(ticker: String, address: Address, amount: U256) -> TxInfo {
+pub fn load_brc20_mint_tx(ticker: Bytes, address: Address, amount: U256) -> TxInfo {
     TxInfo {
         from: INDEXER_ADDRESS.parse().unwrap(),
         to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: mintCall::new((Bytes::from_hex(ticker).unwrap(), address, amount))
+        data: mintCall::new((ticker, address, amount))
             .abi_encode()
             .into(),
     }
 }
 
-pub fn load_brc20_burn_tx(ticker: String, address: Address, amount: U256) -> TxInfo {
+pub fn load_brc20_burn_tx(ticker: Bytes, address: Address, amount: U256) -> TxInfo {
     TxInfo {
         from: INDEXER_ADDRESS.parse().unwrap(),
         to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: burnCall::new((Bytes::from_hex(ticker).unwrap(), address, amount))
+        data: burnCall::new((ticker, address, amount))
             .abi_encode()
             .into(),
     }
 }
 
-pub fn load_brc20_balance_tx(ticker: String, address: Address) -> TxInfo {
+pub fn load_brc20_balance_tx(ticker: Bytes, address: Address) -> TxInfo {
     TxInfo {
         from: INDEXER_ADDRESS.parse().unwrap(),
         to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: balanceOfCall::new((Bytes::from_hex(ticker).unwrap(), address))
+        data: balanceOfCall::new((ticker, address))
             .abi_encode()
             .into(),
     }
