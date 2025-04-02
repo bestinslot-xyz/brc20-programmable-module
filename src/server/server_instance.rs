@@ -255,7 +255,8 @@ impl ServerInstance {
 
         let output: Option<ExecutionResult>;
         let nonce = self.get_nonce(tx_info.from);
-        let txhash = get_tx_hash(&tx_info, &nonce);
+        let tx_hash = get_tx_hash(&tx_info, &nonce);
+        let gas_limit = get_gas_limit(inscription_byte_len.unwrap_or(tx_info.data.len() as u64));
 
         {
             #[cfg(debug_assertions)]
@@ -273,6 +274,7 @@ impl ServerInstance {
                 tx_idx, tx_idx, tx_info.from, tx_info.to, tx_info.data
             );
 
+            #[cfg(debug_assertions)]
             let start_time = Instant::now();
 
             evm.ctx().modify_tx(|tx| {
@@ -284,12 +286,13 @@ impl ServerInstance {
                     .unwrap_or(TransactTo::Create);
                 tx.data = tx_info.data.clone();
                 tx.nonce = nonce;
-                tx.gas_limit = get_gas_limit(inscription_byte_len.unwrap_or(tx.data.len() as u64));
+                tx.gas_limit = gas_limit;
             });
 
             let tx = evm.ctx().tx().clone();
             output = Some(evm.transact_commit(tx).unwrap());
 
+            #[cfg(debug_assertions)]
             println!(
                 "Tx 0x{:x} ({}) took {}ms",
                 tx_idx,
@@ -331,19 +334,20 @@ impl ServerInstance {
             tx_info.from,
             tx_info.to,
             &tx_info.data,
-            txhash,
+            tx_hash,
             tx_idx,
             &output.clone(),
             last_block_info.last_block_gas_used,
             nonce,
             last_block_info.last_block_log_index,
             inscription_id,
+            gas_limit,
         )
         .unwrap();
 
         last_block_info.last_block_log_index += output.logs().len() as u64;
 
-        Ok(db.get_tx_receipt(txhash).unwrap().unwrap())
+        Ok(db.get_tx_receipt(tx_hash).unwrap().unwrap())
     }
 
     pub fn get_transaction_count(

@@ -427,6 +427,7 @@ impl DB {
         nonce: u64,
         start_log_index: u64,
         inscription_id: Option<String>,
+        gas_limit: u64,
     ) -> Result<(), Box<dyn Error>> {
         self.verify_block_does_not_exist(block_hash, block_number)?;
 
@@ -457,7 +458,7 @@ impl DB {
             from: AddressED(from),
             to: to.map(AddressED),
             value: 0,
-            gas: 0,
+            gas: gas_limit,
             gas_price: 0,
             input: data.clone(),
             v: 0,
@@ -1073,7 +1074,6 @@ mod tests {
         {
             let mut db = DB::new(&path).unwrap();
 
-            db.set_block_hash(block_number, block_hash).unwrap();
             db.set_tx_receipt(
                 "type",
                 "reason",
@@ -1092,8 +1092,10 @@ mod tests {
                 nonce,
                 start_log_index,
                 Some("inscription_id".to_string()),
+                10000,
             )
             .unwrap();
+            db.set_block_hash(block_number, block_hash).unwrap();
 
             db.commit_changes().unwrap();
         }
