@@ -366,14 +366,20 @@ impl Brc20ProgApiServer for RpcServer {
                 .map(|x| x.value().clone())
                 .unwrap_or(Bytes::new()),
         );
-        self.server_instance
-            .call_contract(&TxInfo {
-                from: call.from.map(|x| x.value()).unwrap_or(Address::ZERO),
-                to: call.to.map(|x| x.value()),
-                data: data,
-            })
-            .map(|receipt| receipt.result_bytes.unwrap_or(Bytes::new()).to_string())
-            .map_err(wrap_error_message)
+        let receipt = self.server_instance.call_contract(&TxInfo {
+            from: call.from.map(|x| x.value()).unwrap_or(Address::ZERO),
+            to: call.to.map(|x| x.value()),
+            data: data,
+        });
+        if receipt.is_err() {
+            return Err(RpcServerError::new("Call failed").into());
+        }
+        let receipt = receipt.unwrap();
+        let data_string = receipt.result_bytes.unwrap_or(Bytes::new()).to_string();
+        if receipt.status == 0 {
+            return Err(RpcServerError::new_with_data("Call failed", data_string).into());
+        }
+        Ok(data_string)
     }
 
     #[instrument(skip(self))]
@@ -384,14 +390,17 @@ impl Brc20ProgApiServer for RpcServer {
                 .map(|x| x.value().clone())
                 .unwrap_or(Bytes::new()),
         );
-        self.server_instance
-            .call_contract(&TxInfo {
-                from: call.from.map(|x| x.value()).unwrap_or(Address::ZERO),
-                to: call.to.map(|x| x.value()),
-                data: data,
-            })
-            .map(|receipt| format!("0x{:x}", receipt.gas_used))
-            .map_err(wrap_error_message)
+        let receipt = self.server_instance.call_contract(&TxInfo {
+            from: call.from.map(|x| x.value()).unwrap_or(Address::ZERO),
+            to: call.to.map(|x| x.value()),
+            data: data,
+        });
+        let receipt = receipt.unwrap();
+        let data_string = receipt.result_bytes.unwrap_or(Bytes::new()).to_string();
+        if receipt.status == 0 {
+            return Err(RpcServerError::new_with_data("Call failed", data_string).into());
+        }
+        Ok(format!("0x{:x}", receipt.gas_used))
     }
 
     #[instrument(skip(self))]
@@ -466,17 +475,28 @@ impl Brc20ProgApiServer for RpcServer {
 
 struct RpcServerError {
     message: &'static str,
+    data: Option<String>,
 }
 
 impl RpcServerError {
     fn new(message: &'static str) -> Self {
-        Self { message }
+        Self {
+            message,
+            data: None,
+        }
+    }
+
+    fn new_with_data(message: &'static str, data: String) -> Self {
+        Self {
+            message,
+            data: Some(data),
+        }
     }
 }
 
 impl Into<ErrorObject<'static>> for RpcServerError {
     fn into(self) -> ErrorObject<'static> {
-        ErrorObjectOwned::owned(400, self.message, Option::<()>::None)
+        ErrorObjectOwned::owned(400, self.message, self.data).into()
     }
 }
 
