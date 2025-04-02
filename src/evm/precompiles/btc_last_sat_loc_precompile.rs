@@ -93,12 +93,12 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
 
     let mut total_vin_sat_count = 0;
     let mut current_vin_index = 0;
-    let mut current_vin_txid = "".to_string();
-    let mut current_vin_vout = 0;
-    let mut current_vin_script_pub_key_hex = "".to_string();
-    let mut current_vin_value = 0;
+    let mut current_vin_txid;
+    let mut current_vin_vout;
+    let mut current_vin_script_pub_key_hex;
+    let mut current_vin_value;
     let vin_count = response["vin"].as_array().unwrap().len();
-    while total_vin_sat_count < total_vout_sat_count && current_vin_index < vin_count {
+    loop {
         current_vin_txid = response["vin"][current_vin_index]["txid"]
             .as_str()
             .unwrap()
@@ -126,6 +126,9 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
 
         total_vin_sat_count += current_vin_value;
         current_vin_index += 1;
+        if total_vin_sat_count >= total_vout_sat_count || current_vin_index >= vin_count {
+            break;
+        }
     }
 
     if total_vin_sat_count < total_vout_sat_count {
