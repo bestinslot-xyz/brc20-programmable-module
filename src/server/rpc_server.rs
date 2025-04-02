@@ -309,11 +309,16 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn get_transaction_count(&self, account: String, block: String) -> RpcResult<String> {
+    async fn get_transaction_count(
+        &self,
+        account: AddressWrapper,
+        block: String,
+    ) -> RpcResult<String> {
         event!(Level::INFO, "Getting transaction count");
-        let account = account.parse().unwrap();
         let block = self.parse_block_number(&block)?;
-        let count = self.server_instance.get_transaction_count(account, block);
+        let count = self
+            .server_instance
+            .get_transaction_count(account.value(), block);
         if count.is_err() {
             return Err(RpcServerError::new("Couldn't get transaction count").into());
         }
