@@ -7,7 +7,7 @@ use bitcoin::{opcodes, secp256k1, ScriptBuf};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
 
-use crate::evm::precompiles::{precompile_error, precompile_output, use_gas};
+use crate::evm::precompiles::{precompile_error, precompile_output, use_gas, BITCOIN_NETWORK};
 
 sol! {
     function getLockedPkscript(bytes pkscript, uint256 lock_block_count) returns (bytes locked_pkscript);
@@ -70,7 +70,13 @@ fn get_p2tr_lock_addr(pkscript: &Bytes, lock_block_count: u64) -> Result<Bytes, 
         )
         .unwrap();
 
-    Ok(lock_script.output_key().serialize().into())
+
+    let address = bitcoin::Address::p2tr_tweaked(
+        lock_script.output_key(),
+        *BITCOIN_NETWORK,
+    );
+
+    Ok(Bytes::from(address.script_pubkey().into_bytes()))
 }
 
 fn build_lock_script(
@@ -118,7 +124,7 @@ fn build_lock_script(
     script.push_opcode(opcodes::all::OP_DROP);
 
     let mut push_bytes = PushBytesBuf::new();
-    let result = push_bytes.extend_from_slice(pkscript.iter().as_slice());
+    let result = push_bytes.extend_from_slice(pkscript.slice(2..).iter().as_slice());
     if result.is_err() {
         return Err("Invalid PkScript");
     }
@@ -151,7 +157,7 @@ mod tests {
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
         assert_eq!(
             hex::encode(result.locked_pkscript),
-            "e7b4a96c9beec8711f12c0d9956d6313a592c5abd8f8a90de8cf5b6d16e9e58d"
+            "51206ec7460e24bdaeba7384e2d5ff54a4645e0b53854594d225c52a4195eba194ca"
         )
     }
 
@@ -168,7 +174,7 @@ mod tests {
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
         assert_eq!(
             hex::encode(result.locked_pkscript),
-            "6b6f9e9324995ef82b3dea1ee288f59214145d64f88d1a76c3424e5539bb6c5f"
+            "512015f5761f81118dddccfe8a25ed99a2b8c6f3a0782efd76f0871b45c6737b1f7e"
         )
     }
 
@@ -185,7 +191,7 @@ mod tests {
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
         assert_eq!(
             hex::encode(result.locked_pkscript),
-            "e9c89c9102b18073802e24b5e4c39736aa8c1634b646c3c854bb0d3455af0d7a"
+            "5120397a9ad3d17d8601ff2f139be6b9b7b5d0e0daac8565c27f617f8eaf7719ab9d"
         )
     }
 
