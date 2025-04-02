@@ -234,7 +234,7 @@ impl ServerInstance {
             self.db_mutex
                 .lock()
                 .unwrap()
-                .verify_block_does_not_exist(block_hash, block_number)
+                .require_block_does_not_exist(block_hash, block_number)
                 .map_err(|_| "Block already exists.")?;
 
             *last_block_info = LastBlockInfo {

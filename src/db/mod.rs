@@ -394,7 +394,7 @@ impl DB {
         Ok(ret)
     }
 
-    pub fn verify_block_does_not_exist(
+    pub fn require_block_does_not_exist(
         &mut self,
         block_hash: B256,
         block_number: u64,
@@ -429,7 +429,7 @@ impl DB {
         inscription_id: Option<String>,
         gas_limit: u64,
     ) -> Result<(), Box<dyn Error>> {
-        self.verify_block_does_not_exist(block_hash, block_number)?;
+        self.require_block_does_not_exist(block_hash, block_number)?;
 
         let tx_receipt = TxReceiptED::new(
             block_hash,
@@ -623,7 +623,7 @@ impl DB {
         block_number: u64,
         block_hash: B256,
     ) -> Result<(), Box<dyn Error>> {
-        self.verify_block_does_not_exist(block_hash, block_number)?;
+        self.require_block_does_not_exist(block_hash, block_number)?;
 
         if self.latest_block_number.is_none()
             || block_number > self.latest_block_number.unwrap_or((0, B256::ZERO)).0
