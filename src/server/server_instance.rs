@@ -665,8 +665,12 @@ impl ServerInstance {
         #[cfg(debug_assertions)]
         println!("Getting block by hash {:?}", block_hash);
 
-        let mut db = self.db_mutex.lock().unwrap();
-        let block_number = db.get_block_number(block_hash).unwrap();
+        let block_number = self
+            .db_mutex
+            .lock()
+            .unwrap()
+            .get_block_number(block_hash)
+            .unwrap();
 
         if block_number.is_none() {
             return None;
