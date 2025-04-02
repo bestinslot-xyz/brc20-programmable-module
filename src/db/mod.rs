@@ -394,6 +394,20 @@ impl DB {
         Ok(ret)
     }
 
+    pub fn verify_block_does_not_exist(
+        &mut self,
+        block_hash: B256,
+        block_number: u64,
+    ) -> Result<(), Box<dyn Error>> {
+        if self.get_block_hash(block_number)?.is_some() {
+            return Err(format!("Block with hash {} already exists", block_hash).into());
+        }
+        if self.get_block_number(block_hash)?.is_some() {
+            return Err(format!("Block with number {} already exists", block_number).into());
+        }
+        Ok(())
+    }
+
     pub fn set_tx_receipt(
         &mut self,
         result_type: &str,
@@ -414,6 +428,8 @@ impl DB {
         start_log_index: u64,
         inscription_id: Option<String>,
     ) -> Result<(), Box<dyn Error>> {
+        self.verify_block_does_not_exist(block_hash, block_number)?;
+
         let tx_receipt = TxReceiptED::new(
             block_hash,
             block_number,
@@ -604,23 +620,14 @@ impl DB {
     pub fn set_block_hash(
         &mut self,
         block_number: u64,
-        mut block_hash: B256,
+        block_hash: B256,
     ) -> Result<(), Box<dyn Error>> {
+        self.verify_block_does_not_exist(block_hash, block_number)?;
+
         if self.latest_block_number.is_none()
             || block_number > self.latest_block_number.unwrap_or((0, B256::ZERO)).0
         {
             self.latest_block_number = Some((block_number, block_hash));
-        }
-
-        if block_hash == B256::ZERO {
-            // just hash the number
-            let bytes = block_number.to_be_bytes();
-            let full_bytes = [0u8; 24]
-                .iter()
-                .chain(bytes.iter())
-                .copied()
-                .collect::<Vec<u8>>();
-            block_hash = B256::from_slice(&full_bytes);
         }
 
         self.db_block_number_to_hash

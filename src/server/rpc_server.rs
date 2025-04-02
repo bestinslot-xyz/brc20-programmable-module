@@ -6,7 +6,6 @@ use hyper::Method;
 use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::server::{RpcServiceBuilder, Server, ServerHandle};
 use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
-use revm::primitives::B256;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{event, instrument, Level};
 
@@ -56,7 +55,7 @@ impl Brc20ProgApiServer for RpcServer {
     async fn mine(&self, block_count: u64, timestamp: u64) -> RpcResult<()> {
         event!(Level::INFO, "Mining empty blocks");
         self.server_instance
-            .mine_block(block_count, timestamp, B256::ZERO)
+            .mine_blocks(block_count, timestamp)
             .map_err(wrap_error_message)
     }
 
