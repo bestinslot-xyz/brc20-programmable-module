@@ -287,6 +287,18 @@ pub trait Brc20ProgApi {
     async fn accounts(&self) -> RpcResult<Vec<String>> {
         Ok(vec![INDEXER_ADDRESS.to_string()])
     }
+
+    /// Returns the current gas price in hex format (0 in BRC20, as there's no gas token)
+    #[method(name = "eth_gasPrice")]
+    async fn gas_price(&self) -> RpcResult<String> {
+        Ok("0x0".to_string())
+    }
+
+    /// Returns syncing status (false in BRC20)
+    #[method(name = "eth_syncing")]
+    async fn syncing(&self) -> RpcResult<bool> {
+        Ok(false)
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]
