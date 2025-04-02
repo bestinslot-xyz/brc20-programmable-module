@@ -47,7 +47,7 @@ pub fn brc20_balance_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
     return precompile_output(interpreter_result, bytes);
 }
 
-pub fn get_brc20_balance(ticker: &Bytes, pkscript: &Bytes) -> Result<u64, String> {
+pub fn get_brc20_balance(ticker: &Bytes, pkscript: &Bytes) -> Result<u128, String> {
     let response = BRC20_CLIENT
         .get(BRC20_PROG_BALANCE_SERVER_URL.as_str())
         .query("ticker", hex::encode(ticker))
@@ -64,7 +64,7 @@ pub fn get_brc20_balance(ticker: &Bytes, pkscript: &Bytes) -> Result<u64, String
         return Err("Failed to get balance".into());
     }
 
-    let balance = balance.unwrap().parse::<u64>();
+    let balance = balance.unwrap().parse::<u128>();
 
     if balance.is_err() {
         return Err("Failed to get balance".into());
