@@ -61,7 +61,7 @@ impl ServerInstance {
 
     pub fn initialise(
         &self,
-        genesis_hash: B256,
+        mut genesis_hash: B256,
         genesis_timestamp: u64,
         genesis_height: u64,
     ) -> Result<(), &'static str> {
@@ -73,7 +73,10 @@ impl ServerInstance {
 
         let genesis = self.get_block_by_number(genesis_height, false);
 
-        println!("Genesis block: {:?}", genesis);
+        if genesis_hash == B256::ZERO {
+            genesis_hash = generate_block_hash(genesis_height);
+        }
+
         if genesis.is_some() {
             let genesis = genesis.unwrap();
             if genesis.hash.0 == genesis_hash {
@@ -131,12 +134,7 @@ impl ServerInstance {
         block_height
     }
 
-    pub fn mine_block(
-        &self,
-        mut block_count: u64,
-        timestamp: u64,
-        hash: B256,
-    ) -> Result<(), &'static str> {
+    pub fn mine_blocks(&self, mut block_count: u64, timestamp: u64) -> Result<(), &'static str> {
         self.require_no_waiting_txes()?;
 
         let mut number = self.get_next_block_height();
@@ -164,7 +162,7 @@ impl ServerInstance {
         );
 
         for _ in 0..block_count {
-            self.finalise_block(timestamp, number, hash, 0)?;
+            self.finalise_block(timestamp, number, B256::ZERO, 0)?;
             number += 1;
         }
 
@@ -206,7 +204,7 @@ impl ServerInstance {
         tx_info: &TxInfo,
         tx_idx: u64,
         block_number: u64,
-        block_hash: B256,
+        mut block_hash: B256,
         inscription_id: Option<String>,
         inscription_byte_len: Option<u64>,
     ) -> Result<TxReceiptED, &'static str> {
@@ -214,6 +212,11 @@ impl ServerInstance {
         println!("Adding tx {:?} to block {:?}", tx_idx, block_number);
 
         let mut last_block_info = self.last_block_info.lock().unwrap();
+
+        // This allows testing, and generating hashes for blocks with unknown hashes
+        if block_hash == B256::ZERO {
+            block_hash = generate_block_hash(block_number);
+        }
 
         if last_block_info.waiting_tx_count != tx_idx {
             return Err("tx_idx is different from waiting tx count in block");
@@ -227,6 +230,13 @@ impl ServerInstance {
                 return Err("Block hash is different from other txes in block");
             }
         } else {
+            // check if the block exists already
+            self.db_mutex
+                .lock()
+                .unwrap()
+                .verify_block_does_not_exist(block_hash, block_number)
+                .map_err(|_| "Block already exists.")?;
+
             *last_block_info = LastBlockInfo {
                 waiting_tx_count: 0,
                 last_ts: timestamp,
@@ -481,10 +491,15 @@ impl ServerInstance {
         &self,
         timestamp: u64,
         block_number: u64,
-        block_hash: B256,
+        mut block_hash: B256,
         block_tx_count: u64,
     ) -> Result<(), &'static str> {
         let mut last_block_info = self.last_block_info.lock().unwrap();
+
+        // This allows testing, and generating hashes for blocks with unknown hashes
+        if block_hash == B256::ZERO {
+            block_hash = generate_block_hash(block_number);
+        }
 
         if last_block_info.last_block_start_time.is_none() {
             last_block_info.last_block_start_time = Some(Instant::now());
@@ -512,7 +527,6 @@ impl ServerInstance {
         );
 
         db.set_block_hash(block_number, block_hash).unwrap();
-
         db.set_gas_used(block_number, last_block_info.last_block_gas_used)
             .unwrap();
         let total_time_took = last_block_info
@@ -523,7 +537,6 @@ impl ServerInstance {
         db.set_mine_timestamp(block_number, total_time_took)
             .unwrap();
         db.set_block_timestamp(block_number, timestamp).unwrap();
-        db.set_block_hash(block_number, block_hash).unwrap();
 
         *last_block_info = LastBlockInfo::new();
 
@@ -754,4 +767,14 @@ impl ServerInstance {
         let mut db = self.db_mutex.lock().unwrap();
         db.basic(addr).unwrap().map_or(0, |x| x.nonce)
     }
+}
+
+fn generate_block_hash(block_number: u64) -> B256 {
+    let bytes = (block_number + 1).to_be_bytes();
+    let full_bytes = [0u8; 24]
+        .iter()
+        .chain(bytes.iter())
+        .copied()
+        .collect::<Vec<u8>>();
+    B256::from_slice(&full_bytes)
 }
