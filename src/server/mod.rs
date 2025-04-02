@@ -9,4 +9,5 @@ pub use server_instance::ServerInstance;
 mod api;
 pub use api::Brc20ProgApiServer;
 
+pub static CHAIN_ID: u64 = 0x4252433230;
 pub static INDEXER_ADDRESS: &str = "0x0000000000000000000000000000000000003Ca6";

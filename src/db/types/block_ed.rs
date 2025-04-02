@@ -2,8 +2,7 @@ use revm::primitives::{Address, FixedBytes};
 use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex, StrictPfx};
 
-use super::TxED;
-use crate::db::types::{AddressED, BEncodeDecode, Decode, Encode, B2048ED, B256ED, U128ED};
+use crate::db::types::{AddressED, BEncodeDecode, Decode, Encode, TxED, B2048ED, B256ED, U128ED};
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct BlockResponseED {
