@@ -199,7 +199,7 @@ pub trait Brc20ProgApi {
     async fn get_transaction_by_block_number_and_index(
         &self,
         number: u64,
-        index: u64,
+        index: Option<u64>,
     ) -> RpcResult<Option<TxED>>;
 
     /// Returns the transaction by block hash and index
@@ -207,7 +207,7 @@ pub trait Brc20ProgApi {
     async fn get_transaction_by_block_hash_and_index(
         &self,
         hash: B256Wrapper,
-        index: u64,
+        index: Option<u64>,
     ) -> RpcResult<Option<TxED>>;
 
     ///
