@@ -437,12 +437,12 @@ impl Brc20ProgApiServer for RpcServer {
     async fn get_transaction_by_block_number_and_index(
         &self,
         block_number: u64,
-        tx_idx: u64,
+        tx_idx: Option<u64>,
     ) -> RpcResult<Option<TxED>> {
         event!(Level::INFO, "Getting transaction by block number and index");
         let tx = self
             .server_instance
-            .get_transaction_by_block_number_and_index(block_number, tx_idx);
+            .get_transaction_by_block_number_and_index(block_number, tx_idx.unwrap_or(0));
         Ok(tx)
     }
 
@@ -450,12 +450,12 @@ impl Brc20ProgApiServer for RpcServer {
     async fn get_transaction_by_block_hash_and_index(
         &self,
         block_hash: B256Wrapper,
-        tx_idx: u64,
+        tx_idx: Option<u64>,
     ) -> RpcResult<Option<TxED>> {
         event!(Level::INFO, "Getting transaction by block hash and index");
         Ok(self
             .server_instance
-            .get_transaction_by_block_hash_and_index(block_hash.value(), tx_idx))
+            .get_transaction_by_block_hash_and_index(block_hash.value(), tx_idx.unwrap_or(0)))
     }
 }
 
