@@ -85,8 +85,8 @@ fn get_raw_transaction_with_retry(
     txid: &Txid,
     retries_left: u32,
 ) -> Result<GetRawTransactionResult, Box<dyn Error>> {
-    let response = match BTC_CLIENT.get_raw_transaction_info(&txid, None) {
-        Ok(response) => response,
+    match BTC_CLIENT.get_raw_transaction_info(&txid, None) {
+        Ok(response) => return Ok(response),
         Err(error) => {
             if retries_left > 0 {
                 sleep(Duration::from_secs(1));
@@ -95,8 +95,6 @@ fn get_raw_transaction_with_retry(
             panic!("Bitcoin RPC unreachable. Response: {:?}", error);
         }
     };
-
-    return Ok(response);
 }
 
 pub fn get_block_info(block_hash: &BlockHash) -> Result<GetBlockResult, Box<dyn Error>> {
@@ -107,8 +105,8 @@ fn get_block_info_with_retry(
     block_hash: &BlockHash,
     retries_left: u32,
 ) -> Result<GetBlockResult, Box<dyn Error>> {
-    let response = match BTC_CLIENT.get_block_info(&block_hash) {
-        Ok(response) => response,
+    match BTC_CLIENT.get_block_info(&block_hash) {
+        Ok(response) => return Ok(response),
         Err(error) => {
             if retries_left > 0 {
                 sleep(Duration::from_secs(1));
@@ -117,8 +115,6 @@ fn get_block_info_with_retry(
             panic!("Bitcoin RPC unreachable. Response: {:?}", error);
         }
     };
-
-    Ok(response)
 }
 
 #[cfg(test)]

@@ -24,13 +24,11 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
         return interpreter_result;
     }
 
-    let result = verifyCall::abi_decode(&call.bytes, false);
-
-    let Ok(result) = result else {
+    let Ok(inputs) = verifyCall::abi_decode(&call.bytes, false) else {
         return precompile_error(interpreter_result);
     };
 
-    let (pkscript, message, signature) = (result.pkscript, result.message, result.signature);
+    let (pkscript, message, signature) = (inputs.pkscript, inputs.message, inputs.signature);
 
     let address = bitcoin::Address::from_script(
         &bitcoin::Script::from_bytes(pkscript.iter().as_slice()),

@@ -39,9 +39,9 @@ impl LogResponse {
         block_number: u64,
     ) -> Vec<LogResponse> {
         let mut log_index = log.log_index;
-        let mut result = Vec::new();
+        let mut log_responses = Vec::new();
         for log in &log.logs {
-            result.push(LogResponse {
+            log_responses.push(LogResponse {
                 address: AddressED(log.address),
                 topics: log
                     .topics()
@@ -57,7 +57,7 @@ impl LogResponse {
             });
             log_index += 1;
         }
-        result
+        log_responses
     }
 }
 

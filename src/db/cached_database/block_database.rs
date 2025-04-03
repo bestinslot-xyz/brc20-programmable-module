@@ -107,9 +107,7 @@ where
     //
     /// Returns: Option<u64> - the last key in the database
     pub fn last_key(&self) -> Result<Option<u64>, Box<dyn Error>> {
-        let result = self.db.full_iterator(IteratorMode::End).take(1).last();
-
-        let db_last_key = match result {
+        let db_last_key = match self.db.full_iterator(IteratorMode::End).take(1).last() {
             Some(Ok((key, _))) => Some(U64ED::decode(key.to_vec())?.to_u64()),
             _ => None,
         };

@@ -867,18 +867,18 @@ impl DatabaseTrait for DB {
 
     /// Get basic account information.
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        let res = self.get_account_info(address);
-        res.map(|x| {
-            x.map(|x| {
-                let mut account_info = x.0;
-                account_info.code = Some(
-                    self.code_by_hash(account_info.code_hash)
-                        .unwrap_or(Bytecode::new()),
-                );
-                account_info
+        self.get_account_info(address)
+            .map(|x| {
+                x.map(|x| {
+                    let mut account_info = x.0;
+                    account_info.code = Some(
+                        self.code_by_hash(account_info.code_hash)
+                            .unwrap_or(Bytecode::new()),
+                    );
+                    account_info
+                })
             })
-        })
-        .map_err(|x| DBError(x))
+            .map_err(|x| DBError(x))
     }
 
     /// Get account code by its hash.

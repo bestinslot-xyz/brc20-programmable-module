@@ -88,7 +88,7 @@ where
     /// end_key: &K - the end key, exclusive
     /// Returns: Vec<(K, V)> - the list of key-value pairs
     pub fn get_range(&self, start_key: &K, end_key: &K) -> Result<Vec<(K, V)>, Box<dyn Error>> {
-        let mut result = Vec::new();
+        let mut kv_pairs = Vec::new();
         let start_key_bytes = start_key.encode();
         let end_key_bytes = end_key.encode();
 
@@ -102,7 +102,7 @@ where
             }
             if let Some(cache) = self.cache.get(key) {
                 if let Some(value) = cache.latest() {
-                    result.push((key.clone(), value.clone()));
+                    kv_pairs.push((key.clone(), value.clone()));
                 }
             }
         }
@@ -117,10 +117,10 @@ where
             }
             let key = K::decode(key.to_vec())?;
             let value = V::decode(value.to_vec())?;
-            result.push((key, value));
+            kv_pairs.push((key, value));
         }
 
-        Ok(result)
+        Ok(kv_pairs)
     }
 
     /// Set the value for a key

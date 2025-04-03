@@ -29,16 +29,11 @@ pub fn brc20_balance_precompile(call: &PrecompileCall) -> InterpreterResult {
         return interpreter_result;
     }
 
-    let result = balanceOfCall::abi_decode(&call.bytes, false);
-
-    let Ok(returns) = result else {
+    let Ok(inputs) = balanceOfCall::abi_decode(&call.bytes, false) else {
         return precompile_error(interpreter_result);
     };
 
-    let ticker = returns.ticker;
-    let pkscript = returns.pkscript;
-
-    let Ok(balance) = get_brc20_balance(&ticker, &pkscript) else {
+    let Ok(balance) = get_brc20_balance(&inputs.ticker, &inputs.pkscript) else {
         return precompile_error(interpreter_result);
     };
 

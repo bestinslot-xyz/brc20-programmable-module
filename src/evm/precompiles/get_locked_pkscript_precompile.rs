@@ -26,21 +26,20 @@ pub fn get_locked_pkscript_precompile(call: &PrecompileCall) -> InterpreterResul
         return interpreter_result;
     }
 
-    let Ok(returns) = getLockedPkscriptCall::abi_decode(&call.bytes, false) else {
-        // Invalid input
+    let Ok(inputs) = getLockedPkscriptCall::abi_decode(&call.bytes, false) else {
         return precompile_error(interpreter_result);
     };
 
-    if returns.lock_block_count == U256::ZERO
-        || returns.lock_block_count > U256::from_limbs([65535u64, 0u64, 0u64, 0u64])
+    if inputs.lock_block_count == U256::ZERO
+        || inputs.lock_block_count > U256::from_limbs([65535u64, 0u64, 0u64, 0u64])
     {
         // Invalid lock block count
         return precompile_error(interpreter_result);
     }
 
-    let lock_block_count = returns.lock_block_count.as_limbs()[0];
+    let lock_block_count = inputs.lock_block_count.as_limbs()[0];
 
-    let Ok(result) = get_p2tr_lock_addr(&returns.pkscript, lock_block_count) else {
+    let Ok(result) = get_p2tr_lock_addr(&inputs.pkscript, lock_block_count) else {
         // Failed to get lock address
         return precompile_error(interpreter_result);
     };
@@ -119,10 +118,9 @@ fn build_lock_script(
     script.push_opcode(opcodes::all::OP_DROP);
 
     let mut push_bytes = PushBytesBuf::new();
-    let result = push_bytes.extend_from_slice(pkscript.slice(2..).iter().as_slice());
-    if result.is_err() {
-        return Err("Invalid PkScript");
-    }
+    push_bytes
+        .extend_from_slice(pkscript.slice(2..).iter().as_slice())
+        .map_err(|_| "Failed to push bytes")?;
 
     script.push_instruction(bitcoin::script::Instruction::PushBytes(
         &push_bytes.as_push_bytes(),
