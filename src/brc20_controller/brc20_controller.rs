@@ -46,13 +46,11 @@ pub fn load_brc20_balance_tx(ticker: Bytes, address: Address) -> TxInfo {
 }
 
 pub fn decode_brc20_balance_result(data: Option<&Bytes>) -> U256 {
-    match data {
-        Some(data) => {
-            let result = balanceOfCall::abi_decode_returns(data, false);
-            return result.ok().map(|v| v._0).unwrap_or(U256::ZERO);
-        }
-        _ => return U256::ZERO,
-    }
+    let Some(data) = data else {
+        return U256::ZERO;
+    };
+    let result = balanceOfCall::abi_decode_returns(data, false);
+    return result.ok().map(|v| v._0).unwrap_or(U256::ZERO);
 }
 
 pub fn load_brc20_deploy_tx() -> TxInfo {
