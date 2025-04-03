@@ -309,6 +309,18 @@ pub struct EthCall {
     pub input: Option<BytesWrapper>,
 }
 
+impl EthCall {
+    pub fn data_or_input(&self) -> Option<&BytesWrapper> {
+        if let Some(data) = &self.data {
+            Some(data)
+        } else if let Some(input) = &self.input {
+            Some(input)
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct GetLogsFilter {
     #[serde(rename = "fromBlock")]
