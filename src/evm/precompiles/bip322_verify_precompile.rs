@@ -21,11 +21,9 @@ pub fn bip322_verify_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
 
     let result = verifyCall::abi_decode(&bytes, false);
 
-    if result.is_err() {
+    let Ok(result) = result else {
         return precompile_error(interpreter_result);
-    }
-
-    let result = result.unwrap();
+    };
 
     let (pkscript, message, signature) = (result.pkscript, result.message, result.signature);
 
@@ -34,31 +32,24 @@ pub fn bip322_verify_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
         *BITCOIN_NETWORK,
     );
 
-    if address.is_err() {
-        // Invalid pkscript
+    let Ok(address) = address else {
         return precompile_error(interpreter_result);
-    }
+    };
 
-    let address = address.unwrap();
+    let address = address;
     let message = message.iter().as_slice();
     let signature = signature.iter().as_slice();
     let signature = Witness::consensus_decode(&mut signature.iter().as_slice());
 
-    if signature.is_err() {
-        // Invalid signature
+    let Ok(signature) = signature else {
         return precompile_error(interpreter_result);
-    }
+    };
 
-    let signature = signature.unwrap();
+    let Ok(_) = verify_simple(&address, &message, signature) else {
+        return precompile_error(interpreter_result);
+    };
 
-    let result = verify_simple(&address, &message, signature);
-
-    match result {
-        Ok(_) => {
-            return precompile_output(interpreter_result, verifyCall::abi_encode_returns(&(true,)));
-        }
-        Err(_) => return precompile_error(interpreter_result),
-    }
+    return precompile_output(interpreter_result, verifyCall::abi_encode_returns(&(true,)));
 }
 
 #[cfg(test)]

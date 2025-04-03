@@ -1,7 +1,6 @@
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 use std::time::Instant;
 
-use revm::context::result::ExecutionResult;
 use revm::context::{BlockEnv, ContextTr, TransactTo};
 use revm::handler::{EvmTr, ExecuteCommitEvm};
 use revm::primitives::alloy_primitives::logs_bloom;
@@ -59,6 +58,18 @@ impl ServerInstance {
         instance
     }
 
+    fn get_db_lock(&self) -> MutexGuard<DB> {
+        self.db_mutex
+            .lock()
+            .unwrap_or_else(|_| panic!("Failed to lock DB mutex"))
+    }
+
+    fn get_last_block_info_lock(&self) -> MutexGuard<LastBlockInfo> {
+        self.last_block_info
+            .lock()
+            .unwrap_or_else(|_| panic!("Failed to lock last block info mutex"))
+    }
+
     pub fn initialise(
         &self,
         mut genesis_hash: B256,
@@ -71,14 +82,11 @@ impl ServerInstance {
             genesis_hash, genesis_timestamp, genesis_height
         );
 
-        let genesis = self.get_block_by_number(genesis_height, false);
-
         if genesis_hash == B256::ZERO {
             genesis_hash = generate_block_hash(genesis_height);
         }
 
-        if genesis.is_some() {
-            let genesis = genesis.unwrap();
+        if let Some(genesis) = self.get_block_by_number(genesis_height, false) {
             if genesis.hash.0 == genesis_hash {
                 return Ok(());
             } else {
@@ -97,8 +105,11 @@ impl ServerInstance {
             Some(u64::MAX),
         )?;
 
-        let brc20_controller_contract = result.contract_address.unwrap().0;
-        verify_brc20_contract_address(&brc20_controller_contract.to_string());
+        let brc20_controller_contract = result
+            .contract_address
+            .ok_or("Failed to deploy BRC20_Controller")?;
+        verify_brc20_contract_address(&brc20_controller_contract.0.to_string())
+            .map_err(|_| "Invalid BRC20_Controller contract address")?;
 
         self.finalise_block(genesis_timestamp, genesis_height, genesis_hash, 1)?;
 
@@ -110,24 +121,24 @@ impl ServerInstance {
     }
 
     pub fn get_next_block_height(&self) -> u64 {
-        let mut db = self.db_mutex.lock().unwrap();
+        let mut db = self.get_db_lock();
         let latest_block_height = db.get_latest_block_height();
 
         let block_height = latest_block_height.unwrap_or(0);
         if block_height == 0 {
-            // Check if block 0 exists, then next block would be genesis
-            let block_hash = db.get_block_hash(0);
-            if block_hash.is_err() || block_hash.unwrap().is_none() {
+            // Check if block 0 exists, if not, next block would be genesis (block 0)
+            if let Ok(Some(_)) = db.get_block_hash(0) {
+                return 1;
+            } else {
                 return 0;
             }
-            return 1;
         }
 
         block_height + 1
     }
 
     pub fn get_latest_block_height(&self) -> u64 {
-        let db = self.db_mutex.lock().unwrap();
+        let db = self.get_db_lock();
         let latest_block_height = db.get_latest_block_height();
 
         let block_height = latest_block_height.unwrap_or(0);
@@ -179,23 +190,19 @@ impl ServerInstance {
             inscription_id
         );
 
-        let mut db = self.db_mutex.lock().unwrap();
+        let mut db = self.get_db_lock();
         let tx_hash = db
             .get_tx_hash_by_inscription_id(inscription_id)
             .unwrap_or(None);
-        if tx_hash.is_none() {
-            return Err("inscription not found");
-        }
-        let tx_hash = tx_hash.unwrap().0;
-        let tx = db.get_tx_receipt(tx_hash).unwrap_or(None);
-        if tx.is_none() {
+        let Some(tx_hash) = tx_hash else {
             return Err("inscription transaction not found");
-        }
-        let tx = tx.unwrap();
-        if tx.contract_address.is_none() {
-            return Err("inscription transaction is not a contract creation");
-        }
-        Ok(tx.contract_address.unwrap().0)
+        };
+        let Some(tx) = db.get_tx_receipt(tx_hash.0).unwrap_or(None) else {
+            return Err("inscription transaction not found");
+        };
+        tx.contract_address
+            .map(|x| x.0)
+            .ok_or("inscription transaction not found")
     }
 
     pub fn add_tx_to_block(
@@ -211,7 +218,7 @@ impl ServerInstance {
         #[cfg(debug_assertions)]
         println!("Adding tx {:?} to block {:?}", tx_idx, block_number);
 
-        let mut last_block_info = self.last_block_info.lock().unwrap();
+        let mut last_block_info = self.get_last_block_info_lock();
 
         // This allows testing, and generating hashes for blocks with unknown hashes
         if block_hash == B256::ZERO {
@@ -231,9 +238,7 @@ impl ServerInstance {
             }
         } else {
             // check if the block exists already
-            self.db_mutex
-                .lock()
-                .unwrap()
+            self.get_db_lock()
                 .require_block_does_not_exist(block_hash, block_number)
                 .map_err(|_| "Block already exists.")?;
 
@@ -253,7 +258,7 @@ impl ServerInstance {
             ..Default::default()
         };
 
-        let output: Option<ExecutionResult>;
+        let output;
         let nonce = self.get_nonce(tx_info.from);
         let tx_hash = get_tx_hash(&tx_info, &nonce);
         let gas_limit = get_gas_limit(inscription_byte_len.unwrap_or(tx_info.data.len() as u64));
@@ -265,7 +270,7 @@ impl ServerInstance {
                 tx_idx, tx_idx, block_number, block_number, block_hash
             );
 
-            let mut db = self.db_mutex.lock().unwrap();
+            let mut db = self.get_db_lock();
             let db_moved = core::mem::take(&mut *db);
             let mut evm = get_evm(block_info, db_moved, None);
             #[cfg(debug_assertions)]
@@ -290,7 +295,10 @@ impl ServerInstance {
             });
 
             let tx = evm.ctx().tx().clone();
-            output = Some(evm.transact_commit(tx).unwrap());
+            output = evm.transact_commit(tx).map_err(|e| {
+                println!("Error while running EVM: {:?}", e);
+                "Error while running EVM"
+            })?;
 
             #[cfg(debug_assertions)]
             println!(
@@ -302,7 +310,7 @@ impl ServerInstance {
             core::mem::swap(&mut *db, &mut evm.ctx().db());
         }
 
-        let output = output.unwrap();
+        let output = output;
 
         last_block_info.waiting_tx_count += 1;
 
@@ -322,7 +330,7 @@ impl ServerInstance {
             .checked_add(output.gas_used())
             .unwrap_or(last_block_info.last_block_gas_used);
 
-        let mut db = self.db_mutex.lock().unwrap();
+        let mut db = self.get_db_lock();
         db.set_tx_receipt(
             &get_result_type(&output),
             &get_result_reason(&output),
@@ -343,11 +351,18 @@ impl ServerInstance {
             inscription_id,
             gas_limit,
         )
-        .unwrap();
+        .map_err(|_| "Error while adding tx to block")?;
 
         last_block_info.last_block_log_index += output.logs().len() as u64;
 
-        Ok(db.get_tx_receipt(tx_hash).unwrap().unwrap())
+        let Some(tx_receipt) = db
+            .get_tx_receipt(tx_hash)
+            .map_err(|_| "Error while getting tx receipt")?
+        else {
+            return Err("Error while getting tx receipt");
+        };
+
+        Ok(tx_receipt)
     }
 
     pub fn get_transaction_count(
@@ -361,7 +376,7 @@ impl ServerInstance {
             account, block_number, block_number
         );
 
-        let mut db = self.db_mutex.lock().unwrap();
+        let mut db = self.get_db_lock();
         let tx_count = db.get_tx_count(Some(account), block_number).unwrap_or(0);
         Ok(tx_count)
     }
@@ -376,7 +391,7 @@ impl ServerInstance {
             block_number, block_number
         );
 
-        let mut db = self.db_mutex.lock().unwrap();
+        let mut db = self.get_db_lock();
         let tx_count = db.get_tx_count(None, block_number).unwrap_or(0);
         Ok(tx_count)
     }
@@ -388,12 +403,11 @@ impl ServerInstance {
         #[cfg(debug_assertions)]
         println!("Getting block tx count for block hash {:?}", block_hash);
 
-        let mut db = self.db_mutex.lock().unwrap();
-        let block_number = db.get_block_number(block_hash);
-        if block_number.is_err() {
-            return Err("block hash not found");
-        }
-        let block_number = block_number.unwrap().map(|x| x.to_u64()).unwrap_or(0);
+        let mut db = self.get_db_lock();
+        let block_number = db
+            .get_block_number(block_hash)
+            .map_err(|_| "block hash not found")?;
+        let block_number = block_number.map(|x| x.to_u64()).unwrap_or(0);
         let tx_count = db.get_tx_count(None, block_number).unwrap_or(0);
         Ok(tx_count)
     }
@@ -409,13 +423,14 @@ impl ServerInstance {
             block_hash, tx_idx, tx_idx
         );
 
-        let mut db = self.db_mutex.lock().unwrap();
-        let tx_hash = db
-            .get_tx_hash_by_block_hash_and_index(block_hash, tx_idx)
-            .unwrap();
-        tx_hash
-            .map(|x| db.get_tx_by_hash(x.0).unwrap_or(None))
-            .unwrap()
+        let mut db = self.get_db_lock();
+        let Ok(Some(tx_hash)) = db.get_tx_hash_by_block_hash_and_index(block_hash, tx_idx) else {
+            return None;
+        };
+        let Some(tx) = db.get_tx_by_hash(tx_hash.0).unwrap_or(None) else {
+            return None;
+        };
+        Some(tx)
     }
 
     pub fn get_transaction_by_block_number_and_index(
@@ -429,20 +444,22 @@ impl ServerInstance {
             block_number, block_number, tx_idx, tx_idx
         );
 
-        let mut db = self.db_mutex.lock().unwrap();
-        let tx_hash = db
-            .get_tx_hash_by_block_number_and_index(block_number, tx_idx)
-            .unwrap();
-        tx_hash
-            .map(|x| db.get_tx_by_hash(x.0).unwrap_or(None))
-            .unwrap()
+        let mut db = self.get_db_lock();
+        let Ok(Some(tx_hash)) = db.get_tx_hash_by_block_number_and_index(block_number, tx_idx)
+        else {
+            return None;
+        };
+        let Some(tx) = db.get_tx_by_hash(tx_hash.0).unwrap_or(None) else {
+            return None;
+        };
+        Some(tx)
     }
 
     pub fn get_transaction_by_hash(&self, tx_hash: B256) -> Option<TxED> {
         #[cfg(debug_assertions)]
         println!("Getting tx by hash {:?}", tx_hash);
 
-        let mut db = self.db_mutex.lock().unwrap();
+        let mut db = self.get_db_lock();
         db.get_tx_by_hash(tx_hash).unwrap_or(None)
     }
 
@@ -453,21 +470,18 @@ impl ServerInstance {
         #[cfg(debug_assertions)]
         println!("Getting tx receipt by inscription id {:?}", inscription_id);
 
-        let mut db = self.db_mutex.lock().unwrap();
-        let tx_hash = db
-            .get_tx_hash_by_inscription_id(inscription_id)
-            .unwrap_or(None);
-        if tx_hash.is_none() {
+        let mut db = self.get_db_lock();
+        let Ok(Some(tx_hash)) = db.get_tx_hash_by_inscription_id(inscription_id) else {
             return None;
-        }
-        db.get_tx_receipt(tx_hash.unwrap().0).unwrap_or(None)
+        };
+        db.get_tx_receipt(tx_hash.0).unwrap_or(None)
     }
 
     pub fn get_transaction_receipt(&self, tx_hash: B256) -> Option<TxReceiptED> {
         #[cfg(debug_assertions)]
         println!("Getting tx receipt for {:?}", tx_hash);
 
-        let mut db = self.db_mutex.lock().unwrap();
+        let mut db = self.get_db_lock();
         db.get_tx_receipt(tx_hash).unwrap_or(None)
     }
 
@@ -481,7 +495,7 @@ impl ServerInstance {
         #[cfg(debug_assertions)]
         println!("Getting logs");
 
-        let mut db = self.db_mutex.lock().unwrap();
+        let mut db = self.get_db_lock();
         db.get_logs(
             block_number_from,
             block_number_to,
@@ -498,7 +512,7 @@ impl ServerInstance {
         mut block_hash: B256,
         block_tx_count: u64,
     ) -> Result<(), &'static str> {
-        let mut last_block_info = self.last_block_info.lock().unwrap();
+        let mut last_block_info = self.get_last_block_info_lock();
 
         // This allows testing, and generating hashes for blocks with unknown hashes
         if block_hash == B256::ZERO {
@@ -522,7 +536,7 @@ impl ServerInstance {
             return Err("Block tx count is different from waiting tx count for block");
         }
 
-        let mut db = self.db_mutex.lock().unwrap();
+        let mut db = self.get_db_lock();
 
         #[cfg(debug_assertions)]
         println!(
@@ -530,17 +544,19 @@ impl ServerInstance {
             block_number, block_number, block_tx_count, block_tx_count
         );
 
-        db.set_block_hash(block_number, block_hash).unwrap();
+        db.set_block_hash(block_number, block_hash)
+            .map_err(|_| "Error while setting block hash")?;
         db.set_gas_used(block_number, last_block_info.last_block_gas_used)
-            .unwrap();
+            .map_err(|_| "Error while setting gas used")?;
         let total_time_took = last_block_info
             .last_block_start_time
-            .unwrap()
+            .unwrap_or(Instant::now())
             .elapsed()
             .as_nanos();
         db.set_mine_timestamp(block_number, total_time_took)
-            .unwrap();
-        db.set_block_timestamp(block_number, timestamp).unwrap();
+            .map_err(|_| "Error while setting mine timestamp")?;
+        db.set_block_timestamp(block_number, timestamp)
+            .map_err(|_| "Error while setting block timestamp")?;
 
         *last_block_info = LastBlockInfo::new();
 
@@ -557,7 +573,10 @@ impl ServerInstance {
 
         let number = self.get_next_block_height();
 
-        let timestamp = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
+        let timestamp = std::time::UNIX_EPOCH
+            .elapsed()
+            .map(|x| x.as_secs())
+            .unwrap_or(0);
         let block_info: BlockEnv = BlockEnv {
             number,
             timestamp,
@@ -569,7 +588,7 @@ impl ServerInstance {
         let txhash = get_tx_hash(&tx_info, &nonce);
 
         {
-            let mut db = self.db_mutex.lock().unwrap();
+            let mut db = self.get_db_lock();
             let db_moved = core::mem::take(&mut *db);
             let mut evm = get_evm(block_info, db_moved, None);
 
@@ -592,22 +611,22 @@ impl ServerInstance {
             core::mem::swap(&mut *db, &mut evm.ctx().db());
         }
 
-        if output.is_err() {
+        let Ok(output) = output else {
             return Err("Error while calling contract");
-        }
+        };
 
         Ok(TxReceiptED {
-            status: output.as_ref().unwrap().is_success() as u8,
-            transaction_result: get_result_type(output.as_ref().unwrap()),
-            reason: get_result_reason(output.as_ref().unwrap()),
-            result_bytes: output.as_ref().unwrap().output().cloned(),
+            status: output.is_success() as u8,
+            transaction_result: get_result_type(&output),
+            reason: get_result_reason(&output),
+            result_bytes: output.output().cloned(),
             logs: LogED {
-                logs: output.as_ref().unwrap().logs().to_vec(),
+                logs: output.logs().to_vec(),
                 log_index: 0,
             },
             log_responses: LogResponse::new_vec(
                 &LogED {
-                    logs: output.as_ref().unwrap().logs().to_vec(),
+                    logs: output.logs().to_vec(),
                     log_index: 0,
                 },
                 0,
@@ -615,18 +634,18 @@ impl ServerInstance {
                 B256ED::from_b256(txhash),
                 number,
             ),
-            gas_used: output.as_ref().unwrap().gas_used(),
+            gas_used: output.gas_used(),
             from: AddressED(tx_info.from),
             to: tx_info.to.map(AddressED),
-            contract_address: get_contract_address(output.as_ref().unwrap()).map(AddressED),
-            logs_bloom: B2048ED::decode(logs_bloom(output.as_ref().unwrap().logs()).to_vec())
-                .unwrap(),
+            contract_address: get_contract_address(&output).map(AddressED),
+            logs_bloom: B2048ED::decode(logs_bloom(output.logs()).to_vec())
+                .map_err(|_| "Error while decoding logs bloom")?,
             hash: B256ED::from_b256(txhash),
             block_number: number,
             block_timestamp: timestamp,
             transaction_hash: B256ED::from_b256(txhash),
             transaction_index: 0,
-            cumulative_gas_used: output.as_ref().unwrap().gas_used(),
+            cumulative_gas_used: output.gas_used(),
             nonce,
             effective_gas_price: 0,
             transaction_type: 0,
@@ -640,7 +659,7 @@ impl ServerInstance {
             location, contract
         );
 
-        let mut db = self.db_mutex.lock().unwrap();
+        let mut db = self.get_db_lock();
         let storage = db.storage(contract, location);
 
         storage.unwrap_or(U256::ZERO)
@@ -653,25 +672,20 @@ impl ServerInstance {
             block_number, block_number
         );
 
-        let mut db = self.db_mutex.lock().unwrap();
-        let block = db.get_block(block_number).unwrap();
-        if block.is_none() || !is_full {
-            return block;
+        let mut db = self.get_db_lock();
+        let Ok(Some(mut block)) = db.get_block(block_number) else {
+            return None;
+        };
+        if !is_full {
+            return Some(block);
         }
-        // Fill in transaction receipts
-        let mut block = block.unwrap();
         let tx_ids = block.transactions.unwrap_or(vec![]);
         let mut txes = Vec::new();
         for tx_id in tx_ids {
-            let tx = db.get_tx_by_hash(tx_id.0);
-            if tx.is_err() {
+            let Ok(Some(tx)) = db.get_tx_by_hash(tx_id.0) else {
                 continue;
-            }
-            let tx = tx.unwrap();
-            if tx.is_none() {
-                continue;
-            }
-            txes.insert(txes.len(), tx.unwrap());
+            };
+            txes.insert(txes.len(), tx);
         }
         block.full_transactions = Some(txes);
         block.transactions = None;
@@ -682,46 +696,50 @@ impl ServerInstance {
         #[cfg(debug_assertions)]
         println!("Getting block by hash {:?}", block_hash);
 
-        let block_number = self
-            .db_mutex
-            .lock()
-            .unwrap()
-            .get_block_number(block_hash)
-            .unwrap();
-
-        if block_number.is_none() {
+        let Ok(Some(block_number)) = self.get_db_lock().get_block_number(block_hash) else {
             return None;
-        }
+        };
 
         #[cfg(debug_assertions)]
         println!("Got block {:?} hash {:?}", block_number, block_hash);
 
-        self.get_block_by_number(block_number.unwrap().to_u64(), is_full)
+        self.get_block_by_number(block_number.to_u64(), is_full)
     }
 
     pub fn get_contract_bytecode(&self, addr: Address) -> Option<Bytes> {
         #[cfg(debug_assertions)]
         println!("Getting contract bytecode for {:?}", addr);
 
-        let mut db = self.db_mutex.lock().unwrap();
-        let acct = db.basic(addr).unwrap();
-        if acct.is_none() {
-            return None;
-        }
-        let bytecode = db.get_code(acct.unwrap().code_hash).unwrap();
+        let mut db = self.get_db_lock();
 
-        bytecode.map(|x| x.0.bytes())
+        let Ok(Some(acct)) = db.basic(addr) else {
+            #[cfg(debug_assertions)]
+            println!("Error while getting account");
+            return None;
+        };
+
+        let Ok(acct) = db.get_code(acct.code_hash) else {
+            #[cfg(debug_assertions)]
+            println!("Error while getting code");
+            return None;
+        };
+
+        return acct.map(|x| x.0.bytes());
     }
 
-    pub fn clear_caches(&self) {
+    pub fn clear_caches(&self) -> Result<(), &'static str> {
         #[cfg(debug_assertions)]
         println!("Clearing caches");
 
-        let mut db = self.db_mutex.lock().unwrap();
-        let mut last_block_info = self.last_block_info.lock().unwrap();
+        let mut db = self.get_db_lock();
+        let mut last_block_info = self.get_last_block_info_lock();
 
-        db.clear_caches();
+        db.clear_caches()
+            .map_err(|_| "Error while clearing caches")?;
+
         *last_block_info = LastBlockInfo::new();
+
+        Ok(())
     }
 
     pub fn commit_to_db(&self) -> Result<(), &'static str> {
@@ -729,8 +747,9 @@ impl ServerInstance {
         println!("Committing to db");
         self.require_no_waiting_txes()?;
 
-        let mut db = self.db_mutex.lock().unwrap();
-        db.commit_changes().unwrap();
+        let mut db = self.get_db_lock();
+        db.commit_changes()
+            .map_err(|_| "Error while committing to db")?;
         Ok(())
     }
 
@@ -754,13 +773,14 @@ impl ServerInstance {
             return Ok(());
         }
 
-        let mut db = self.db_mutex.lock().unwrap();
-        db.reorg(latest_valid_block_number).unwrap();
+        let mut db = self.get_db_lock();
+        db.reorg(latest_valid_block_number)
+            .map_err(|_| "Error during reorg")?;
         Ok(())
     }
 
     fn require_no_waiting_txes(&self) -> Result<(), &'static str> {
-        let last_block_info = self.last_block_info.lock().unwrap();
+        let last_block_info = self.get_last_block_info_lock();
         if last_block_info.waiting_tx_count != 0 {
             return Err("There are waiting txes, either finalise the block or clear caches");
         }
@@ -768,8 +788,10 @@ impl ServerInstance {
     }
 
     fn get_nonce(&self, addr: Address) -> u64 {
-        let mut db = self.db_mutex.lock().unwrap();
-        db.basic(addr).unwrap().map_or(0, |x| x.nonce)
+        let mut db = self.get_db_lock();
+        db.basic(addr)
+            .map(|x| x.map(|x| x.nonce).unwrap_or(0))
+            .unwrap_or(0)
     }
 }
 

@@ -7,7 +7,7 @@ use jsonrpsee::proc_macros::rpc;
 use serde::Deserialize;
 
 use crate::db::types::{BlockResponseED, LogResponse, TxED, TxReceiptED};
-use crate::server::{CHAIN_ID, INDEXER_ADDRESS};
+use crate::server::{CHAIN_ID_STRING, INDEXER_ADDRESS};
 
 #[rpc(server)]
 pub trait Brc20ProgApi {
@@ -223,7 +223,7 @@ pub trait Brc20ProgApi {
     /// Returns the chain id in hex format ("BRC20" in hex)
     #[method(name = "eth_chainId")]
     async fn chain_id(&self) -> RpcResult<String> {
-        Ok(format!("0x{:x}", CHAIN_ID).to_string())
+        Ok(CHAIN_ID_STRING.to_string())
     }
 
     /// Returns max priority fee per gas in hex format (0 in BRC20)

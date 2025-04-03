@@ -12,11 +12,11 @@ use crate::evm::precompiles::{
 };
 
 lazy_static::lazy_static! {
-    static ref BRC20_BALANCE_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000ff".parse().unwrap();
-    static ref BIP322_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fe".parse().unwrap();
-    static ref BTC_TX_DETAILS_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fd".parse().unwrap();
-    static ref LAST_SAT_LOCATION_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fc".parse().unwrap();
-    static ref GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fb".parse().unwrap();
+    static ref BRC20_BALANCE_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000ff".parse().expect("Invalid BRC20 balance precompile address");
+    static ref BIP322_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fe".parse().expect("Invalid BIP322 precompile address");
+    static ref BTC_TX_DETAILS_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fd".parse().expect("Invalid BTC transaction details precompile address");
+    static ref LAST_SAT_LOCATION_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fc".parse().expect("Invalid last sat location precompile address");
+    static ref GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fb".parse().expect("Invalid get locked pk script precompile address");
 }
 
 pub struct BRC20Precompiles {
@@ -80,10 +80,8 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
             println!("BRC20Precompiles handling: {:?}", address);
         }
 
-        let result;
-        if self.eth_precompiles.contains(address) {
-            let cancun_result = self.eth_precompiles.get(address).unwrap()(bytes, gas_limit);
-            match cancun_result {
+        if let Some(cancun_precompile) = self.eth_precompiles.get(address) {
+            match cancun_precompile(bytes, gas_limit) {
                 Ok(output) => {
                     let mut gas = Gas::new(gas_limit);
                     if !gas.record_cost(output.gas_used) {
@@ -102,13 +100,11 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
                 }
                 Err(e) => return Err(e.to_string()),
             }
-        } else if self.custom_precompiles.contains_key(address) {
-            let function = self.custom_precompiles.get(address).unwrap();
-            result = function(bytes, gas_limit);
+        } else if let Some(custom_precompile) = self.custom_precompiles.get(address) {
+            return Ok(Some(custom_precompile(bytes, gas_limit)));
         } else {
             return Ok(None);
         }
-        Ok(Some(result))
     }
 
     fn warm_addresses(&self) -> Box<impl Iterator<Item = Address>> {

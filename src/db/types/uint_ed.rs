@@ -16,14 +16,14 @@ pub type U512ED = UintEncodeDecode<512, 8>;
 pub type U256ED = UintEncodeDecode<256, 4>;
 
 impl U512ED {
-    pub fn from_addr_u256(a: Address, b: U256) -> Self {
+    pub fn from_addr_u256(a: Address, b: U256) -> Result<Self, Box<dyn Error>> {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&a.0.to_vec());
         bytes.extend_from_slice(&[0u8; 12]);
         bytes.extend_from_slice(&b.to_be_bytes::<32>().to_vec());
-        return Self(Uint::from_be_bytes::<64>(
-            bytes.as_slice().try_into().unwrap(),
-        ));
+        return Ok(Self(Uint::from_be_bytes::<64>(
+            bytes.as_slice().try_into()?,
+        )));
     }
 }
 
@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn test_u512_ed_from_addr() {
         let u256 = U256::from(1u64);
-        let u512_ed = U512ED::from_addr_u256([100u8; 20].into(), u256);
+        let u512_ed = U512ED::from_addr_u256([100u8; 20].into(), u256).unwrap();
         let bytes = u512_ed.encode();
         let decoded = U512ED::decode(bytes).unwrap();
         assert_eq!(u512_ed.0, decoded.0);
@@ -142,7 +142,7 @@ mod tests {
             .parse()
             .unwrap();
         let u256 = U256::from(1u64);
-        let u512_ed = U512ED::from_addr_u256(address, u256);
+        let u512_ed = U512ED::from_addr_u256(address, u256).unwrap();
         let bytes = u512_ed.encode();
         let decoded = U512ED::decode(bytes).unwrap();
         assert_eq!(u512_ed.0, decoded.0);

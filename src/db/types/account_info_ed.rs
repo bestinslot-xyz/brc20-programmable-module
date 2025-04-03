@@ -24,11 +24,9 @@ impl Decode for AccountInfoED {
     where
         Self: Sized,
     {
-        let balance = U256::from_be_bytes::<32>(bytes[0..32].try_into().unwrap());
-        let nonce = U64::from_be_bytes::<8>(bytes[32..40].try_into().unwrap())
-            .try_into()
-            .unwrap();
-        let code_hash_u = U256::from_be_bytes::<32>(bytes[40..72].try_into().unwrap());
+        let balance = U256::from_be_bytes::<32>(bytes[0..32].try_into()?);
+        let nonce = U64::from_be_bytes::<8>(bytes[32..40].try_into()?).try_into()?;
+        let code_hash_u = U256::from_be_bytes::<32>(bytes[40..72].try_into()?);
         let code_hash = code_hash_u.into();
         Ok(AccountInfoED(AccountInfo {
             balance,

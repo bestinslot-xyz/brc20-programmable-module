@@ -128,30 +128,30 @@ impl Decode for LogED {
     {
         let mut logs = Vec::new();
         let mut i = 0;
-        let log_index = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
+        let log_index = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
         i += 8;
-        let logs_len = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap()) as usize;
+        let logs_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?) as usize;
         i += 4;
         for _ in 0..logs_len {
             let address = Address::from_slice(&bytes[i..i + 20]);
             i += 20;
 
-            let topics_len = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap());
+            let topics_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?);
             i += 4;
 
             let mut topics = Vec::new();
             for _ in 0..topics_len {
-                let topic = B256ED::decode(bytes[i..i + 32].try_into().unwrap()).unwrap();
+                let topic = B256ED::decode(bytes[i..i + 32].try_into()?)?;
                 topics.push(topic.0);
                 i += 32;
             }
 
-            let data_len = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap()) as usize;
+            let data_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?) as usize;
             i += 4;
 
-            let data = bytes[i..i + data_len].to_vec().try_into().unwrap();
+            let data = bytes[i..i + data_len].to_vec().try_into()?;
             i += data_len;
-            logs.push(Log::new(address, topics, data).unwrap());
+            logs.push(Log::new_unchecked(address, topics, data));
         }
         Ok(LogED { logs, log_index })
     }

@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use revm::context::result::ExecutionResult;
 use revm::primitives::alloy_primitives::logs_bloom;
 use revm::primitives::{hex, Address, Bytes, B256};
@@ -52,10 +54,10 @@ fn bytes<S>(bytes: &Option<Bytes>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
-    if bytes.is_none() {
-        return serializer.serialize_str("");
+    match bytes {
+        Some(bytes) => serializer.serialize_str(&format!("0x{}", hex::encode(bytes))),
+        None => serializer.serialize_str("0x"),
     }
-    serializer.serialize_str(&format!("0x{}", hex::encode(bytes.as_ref().unwrap())))
 }
 
 fn one_or_zero<S>(status: &u8, serializer: S) -> Result<S::Ok, S::Error>
@@ -86,13 +88,13 @@ impl TxReceiptED {
         r#type: String,
         reason: String,
         output_bytes: Option<&Bytes>,
-    ) -> Self {
+    ) -> Result<Self, Box<dyn Error>> {
         let logs = LogED {
             logs: output.logs().to_vec(),
             log_index: start_log_index,
         };
-        let logs_bloom = B2048ED::decode(logs_bloom(output.logs()).to_vec()).unwrap();
-        TxReceiptED {
+        let logs_bloom = B2048ED::decode(logs_bloom(output.logs()).to_vec())?;
+        Ok(TxReceiptED {
             status: output.is_success() as u8,
             transaction_result: r#type,
             reason,
@@ -119,7 +121,7 @@ impl TxReceiptED {
             result_bytes: output_bytes.cloned(),
             effective_gas_price: 0,
             transaction_type: 0,
-        }
+        })
     }
 }
 
@@ -187,23 +189,23 @@ impl Decode for TxReceiptED {
         let status = bytes[0];
         let mut i = 1;
 
-        let r#type_len = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap()) as usize;
+        let r#type_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?) as usize;
         i += 4;
         let r#type = String::from_utf8(bytes[i..i + r#type_len].to_vec())?;
         i += r#type_len;
 
-        let reason_len = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap()) as usize;
+        let reason_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?) as usize;
         i += 4;
         let reason = String::from_utf8(bytes[i..i + reason_len].to_vec())?;
         i += reason_len;
 
-        let logs_len = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap()) as usize;
+        let logs_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?) as usize;
         i += 4;
 
         let logs = LogED::decode(bytes[i..i + logs_len].to_vec())?;
         i += logs_len;
 
-        let gas_used = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
+        let gas_used = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
         i += 8;
         let from = AddressED::decode(bytes[i..i + 20].to_vec())?;
         i += 20;
@@ -215,19 +217,19 @@ impl Decode for TxReceiptED {
         i += 256;
         let block_hash = B256ED::decode(bytes[i..i + 32].to_vec())?;
         i += 32;
-        let block_number = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
+        let block_number = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
         i += 8;
-        let block_timestamp = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
+        let block_timestamp = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
         i += 8;
         let transaction_hash = B256ED::decode(bytes[i..i + 32].to_vec())?;
         i += 32;
-        let transaction_index = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
+        let transaction_index = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
         i += 8;
-        let cumulative_gas_used = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
+        let cumulative_gas_used = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
         i += 8;
-        let nonce = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
+        let nonce = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
         i += 8;
-        let output_bytes_len = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap()) as usize;
+        let output_bytes_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?) as usize;
         i += 4;
         let result_bytes = if output_bytes_len == 0 {
             None

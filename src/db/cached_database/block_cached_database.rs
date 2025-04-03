@@ -1,8 +1,9 @@
 use std::collections::{HashMap, HashSet};
+use std::error::Error;
 use std::hash::Hash;
 use std::path::Path;
 
-use rocksdb::{Error, IteratorMode, Options, DB};
+use rocksdb::{IteratorMode, Options, DB};
 
 use crate::db::cached_database::BlockHistoryCache;
 use crate::db::types::{Decode, Encode};
@@ -43,19 +44,19 @@ where
     /// name: &str - the name of the database
     ///
     /// Returns: BlockCachedDatabase<K, V, C> - the created BlockCachedDatabase
-    pub fn new(path: &Path, name: &str) -> Self {
+    pub fn new(path: &Path, name: &str) -> Result<Self, Box<dyn Error>> {
         let mut opts = Options::default();
         opts.create_if_missing(true);
         opts.set_max_open_files(256);
-        let db = DB::open(&opts, &path.join(Path::new(name))).unwrap();
-        let cache_db = DB::open(&opts, &path.join(Path::new(&format!("{}_cache", name)))).unwrap();
+        let db = DB::open(&opts, &path.join(Path::new(name)))?;
+        let cache_db = DB::open(&opts, &path.join(Path::new(&format!("{}_cache", name))))?;
         let cache = HashMap::new();
-        Self {
+        Ok(Self {
             db,
             cache_db,
             cache,
             _phantom: std::marker::PhantomData,
-        }
+        })
     }
 
     /// Get the value for a key
@@ -66,17 +67,15 @@ where
     ///
     /// key: &K - the key to get the value for
     /// Returns: Option<V> - the value for the key
-    pub fn latest(&self, key: &K) -> Result<Option<V>, Error> {
-        if self.cache.contains_key(key) {
-            let cache = self.cache.get(key).unwrap();
+    pub fn latest(&self, key: &K) -> Result<Option<V>, Box<dyn Error>> {
+        if let Some(cache) = self.cache.get(key) {
             return Ok(cache.latest());
         }
-        let result = self.db.get(key.encode())?;
-        if result.is_none() {
-            return Ok(None);
+        if let Some(value) = self.db.get(key.encode())? {
+            let value = V::decode(value.to_vec())?;
+            return Ok(Some(value));
         }
-        let value = V::decode(result.unwrap().to_vec()).unwrap();
-        Ok(Some(value))
+        return Ok(None);
     }
 
     /// Get the range of values between start_key and end_key
@@ -88,7 +87,7 @@ where
     /// start_key: &K - the start key
     /// end_key: &K - the end key, exclusive
     /// Returns: Vec<(K, V)> - the list of key-value pairs
-    pub fn get_range(&self, start_key: &K, end_key: &K) -> Result<Vec<(K, V)>, Error> {
+    pub fn get_range(&self, start_key: &K, end_key: &K) -> Result<Vec<(K, V)>, Box<dyn Error>> {
         let mut result = Vec::new();
         let start_key_bytes = start_key.encode();
         let end_key_bytes = end_key.encode();
@@ -101,11 +100,11 @@ where
             if *key_bytes >= *end_key_bytes {
                 break;
             }
-            let cache = self.cache.get(key).unwrap();
-            if cache.latest().is_none() {
-                continue;
+            if let Some(cache) = self.cache.get(key) {
+                if let Some(value) = cache.latest() {
+                    result.push((key.clone(), value.clone()));
+                }
             }
-            result.push((key.clone(), cache.latest().unwrap()));
         }
 
         for kv_pair in self.db.iterator(IteratorMode::From(
@@ -116,8 +115,8 @@ where
             if *key >= *end_key_bytes {
                 break;
             }
-            let key = K::decode(key.to_vec()).unwrap();
-            let value = V::decode(value.to_vec()).unwrap();
+            let key = K::decode(key.to_vec())?;
+            let value = V::decode(value.to_vec())?;
             result.push((key, value));
         }
 
@@ -131,15 +130,9 @@ where
     /// block_number: U256 - the block number to set the value for
     /// key: K - the key to set the value for
     /// value: V - the value to set
-    pub fn set(&mut self, block_number: u64, key: K, value: V) -> Result<(), Error> {
-        if self.cache.contains_key(&key) {
-            let cache = self.cache.get_mut(&key).unwrap();
-            cache.set(block_number, value);
-        } else {
-            self.load_cache_if_needed(&key)?;
-            let cache = self.cache.get_mut(&key).unwrap();
-            cache.set(block_number, value);
-        }
+    pub fn set(&mut self, block_number: u64, key: K, value: V) -> Result<(), Box<dyn Error>> {
+        let cache = self.retrieve_cache(&key)?;
+        cache.set(block_number, value);
         Ok(())
     }
 
@@ -149,7 +142,7 @@ where
     /// It does not clear the cache
     ///
     /// block_number: U256 - the block number to commit at
-    pub fn commit(&mut self, block_number: u64) -> Result<(), Error> {
+    pub fn commit(&mut self, block_number: u64) -> Result<(), Box<dyn Error>> {
         for (key, cache) in self.cache.iter() {
             let key_bytes = key.encode();
             let cache_bytes = cache.encode();
@@ -159,10 +152,10 @@ where
                 self.cache_db.put(&key_bytes, &cache_bytes)?;
             }
 
-            if cache.latest().is_none() {
-                self.db.delete(&key_bytes)?;
+            if let Some(value) = cache.latest() {
+                self.db.put(&key_bytes, &value.encode())?;
             } else {
-                self.db.put(&key_bytes, &cache.latest().unwrap().encode())?;
+                self.db.delete(&key_bytes)?;
             }
         }
 
@@ -186,19 +179,18 @@ where
     /// It does not clear the cache
     ///
     /// latest_valid_block_number: U256 - the latest valid block number
-    pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Error> {
+    pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
         let mut keys = HashSet::new();
         {
             for kv_pair in self.cache_db.full_iterator(IteratorMode::Start) {
-                keys.insert(K::decode(kv_pair.unwrap().0.to_vec()).unwrap());
+                keys.insert(K::decode(kv_pair?.0.to_vec())?);
             }
             for key in self.cache.keys() {
                 keys.insert(key.clone());
             }
         }
         for key in keys {
-            self.load_cache_if_needed(&key)?;
-            let cache = self.cache.get_mut(&key).unwrap();
+            let cache = self.retrieve_cache(&key)?;
             cache.reorg(latest_valid_block_number);
         }
         self.commit(latest_valid_block_number)?;
@@ -214,19 +206,16 @@ where
         self.cache.clear();
     }
 
-    fn load_cache_if_needed(&mut self, key: &K) -> Result<(), Error> {
+    fn retrieve_cache(&mut self, key: &K) -> Result<&mut C, Box<dyn Error>> {
         if self.cache.contains_key(key) {
-            return Ok(());
-        }
-
-        let cache_bytes = self.cache_db.get(key.encode())?;
-        if cache_bytes.is_none() {
+            // Do nothing, the cache is already in memory
+        } else if let Some(cache_bytes) = self.cache_db.get(key.encode())? {
+            let cache = C::decode(cache_bytes.to_vec())?;
+            self.cache.insert(key.clone(), cache);
+        } else {
             self.cache.insert(key.clone(), C::new(None));
-            return Ok(());
         }
-        let cache = C::decode(cache_bytes.unwrap().to_vec()).unwrap();
-        self.cache.insert(key.clone(), cache);
-        Ok(())
+        Ok(self.cache.get_mut(key).ok_or("Cache not found")?)
     }
 }
 
@@ -248,7 +237,8 @@ mod tests {
             AddressED,
             AccountInfoED,
             BlockHistoryCacheData<AccountInfoED>,
-        >::new(path.path(), "test_db");
+        >::new(path.path(), "test_db")
+        .unwrap();
 
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
@@ -281,7 +271,8 @@ mod tests {
             AddressED,
             AccountInfoED,
             BlockHistoryCacheData<AccountInfoED>,
-        >::new(path.path(), "test_db");
+        >::new(path.path(), "test_db")
+        .unwrap();
 
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
@@ -329,7 +320,8 @@ mod tests {
             AddressED,
             AccountInfoED,
             BlockHistoryCacheData<AccountInfoED>,
-        >::new(path.path(), "test_db");
+        >::new(path.path(), "test_db")
+        .unwrap();
 
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
@@ -363,7 +355,8 @@ mod tests {
             AddressED,
             AccountInfoED,
             BlockHistoryCacheData<AccountInfoED>,
-        >::new(path.path(), "test_db");
+        >::new(path.path(), "test_db")
+        .unwrap();
 
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
