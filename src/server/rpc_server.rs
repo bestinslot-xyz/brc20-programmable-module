@@ -384,15 +384,17 @@ impl Brc20ProgApiServer for RpcServer {
     #[instrument(skip(self))]
     async fn call(&self, call: EthCall, _: Option<String>) -> RpcResult<String> {
         event!(Level::INFO, "Calling contract");
-        let data = call.data.map(|x| x.value().clone()).unwrap_or(
-            call.input
-                .map(|x| x.value().clone())
-                .unwrap_or(Bytes::new()),
-        );
+        let Some(data) = call.data_or_input() else {
+            return Err(RpcServerError::new("No data or input provided").into());
+        };
         let receipt = self.server_instance.call_contract(&TxInfo {
-            from: call.from.map(|x| x.value()).unwrap_or(Address::ZERO),
-            to: call.to.map(|x| x.value()),
-            data: data,
+            from: call
+                .from
+                .as_ref()
+                .map(|x| x.value())
+                .unwrap_or(Address::ZERO),
+            to: call.to.as_ref().map(|x| x.value()),
+            data: data.value().clone(),
         });
         let Ok(receipt) = receipt else {
             return Err(RpcServerError::new("Call failed").into());
@@ -407,15 +409,17 @@ impl Brc20ProgApiServer for RpcServer {
     #[instrument(skip(self))]
     async fn estimate_gas(&self, call: EthCall, _: Option<String>) -> RpcResult<String> {
         event!(Level::INFO, "Estimating gas");
-        let data = call.data.map(|x| x.value().clone()).unwrap_or(
-            call.input
-                .map(|x| x.value().clone())
-                .unwrap_or(Bytes::new()),
-        );
+        let Some(data) = call.data_or_input() else {
+            return Err(RpcServerError::new("No data or input provided").into());
+        };
         let receipt = self.server_instance.call_contract(&TxInfo {
-            from: call.from.map(|x| x.value()).unwrap_or(Address::ZERO),
-            to: call.to.map(|x| x.value()),
-            data: data,
+            from: call
+                .from
+                .as_ref()
+                .map(|x| x.value())
+                .unwrap_or(Address::ZERO),
+            to: call.to.as_ref().map(|x| x.value()),
+            data: data.value().clone(),
         });
         let Ok(receipt) = receipt else {
             return Err(RpcServerError::new("Call failed").into());
