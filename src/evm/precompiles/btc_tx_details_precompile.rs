@@ -5,7 +5,7 @@ use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
 
 use crate::evm::precompiles::btc_utils::{get_block_info, get_raw_transaction};
-use crate::evm::precompiles::{precompile_error, precompile_output, use_gas};
+use crate::evm::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 
 static GAS_PER_RPC_CALL: u64 = 100000;
 
@@ -21,15 +21,18 @@ sol! {
     function getTxDetails(bytes32) returns (uint256 block_height, bytes32[] vin_txids, uint256[] vin_vouts , bytes[] vin_scriptPubKeys, uint256[] vin_values, bytes[] vout_scriptPubKeys, uint256[] vout_values);
 }
 
-pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
-    let mut interpreter_result =
-        InterpreterResult::new(InstructionResult::Stop, Bytes::new(), Gas::new(gas_limit));
+pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
+    let mut interpreter_result = InterpreterResult::new(
+        InstructionResult::Stop,
+        Bytes::new(),
+        Gas::new(call.gas_limit),
+    );
 
     if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
         return interpreter_result;
     }
 
-    let Ok(txid) = getTxDetailsCall::abi_decode(&bytes, false) else {
+    let Ok(txid) = getTxDetailsCall::abi_decode(&call.bytes, false) else {
         return precompile_error(interpreter_result);
     };
 
@@ -54,6 +57,11 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
         // Failed to get block height
         return precompile_error(interpreter_result);
     };
+
+    if block_info.height > call.block_height as usize {
+        // Transaction is in the future, ignore it
+        return precompile_error(interpreter_result);
+    }
 
     let mut vin_txids = Vec::new();
     let mut vin_vouts = Vec::new();
@@ -155,8 +163,13 @@ mod tests {
             "d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd",
         )
         .unwrap();
-        let response =
-            btc_tx_details_precompile(&getTxDetailsCall::new((txid,)).abi_encode().into(), 1000000);
+        let response = btc_tx_details_precompile(&PrecompileCall {
+            bytes: getTxDetailsCall::new((txid,)).abi_encode().into(),
+            gas_limit: 1000000,
+            block_height: 240961,
+        });
+
+        assert!(response.is_ok());
 
         let returns = getTxDetailsCall::abi_decode_returns(&response.output, false).unwrap();
 
@@ -186,5 +199,25 @@ mod tests {
         );
         assert_eq!(returns.vout_values.len(), 1);
         assert_eq!(returns.vout_values[0], U256::from(9658000u64));
+    }
+
+    #[test]
+    fn test_get_tx_details_signet_future_transaction() {
+        if skip_btc_tests() {
+            return;
+        }
+
+        // https://mempool.space/signet/tx/d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd
+        let txid = FixedBytes::from_hex(
+            "d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd",
+        )
+        .unwrap();
+        let response = btc_tx_details_precompile(&PrecompileCall {
+            bytes: getTxDetailsCall::new((txid,)).abi_encode().into(),
+            gas_limit: 1000000,
+            block_height: 240959,
+        });
+
+        assert!(response.is_error());
     }
 }

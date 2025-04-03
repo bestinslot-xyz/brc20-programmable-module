@@ -7,21 +7,26 @@ use bitcoin::{opcodes, secp256k1, ScriptBuf};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
 
-use crate::evm::precompiles::{precompile_error, precompile_output, use_gas, BITCOIN_NETWORK};
+use crate::evm::precompiles::{
+    precompile_error, precompile_output, use_gas, PrecompileCall, BITCOIN_NETWORK,
+};
 
 sol! {
     function getLockedPkscript(bytes pkscript, uint256 lock_block_count) returns (bytes locked_pkscript);
 }
 
-pub fn get_locked_pkscript_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
-    let mut interpreter_result =
-        InterpreterResult::new(InstructionResult::Stop, Bytes::new(), Gas::new(gas_limit));
+pub fn get_locked_pkscript_precompile(call: &PrecompileCall) -> InterpreterResult {
+    let mut interpreter_result = InterpreterResult::new(
+        InstructionResult::Stop,
+        Bytes::new(),
+        Gas::new(call.gas_limit),
+    );
 
     if !use_gas(&mut interpreter_result, 20000) {
         return interpreter_result;
     }
 
-    let Ok(returns) = getLockedPkscriptCall::abi_decode(&bytes, false) else {
+    let Ok(returns) = getLockedPkscriptCall::abi_decode(&call.bytes, false) else {
         // Invalid input
         return precompile_error(interpreter_result);
     };
@@ -143,7 +148,11 @@ mod tests {
             U256::from(6u8),
         ))
         .abi_encode();
-        let result = get_locked_pkscript_precompile(&bytes.into(), 100000);
+        let result = get_locked_pkscript_precompile(&PrecompileCall {
+            bytes: bytes.into(),
+            gas_limit: 100000,
+            block_height: 0,
+        });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
         assert_eq!(
             hex::encode(result.locked_pkscript),
@@ -160,7 +169,11 @@ mod tests {
             U256::from(52560u32),
         ))
         .abi_encode();
-        let result = get_locked_pkscript_precompile(&bytes.into(), 100000);
+        let result = get_locked_pkscript_precompile(&PrecompileCall {
+            bytes: bytes.into(),
+            gas_limit: 100000,
+            block_height: 0,
+        });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
         assert_eq!(
             hex::encode(result.locked_pkscript),
@@ -177,7 +190,11 @@ mod tests {
             U256::from(65535u32),
         ))
         .abi_encode();
-        let result = get_locked_pkscript_precompile(&bytes.into(), 100000);
+        let result = get_locked_pkscript_precompile(&PrecompileCall {
+            bytes: bytes.into(),
+            gas_limit: 100000,
+            block_height: 0,
+        });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
         assert_eq!(
             hex::encode(result.locked_pkscript),
@@ -194,7 +211,11 @@ mod tests {
             U256::from(0u32),
         ))
         .abi_encode();
-        let result = get_locked_pkscript_precompile(&bytes.into(), 100000);
+        let result = get_locked_pkscript_precompile(&PrecompileCall {
+            bytes: bytes.into(),
+            gas_limit: 100000,
+            block_height: 0,
+        });
         assert!(result.is_error());
     }
 
@@ -207,7 +228,11 @@ mod tests {
             U256::from(65536u32),
         ))
         .abi_encode();
-        let result = get_locked_pkscript_precompile(&bytes.into(), 100000);
+        let result = get_locked_pkscript_precompile(&PrecompileCall {
+            bytes: bytes.into(),
+            gas_limit: 100000,
+            block_height: 0,
+        });
         assert!(result.is_error());
     }
 }

@@ -5,7 +5,7 @@ use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
 
 use crate::evm::precompiles::btc_utils::get_raw_transaction;
-use crate::evm::precompiles::{precompile_error, precompile_output, use_gas};
+use crate::evm::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 
 static GAS_PER_RPC_CALL: u64 = 100000;
 
@@ -21,11 +21,14 @@ sol! {
     function getLastSatLocation(bytes32 txid, uint256 vout, uint256 sat) returns (bytes32 last_txid, uint256 last_vout, uint256 last_sat, bytes old_pkscript, bytes new_pkscript);
 }
 
-pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
-    let mut interpreter_result =
-        InterpreterResult::new(InstructionResult::Stop, Bytes::new(), Gas::new(gas_limit));
+pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult {
+    let mut interpreter_result = InterpreterResult::new(
+        InstructionResult::Stop,
+        Bytes::new(),
+        Gas::new(call.gas_limit),
+    );
 
-    let Ok(result) = getLastSatLocationCall::abi_decode(&bytes, false) else {
+    let Ok(result) = getLastSatLocationCall::abi_decode(&call.bytes, false) else {
         return precompile_error(interpreter_result);
     };
 
@@ -185,7 +188,11 @@ mod tests {
         );
 
         // Consider mocking the RPC call to bitcoind
-        let result = last_sat_location_precompile(&data.into(), 1000000);
+        let result = last_sat_location_precompile(&PrecompileCall {
+            bytes: data.into(),
+            gas_limit: 1000000,
+            block_height: 0,
+        });
         let result = result;
         let returns = getLastSatLocationCall::abi_decode_returns(&result.output, false).unwrap();
 
@@ -232,7 +239,11 @@ mod tests {
         let data = getLastSatLocationCall::new((txid, vout, sat)).abi_encode();
 
         // Consider mocking the RPC call to bitcoind
-        let result = last_sat_location_precompile(&data.into(), 10000000);
+        let result = last_sat_location_precompile(&PrecompileCall {
+            bytes: data.into(),
+            gas_limit: 1000000,
+            block_height: 0,
+        });
         let result = result;
         let returns = getLastSatLocationCall::abi_decode_returns(&result.output, false).unwrap();
 
@@ -282,7 +293,11 @@ mod tests {
         let data = getLastSatLocationCall::new((txid, vout, sat)).abi_encode();
 
         // Consider mocking the RPC call to bitcoind
-        let result = last_sat_location_precompile(&data.into(), 1000000);
+        let result = last_sat_location_precompile(&PrecompileCall {
+            bytes: data.into(),
+            gas_limit: 1000000,
+            block_height: 0,
+        });
 
         assert!(result.is_error());
     }

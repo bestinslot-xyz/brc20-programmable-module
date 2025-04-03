@@ -5,21 +5,26 @@ use bitcoin::Witness;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
 
-use crate::evm::precompiles::{precompile_error, precompile_output, use_gas, BITCOIN_NETWORK};
+use crate::evm::precompiles::{
+    precompile_error, precompile_output, use_gas, PrecompileCall, BITCOIN_NETWORK,
+};
 
 sol! {
     function verify(bytes pkscript, bytes message, bytes signature) returns (bool success);
 }
 
-pub fn bip322_verify_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterResult {
-    let mut interpreter_result =
-        InterpreterResult::new(InstructionResult::Stop, Bytes::new(), Gas::new(gas_limit));
+pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
+    let mut interpreter_result = InterpreterResult::new(
+        InstructionResult::Stop,
+        Bytes::new(),
+        Gas::new(call.gas_limit),
+    );
 
     if !use_gas(&mut interpreter_result, 100000) {
         return interpreter_result;
     }
 
-    let result = verifyCall::abi_decode(&bytes, false);
+    let result = verifyCall::abi_decode(&call.bytes, false);
 
     let Ok(result) = result else {
         return precompile_error(interpreter_result);
@@ -87,7 +92,11 @@ mod tests {
         ))
         .abi_encode();
 
-        let result = bip322_verify_precompile(&Bytes::from_iter(bytes.iter()), 1000000);
+        let result = bip322_verify_precompile(&PrecompileCall {
+            bytes: Bytes::from_iter(bytes.iter()),
+            gas_limit: 1000000,
+            block_height: 0,
+        });
 
         assert!(result.is_ok());
 
