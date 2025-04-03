@@ -28,13 +28,13 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
         Gas::new(call.gas_limit),
     );
 
-    let Ok(result) = getLastSatLocationCall::abi_decode(&call.bytes, false) else {
+    let Ok(inputs) = getLastSatLocationCall::abi_decode(&call.bytes, false) else {
         return precompile_error(interpreter_result);
     };
 
-    let txid = result.txid;
-    let vout = result.vout.as_limbs()[0] as usize;
-    let sat = result.sat.as_limbs()[0];
+    let txid = inputs.txid;
+    let vout = inputs.vout.as_limbs()[0] as usize;
+    let sat = inputs.sat.as_limbs()[0];
 
     if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
         return interpreter_result;

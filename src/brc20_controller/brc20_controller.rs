@@ -49,8 +49,8 @@ pub fn decode_brc20_balance_result(data: Option<&Bytes>) -> U256 {
     let Some(data) = data else {
         return U256::ZERO;
     };
-    let result = balanceOfCall::abi_decode_returns(data, false);
-    return result.ok().map(|v| v._0).unwrap_or(U256::ZERO);
+    let returns = balanceOfCall::abi_decode_returns(data, false);
+    return returns.ok().map(|v| v._0).unwrap_or(U256::ZERO);
 }
 
 pub fn load_brc20_deploy_tx() -> TxInfo {

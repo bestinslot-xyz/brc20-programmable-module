@@ -108,6 +108,7 @@ impl ServerInstance {
         let brc20_controller_contract = result
             .contract_address
             .ok_or("Failed to deploy BRC20_Controller")?;
+
         verify_brc20_contract_address(&brc20_controller_contract.0.to_string())
             .map_err(|_| "Invalid BRC20_Controller contract address")?;
 
