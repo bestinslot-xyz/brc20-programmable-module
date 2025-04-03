@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .finish(),
     )?;
 
-    let instance = ServerInstance::new(DB::new(&Path::new("target").join("db")).unwrap());
+    let instance = ServerInstance::new(DB::new(&Path::new("target").join("db"))?);
     println!("--- Database ---");
     println!(
         "Latest block number: {}",

@@ -1,6 +1,6 @@
-use alloy_primitives::hex::FromHex;
 use alloy_primitives::{FixedBytes, U256};
 use alloy_sol_types::{sol, SolCall};
+use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
 
@@ -25,14 +25,9 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
     let mut interpreter_result =
         InterpreterResult::new(InstructionResult::Stop, Bytes::new(), Gas::new(gas_limit));
 
-    let result = getLastSatLocationCall::abi_decode(&bytes, false);
-
-    if result.is_err() {
-        // Invalid params
+    let Ok(result) = getLastSatLocationCall::abi_decode(&bytes, false) else {
         return precompile_error(interpreter_result);
-    }
-
-    let result = result.unwrap();
+    };
 
     let txid = result.txid;
     let vout = result.vout.as_limbs()[0] as usize;
@@ -42,50 +37,59 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
         return interpreter_result;
     }
 
-    let response = get_raw_transaction(&hex::encode(txid));
+    let Ok(raw_tx_info) = get_raw_transaction(&txid) else {
+        tracing::warn!("Failed to get transaction details");
+        return precompile_error(interpreter_result);
+    };
 
-    if response["error"].is_object() || response["result"].is_null() {
-        // Transaction not found
-        tracing::warn!("Transaction not found");
+    if let Some(vin) = raw_tx_info.vin.get(0) {
+        if vin.coinbase.is_some() {
+            // Transaction is a coinbase transaction
+            tracing::warn!("Coinbase transactions are not supported");
+            return precompile_error(interpreter_result);
+        }
+    } else {
+        // No vin found
+        tracing::warn!("No vin found");
         return precompile_error(interpreter_result);
     }
 
-    let response = response["result"].clone();
-
-    if response["vin"][0]["coinbase"].is_string() {
-        // Coinbase transactions are not supported
-        tracing::warn!("Coinbase transactions are not supported");
-        return precompile_error(interpreter_result);
-    }
-
-    if response["vout"].as_array().unwrap().len() <= vout {
+    if raw_tx_info.vout.len() < vout {
         // Vout index out of bounds
         tracing::warn!(
             "Vout index out of bounds, vout: {}, vout_len: {}",
             vout,
-            response["vout"].as_array().unwrap().len()
+            raw_tx_info.vout.len()
         );
         return precompile_error(interpreter_result);
     }
 
-    if to_sats(response["vout"][vout]["value"].as_f64().unwrap()) < sat {
-        // Sat value out of bounds
-        tracing::warn!("Sat value out of bounds");
+    if let Some(value) = raw_tx_info.vout.get(vout) {
+        if value.value.to_sat() < sat {
+            // Sat value out of bounds
+            tracing::warn!("Sat value out of bounds");
+            return precompile_error(interpreter_result);
+        }
+    } else {
+        // Invalid response
+        tracing::warn!("Invalid response");
         return precompile_error(interpreter_result);
     }
 
-    let new_pkscript = response["vout"][vout]["scriptPubKey"]["hex"]
-        .as_str()
-        .unwrap();
+    let Some(new_pkscript) = raw_tx_info
+        .vout
+        .get(vout)
+        .map(|x| Bytes::from(x.script_pub_key.hex.clone()))
+    else {
+        // Invalid response
+        tracing::warn!("Invalid response");
+        return precompile_error(interpreter_result);
+    };
 
     let mut total_vout_sat_count = 0;
     let mut current_vout_index = 0;
     while current_vout_index < vout {
-        let value = to_sats(
-            response["vout"][current_vout_index]["value"]
-                .as_f64()
-                .unwrap(),
-        );
+        let value = raw_tx_info.vout[current_vout_index].value.to_sat();
         total_vout_sat_count += value;
         current_vout_index += 1;
     }
@@ -93,36 +97,43 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
 
     let mut total_vin_sat_count = 0;
     let mut current_vin_index = 0;
-    let mut current_vin_txid;
-    let mut current_vin_vout;
-    let mut current_vin_script_pub_key_hex;
+    let mut result_vin_txid: FixedBytes<32>;
+    let mut result_vin_vout: u32;
+    let mut old_pkscript;
     let mut current_vin_value;
-    let vin_count = response["vin"].as_array().unwrap().len();
+    let vin_count = raw_tx_info.vin.len();
     loop {
-        current_vin_txid = response["vin"][current_vin_index]["txid"]
-            .as_str()
-            .unwrap()
-            .to_string();
-        current_vin_vout = response["vin"][current_vin_index]["vout"].as_u64().unwrap() as usize;
+        let Some(current_vin_txid) = raw_tx_info.vin[current_vin_index].txid else {
+            // Failed to get vin txid
+            return precompile_error(interpreter_result);
+        };
+        let Some(current_vin_vout) = raw_tx_info.vin[current_vin_index].vout else {
+            // Failed to get vin vout
+            return precompile_error(interpreter_result);
+        };
+
         if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
             return interpreter_result;
         }
-        let vin_response = get_raw_transaction(&current_vin_txid);
-        if vin_response["error"].is_object() || vin_response["result"].is_null() {
-            // Transaction not found
+
+        result_vin_txid =
+            FixedBytes::<32>::from_slice(current_vin_txid.as_raw_hash().as_byte_array());
+        result_vin_txid.reverse();
+
+        result_vin_vout = current_vin_vout;
+
+        let Ok(vin_response) = get_raw_transaction(&result_vin_txid) else {
+            // Failed to get vin transaction details
+            tracing::warn!("Failed to get vin transaction details");
             return precompile_error(interpreter_result);
-        }
-        let vin_response = vin_response["result"].clone();
-        current_vin_script_pub_key_hex = vin_response["vout"][current_vin_vout]["scriptPubKey"]
-            ["hex"]
-            .as_str()
-            .unwrap()
-            .to_string();
-        current_vin_value = to_sats(
-            vin_response["vout"][current_vin_vout]["value"]
-                .as_f64()
-                .unwrap(),
-        );
+        };
+        let Some(current_vin) = vin_response.vout.get(current_vin_vout as usize) else {
+            // Failed to get vin vout
+            tracing::warn!("Failed to get vin vout");
+            return precompile_error(interpreter_result);
+        };
+        current_vin_value = current_vin.value.to_sat();
+        old_pkscript = Bytes::from(current_vin.script_pub_key.hex.clone());
 
         total_vin_sat_count += current_vin_value;
         current_vin_index += 1;
@@ -137,22 +148,20 @@ pub fn last_sat_location_precompile(bytes: &Bytes, gas_limit: u64) -> Interprete
     }
 
     let bytes = getLastSatLocationCall::abi_encode_returns(&(
-        FixedBytes::from_hex(current_vin_txid).unwrap(),
-        U256::from(current_vin_vout as u64),
+        result_vin_txid,
+        U256::from(result_vin_vout as u64),
         U256::from(total_vout_sat_count - (total_vin_sat_count - current_vin_value)),
-        Bytes::from_hex(current_vin_script_pub_key_hex).unwrap(),
-        Bytes::from_hex(new_pkscript).unwrap(),
+        old_pkscript,
+        new_pkscript,
     ));
 
     return precompile_output(interpreter_result, bytes);
 }
 
-fn to_sats(btc_value: f64) -> u64 {
-    (btc_value * 1e8) as u64
-}
-
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::hex::FromHex;
+
     use super::*;
     use crate::evm::precompiles::btc_utils::skip_btc_tests;
 

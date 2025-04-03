@@ -6,8 +6,10 @@ use rust_embed::Embed;
 use crate::server::types::TxInfo;
 use crate::server::INDEXER_ADDRESS;
 
-static BRC20_CONTROLLER_PATH: &str = "BRC20_Controller";
-static BRC20_CONTROLLER_ADDRESS: &str = "0xc54dd4581af2dbf18e4d90840226756e9d2b3cdb";
+lazy_static::lazy_static! {
+    pub static ref BRC20_CONTROLLER_PATH: String = "BRC20_Controller".to_string();
+    pub static ref BRC20_CONTROLLER_ADDRESS: Option<Address> = "0xc54dd4581af2dbf18e4d90840226756e9d2b3cdb".parse().ok();
+}
 
 #[derive(Embed)]
 #[folder = "src/brc20_controller/contract/"]
@@ -21,57 +23,57 @@ sol! {
 
 pub fn load_brc20_mint_tx(ticker: Bytes, address: Address, amount: U256) -> TxInfo {
     TxInfo {
-        from: INDEXER_ADDRESS.parse().unwrap(),
-        to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: mintCall::new((ticker, address, amount))
-            .abi_encode()
-            .into(),
+        from: *INDEXER_ADDRESS,
+        to: *BRC20_CONTROLLER_ADDRESS,
+        data: mintCall::new((ticker, address, amount)).abi_encode().into(),
     }
 }
 
 pub fn load_brc20_burn_tx(ticker: Bytes, address: Address, amount: U256) -> TxInfo {
     TxInfo {
-        from: INDEXER_ADDRESS.parse().unwrap(),
-        to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: burnCall::new((ticker, address, amount))
-            .abi_encode()
-            .into(),
+        from: *INDEXER_ADDRESS,
+        to: *BRC20_CONTROLLER_ADDRESS,
+        data: burnCall::new((ticker, address, amount)).abi_encode().into(),
     }
 }
 
 pub fn load_brc20_balance_tx(ticker: Bytes, address: Address) -> TxInfo {
     TxInfo {
-        from: INDEXER_ADDRESS.parse().unwrap(),
-        to: BRC20_CONTROLLER_ADDRESS.parse().ok(),
-        data: balanceOfCall::new((ticker, address))
-            .abi_encode()
-            .into(),
+        from: *INDEXER_ADDRESS,
+        to: *BRC20_CONTROLLER_ADDRESS,
+        data: balanceOfCall::new((ticker, address)).abi_encode().into(),
     }
 }
 
 pub fn decode_brc20_balance_result(data: Option<&Bytes>) -> U256 {
-    if data.is_none() {
-        return U256::ZERO;
+    match data {
+        Some(data) => {
+            let result = balanceOfCall::abi_decode_returns(data, false);
+            return result.ok().map(|v| v._0).unwrap_or(U256::ZERO);
+        }
+        _ => return U256::ZERO,
     }
-    let result = balanceOfCall::abi_decode_returns(data.unwrap(), false);
-    if result.is_err() {
-        return U256::ZERO;
-    }
-    result.unwrap()._0
 }
 
 pub fn load_brc20_deploy_tx() -> TxInfo {
-    let file_content = ContractAssets::get(&format!("{}.bin", BRC20_CONTROLLER_PATH));
-    let file_content = file_content.unwrap();
-    let data = String::from_utf8(file_content.data.to_vec()).unwrap();
+    let file_content = ContractAssets::get(&format!("{}.bin", *BRC20_CONTROLLER_PATH))
+        .expect("Failed to load contract binary");
+    let data = String::from_utf8(file_content.data.to_vec())
+        .expect("Failed to convert binary data to string");
 
     TxInfo {
-        from: INDEXER_ADDRESS.parse().unwrap(),
+        from: *INDEXER_ADDRESS,
         to: None,
-        data: hex::decode(data).unwrap().into(),
+        data: hex::decode(data)
+            .expect("Failed to decode hex string")
+            .into(),
     }
 }
 
-pub fn verify_brc20_contract_address(address: &str) {
-    assert_eq!(address.to_lowercase(), BRC20_CONTROLLER_ADDRESS);
+pub fn verify_brc20_contract_address(address: &str) -> Result<(), String> {
+    let address = address.parse().ok();
+    if address == *BRC20_CONTROLLER_ADDRESS {
+        return Ok(());
+    }
+    Err("Invalid BRC20_Controller contract address".to_string())
 }

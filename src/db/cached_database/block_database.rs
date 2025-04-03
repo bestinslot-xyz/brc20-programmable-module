@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::path::Path;
 
-use rocksdb::{Error, IteratorMode, Options, DB};
+use rocksdb::{IteratorMode, Options, DB};
 
 use crate::db::types::{Decode, Encode, U64ED};
 
@@ -33,15 +34,15 @@ where
     /// name: &str - the name of the database
     ///
     /// Returns: BlockDatabase<V> - the created BlockDatabase
-    pub fn new(path: &Path, name: &str) -> Self {
+    pub fn new(path: &Path, name: &str) -> Result<Self, Box<dyn Error>> {
         let mut opts = Options::default();
         opts.create_if_missing(true);
         opts.set_max_open_files(256);
-        let db = DB::open(&opts, &path.join(Path::new(name))).unwrap();
-        Self {
+        let db = DB::open(&opts, &path.join(Path::new(name)))?;
+        Ok(Self {
             db,
             cache: BTreeMap::new(),
-        }
+        })
     }
 
     /// Get the value for a block number
@@ -52,17 +53,17 @@ where
     //
     /// block_number: u64 - the block number to get the value for
     /// Returns: Option<V> - the value for the block number
-    pub fn get(&mut self, key: u64) -> Result<Option<V>, Error> {
+    pub fn get(&mut self, key: u64) -> Result<Option<V>, Box<dyn Error>> {
         if let Some(value) = self.cache.get(&key) {
             return Ok(Some(value.clone()));
         }
 
-        let value_bytes = self.db.get(U64ED::from_u64(key).encode())?;
-        if value_bytes.is_none() {
+        let Some(value_bytes) = self.db.get(U64ED::from_u64(key).encode())? else {
             return Ok(None);
-        }
-        let value = V::decode(value_bytes.unwrap().to_vec()).unwrap();
-        self.cache.insert(key.clone(), value.clone());
+        };
+
+        let value = V::decode(value_bytes)?;
+        self.cache.insert(key, value.clone());
         Ok(Some(value))
     }
 
@@ -80,7 +81,7 @@ where
     //
     /// It writes all the values in the cache to the database
     /// It does not clear the cache
-    pub fn commit(&mut self) -> Result<(), Error> {
+    pub fn commit(&mut self) -> Result<(), Box<dyn Error>> {
         for (key, value) in self.cache.iter() {
             let value_bytes = value.encode();
             self.db.put(U64ED::from_u64(*key).encode(), &value_bytes)?;
@@ -105,27 +106,17 @@ where
     /// If the database is empty, it returns None
     //
     /// Returns: Option<u64> - the last key in the database
-    pub fn last_key(&self) -> Result<Option<u64>, Error> {
-        let result = self
-            .db
-            .full_iterator(IteratorMode::End)
-            .take(1)
-            .map(|res| {
-                let (key, _) = res.unwrap();
-                U64ED::decode(key.to_vec()).unwrap().to_u64()
-            })
-            .last();
+    pub fn last_key(&self) -> Result<Option<u64>, Box<dyn Error>> {
+        let result = self.db.full_iterator(IteratorMode::End).take(1).last();
 
-        // if cache has larger value, replace result
-        if let Some((key, _)) = self.cache.iter().last() {
-            if result.is_none() || key > result.as_ref().unwrap() {
-                return Ok(Some(key.clone()));
-            } else {
-                return Ok(result);
-            }
-        } else {
-            return Ok(result);
-        }
+        let db_last_key = match result {
+            Some(Ok((key, _))) => Some(U64ED::decode(key.to_vec())?.to_u64()),
+            _ => None,
+        };
+
+        let cache_last_key = self.cache.keys().last().map(|key| *key);
+
+        Ok(std::cmp::max(db_last_key, cache_last_key))
     }
 
     /// Reorg the database
@@ -134,17 +125,15 @@ where
     /// Make sure to call commit after calling this function to write the changes to the database
     //
     /// latest_valid_block_number: u64 - the latest valid block number
-    pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Error> {
+    pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
         let mut current = latest_valid_block_number + 1;
-        let end = self.last_key().unwrap();
-        if end.is_none() {
-            return Ok(());
-        }
-        let end = end.unwrap();
-        while end >= current {
-            self.db.delete(U64ED::from_u64(current).encode()).unwrap();
-            self.cache.remove(&current);
-            current += 1;
+        let last_block = self.last_key()?;
+        if let Some(end) = last_block {
+            while end >= current {
+                self.db.delete(U64ED::from_u64(current).encode())?;
+                self.cache.remove(&current);
+                current += 1;
+            }
         }
         Ok(())
     }
@@ -162,7 +151,7 @@ mod tests {
     #[test]
     fn test_block_database() {
         let tempdir = TempDir::new().unwrap();
-        let mut db = BlockDatabase::<U256ED>::new(tempdir.path(), "test");
+        let mut db = BlockDatabase::<U256ED>::new(tempdir.path(), "test").unwrap();
 
         let block_number = 1;
         let value = U256ED::from_u256(U256::from(100));

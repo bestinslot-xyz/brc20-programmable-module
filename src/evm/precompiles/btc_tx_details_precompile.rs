@@ -1,10 +1,10 @@
-use alloy_primitives::hex::FromHex;
 use alloy_primitives::{FixedBytes, U256};
 use alloy_sol_types::{sol, SolCall};
+use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::primitives::Bytes;
 
-use crate::evm::precompiles::btc_utils::{get_block_height, get_raw_transaction};
+use crate::evm::precompiles::btc_utils::{get_block_info, get_raw_transaction};
 use crate::evm::precompiles::{precompile_error, precompile_output, use_gas};
 
 static GAS_PER_RPC_CALL: u64 = 100000;
@@ -29,42 +29,31 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
         return interpreter_result;
     }
 
-    let result = getTxDetailsCall::abi_decode(&bytes, false);
-
-    if result.is_err() {
-        // Invalid params
+    let Ok(txid) = getTxDetailsCall::abi_decode(&bytes, false) else {
         return precompile_error(interpreter_result);
-    }
+    };
 
-    let txid = result.unwrap()._0;
-
-    let response = get_raw_transaction(&hex::encode(txid));
-
-    if response["error"].is_object() || !response["result"].is_object() {
-        tracing::error!("Error: {}", response["error"]["message"]);
+    let Ok(raw_tx_info) = get_raw_transaction(&txid._0) else {
+        // Failed to get transaction details
         return precompile_error(interpreter_result);
-    }
+    };
 
-    let response = response["result"].clone();
-
-    let vin_count = response["vin"].as_array();
     if !use_gas(
         &mut interpreter_result,
-        vin_count.unwrap().len() as u64 * GAS_PER_RPC_CALL,
+        raw_tx_info.vin.len() as u64 * GAS_PER_RPC_CALL,
     ) {
         return interpreter_result;
     }
 
-    let block_hash = response["blockhash"].as_str().unwrap_or("").to_string();
-
-    let block_height_result = get_block_height(&block_hash);
-    if block_height_result["error"].is_object() || !block_height_result["result"].is_object() {
+    let Some(block_hash) = raw_tx_info.blockhash else {
+        // Failed to get block hash, must be a mempool transaction
         return precompile_error(interpreter_result);
-    }
+    };
 
-    let block_height = Some(block_height_result["result"]["height"].as_u64().unwrap());
-
-    let block_height = U256::from(block_height.unwrap());
+    let Ok(block_info) = get_block_info(&block_hash) else {
+        // Failed to get block height
+        return precompile_error(interpreter_result);
+    };
 
     let mut vin_txids = Vec::new();
     let mut vin_vouts = Vec::new();
@@ -73,52 +62,45 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
     let mut vout_script_pub_keys: Vec<Bytes> = Vec::new();
     let mut vout_values = Vec::new();
 
-    for vin in response["vin"].as_array().unwrap().into_iter() {
-        let vin_txid = vin["txid"].as_str().unwrap_or("").to_string();
-        let vin_vout = vin["vout"].as_u64().unwrap_or(0);
+    for vin in raw_tx_info.vin {
+        let Some(vin_txid) = vin.txid.map(|txid| {
+            let mut bytes = FixedBytes::<32>::from_slice(txid.as_raw_hash().as_byte_array());
+            bytes.reverse();
+            bytes
+        }) else {
+            // Failed to get vin txid
+            return precompile_error(interpreter_result);
+        };
+
+        let Some(vin_vout) = vin.vout else {
+            // Failed to get vin vout
+            return precompile_error(interpreter_result);
+        };
+
+        vin_txids.push(vin_txid);
+        vin_vouts.push(U256::from(vin_vout));
 
         // Get the scriptPubKey from the vin transaction, using the txid and vout
-        let vin_script_pub_key_response = get_raw_transaction(&vin_txid);
-        if vin_script_pub_key_response["error"].is_object()
-            || !vin_script_pub_key_response["result"].is_object()
-        {
+        let Ok(vin_transaction) = get_raw_transaction(&vin_txid) else {
+            // Failed to get vin transaction details
             return precompile_error(interpreter_result);
-        }
+        };
 
-        let vin_script_pub_key_response = vin_script_pub_key_response["result"].clone();
-        let vin_script_pub_key_hex = vin_script_pub_key_response["vout"][vin_vout as usize]
-            ["scriptPubKey"]["hex"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
-        let vin_script_pub_key_bytes = hex::decode(vin_script_pub_key_hex).unwrap().into();
-
-        let vin_value = vin_script_pub_key_response["vout"][vin_vout as usize]["value"]
-            .as_f64()
-            .unwrap_or(0.0);
-        let vin_value = (vin_value * 100000000.0) as u64;
-
-        vin_txids.push(FixedBytes::from_hex(vin_txid).unwrap());
-        vin_vouts.push(U256::from(vin_vout));
-        vin_script_pub_keys.push(vin_script_pub_key_bytes);
-        vin_values.push(U256::from(vin_value));
+        let Some(prev_vout) = &vin_transaction.vout.get(vin_vout as usize) else {
+            // Failed to get vin vout
+            return precompile_error(interpreter_result);
+        };
+        vin_script_pub_keys.push(prev_vout.script_pub_key.hex.clone().into());
+        vin_values.push(U256::from(prev_vout.value.to_sat()));
     }
 
-    for vout in response["vout"].as_array().unwrap().into_iter() {
-        let vout_script_pub_key_hex = vout["scriptPubKey"]["hex"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
-        let vout_script_pub_key_bytes = hex::decode(vout_script_pub_key_hex).unwrap().into();
-        let vout_value = vout["value"].as_f64().unwrap_or(0.0);
-        let vout_value = (vout_value * 100000000.0) as u64;
-
-        vout_script_pub_keys.push(vout_script_pub_key_bytes);
-        vout_values.push(U256::from(vout_value));
+    for vout in raw_tx_info.vout {
+        vout_script_pub_keys.push(vout.script_pub_key.hex.into());
+        vout_values.push(U256::from(vout.value.to_sat()));
     }
 
     let bytes = getTxDetailsCall::abi_encode_returns(&(
-        U256::from(block_height),
+        U256::from(block_info.height),
         vin_txids,
         vin_vouts,
         vin_script_pub_keys,
@@ -132,6 +114,9 @@ pub fn btc_tx_details_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRe
 
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::hex::FromHex;
+    use alloy_primitives::FixedBytes;
+
     use super::*;
     use crate::evm::precompiles::btc_utils::skip_btc_tests;
 

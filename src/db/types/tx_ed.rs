@@ -116,7 +116,7 @@ impl Decode for TxED {
             v: 0,
             r: 0,
             s: 0,
-            chain_id: CHAIN_ID,
+            chain_id: *CHAIN_ID,
             tx_type: 0,
         })
     }
@@ -145,7 +145,7 @@ mod tests {
             v: 0,
             r: 0,
             s: 0,
-            chain_id: CHAIN_ID,
+            chain_id: *CHAIN_ID,
             tx_type: 0,
         };
         let encoded = tx.encode();
@@ -170,7 +170,7 @@ mod tests {
             v: 0,
             r: 0,
             s: 0,
-            chain_id: CHAIN_ID,
+            chain_id: *CHAIN_ID,
             tx_type: 0,
         };
         let serialized = serde_json::to_string(&tx).unwrap();

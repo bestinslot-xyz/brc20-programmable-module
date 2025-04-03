@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use alloy_primitives::U256;
 use alloy_sol_types::{sol, SolCall};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
@@ -26,49 +28,31 @@ pub fn brc20_balance_precompile(bytes: &Bytes, gas_limit: u64) -> InterpreterRes
 
     let result = balanceOfCall::abi_decode(bytes, false);
 
-    if result.is_err() {
+    let Ok(returns) = result else {
         return precompile_error(interpreter_result);
-    }
-
-    let returns = result.unwrap();
+    };
 
     let ticker = returns.ticker;
     let pkscript = returns.pkscript;
 
-    let balance = get_brc20_balance(&ticker, &pkscript);
-
-    if balance.is_err() {
+    let Ok(balance) = get_brc20_balance(&ticker, &pkscript) else {
         return precompile_error(interpreter_result);
-    }
+    };
 
-    let balance = U256::from(balance.unwrap());
+    let balance = U256::from(balance);
     let bytes = balanceOfCall::abi_encode_returns(&(balance,));
 
     return precompile_output(interpreter_result, bytes);
 }
 
-pub fn get_brc20_balance(ticker: &Bytes, pkscript: &Bytes) -> Result<u128, String> {
-    let response = BRC20_CLIENT
+pub fn get_brc20_balance(ticker: &Bytes, pkscript: &Bytes) -> Result<u128, Box<dyn Error>> {
+    BRC20_CLIENT
         .get(BRC20_PROG_BALANCE_SERVER_URL.as_str())
         .query("ticker", hex::encode(ticker))
         .query("pkscript", hex::encode(pkscript))
-        .call();
-
-    if response.is_err() {
-        return Err("Failed to get balance".into());
-    }
-
-    let balance = response.unwrap().body_mut().read_to_string();
-
-    if balance.is_err() {
-        return Err("Failed to get balance".into());
-    }
-
-    let balance = balance.unwrap().parse::<u128>();
-
-    if balance.is_err() {
-        return Err("Failed to get balance".into());
-    }
-
-    Ok(balance.unwrap())
+        .call()?
+        .body_mut()
+        .read_to_string()?
+        .parse::<u128>()
+        .map_err(|e| e.into())
 }

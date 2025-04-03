@@ -1,5 +1,6 @@
 use std::cmp::max;
 
+use alloy_primitives::Bytes;
 use revm::context::result::{ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason};
 use revm::primitives::{keccak256, Address};
 
@@ -13,9 +14,9 @@ pub fn get_gas_limit(inscription_byte_len: u64) -> u64 {
     )
 }
 
-pub fn get_evm_address(pkscript: &str) -> Address {
+pub fn get_evm_address(pkscript_bytes: &Bytes) -> Address {
     let mut address = [0u8; 20];
-    let pkscript_hash = keccak256(hex::decode(pkscript).unwrap());
+    let pkscript_hash = keccak256(pkscript_bytes);
     address.copy_from_slice(&pkscript_hash[12..32]);
     Address::from_slice(&address)
 }
@@ -130,7 +131,7 @@ mod tests {
     #[test]
     fn test_get_evm_address() {
         let btc_pkscript = "76a914f1b8e7e4f3f1f2f1e1f1f1f1f1f1f1f1f1f1f1f188ac";
-        let evm_address = get_evm_address(btc_pkscript);
+        let evm_address = get_evm_address(&hex::decode(btc_pkscript).unwrap().into());
         assert_eq!(
             evm_address,
             Address::from_str("0x7f217045127859b40ef1a27a5bfe73aa16687467").unwrap(),

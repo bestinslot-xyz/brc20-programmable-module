@@ -9,6 +9,8 @@ alloy-sol-types = "0.8.25"
 base64 = "0.22.1"
 bip322 = "0.0.9"
 bitcoin = "0.32.5"
+bitcoincore-rpc = "0.19.0"
+bitcoincore-rpc-json = "0.19.0"
 hex = "0.4.3"
 hyper = "1.6.0"
 jsonrpsee = { version = "0.24.9", features = [ "server", "macros", "jsonrpsee-core", "jsonrpsee-types" ] }

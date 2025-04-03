@@ -1,10 +1,21 @@
-use base64::prelude::BASE64_URL_SAFE;
-use base64::Engine;
-use bitcoin::{KnownHrp, Network};
-use ureq::Agent;
+use std::error::Error;
+use std::str::FromStr;
+use std::thread::sleep;
+use std::time::Duration;
+
+use alloy_primitives::B256;
+use bitcoin::{BlockHash, KnownHrp, Network, Txid};
+use bitcoincore_rpc::{Auth, Client, RpcApi};
+use bitcoincore_rpc_json::{GetBlockResult, GetRawTransactionResult};
 
 lazy_static::lazy_static! {
-    static ref BTC_CLIENT: Agent = Agent::new_with_defaults();
+    static ref BTC_CLIENT: Client = {
+        let auth = Auth::UserPass(
+            BITCOIN_RPC_USER.to_string(),
+            BITCOIN_RPC_PASSWORD.to_string(),
+        );
+        Client::new(&*BITCOIN_RPC_URL, auth).expect("Failed to create Bitcoin RPC client")
+    };
     static ref BITCOIN_RPC_URL: String = std::env::var("BITCOIN_RPC_URL")
             .unwrap_or("http://localhost:38332".to_string());
     static ref BITCOIN_RPC_USER: String = std::env::var("BITCOIN_RPC_USER")
@@ -61,142 +72,60 @@ pub fn skip_btc_tests() -> bool {
 }
 
 pub fn check_bitcoin_rpc_status() -> bool {
-    let response = BTC_CLIENT
-        .post(&*BITCOIN_RPC_URL)
-        .header(
-            "Authorization",
-            get_basic_auth_header(&*BITCOIN_RPC_USER, &*BITCOIN_RPC_PASSWORD),
-        )
-        .content_type("application/json")
-        .config()
-        .http_status_as_error(false)
-        .build()
-        .send(
-            r#"{"jsonrpc": "1.0", "id": "curltest", "method": "getblockchaininfo", "params":[]}"#,
-        );
-
-    return !response.is_err() && response.unwrap().status() == 200;
+    return !BTC_CLIENT.get_blockchain_info().is_err();
 }
 
-pub fn get_raw_transaction(txid: &str) -> serde_json::Value {
-    get_raw_transaction_with_retry(txid, 5)
+pub fn get_raw_transaction(txid: &B256) -> Result<GetRawTransactionResult, Box<dyn Error>> {
+    let bitcoin_txid = Txid::from_str(&hex::encode(txid.as_slice()).to_lowercase().as_str())
+        .map_err(|_| "Invalid Txid")?;
+    get_raw_transaction_with_retry(&bitcoin_txid, 5)
 }
 
-pub fn get_raw_transaction_with_retry(txid: &str, retries_left: u32) -> serde_json::Value {
-    // Check if the txid is a valid hex string
-    if txid.chars().any(|c| !c.is_ascii_hexdigit()) {
-        return serde_json::Value::Null;
-    }
-
-    let response = BTC_CLIENT
-        .post(&*BITCOIN_RPC_URL)
-        .header(
-            "Authorization",
-            get_basic_auth_header(&*BITCOIN_RPC_USER, &*BITCOIN_RPC_PASSWORD),
-        )
-        .content_type("application/json")
-        .config()
-        .http_status_as_error(false)
-        .build()
-        .send(
-            format!(
-                "{{
-                \"jsonrpc\": \"1.0\",
-                \"id\": \"brc20prog\",
-                \"method\": \"getrawtransaction\",
-                \"params\": {{\"txid\":\"{}\", \"verbose\": true}}
-                }}",
-                txid
-            )
-            .to_string(),
-        );
-
-    if response.is_err() {
-        // wait and retry
-        if retries_left > 0 {
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            return get_raw_transaction_with_retry(txid, retries_left - 1);
+fn get_raw_transaction_with_retry(
+    txid: &Txid,
+    retries_left: u32,
+) -> Result<GetRawTransactionResult, Box<dyn Error>> {
+    let response = match BTC_CLIENT.get_raw_transaction_info(&txid, None) {
+        Ok(response) => response,
+        Err(error) => {
+            if retries_left > 0 {
+                sleep(Duration::from_secs(1));
+                return get_raw_transaction_with_retry(txid, retries_left - 1);
+            }
+            panic!("Bitcoin RPC unreachable. Response: {:?}", error);
         }
-        panic!("Failed to get raw transaction. Response: {:?}", response);
-    }
+    };
 
-    let mut response = response.unwrap();
-
-    if response.status() != 200 {
-        return serde_json::Value::Null;
-    }
-
-    let body = response.body_mut().read_to_string();
-
-    if body.is_err() {
-        panic!("Failed to get raw transaction. Response: {:?}", response);
-    }
-
-    let body = body.unwrap();
-
-    let json_result = body.parse();
-
-    if json_result.is_err() {
-        panic!("Failed to get raw transaction. Response: {:?}", response);
-    }
-
-    json_result.unwrap()
+    return Ok(response);
 }
 
-pub fn get_block_height(hash: &str) -> serde_json::Value {
-    // Check if the hash is a valid hex string
-    if hash.chars().any(|c| !c.is_ascii_hexdigit()) {
-        return serde_json::Value::Null;
-    }
-
-    let response = BTC_CLIENT
-        .post(&*BITCOIN_RPC_URL)
-        .header(
-            "Authorization",
-            get_basic_auth_header(&*BITCOIN_RPC_USER, &*BITCOIN_RPC_PASSWORD),
-        )
-        .content_type("application/json")
-        .config()
-        .http_status_as_error(false)
-        .build()
-        .send(
-            format!(
-                "{{
-                \"jsonrpc\": \"1.0\",
-                \"id\": \"brc20prog\",
-                \"method\": \"getblock\",
-                \"params\": {{\"blockhash\":\"{}\", \"verbose\": true}}
-                }}",
-                hash
-            )
-            .to_string(),
-        );
-
-    if response.is_err() {
-        panic!("Failed to get block height. Response: {:?}", response);
-    }
-
-    let mut response = response.unwrap();
-
-    if response.status() != 200 {
-        return serde_json::Value::Null;
-    }
-
-    response
-        .body_mut()
-        .read_to_string()
-        .unwrap()
-        .parse()
-        .unwrap()
+pub fn get_block_info(block_hash: &BlockHash) -> Result<GetBlockResult, Box<dyn Error>> {
+    get_block_info_with_retry(block_hash, 5)
 }
 
-fn get_basic_auth_header(user: &str, pass: &str) -> String {
-    let usrpw = user.to_string() + ":" + pass;
-    "Basic ".to_string() + &BASE64_URL_SAFE.encode(usrpw.as_bytes())
+fn get_block_info_with_retry(
+    block_hash: &BlockHash,
+    retries_left: u32,
+) -> Result<GetBlockResult, Box<dyn Error>> {
+    let response = match BTC_CLIENT.get_block_info(&block_hash) {
+        Ok(response) => response,
+        Err(error) => {
+            if retries_left > 0 {
+                sleep(Duration::from_secs(1));
+                return get_block_info_with_retry(block_hash, retries_left - 1);
+            }
+            panic!("Bitcoin RPC unreachable. Response: {:?}", error);
+        }
+    };
+
+    Ok(response)
 }
 
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::hex::FromHex;
+    use alloy_primitives::FixedBytes;
+
     use super::*;
 
     #[test]
@@ -205,8 +134,8 @@ mod tests {
             return;
         }
 
-        let txid = "4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926";
-        let response = get_raw_transaction(txid);
-        assert_eq!(response["result"]["txid"].as_str().unwrap(), txid);
+        let txid_string = "4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926";
+        let response = get_raw_transaction(&FixedBytes::from_hex(txid_string).unwrap());
+        assert_eq!(response.unwrap().txid.to_string(), txid_string);
     }
 }

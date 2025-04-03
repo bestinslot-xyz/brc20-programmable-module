@@ -108,14 +108,11 @@ where
     /// block_number: u64 - current block number
     /// Returns: bool - true if the cache is empty, false otherwise
     fn is_old(&self, latest_block_number: u64) -> bool {
-        if self.cache.is_empty() {
+        if let Some(&latest_stored_block_number) = self.cache.keys().last() {
+            return latest_stored_block_number + MAX_HISTORY_SIZE < latest_block_number;
+        } else {
             return true;
         }
-        let latest_stored_block_number = self.cache.keys().last().unwrap();
-        if *latest_stored_block_number + MAX_HISTORY_SIZE < latest_block_number {
-            return true;
-        }
-        false
     }
 }
 
@@ -127,14 +124,17 @@ where
         let mut bytes = Vec::new();
         for (block_number, value) in self.cache.iter() {
             bytes.extend_from_slice(&block_number.to_be_bytes());
-            if value.is_none() {
-                bytes.extend_from_slice(&0u32.to_be_bytes());
-                continue;
+            match value {
+                Some(value) => {
+                    let value_bytes = value.encode();
+                    let size = value_bytes.len() as u32;
+                    bytes.extend_from_slice(&size.to_be_bytes());
+                    bytes.extend_from_slice(&value_bytes);
+                }
+                None => {
+                    bytes.extend_from_slice(&0u32.to_be_bytes());
+                }
             }
-            let value_bytes = value.as_ref().unwrap().encode();
-            let size: u32 = value_bytes.len().try_into().unwrap();
-            bytes.extend_from_slice(&size.to_be_bytes());
-            bytes.extend_from_slice(&value_bytes);
         }
         bytes
     }
@@ -148,15 +148,15 @@ where
         let mut cache: BTreeMap<u64, Option<V>> = BTreeMap::new();
         let mut i = 0;
         while i < bytes.len() {
-            let block_number = u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
+            let block_number = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
             i += 8;
-            let size = u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap()) as usize;
+            let size = u32::from_be_bytes(bytes[i..i + 4].try_into()?) as usize;
             i += 4;
             if size == 0 {
                 cache.insert(block_number, None);
                 continue;
             }
-            let value = V::decode((&bytes[i..i + size]).to_vec()).unwrap();
+            let value = V::decode((&bytes[i..i + size]).to_vec())?;
             cache.insert(block_number, Some(value));
             i += size;
         }

@@ -72,6 +72,10 @@ impl Brc20ProgApiServer for RpcServer {
     ) -> RpcResult<TxReceiptED> {
         event!(Level::INFO, "Depositing");
 
+        let to_pkscript = hex::decode(to_pkscript)
+            .map_err(|_| wrap_error_message("Invalid pkscript"))?
+            .into();
+
         self.server_instance
             .add_tx_to_block(
                 timestamp,
@@ -102,6 +106,10 @@ impl Brc20ProgApiServer for RpcServer {
     ) -> RpcResult<TxReceiptED> {
         event!(Level::INFO, "Withdrawing");
 
+        let from_pkscript = hex::decode(from_pkscript)
+            .map_err(|_| wrap_error_message("Invalid pkscript"))?
+            .into();
+
         self.server_instance
             .add_tx_to_block(
                 timestamp,
@@ -122,6 +130,10 @@ impl Brc20ProgApiServer for RpcServer {
     #[instrument(skip(self))]
     async fn balance(&self, pkscript: String, ticker: String) -> RpcResult<String> {
         event!(Level::INFO, "Checking balance");
+
+        let pkscript = hex::decode(pkscript)
+            .map_err(|_| wrap_error_message("Invalid pkscript"))?
+            .into();
 
         self.server_instance
             .call_contract(&load_brc20_balance_tx(
@@ -174,6 +186,11 @@ impl Brc20ProgApiServer for RpcServer {
         inscription_byte_len: Option<u64>,
     ) -> RpcResult<TxReceiptED> {
         event!(Level::INFO, "Deploying contract");
+
+        let from_pkscript = hex::decode(from_pkscript)
+            .map_err(|_| wrap_error_message("Invalid pkscript"))?
+            .into();
+
         self.server_instance
             .add_tx_to_block(
                 timestamp,
@@ -205,25 +222,24 @@ impl Brc20ProgApiServer for RpcServer {
         inscription_byte_len: Option<u64>,
     ) -> RpcResult<TxReceiptED> {
         event!(Level::INFO, "Calling contract");
-        let derived_contract_address;
-        if contract_address.is_none() {
-            if contract_inscription_id.is_none() {
-                return Err(
-                    RpcServerError::new("Contract address or inscription ID is required").into(),
-                );
-            }
-            let inscription_contract_address = self
-                .server_instance
-                .get_contract_address_by_inscription_id(contract_inscription_id.unwrap())
-                .map_err(wrap_error_message)?;
-            derived_contract_address = Some(inscription_contract_address);
-        } else {
-            let contract_address = contract_address.unwrap();
-            if contract_address.value() == Address::ZERO {
-                return Err(RpcServerError::new("Contract address cannot be zero").into());
-            }
+
+        let from_pkscript = hex::decode(from_pkscript)
+            .map_err(|_| wrap_error_message("Invalid pkscript"))?
+            .into();
+
+        let derived_contract_address: Option<Address>;
+        if let Some(contract_address) = contract_address {
             derived_contract_address = Some(contract_address.value());
+        } else if let Some(contract_inscription_id) = contract_inscription_id {
+            derived_contract_address = Some(
+                self.server_instance
+                    .get_contract_address_by_inscription_id(contract_inscription_id)
+                    .map_err(wrap_error_message)?,
+            );
+        } else {
+            return Err(wrap_error_message("Contract address not provided"));
         }
+
         self.server_instance
             .add_tx_to_block(
                 timestamp,
@@ -274,8 +290,9 @@ impl Brc20ProgApiServer for RpcServer {
     #[instrument(skip(self))]
     async fn clear_caches(&self) -> RpcResult<()> {
         event!(Level::INFO, "Clearing caches");
-        self.server_instance.clear_caches();
-        Ok(())
+        self.server_instance
+            .clear_caches()
+            .map_err(wrap_error_message)
     }
 
     async fn block_number(&self) -> RpcResult<String> {
@@ -326,38 +343,29 @@ impl Brc20ProgApiServer for RpcServer {
     ) -> RpcResult<String> {
         event!(Level::INFO, "Getting transaction count");
         let block = self.parse_block_number(&block)?;
-        let count = self
-            .server_instance
-            .get_transaction_count(account.value(), block);
-        if count.is_err() {
-            return Err(RpcServerError::new("Couldn't get transaction count").into());
-        }
-        Ok(format!("0x{:x}", count.unwrap()))
+        self.server_instance
+            .get_transaction_count(account.value(), block)
+            .map(|count| format!("0x{:x}", count))
+            .map_err(wrap_error_message)
     }
 
     #[instrument(skip(self))]
     async fn get_block_transaction_count_by_number(&self, block: String) -> RpcResult<String> {
         event!(Level::INFO, "Getting block transaction count");
         let block = self.parse_block_number(&block)?;
-        let count = self
-            .server_instance
-            .get_block_transaction_count_by_number(block);
-        if count.is_err() {
-            return Err(RpcServerError::new("Couldn't get block transaction count").into());
-        }
-        Ok(format!("0x{:x}", count.unwrap()))
+        self.server_instance
+            .get_block_transaction_count_by_number(block)
+            .map(|count| format!("0x{:x}", count))
+            .map_err(wrap_error_message)
     }
 
     #[instrument(skip(self))]
     async fn get_block_transaction_count_by_hash(&self, block: B256Wrapper) -> RpcResult<String> {
         event!(Level::INFO, "Getting block transaction count");
-        let count = self
-            .server_instance
-            .get_block_transaction_count_by_hash(block.value());
-        if count.is_err() {
-            return Err(RpcServerError::new("Couldn't get block transaction count").into());
-        }
-        Ok(format!("0x{:x}", count.unwrap()))
+        self.server_instance
+            .get_block_transaction_count_by_hash(block.value())
+            .map(|count| format!("0x{:x}", count))
+            .map_err(wrap_error_message)
     }
 
     #[instrument(skip(self))]
@@ -386,10 +394,9 @@ impl Brc20ProgApiServer for RpcServer {
             to: call.to.map(|x| x.value()),
             data: data,
         });
-        if receipt.is_err() {
+        let Ok(receipt) = receipt else {
             return Err(RpcServerError::new("Call failed").into());
-        }
-        let receipt = receipt.unwrap();
+        };
         let data_string = receipt.result_bytes.unwrap_or(Bytes::new()).to_string();
         if receipt.status == 0 {
             return Err(RpcServerError::new_with_data("Call failed", data_string).into());
@@ -410,7 +417,9 @@ impl Brc20ProgApiServer for RpcServer {
             to: call.to.map(|x| x.value()),
             data: data,
         });
-        let receipt = receipt.unwrap();
+        let Ok(receipt) = receipt else {
+            return Err(RpcServerError::new("Call failed").into());
+        };
         let data_string = receipt.result_bytes.unwrap_or(Bytes::new()).to_string();
         if receipt.status == 0 {
             return Err(RpcServerError::new_with_data("Call failed", data_string).into());

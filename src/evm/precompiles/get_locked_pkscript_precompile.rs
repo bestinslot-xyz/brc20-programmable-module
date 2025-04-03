@@ -21,14 +21,10 @@ pub fn get_locked_pkscript_precompile(bytes: &Bytes, gas_limit: u64) -> Interpre
         return interpreter_result;
     }
 
-    let result = getLockedPkscriptCall::abi_decode(&bytes, false);
-
-    if result.is_err() {
-        // Invalid params
+    let Ok(returns) = getLockedPkscriptCall::abi_decode(&bytes, false) else {
+        // Invalid input
         return precompile_error(interpreter_result);
-    }
-
-    let returns = result.unwrap();
+    };
 
     if returns.lock_block_count == U256::ZERO
         || returns.lock_block_count > U256::from_limbs([65535u64, 0u64, 0u64, 0u64])
@@ -39,14 +35,12 @@ pub fn get_locked_pkscript_precompile(bytes: &Bytes, gas_limit: u64) -> Interpre
 
     let lock_block_count = returns.lock_block_count.as_limbs()[0];
 
-    let result = get_p2tr_lock_addr(&returns.pkscript, lock_block_count);
-
-    if result.is_err() {
-        // Invalid pkscript
+    let Ok(result) = get_p2tr_lock_addr(&returns.pkscript, lock_block_count) else {
+        // Failed to get lock address
         return precompile_error(interpreter_result);
-    }
+    };
 
-    let bytes = getLockedPkscriptCall::abi_encode_returns(&(result.unwrap(),));
+    let bytes = getLockedPkscriptCall::abi_encode_returns(&(result,));
 
     return precompile_output(interpreter_result, bytes);
 }
@@ -55,26 +49,22 @@ fn get_p2tr_lock_addr(pkscript: &Bytes, lock_block_count: u64) -> Result<Bytes, 
     let secp256k1 = secp256k1::Secp256k1::new();
     let lock_address = "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0"; // Unspendable address
 
-    let lock_script_leaf = build_lock_script(pkscript, lock_block_count);
-    if lock_script_leaf.is_err() {
-        return Err(lock_script_leaf.unwrap_err());
-    }
-    let lock_script_leaf = lock_script_leaf.unwrap();
+    let lock_script_leaf =
+        build_lock_script(pkscript, lock_block_count).map_err(|_| "Failed to build lock script")?;
 
     let lock_script = TaprootBuilder::new()
         .add_leaf(0, lock_script_leaf)
-        .unwrap()
+        .map_err(|_| "Failed to add leaf")?
         .finalize(
             &secp256k1,
-            UntweakedPublicKey::from_slice(&hex::decode(lock_address).unwrap()).unwrap(),
+            UntweakedPublicKey::from_slice(
+                &hex::decode(lock_address).map_err(|_| "Invalid lock address")?,
+            )
+            .map_err(|_| "Failed to create untweaked public key")?,
         )
-        .unwrap();
+        .map_err(|_| "Failed to finalize taproot")?;
 
-
-    let address = bitcoin::Address::p2tr_tweaked(
-        lock_script.output_key(),
-        *BITCOIN_NETWORK,
-    );
+    let address = bitcoin::Address::p2tr_tweaked(lock_script.output_key(), *BITCOIN_NETWORK);
 
     Ok(Bytes::from(address.script_pubkey().into_bytes()))
 }
