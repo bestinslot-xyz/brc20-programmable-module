@@ -121,13 +121,10 @@ impl ServerInstance {
     }
 
     pub fn get_next_block_height(&self) -> u64 {
-        let mut db = self.get_db_lock();
-        let latest_block_height = db.get_latest_block_height();
-
-        let block_height = latest_block_height.unwrap_or(0);
+        let block_height = self.get_latest_block_height();
         if block_height == 0 {
             // Check if block 0 exists, if not, next block would be genesis (block 0)
-            if let Ok(Some(_)) = db.get_block_hash(0) {
+            if let Some(_) = self.get_block_by_number(0, false) {
                 return 1;
             } else {
                 return 0;
@@ -141,7 +138,7 @@ impl ServerInstance {
         let db = self.get_db_lock();
         let latest_block_height = db.get_latest_block_height();
 
-        let block_height = latest_block_height.unwrap_or(0);
+        let block_height = latest_block_height.expect("Failed to get latest block height");
         block_height
     }
 

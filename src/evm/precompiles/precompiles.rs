@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use revm::context::{Cfg, ContextTr};
+use revm::context::{Block, Cfg, ContextTr};
 use revm::handler::PrecompileProvider;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::precompile::Precompiles;
@@ -19,9 +19,15 @@ lazy_static::lazy_static! {
     static ref GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fb".parse().expect("Invalid get locked pk script precompile address");
 }
 
+pub struct PrecompileCall {
+    pub bytes: Bytes,
+    pub gas_limit: u64,
+    pub block_height: u64,
+}
+
 pub struct BRC20Precompiles {
     pub eth_precompiles: &'static Precompiles,
-    pub custom_precompiles: HashMap<Address, fn(&Bytes, u64) -> InterpreterResult>,
+    pub custom_precompiles: HashMap<Address, fn(&PrecompileCall) -> InterpreterResult>,
     pub all_addresses: HashSet<Address>,
 }
 
@@ -38,7 +44,7 @@ impl Default for BRC20Precompiles {
         all_addresses.insert(*LAST_SAT_LOCATION_PRECOMPILE_ADDRESS);
         all_addresses.insert(*GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS);
 
-        let mut custom_precompiles: HashMap<Address, fn(&Bytes, u64) -> InterpreterResult> =
+        let mut custom_precompiles: HashMap<Address, fn(&PrecompileCall) -> InterpreterResult> =
             HashMap::new();
         custom_precompiles.insert(*BRC20_BALANCE_PRECOMPILE_ADDRESS, brc20_balance_precompile);
         custom_precompiles.insert(*BIP322_PRECOMPILE_ADDRESS, bip322_verify_precompile);
@@ -70,7 +76,7 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
 
     fn run(
         &mut self,
-        _: &mut CTX,
+        ctx: &mut CTX,
         address: &Address,
         bytes: &Bytes,
         gas_limit: u64,
@@ -101,7 +107,11 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
                 Err(e) => return Err(e.to_string()),
             }
         } else if let Some(custom_precompile) = self.custom_precompiles.get(address) {
-            return Ok(Some(custom_precompile(bytes, gas_limit)));
+            return Ok(Some(custom_precompile(&PrecompileCall {
+                bytes: bytes.clone(),
+                gas_limit,
+                block_height: ctx.block().number(),
+            })));
         } else {
             return Ok(None);
         }
