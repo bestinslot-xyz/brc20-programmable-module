@@ -237,10 +237,10 @@ impl Brc20ProgApiServer for RpcServer {
             derived_contract_address = Some(
                 self.server_instance
                     .get_contract_address_by_inscription_id(contract_inscription_id)
-                    .map_err(wrap_error_message)?,
+                    .unwrap_or(Address::ZERO),
             );
         } else {
-            return Err(wrap_error_message("Contract address not provided"));
+            derived_contract_address = Address::ZERO.into();
         }
 
         self.server_instance
