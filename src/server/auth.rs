@@ -2,7 +2,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use jsonrpsee::server::middleware::rpc::layer::ResponseFuture;
 use jsonrpsee::server::middleware::rpc::RpcServiceT;
-use jsonrpsee::types::{ErrorObject, Id, Request};
+use jsonrpsee::types::{ErrorObject, Request};
 use jsonrpsee::MethodResponse;
 use tower_http::validate_request::ValidateRequest;
 
@@ -120,7 +120,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use jsonrpsee::server::HttpBody;
+    use jsonrpsee::{server::HttpBody, types::Id};
 
     use super::*;
 
