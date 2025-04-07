@@ -245,4 +245,20 @@ mod tests {
 
         assert!(validator.call(rpc_request).await.is_success());
     }
+
+    #[tokio::test]
+    async fn test_allow_all() {
+        let mut auth = HttpNonBlockingAuth::allow();
+        let mut request = hyper::Request::builder().body(HttpBody::empty()).unwrap();
+
+        assert!(auth.validate(&mut request).is_ok());
+
+        let mut rpc_request =
+            jsonrpsee::types::Request::new("brc20_hello".into(), None, Id::Number(1));
+
+        rpc_request.extensions = request.extensions().clone();
+
+        assert!(request.extensions().get::<Authorized>().is_some());
+        assert!(rpc_request.extensions.get::<Authorized>().is_some());
+    }
 }
