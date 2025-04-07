@@ -56,11 +56,7 @@ impl<B> ValidateRequest<B> for HttpNonBlockingAuth {
         &mut self,
         request: &mut hyper::Request<B>,
     ) -> Result<(), hyper::Response<Self::ResponseBody>> {
-        if self.allow_all {
-            return Ok(());
-        }
-
-        if request
+        if self.allow_all || request
             .headers()
             .get("Authorization")
             .and_then(|header| header.to_str().ok())
