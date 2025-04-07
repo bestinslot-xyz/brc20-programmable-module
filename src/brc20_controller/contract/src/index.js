@@ -28,6 +28,9 @@ async function main() {
                 enabled: true,
                 runs: 10000,
             },
+            metadata: {
+              useLiteralContent: true
+            },
             evmVersion: "cancun",
             outputSelection: {
                 '*': {
@@ -47,7 +50,10 @@ async function main() {
 
     fs.mkdirSync('output', { recursive: true });
 
-    fs.writeFileSync('../BRC20_Controller.json', JSON.stringify(JSON.parse(contract["metadata"]), null, 4), function (_) { });
+    let metadata = JSON.parse(contract["metadata"])
+    delete metadata.output
+
+    fs.writeFileSync('../BRC20_Controller.json', JSON.stringify(metadata, null, 4), function (_) { });
     fs.writeFileSync('../BRC20_Controller.abi', JSON.stringify(abi, null, 4), function (_) { });
     fs.writeFileSync('../BRC20_Controller.bin', bytecode, function (_) { });
     fs.writeFileSync('../BRC20_Controller_deploy.bytecode', deploy_tx.data, function (_) { });
