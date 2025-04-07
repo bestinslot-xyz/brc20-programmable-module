@@ -14,7 +14,12 @@ impl Serialize for BytecodeED {
         S: serde::Serializer,
     {
         let hex_string = format!("{:x}", self.0.bytecode());
-        serializer.serialize_str(&hex_string)
+        let mut i = hex_string.len();
+        while i > 1 && &hex_string[i - 2..i] == "00" {
+            i -= 2;
+        }
+
+        serializer.serialize_str(&hex_string[0..i])
     }
 }
 
@@ -66,9 +71,9 @@ mod tests {
 
     #[test]
     fn test_bytecode_ed_serialize() {
-        let bytecode: Bytecode = Bytecode::new_raw("Hello world".into());
+        let bytecode: Bytecode = Bytecode::new_raw("Hello world ".into());
         let bytecode_ed = BytecodeED(bytecode);
         let serialized = serde_json::to_string(&bytecode_ed).unwrap();
-        assert_eq!(serialized, "\"0x48656c6c6f20776f726c64000000000000000000000000000000000000000000000000000000000000000000\"");
+        assert_eq!(serialized, "\"0x48656c6c6f20776f726c6420\"");
     }
 }

@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use alloy_primitives::U256;
 use alloy_sol_types::{sol, SolCall};
 use revm::primitives::{Address, Bytes};
@@ -54,7 +56,7 @@ pub fn decode_brc20_balance_result(data: Option<&Bytes>) -> U256 {
 }
 
 pub fn load_brc20_deploy_tx() -> TxInfo {
-    let file_content = ContractAssets::get(&format!("{}.bin", *BRC20_CONTROLLER_PATH))
+    let file_content = ContractAssets::get(&format!("{}_deploy.bytecode", *BRC20_CONTROLLER_PATH))
         .expect("Failed to load contract binary");
     let data = String::from_utf8(file_content.data.to_vec())
         .expect("Failed to convert binary data to string");
@@ -62,9 +64,7 @@ pub fn load_brc20_deploy_tx() -> TxInfo {
     TxInfo {
         from: *INDEXER_ADDRESS,
         to: None,
-        data: hex::decode(data)
-            .expect("Failed to decode hex string")
-            .into(),
+        data: Bytes::from_str(&data).expect("Failed to convert string to bytes"),
     }
 }
 
