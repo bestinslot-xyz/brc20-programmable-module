@@ -7,8 +7,9 @@ pub use rpc_server::start_rpc_server;
 mod server_instance;
 pub use server_instance::ServerInstance;
 
+mod auth;
+
 mod api;
-pub use api::Brc20ProgApiServer;
 
 lazy_static::lazy_static! {
     pub static ref CHAIN_ID: u64 = 0x4252433230;

@@ -17,11 +17,12 @@ use crate::brc20_controller::{
 use crate::db::types::{BlockResponseED, LogResponse, TxED, TxReceiptED};
 use crate::evm::get_evm_address;
 use crate::server::api::{
-    AddressWrapper, B256Wrapper, BytesWrapper, EthCall, GetLogsFilter, U256Wrapper,
+    AddressWrapper, B256Wrapper, Brc20ProgApiServer, BytesWrapper, EthCall, GetLogsFilter,
+    U256Wrapper,
 };
+use crate::server::auth::{HttpNonBlockingAuth, RpcAuthAllowEth};
 use crate::server::server_instance::ServerInstance;
 use crate::server::types::TxInfo;
-use crate::server::Brc20ProgApiServer;
 
 pub struct RpcServer {
     server_instance: ServerInstance,
@@ -548,39 +549,37 @@ pub async fn start_rpc_server(
         .allow_origin(Any)
         .allow_headers([hyper::header::CONTENT_TYPE]);
 
-    let http_middleware = ServiceBuilder::new().layer(cors);
-    let rpc_middleware = RpcServiceBuilder::new().rpc_logger(1024);
-    let module = RpcServer { server_instance }.into_rpc();
-    let server = Server::builder().set_rpc_middleware(rpc_middleware);
-
-    let handle = if use_auth {
-        let Some(rpc_username) = rpc_username else {
-            return Err(
+    let http_middleware =
+        ServiceBuilder::new()
+            .layer(cors)
+            .layer(ValidateRequestHeaderLayer::custom(if !use_auth {
+                HttpNonBlockingAuth::allow()
+            } else {
+                let Some(rpc_username) = rpc_username else {
+                    return Err(
                 "RPC username environment variable is required when authentication is enabled"
                     .into(),
             );
-        };
-        let Some(rpc_password) = rpc_password else {
-            return Err(
+                };
+                let Some(rpc_password) = rpc_password else {
+                    return Err(
                 "RPC password environment variable is required when authentication is enabled"
                     .into(),
             );
-        };
-        server
-            .set_http_middleware(http_middleware.layer(ValidateRequestHeaderLayer::basic(
-                rpc_username,
-                rpc_password,
-            )))
-            .build(addr.parse::<SocketAddr>()?)
-            .await?
-            .start(module)
-    } else {
-        server
-            .set_http_middleware(http_middleware)
-            .build(addr.parse::<SocketAddr>()?)
-            .await?
-            .start(module)
-    };
+                };
+                HttpNonBlockingAuth::new(rpc_username, rpc_password)
+            }));
+    let rpc_middleware = RpcServiceBuilder::new()
+        .rpc_logger(1024)
+        .layer_fn(|service| RpcAuthAllowEth::new(service));
+    let module = RpcServer { server_instance }.into_rpc();
+
+    let handle = Server::builder()
+        .set_http_middleware(http_middleware)
+        .set_rpc_middleware(rpc_middleware)
+        .build(addr.parse::<SocketAddr>()?)
+        .await?
+        .start(module);
 
     Ok(handle)
 }
