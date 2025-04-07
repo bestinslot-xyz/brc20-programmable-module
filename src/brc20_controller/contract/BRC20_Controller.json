@@ -3,454 +3,6 @@
         "version": "0.8.28+commit.7893614a"
     },
     "language": "Solidity",
-    "output": {
-        "abi": [
-            {
-                "inputs": [],
-                "stateMutability": "nonpayable",
-                "type": "constructor"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "owner",
-                        "type": "address"
-                    }
-                ],
-                "name": "OwnableInvalidOwner",
-                "type": "error"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "account",
-                        "type": "address"
-                    }
-                ],
-                "name": "OwnableUnauthorizedAccount",
-                "type": "error"
-            },
-            {
-                "anonymous": false,
-                "inputs": [
-                    {
-                        "indexed": true,
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "indexed": true,
-                        "internalType": "address",
-                        "name": "owner",
-                        "type": "address"
-                    },
-                    {
-                        "indexed": true,
-                        "internalType": "address",
-                        "name": "spender",
-                        "type": "address"
-                    },
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "value",
-                        "type": "uint256"
-                    }
-                ],
-                "name": "Approval",
-                "type": "event"
-            },
-            {
-                "anonymous": false,
-                "inputs": [
-                    {
-                        "indexed": true,
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "indexed": true,
-                        "internalType": "address",
-                        "name": "contract_address",
-                        "type": "address"
-                    }
-                ],
-                "name": "BRC20Created",
-                "type": "event"
-            },
-            {
-                "anonymous": false,
-                "inputs": [
-                    {
-                        "indexed": true,
-                        "internalType": "address",
-                        "name": "previousOwner",
-                        "type": "address"
-                    },
-                    {
-                        "indexed": true,
-                        "internalType": "address",
-                        "name": "newOwner",
-                        "type": "address"
-                    }
-                ],
-                "name": "OwnershipTransferred",
-                "type": "event"
-            },
-            {
-                "anonymous": false,
-                "inputs": [
-                    {
-                        "indexed": true,
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "indexed": true,
-                        "internalType": "address",
-                        "name": "from",
-                        "type": "address"
-                    },
-                    {
-                        "indexed": true,
-                        "internalType": "address",
-                        "name": "to",
-                        "type": "address"
-                    },
-                    {
-                        "indexed": false,
-                        "internalType": "uint256",
-                        "name": "value",
-                        "type": "uint256"
-                    }
-                ],
-                "name": "Transfer",
-                "type": "event"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "owner",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "spender",
-                        "type": "address"
-                    }
-                ],
-                "name": "allowance",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
-                "stateMutability": "view",
-                "type": "function"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "spender",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "value",
-                        "type": "uint256"
-                    }
-                ],
-                "name": "approve",
-                "outputs": [
-                    {
-                        "internalType": "bool",
-                        "name": "",
-                        "type": "bool"
-                    }
-                ],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "account",
-                        "type": "address"
-                    }
-                ],
-                "name": "balanceOf",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
-                "stateMutability": "view",
-                "type": "function"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "from",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "value",
-                        "type": "uint256"
-                    }
-                ],
-                "name": "burn",
-                "outputs": [
-                    {
-                        "internalType": "bool",
-                        "name": "",
-                        "type": "bool"
-                    }
-                ],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    }
-                ],
-                "name": "getTickerAddress",
-                "outputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    }
-                ],
-                "stateMutability": "view",
-                "type": "function"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "to",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "value",
-                        "type": "uint256"
-                    }
-                ],
-                "name": "mint",
-                "outputs": [
-                    {
-                        "internalType": "bool",
-                        "name": "",
-                        "type": "bool"
-                    }
-                ],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            },
-            {
-                "inputs": [],
-                "name": "owner",
-                "outputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    }
-                ],
-                "stateMutability": "view",
-                "type": "function"
-            },
-            {
-                "inputs": [],
-                "name": "renounceOwnership",
-                "outputs": [],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "to",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "value",
-                        "type": "uint256"
-                    }
-                ],
-                "name": "transfer",
-                "outputs": [
-                    {
-                        "internalType": "bool",
-                        "name": "",
-                        "type": "bool"
-                    }
-                ],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "from",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "to",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "value",
-                        "type": "uint256"
-                    }
-                ],
-                "name": "transferFrom",
-                "outputs": [
-                    {
-                        "internalType": "bool",
-                        "name": "",
-                        "type": "bool"
-                    }
-                ],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "newOwner",
-                        "type": "address"
-                    }
-                ],
-                "name": "transferOwnership",
-                "outputs": [],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            }
-        ],
-        "devdoc": {
-            "details": "Implementation of the {IBRC20_Controller} interface.",
-            "errors": {
-                "OwnableInvalidOwner(address)": [
-                    {
-                        "details": "The owner is not a valid owner account. (eg. `address(0)`)"
-                    }
-                ],
-                "OwnableUnauthorizedAccount(address)": [
-                    {
-                        "details": "The caller account is not authorized to perform an operation."
-                    }
-                ]
-            },
-            "events": {
-                "Approval(bytes,address,address,uint256)": {
-                    "details": "Emitted when the allowance of a `spender` for an `owner` is set by a call to {approve}. `value` is the new allowance."
-                },
-                "BRC20Created(bytes,address)": {
-                    "details": "Emitted when a ticker is deposited the first time"
-                },
-                "Transfer(bytes,address,address,uint256)": {
-                    "details": "Emitted when `value` tokens are moved from one account (`from`) to another (`to`). Note that `value` may be zero."
-                }
-            },
-            "kind": "dev",
-            "methods": {
-                "allowance(bytes,address,address)": {
-                    "details": "See {IBRC20_Controller-allowance}."
-                },
-                "approve(bytes,address,uint256)": {
-                    "details": "See {IBRC20_Controller-approve}. NOTE: If `value` is the maximum `uint256`, the allowance is not updated on `transferFrom`. This is semantically equivalent to an infinite approval. Requirements: - `spender` cannot be the zero address."
-                },
-                "balanceOf(bytes,address)": {
-                    "details": "See {IBRC20_Controller-balanceOf}."
-                },
-                "constructor": {
-                    "details": "Sets the values for {name} and {symbol}. All two of these values are immutable: they can only be set once during construction."
-                },
-                "owner()": {
-                    "details": "Returns the address of the current owner."
-                },
-                "renounceOwnership()": {
-                    "details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner."
-                },
-                "transfer(bytes,address,uint256)": {
-                    "details": "See {IBRC20_Controller-transfer}. Requirements: - `to` cannot be the zero address. - the caller must have a balance of at least `value`."
-                },
-                "transferFrom(bytes,address,address,uint256)": {
-                    "details": "See {IBRC20_Controller-transferFrom}. Emits an {Approval} event indicating the updated allowance. This is not required. NOTE: Does not update the allowance if the current allowance is the maximum `uint256`. Requirements: - `from` and `to` cannot be the zero address. - `from` must have a balance of at least `value`. - the caller must have allowance for ``from``'s tokens of at least `value`."
-                },
-                "transferOwnership(address)": {
-                    "details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
-                }
-            },
-            "version": 1
-        },
-        "userdoc": {
-            "kind": "user",
-            "methods": {},
-            "version": 1
-        }
-    },
     "settings": {
         "compilationTarget": {
             "BRC20_Controller.sol": "BRC20_Controller"
@@ -458,7 +10,8 @@
         "evmVersion": "cancun",
         "libraries": {},
         "metadata": {
-            "bytecodeHash": "ipfs"
+            "bytecodeHash": "ipfs",
+            "useLiteralContent": true
         },
         "optimizer": {
             "enabled": true,
@@ -468,60 +21,39 @@
     },
     "sources": {
         "BRC20_Controller.sol": {
+            "content": "// SPDX-License-Identifier: MIT\n\npragma solidity ^0.8.19;\n\nimport {IBRC20_Controller} from \"./IBRC20_Controller.sol\";\nimport {Context} from \"./utils/Context.sol\";\nimport {Ownable} from \"./access/Ownable.sol\";\nimport {IERC20Errors} from \"./interfaces/draft-IERC6093.sol\";\nimport {IERC20Metadata} from \"./interfaces/IERC20Metadata.sol\";\n\ncontract BRC20 is Ownable, IERC20Metadata, IERC20Errors {\n    mapping(address account => uint256) private _balances;\n    mapping(address account => mapping(address spender => uint256)) private _allowances;\n\n    uint256 private _totalSupply;\n\n    string private _name;\n    string private _symbol;\n\n    /**\n     * @dev Sets the values for {name} and {symbol}.\n     *\n     * Both values are immutable: they can only be set once during construction.\n     */\n    constructor(string memory name_, string memory symbol_) Ownable(_msgSender()) {\n        _name = name_;\n        _symbol = symbol_;\n    }\n\n    function name() public view virtual returns (string memory) {\n        return _name;\n    }\n    function symbol() public view virtual returns (string memory) {\n        return _symbol;\n    }\n    function decimals() public view virtual returns (uint8) {\n        return 18;\n    }\n    function totalSupply() public view virtual returns (uint256) {\n        return _totalSupply;\n    }\n    function balanceOf(address account) public view virtual returns (uint256) {\n        return _balances[account];\n    }\n    function transfer(address to, uint256 value) public virtual returns (bool) {\n        address owner = _msgSender();\n        _transfer(owner, to, value);\n        return true;\n    }\n    function allowance(address owner, address spender) public view virtual returns (uint256) {\n        if (spender == owner) {\n            return type(uint256).max;\n        }\n        return _allowances[owner][spender];\n    }\n    function approve(address spender, uint256 value) public virtual returns (bool) {\n        address owner = _msgSender();\n        _approve(owner, spender, value);\n        return true;\n    }\n    function transferFrom(address from, address to, uint256 value) public virtual returns (bool) {\n        address spender = _msgSender();\n        _spendAllowance(from, spender, value);\n        _transfer(from, to, value);\n        return true;\n    }\n\n\n    function approve(address owner, address spender, uint256 value) public onlyOwner returns (bool) {\n        _approve(owner, spender, value);\n        return true;\n    }\n    function transferFrom(address spender, address from, address to, uint256 value) public onlyOwner returns (bool) {\n        _spendAllowance(from, spender, value);\n        _transfer(from, to, value);\n        return true;\n    }\n    function mint(address account, uint256 value) public onlyOwner returns (bool) {\n        _mint(account, value);\n        return true;\n    }\n    function burn(address account, uint256 value) public onlyOwner returns (bool) {\n        _burn(account, value);\n        return true;\n    }\n\n\n    function _transfer(address from, address to, uint256 value) internal {\n        if (from == address(0)) {\n            revert ERC20InvalidSender(address(0));\n        }\n        if (to == address(0)) {\n            revert ERC20InvalidReceiver(address(0));\n        }\n        _update(from, to, value);\n    }\n    function _update(address from, address to, uint256 value) internal virtual {\n        if (from == address(0)) {\n            // Overflow check required: The rest of the code assumes that totalSupply never overflows\n            _totalSupply += value;\n        } else {\n            uint256 fromBalance = _balances[from];\n            if (fromBalance < value) {\n                revert ERC20InsufficientBalance(from, fromBalance, value);\n            }\n            unchecked {\n                // Overflow not possible: value <= fromBalance <= totalSupply.\n                _balances[from] = fromBalance - value;\n            }\n        }\n\n        if (to == address(0)) {\n            unchecked {\n                // Overflow not possible: value <= totalSupply or value <= fromBalance <= totalSupply.\n                _totalSupply -= value;\n            }\n        } else {\n            unchecked {\n                // Overflow not possible: balance + value is at most totalSupply, which we know fits into a uint256.\n                _balances[to] += value;\n            }\n        }\n\n        emit Transfer(from, to, value);\n    }\n    function _mint(address account, uint256 value) internal {\n        if (account == address(0)) {\n            revert ERC20InvalidReceiver(address(0));\n        }\n        _update(address(0), account, value);\n    }\n    function _burn(address account, uint256 value) internal {\n        if (account == address(0)) {\n            revert ERC20InvalidSender(address(0));\n        }\n        _update(account, address(0), value);\n    }\n    function _approve(address owner, address spender, uint256 value) internal {\n        _approve(owner, spender, value, true);\n    }\n    function _approve(address owner, address spender, uint256 value, bool emitEvent) internal virtual {\n        if (owner == address(0)) {\n            revert ERC20InvalidApprover(address(0));\n        }\n        if (spender == address(0)) {\n            revert ERC20InvalidSpender(address(0));\n        }\n        _allowances[owner][spender] = value;\n        if (emitEvent) {\n            emit Approval(owner, spender, value);\n        }\n    }\n    function _spendAllowance(address owner, address spender, uint256 value) internal virtual {\n        uint256 currentAllowance = allowance(owner, spender);\n        if (currentAllowance < type(uint256).max) {\n            if (currentAllowance < value) {\n                revert ERC20InsufficientAllowance(spender, currentAllowance, value);\n            }\n            unchecked {\n                _approve(owner, spender, currentAllowance - value, false);\n            }\n        }\n    }\n}\n\n/**\n * @dev Implementation of the {IBRC20_Controller} interface.\n */\ncontract BRC20_Controller is Context, Ownable, IBRC20_Controller {\n    mapping(bytes => BRC20) private _brc20s;\n\n    /**\n     * @dev Sets the values for {name} and {symbol}.\n     *\n     * All two of these values are immutable: they can only be set once during\n     * construction.\n     */\n    constructor() Ownable(_msgSender()) {\n    }\n\n    function getTickerAddress(bytes calldata ticker) public view returns (address) {\n        return address(_brc20s[ticker]);\n    }\n\n    /**\n     * @dev See {IBRC20_Controller-balanceOf}.\n     */\n    function balanceOf(bytes calldata ticker, address account) public view virtual returns (uint256) {\n        return _brc20s[ticker].balanceOf(account);\n    }\n\n    /**\n     * @dev See {IBRC20_Controller-transfer}.\n     *\n     * Requirements:\n     *\n     * - `to` cannot be the zero address.\n     * - the caller must have a balance of at least `value`.\n     */\n    function transfer(bytes calldata ticker, address to, uint256 value) public virtual returns (bool) {\n        address owner = _msgSender();\n        emit Transfer(ticker, owner, to, value);\n        return _brc20s[ticker].transferFrom(owner, to, value);\n    }\n\n    /**\n     * @dev See {IBRC20_Controller-allowance}.\n     */\n    function allowance(bytes calldata ticker, address owner, address spender) public view virtual returns (uint256) {\n        return _brc20s[ticker].allowance(owner, spender);\n    }\n\n    /**\n     * @dev See {IBRC20_Controller-approve}.\n     *\n     * NOTE: If `value` is the maximum `uint256`, the allowance is not updated on\n     * `transferFrom`. This is semantically equivalent to an infinite approval.\n     *\n     * Requirements:\n     *\n     * - `spender` cannot be the zero address.\n     */\n    function approve(bytes calldata ticker, address spender, uint256 value) public virtual returns (bool) {\n        address owner = _msgSender();\n        emit Approval(ticker, owner, spender, value);\n        return _brc20s[ticker].approve(owner, spender, value);\n    }\n\n    /**\n     * @dev See {IBRC20_Controller-transferFrom}.\n     *\n     * Emits an {Approval} event indicating the updated allowance. This is not\n     * required.\n     *\n     * NOTE: Does not update the allowance if the current allowance\n     * is the maximum `uint256`.\n     *\n     * Requirements:\n     *\n     * - `from` and `to` cannot be the zero address.\n     * - `from` must have a balance of at least `value`.\n     * - the caller must have allowance for ``from``'s tokens of at least\n     * `value`.\n     */\n    function transferFrom(bytes calldata ticker, address from, address to, uint256 value) public virtual returns (bool) {\n        address spender = _msgSender();\n        emit Transfer(ticker, from, to, value);\n        return _brc20s[ticker].transferFrom(spender, from, to, value);\n    }\n\n    function mint(bytes calldata ticker, address to, uint256 value) onlyOwner public virtual returns (bool) {\n        if (address(_brc20s[ticker]) == address(0)) {\n            _brc20s[ticker] = new BRC20(string(ticker), string(ticker));\n            emit BRC20Created(ticker, address(_brc20s[ticker]));\n        }\n        \n        emit Transfer(ticker, address(0), to, value);\n        return _brc20s[ticker].mint(to, value);\n    }\n\n    function burn(bytes calldata ticker, address from, uint256 value) onlyOwner public virtual returns (bool) {\n        emit Transfer(ticker, from, address(0), value);\n        return _brc20s[ticker].burn(from, value);\n    }\n}",
             "keccak256": "0x09c3b4e26c2ca1e1899f6dcaa7402790d1342609381f36b128eb67662550ea76",
-            "license": "MIT",
-            "urls": [
-                "bzz-raw://f97546fbfd7b9d451a57122b08da42da6b1a88d2b1116e00d1a6c5ab43c28653",
-                "dweb:/ipfs/QmT9Z9iYDHiVjGR6qXYvcrKcipqbMDLnUNjBMa79y9mNJu"
-            ]
+            "license": "MIT"
         },
         "IBRC20_Controller.sol": {
+            "content": "// SPDX-License-Identifier: MIT\n\npragma solidity ^0.8.19;\n\n/**\n * @dev Interface of the BRC-20 Controller.\n */\ninterface IBRC20_Controller {\n    /**\n     * @dev Emitted when a ticker is deposited the first time\n     */\n    event BRC20Created(bytes indexed ticker, address indexed contract_address);\n\n    /**\n     * @dev Emitted when `value` tokens are moved from one account (`from`) to\n     * another (`to`).\n     *\n     * Note that `value` may be zero.\n     */\n    event Transfer(bytes indexed ticker, address indexed from, address indexed to, uint256 value);\n\n    /**\n     * @dev Emitted when the allowance of a `spender` for an `owner` is set by\n     * a call to {approve}. `value` is the new allowance.\n     */\n    event Approval(bytes indexed ticker, address indexed owner, address indexed spender, uint256 value);\n\n    /**\n     * @dev Returns the value of tokens owned by `account`.\n     */\n    function balanceOf(bytes calldata ticker, address account) external view returns (uint256);\n\n    /**\n     * @dev Moves a `value` amount of tokens from the caller's account to `to`.\n     *\n     * Returns a boolean value indicating whether the operation succeeded.\n     *\n     * Emits a {Transfer} event.\n     */\n    function transfer(bytes calldata ticker, address to, uint256 value) external returns (bool);\n\n    /**\n     * @dev Returns the remaining number of tokens that `spender` will be\n     * allowed to spend on behalf of `owner` through {transferFrom}. This is\n     * zero by default.\n     *\n     * This value changes when {approve} or {transferFrom} are called.\n     */\n    function allowance(bytes calldata ticker, address owner, address spender) external view returns (uint256);\n\n    /**\n     * @dev Sets a `value` amount of tokens as the allowance of `spender` over the\n     * caller's tokens.\n     *\n     * Returns a boolean value indicating whether the operation succeeded.\n     *\n     * IMPORTANT: Beware that changing an allowance with this method brings the risk\n     * that someone may use both the old and the new allowance by unfortunate\n     * transaction ordering. One possible solution to mitigate this race\n     * condition is to first reduce the spender's allowance to 0 and set the\n     * desired value afterwards:\n     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729\n     *\n     * Emits an {Approval} event.\n     */\n    function approve(bytes calldata ticker, address spender, uint256 value) external returns (bool);\n\n    /**\n     * @dev Moves a `value` amount of tokens from `from` to `to` using the\n     * allowance mechanism. `value` is then deducted from the caller's\n     * allowance.\n     *\n     * Returns a boolean value indicating whether the operation succeeded.\n     *\n     * Emits a {Transfer} event.\n     */\n    function transferFrom(bytes calldata ticker, address from, address to, uint256 value) external returns (bool);\n}",
             "keccak256": "0x3ffe8502a56ad2da6aa04f957b9a70c366955e598465ac8578a6d60e29b29cf2",
-            "license": "MIT",
-            "urls": [
-                "bzz-raw://fd8537aab09ea503dfd981321df16f310a45545c62df950633b51c12a249717d",
-                "dweb:/ipfs/QmcxNXc2CeFjpuzTVHmMuz4jFqjPoAuPN8pMaVfGQKnM7h"
-            ]
+            "license": "MIT"
         },
         "access/Ownable.sol": {
+            "content": "// SPDX-License-Identifier: MIT\n// OpenZeppelin Contracts (last updated v5.0.0) (access/Ownable.sol)\n\npragma solidity ^0.8.19;\n\nimport {Context} from \"../utils/Context.sol\";\n\n/**\n * @dev Contract module which provides a basic access control mechanism, where\n * there is an account (an owner) that can be granted exclusive access to\n * specific functions.\n *\n * The initial owner is set to the address provided by the deployer. This can\n * later be changed with {transferOwnership}.\n *\n * This module is used through inheritance. It will make available the modifier\n * `onlyOwner`, which can be applied to your functions to restrict their use to\n * the owner.\n */\nabstract contract Ownable is Context {\n    address private _owner;\n\n    /**\n     * @dev The caller account is not authorized to perform an operation.\n     */\n    error OwnableUnauthorizedAccount(address account);\n\n    /**\n     * @dev The owner is not a valid owner account. (eg. `address(0)`)\n     */\n    error OwnableInvalidOwner(address owner);\n\n    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);\n\n    /**\n     * @dev Initializes the contract setting the address provided by the deployer as the initial owner.\n     */\n    constructor(address initialOwner) {\n        if (initialOwner == address(0)) {\n            revert OwnableInvalidOwner(address(0));\n        }\n        _transferOwnership(initialOwner);\n    }\n\n    /**\n     * @dev Throws if called by any account other than the owner.\n     */\n    modifier onlyOwner() {\n        _checkOwner();\n        _;\n    }\n\n    /**\n     * @dev Returns the address of the current owner.\n     */\n    function owner() public view virtual returns (address) {\n        return _owner;\n    }\n\n    /**\n     * @dev Throws if the sender is not the owner.\n     */\n    function _checkOwner() internal view virtual {\n        if (owner() != _msgSender()) {\n            revert OwnableUnauthorizedAccount(_msgSender());\n        }\n    }\n\n    /**\n     * @dev Leaves the contract without owner. It will not be possible to call\n     * `onlyOwner` functions. Can only be called by the current owner.\n     *\n     * NOTE: Renouncing ownership will leave the contract without an owner,\n     * thereby disabling any functionality that is only available to the owner.\n     */\n    function renounceOwnership() public virtual onlyOwner {\n        _transferOwnership(address(0));\n    }\n\n    /**\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\n     * Can only be called by the current owner.\n     */\n    function transferOwnership(address newOwner) public virtual onlyOwner {\n        if (newOwner == address(0)) {\n            revert OwnableInvalidOwner(address(0));\n        }\n        _transferOwnership(newOwner);\n    }\n\n    /**\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\n     * Internal function without access restriction.\n     */\n    function _transferOwnership(address newOwner) internal virtual {\n        address oldOwner = _owner;\n        _owner = newOwner;\n        emit OwnershipTransferred(oldOwner, newOwner);\n    }\n}",
             "keccak256": "0x43eec93e9bc75693761098ac8ab3dfeb60dd2bb205096883952bde43ba634998",
-            "license": "MIT",
-            "urls": [
-                "bzz-raw://8d83694cc9164a2cd7bf504b23782c18d2bc6d1694b9cc84e90b98df6e8e89ea",
-                "dweb:/ipfs/QmNTFRv1nrZndRQXEBJ6xwVBohnEnUq3bX8CSkmSWAPPDD"
-            ]
+            "license": "MIT"
         },
         "interfaces/IERC20.sol": {
+            "content": "// SPDX-License-Identifier: MIT\n// OpenZeppelin Contracts (last updated v5.1.0) (token/ERC20/IERC20.sol)\n\npragma solidity ^0.8.20;\n\n/**\n * @dev Interface of the ERC-20 standard as defined in the ERC.\n */\ninterface IERC20 {\n    /**\n     * @dev Emitted when `value` tokens are moved from one account (`from`) to\n     * another (`to`).\n     *\n     * Note that `value` may be zero.\n     */\n    event Transfer(address indexed from, address indexed to, uint256 value);\n\n    /**\n     * @dev Emitted when the allowance of a `spender` for an `owner` is set by\n     * a call to {approve}. `value` is the new allowance.\n     */\n    event Approval(address indexed owner, address indexed spender, uint256 value);\n\n    /**\n     * @dev Returns the value of tokens in existence.\n     */\n    function totalSupply() external view returns (uint256);\n\n    /**\n     * @dev Returns the value of tokens owned by `account`.\n     */\n    function balanceOf(address account) external view returns (uint256);\n\n    /**\n     * @dev Moves a `value` amount of tokens from the caller's account to `to`.\n     *\n     * Returns a boolean value indicating whether the operation succeeded.\n     *\n     * Emits a {Transfer} event.\n     */\n    function transfer(address to, uint256 value) external returns (bool);\n\n    /**\n     * @dev Returns the remaining number of tokens that `spender` will be\n     * allowed to spend on behalf of `owner` through {transferFrom}. This is\n     * zero by default.\n     *\n     * This value changes when {approve} or {transferFrom} are called.\n     */\n    function allowance(address owner, address spender) external view returns (uint256);\n\n    /**\n     * @dev Sets a `value` amount of tokens as the allowance of `spender` over the\n     * caller's tokens.\n     *\n     * Returns a boolean value indicating whether the operation succeeded.\n     *\n     * IMPORTANT: Beware that changing an allowance with this method brings the risk\n     * that someone may use both the old and the new allowance by unfortunate\n     * transaction ordering. One possible solution to mitigate this race\n     * condition is to first reduce the spender's allowance to 0 and set the\n     * desired value afterwards:\n     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729\n     *\n     * Emits an {Approval} event.\n     */\n    function approve(address spender, uint256 value) external returns (bool);\n\n    /**\n     * @dev Moves a `value` amount of tokens from `from` to `to` using the\n     * allowance mechanism. `value` is then deducted from the caller's\n     * allowance.\n     *\n     * Returns a boolean value indicating whether the operation succeeded.\n     *\n     * Emits a {Transfer} event.\n     */\n    function transferFrom(address from, address to, uint256 value) external returns (bool);\n}",
             "keccak256": "0x91104f4bcc877f2506e4485b871efe0a6beb5c1ef7de9c374d99d75289905905",
-            "license": "MIT",
-            "urls": [
-                "bzz-raw://57a7ecbec5ff542c117d36c7487386b5653ad21d0a83414e859d4202e069b36f",
-                "dweb:/ipfs/QmaPocSUaysdjd1Ksa5kttxRHxhA7XWd6HrQ9teLFRyR6W"
-            ]
+            "license": "MIT"
         },
         "interfaces/IERC20Metadata.sol": {
+            "content": "// SPDX-License-Identifier: MIT\n// OpenZeppelin Contracts (last updated v5.1.0) (token/ERC20/extensions/IERC20Metadata.sol)\n\npragma solidity ^0.8.20;\n\nimport {IERC20} from \"./IERC20.sol\";\n\n/**\n * @dev Interface for the optional metadata functions from the ERC-20 standard.\n */\ninterface IERC20Metadata is IERC20 {\n    /**\n     * @dev Returns the name of the token.\n     */\n    function name() external view returns (string memory);\n\n    /**\n     * @dev Returns the symbol of the token.\n     */\n    function symbol() external view returns (string memory);\n\n    /**\n     * @dev Returns the decimals places of the token.\n     */\n    function decimals() external view returns (uint8);\n}",
             "keccak256": "0x38821ee4c1716c97a4f1551a59824735552c714a63a6e875717a198f52d0c07b",
-            "license": "MIT",
-            "urls": [
-                "bzz-raw://0b130180d0b3426a0b1ebc6266536497c4975c990ef0c62e318149d51bf5fde4",
-                "dweb:/ipfs/QmVn7LXXYGjHayWiCrAkKQR2K2qhUYSYXRBsM6acLQS67F"
-            ]
+            "license": "MIT"
         },
         "interfaces/draft-IERC6093.sol": {
+            "content": "// SPDX-License-Identifier: MIT\n// OpenZeppelin Contracts (last updated v5.1.0) (interfaces/draft-IERC6093.sol)\npragma solidity ^0.8.20;\n\n/**\n * @dev Standard ERC-20 Errors\n * Interface of the https://eips.ethereum.org/EIPS/eip-6093[ERC-6093] custom errors for ERC-20 tokens.\n */\ninterface IERC20Errors {\n    /**\n     * @dev Indicates an error related to the current `balance` of a `sender`. Used in transfers.\n     * @param sender Address whose tokens are being transferred.\n     * @param balance Current balance for the interacting account.\n     * @param needed Minimum amount required to perform a transfer.\n     */\n    error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed);\n\n    /**\n     * @dev Indicates a failure with the token `sender`. Used in transfers.\n     * @param sender Address whose tokens are being transferred.\n     */\n    error ERC20InvalidSender(address sender);\n\n    /**\n     * @dev Indicates a failure with the token `receiver`. Used in transfers.\n     * @param receiver Address to which tokens are being transferred.\n     */\n    error ERC20InvalidReceiver(address receiver);\n\n    /**\n     * @dev Indicates a failure with the `spender`’s `allowance`. Used in transfers.\n     * @param spender Address that may be allowed to operate on tokens without being their owner.\n     * @param allowance Amount of tokens a `spender` is allowed to operate with.\n     * @param needed Minimum amount required to perform a transfer.\n     */\n    error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed);\n\n    /**\n     * @dev Indicates a failure with the `approver` of a token to be approved. Used in approvals.\n     * @param approver Address initiating an approval operation.\n     */\n    error ERC20InvalidApprover(address approver);\n\n    /**\n     * @dev Indicates a failure with the `spender` to be approved. Used in approvals.\n     * @param spender Address that may be allowed to operate on tokens without being their owner.\n     */\n    error ERC20InvalidSpender(address spender);\n}\n\n/**\n * @dev Standard ERC-721 Errors\n * Interface of the https://eips.ethereum.org/EIPS/eip-6093[ERC-6093] custom errors for ERC-721 tokens.\n */\ninterface IERC721Errors {\n    /**\n     * @dev Indicates that an address can't be an owner. For example, `address(0)` is a forbidden owner in ERC-20.\n     * Used in balance queries.\n     * @param owner Address of the current owner of a token.\n     */\n    error ERC721InvalidOwner(address owner);\n\n    /**\n     * @dev Indicates a `tokenId` whose `owner` is the zero address.\n     * @param tokenId Identifier number of a token.\n     */\n    error ERC721NonexistentToken(uint256 tokenId);\n\n    /**\n     * @dev Indicates an error related to the ownership over a particular token. Used in transfers.\n     * @param sender Address whose tokens are being transferred.\n     * @param tokenId Identifier number of a token.\n     * @param owner Address of the current owner of a token.\n     */\n    error ERC721IncorrectOwner(address sender, uint256 tokenId, address owner);\n\n    /**\n     * @dev Indicates a failure with the token `sender`. Used in transfers.\n     * @param sender Address whose tokens are being transferred.\n     */\n    error ERC721InvalidSender(address sender);\n\n    /**\n     * @dev Indicates a failure with the token `receiver`. Used in transfers.\n     * @param receiver Address to which tokens are being transferred.\n     */\n    error ERC721InvalidReceiver(address receiver);\n\n    /**\n     * @dev Indicates a failure with the `operator`’s approval. Used in transfers.\n     * @param operator Address that may be allowed to operate on tokens without being their owner.\n     * @param tokenId Identifier number of a token.\n     */\n    error ERC721InsufficientApproval(address operator, uint256 tokenId);\n\n    /**\n     * @dev Indicates a failure with the `approver` of a token to be approved. Used in approvals.\n     * @param approver Address initiating an approval operation.\n     */\n    error ERC721InvalidApprover(address approver);\n\n    /**\n     * @dev Indicates a failure with the `operator` to be approved. Used in approvals.\n     * @param operator Address that may be allowed to operate on tokens without being their owner.\n     */\n    error ERC721InvalidOperator(address operator);\n}\n\n/**\n * @dev Standard ERC-1155 Errors\n * Interface of the https://eips.ethereum.org/EIPS/eip-6093[ERC-6093] custom errors for ERC-1155 tokens.\n */\ninterface IERC1155Errors {\n    /**\n     * @dev Indicates an error related to the current `balance` of a `sender`. Used in transfers.\n     * @param sender Address whose tokens are being transferred.\n     * @param balance Current balance for the interacting account.\n     * @param needed Minimum amount required to perform a transfer.\n     * @param tokenId Identifier number of a token.\n     */\n    error ERC1155InsufficientBalance(address sender, uint256 balance, uint256 needed, uint256 tokenId);\n\n    /**\n     * @dev Indicates a failure with the token `sender`. Used in transfers.\n     * @param sender Address whose tokens are being transferred.\n     */\n    error ERC1155InvalidSender(address sender);\n\n    /**\n     * @dev Indicates a failure with the token `receiver`. Used in transfers.\n     * @param receiver Address to which tokens are being transferred.\n     */\n    error ERC1155InvalidReceiver(address receiver);\n\n    /**\n     * @dev Indicates a failure with the `operator`’s approval. Used in transfers.\n     * @param operator Address that may be allowed to operate on tokens without being their owner.\n     * @param owner Address of the current owner of a token.\n     */\n    error ERC1155MissingApprovalForAll(address operator, address owner);\n\n    /**\n     * @dev Indicates a failure with the `approver` of a token to be approved. Used in approvals.\n     * @param approver Address initiating an approval operation.\n     */\n    error ERC1155InvalidApprover(address approver);\n\n    /**\n     * @dev Indicates a failure with the `operator` to be approved. Used in approvals.\n     * @param operator Address that may be allowed to operate on tokens without being their owner.\n     */\n    error ERC1155InvalidOperator(address operator);\n\n    /**\n     * @dev Indicates an array length mismatch between ids and values in a safeBatchTransferFrom operation.\n     * Used in batch transfers.\n     * @param idsLength Length of the array of token identifiers\n     * @param valuesLength Length of the array of token amounts\n     */\n    error ERC1155InvalidArrayLength(uint256 idsLength, uint256 valuesLength);\n}",
             "keccak256": "0x99d2a5a402dc0093e2f4580fd22ce02e3b0e7601dfeb685a73242dbc7dbb0987",
-            "license": "MIT",
-            "urls": [
-                "bzz-raw://dc35b2baddee259793af3239b9a08d54648e439a8e4340fd2dc61a87211560aa",
-                "dweb:/ipfs/QmTXTKZnQ5qc17F8ZfxA5L3vor5QAz9td5RZY5oabAR3AZ"
-            ]
+            "license": "MIT"
         },
         "utils/Context.sol": {
+            "content": "// SPDX-License-Identifier: MIT\n// OpenZeppelin Contracts (last updated v5.0.1) (utils/Context.sol)\n\npragma solidity ^0.8.19;\n\n/**\n * @dev Provides information about the current execution context, including the\n * sender of the transaction and its data. While these are generally available\n * via msg.sender and msg.data, they should not be accessed in such a direct\n * manner, since when dealing with meta-transactions the account sending and\n * paying for execution may not be the actual sender (as far as an application\n * is concerned).\n *\n * This contract is only required for intermediate, library-like contracts.\n */\nabstract contract Context {\n    function _msgSender() internal view virtual returns (address) {\n        return msg.sender;\n    }\n\n    function _msgData() internal view virtual returns (bytes calldata) {\n        return msg.data;\n    }\n\n    function _contextSuffixLength() internal view virtual returns (uint256) {\n        return 0;\n    }\n}",
             "keccak256": "0xd609ca3ca31cf5566b56577e8263d2141015caadc262d9a0c0a44cf9ea0185fd",
-            "license": "MIT",
-            "urls": [
-                "bzz-raw://697af9721cf988db98747ea4b7e2e8b61cac7eeab226d019d0a00edd253476e8",
-                "dweb:/ipfs/QmSUTcVtr2ipFFzk1KnWxgHp8WT1kQJgmmBViHVCuY4pVd"
-            ]
+            "license": "MIT"
         }
     },
     "version": 1
