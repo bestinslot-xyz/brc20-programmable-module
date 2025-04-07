@@ -613,6 +613,16 @@ Indexers should expose a balance server that returns current overall balance for
 > [!WARNING]
 > BRC20 Balance Server exposed by the indexer should return BRC20 balance at the time of current transaction after processing all the BRC20 events up until this point, and NOT the BRC20 balance at the start of the block.
 
+### Authorization
+
+`brc20_prog` module supports basic username/password HTTP auth. It's turned off by default, but can be enabled using the following environment variables:
+
+```bash
+BRC20_PROG_RPC_SERVER_ENABLE_AUTH=true
+BRC20_PROG_RPC_SERVER_USER="<USER>"
+BRC20_PROG_RPC_SERVER_PASSWORD="<PASSWORD>"
+```
+
 ### Indexer Checklist
 
 - [ ] Set environment variables, check [env.sample](env.sample) for a list

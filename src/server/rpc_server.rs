@@ -6,7 +6,9 @@ use hyper::Method;
 use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::server::{RpcServiceBuilder, Server, ServerHandle};
 use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
+use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tracing::{event, instrument, Level};
 
 use crate::brc20_controller::{
@@ -535,6 +537,9 @@ impl Into<ErrorObject<'static>> for RpcServerError {
 pub async fn start_rpc_server(
     addr: String,
     server_instance: ServerInstance,
+    use_auth: bool,
+    rpc_username: Option<&String>,
+    rpc_password: Option<&String>,
 ) -> Result<ServerHandle, Box<dyn Error>> {
     let cors = CorsLayer::new()
         // Allow `POST` when accessing the resource
@@ -542,15 +547,40 @@ pub async fn start_rpc_server(
         // Allow requests from any origin
         .allow_origin(Any)
         .allow_headers([hyper::header::CONTENT_TYPE]);
-    let middleware = tower::ServiceBuilder::new().layer(cors);
 
-    let server = Server::builder()
-        .set_http_middleware(middleware)
-        .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(1024))
-        .build(addr.parse::<SocketAddr>()?)
-        .await?;
+    let http_middleware = ServiceBuilder::new().layer(cors);
+    let rpc_middleware = RpcServiceBuilder::new().rpc_logger(1024);
     let module = RpcServer { server_instance }.into_rpc();
-    let handle = server.start(module);
+    let server = Server::builder().set_rpc_middleware(rpc_middleware);
+
+    let handle = if use_auth {
+        let Some(rpc_username) = rpc_username else {
+            return Err(
+                "RPC username environment variable is required when authentication is enabled"
+                    .into(),
+            );
+        };
+        let Some(rpc_password) = rpc_password else {
+            return Err(
+                "RPC password environment variable is required when authentication is enabled"
+                    .into(),
+            );
+        };
+        server
+            .set_http_middleware(http_middleware.layer(ValidateRequestHeaderLayer::basic(
+                rpc_username,
+                rpc_password,
+            )))
+            .build(addr.parse::<SocketAddr>()?)
+            .await?
+            .start(module)
+    } else {
+        server
+            .set_http_middleware(http_middleware)
+            .build(addr.parse::<SocketAddr>()?)
+            .await?
+            .start(module)
+    };
 
     Ok(handle)
 }
