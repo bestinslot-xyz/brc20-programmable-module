@@ -24,6 +24,10 @@ async function main() {
             'BRC20_Controller.sol': { content: BRC20Controller_sol },
         },
         settings: {
+            optimizer: {
+                enabled: true,
+                runs: 10000,
+            },
             evmVersion: "cancun",
             outputSelection: {
                 '*': {
@@ -43,6 +47,7 @@ async function main() {
 
     fs.mkdirSync('output', { recursive: true });
 
+    fs.writeFileSync('../BRC20_Controller.json', JSON.stringify(JSON.parse(contract["metadata"]), null, 4), function (_) { });
     fs.writeFileSync('../BRC20_Controller.abi', JSON.stringify(abi, null, 4), function (_) { });
     fs.writeFileSync('../BRC20_Controller.bin', bytecode, function (_) { });
     fs.writeFileSync('../BRC20_Controller_deploy.bytecode', deploy_tx.data, function (_) { });

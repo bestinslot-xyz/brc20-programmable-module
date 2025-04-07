@@ -1,0 +1,645 @@
+{
+    "compiler": {
+        "version": "0.8.24+commit.e11b9ed9"
+    },
+    "language": "Solidity",
+    "output": {
+        "abi": [
+            {
+                "inputs": [],
+                "stateMutability": "nonpayable",
+                "type": "constructor"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "spender",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "allowance",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "needed",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "BRC20InsufficientAllowance",
+                "type": "error"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "sender",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "balance",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "needed",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "BRC20InsufficientBalance",
+                "type": "error"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "approver",
+                        "type": "address"
+                    }
+                ],
+                "name": "BRC20InvalidApprover",
+                "type": "error"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "receiver",
+                        "type": "address"
+                    }
+                ],
+                "name": "BRC20InvalidReceiver",
+                "type": "error"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "sender",
+                        "type": "address"
+                    }
+                ],
+                "name": "BRC20InvalidSender",
+                "type": "error"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "spender",
+                        "type": "address"
+                    }
+                ],
+                "name": "BRC20InvalidSpender",
+                "type": "error"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "owner",
+                        "type": "address"
+                    }
+                ],
+                "name": "OwnableInvalidOwner",
+                "type": "error"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "account",
+                        "type": "address"
+                    }
+                ],
+                "name": "OwnableUnauthorizedAccount",
+                "type": "error"
+            },
+            {
+                "anonymous": false,
+                "inputs": [
+                    {
+                        "indexed": true,
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "indexed": true,
+                        "internalType": "address",
+                        "name": "owner",
+                        "type": "address"
+                    },
+                    {
+                        "indexed": true,
+                        "internalType": "address",
+                        "name": "spender",
+                        "type": "address"
+                    },
+                    {
+                        "indexed": false,
+                        "internalType": "uint256",
+                        "name": "value",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "Approval",
+                "type": "event"
+            },
+            {
+                "anonymous": false,
+                "inputs": [
+                    {
+                        "indexed": true,
+                        "internalType": "address",
+                        "name": "previousOwner",
+                        "type": "address"
+                    },
+                    {
+                        "indexed": true,
+                        "internalType": "address",
+                        "name": "newOwner",
+                        "type": "address"
+                    }
+                ],
+                "name": "OwnershipTransferred",
+                "type": "event"
+            },
+            {
+                "anonymous": false,
+                "inputs": [
+                    {
+                        "indexed": true,
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "indexed": true,
+                        "internalType": "address",
+                        "name": "from",
+                        "type": "address"
+                    },
+                    {
+                        "indexed": true,
+                        "internalType": "address",
+                        "name": "to",
+                        "type": "address"
+                    },
+                    {
+                        "indexed": false,
+                        "internalType": "uint256",
+                        "name": "value",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "Transfer",
+                "type": "event"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "owner",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "spender",
+                        "type": "address"
+                    }
+                ],
+                "name": "allowance",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "spender",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "value",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "approve",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "account",
+                        "type": "address"
+                    }
+                ],
+                "name": "balanceOf",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "from",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "value",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "burn",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "to",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "value",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "mint",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "owner",
+                "outputs": [
+                    {
+                        "internalType": "address",
+                        "name": "",
+                        "type": "address"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "renounceOwnership",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "to",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "value",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "transfer",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "from",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "to",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "value",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "transferFrom",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "newOwner",
+                        "type": "address"
+                    }
+                ],
+                "name": "transferOwnership",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            }
+        ],
+        "devdoc": {
+            "details": "Implementation of the {IBRC20_Controller} interface.",
+            "errors": {
+                "BRC20InsufficientAllowance(bytes,address,uint256,uint256)": [
+                    {
+                        "details": "Indicates a failure with the `spender`’s `allowance`. Used in transfers.",
+                        "params": {
+                            "allowance": "Amount of tokens a `spender` is allowed to operate with.",
+                            "needed": "Minimum amount required to perform a transfer.",
+                            "spender": "Address that may be allowed to operate on tokens without being their owner.",
+                            "ticker": "Ticker of tokens."
+                        }
+                    }
+                ],
+                "BRC20InsufficientBalance(bytes,address,uint256,uint256)": [
+                    {
+                        "details": "Indicates an error related to the current `balance` of a `sender`. Used in transfers.",
+                        "params": {
+                            "balance": "Current balance for the interacting account.",
+                            "needed": "Minimum amount required to perform a transfer.",
+                            "sender": "Address whose tokens are being transferred.",
+                            "ticker": "Ticker of tokens."
+                        }
+                    }
+                ],
+                "BRC20InvalidApprover(bytes,address)": [
+                    {
+                        "details": "Indicates a failure with the `approver` of a token to be approved. Used in approvals.",
+                        "params": {
+                            "approver": "Address initiating an approval operation.",
+                            "ticker": "Ticker of tokens."
+                        }
+                    }
+                ],
+                "BRC20InvalidReceiver(bytes,address)": [
+                    {
+                        "details": "Indicates a failure with the token `receiver`. Used in transfers.",
+                        "params": {
+                            "receiver": "Address to which tokens are being transferred.",
+                            "ticker": "Ticker of tokens."
+                        }
+                    }
+                ],
+                "BRC20InvalidSender(bytes,address)": [
+                    {
+                        "details": "Indicates a failure with the token `sender`. Used in transfers.",
+                        "params": {
+                            "sender": "Address whose tokens are being transferred.",
+                            "ticker": "Ticker of tokens."
+                        }
+                    }
+                ],
+                "BRC20InvalidSpender(bytes,address)": [
+                    {
+                        "details": "Indicates a failure with the `spender` to be approved. Used in approvals.",
+                        "params": {
+                            "spender": "Address that may be allowed to operate on tokens without being their owner.",
+                            "ticker": "Ticker of tokens."
+                        }
+                    }
+                ],
+                "OwnableInvalidOwner(address)": [
+                    {
+                        "details": "The owner is not a valid owner account. (eg. `address(0)`)"
+                    }
+                ],
+                "OwnableUnauthorizedAccount(address)": [
+                    {
+                        "details": "The caller account is not authorized to perform an operation."
+                    }
+                ]
+            },
+            "events": {
+                "Approval(bytes,address,address,uint256)": {
+                    "details": "Emitted when the allowance of a `spender` for an `owner` is set by a call to {approve}. `value` is the new allowance."
+                },
+                "Transfer(bytes,address,address,uint256)": {
+                    "details": "Emitted when `value` tokens are moved from one account (`from`) to another (`to`). Note that `value` may be zero."
+                }
+            },
+            "kind": "dev",
+            "methods": {
+                "allowance(bytes,address,address)": {
+                    "details": "See {IBRC20_Controller-allowance}."
+                },
+                "approve(bytes,address,uint256)": {
+                    "details": "See {IBRC20_Controller-approve}. NOTE: If `value` is the maximum `uint256`, the allowance is not updated on `transferFrom`. This is semantically equivalent to an infinite approval. Requirements: - `spender` cannot be the zero address."
+                },
+                "balanceOf(bytes,address)": {
+                    "details": "See {IBRC20_Controller-balanceOf}."
+                },
+                "constructor": {
+                    "details": "Sets the values for {name} and {symbol}. All two of these values are immutable: they can only be set once during construction."
+                },
+                "owner()": {
+                    "details": "Returns the address of the current owner."
+                },
+                "renounceOwnership()": {
+                    "details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner."
+                },
+                "transfer(bytes,address,uint256)": {
+                    "details": "See {IBRC20_Controller-transfer}. Requirements: - `to` cannot be the zero address. - the caller must have a balance of at least `value`."
+                },
+                "transferFrom(bytes,address,address,uint256)": {
+                    "details": "See {IBRC20_Controller-transferFrom}. Emits an {Approval} event indicating the updated allowance. This is not required. NOTE: Does not update the allowance if the current allowance is the maximum `uint256`. Requirements: - `from` and `to` cannot be the zero address. - `from` must have a balance of at least `value`. - the caller must have allowance for ``from``'s tokens of at least `value`."
+                },
+                "transferOwnership(address)": {
+                    "details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+                }
+            },
+            "version": 1
+        },
+        "userdoc": {
+            "kind": "user",
+            "methods": {},
+            "version": 1
+        }
+    },
+    "settings": {
+        "compilationTarget": {
+            "BRC20_Controller.sol": "BRC20_Controller"
+        },
+        "evmVersion": "cancun",
+        "libraries": {},
+        "metadata": {
+            "bytecodeHash": "ipfs"
+        },
+        "optimizer": {
+            "enabled": true,
+            "runs": 10000
+        },
+        "remappings": []
+    },
+    "sources": {
+        "BRC20_Controller.sol": {
+            "keccak256": "0x839d99097958c2fb34a72b799dccd1793d2a45a54f6c27ee1fd73fd0fb9a953b",
+            "license": "MIT",
+            "urls": [
+                "bzz-raw://62986de2eb7cde5d1cb6f83acc9e69c46dd0ba5944a787beb4d49431fd5c8e7d",
+                "dweb:/ipfs/Qmb7C2aB7FqTbVumFHkLdZuE3PoUCmJYVCqNpN8AUtXybL"
+            ]
+        },
+        "IBRC20_Controller.sol": {
+            "keccak256": "0x39065fb1e4cc3201c9b9b77e0f8de2ace8451e46c96c1ec722b3804720bd3f08",
+            "license": "MIT",
+            "urls": [
+                "bzz-raw://65012ede8683f8708bfafb3ffda2669bcf6b5bf4940ea90e4257e1cf44feabc0",
+                "dweb:/ipfs/QmTjJMFVDPsaYTPZRSKTDsrb4EBCCzySBqruUAXe1Ub6jo"
+            ]
+        },
+        "access/Ownable.sol": {
+            "keccak256": "0x43eec93e9bc75693761098ac8ab3dfeb60dd2bb205096883952bde43ba634998",
+            "license": "MIT",
+            "urls": [
+                "bzz-raw://8d83694cc9164a2cd7bf504b23782c18d2bc6d1694b9cc84e90b98df6e8e89ea",
+                "dweb:/ipfs/QmNTFRv1nrZndRQXEBJ6xwVBohnEnUq3bX8CSkmSWAPPDD"
+            ]
+        },
+        "interfaces/draft-IBRC6093.sol": {
+            "keccak256": "0xd87f6125fb779e966d4605ed72b1b11ecfc8c13b9d614bb91b1f8fb8aae526cf",
+            "license": "MIT",
+            "urls": [
+                "bzz-raw://9d6b4863bd975348561bf257bc0d76980db2e98a29d4ff534884d8b3b1220ea4",
+                "dweb:/ipfs/QmPe9VEqUuR151hUHpGDqoEDGuHLbQJPNg5rBJmaK4Pcyq"
+            ]
+        },
+        "utils/Context.sol": {
+            "keccak256": "0xd609ca3ca31cf5566b56577e8263d2141015caadc262d9a0c0a44cf9ea0185fd",
+            "license": "MIT",
+            "urls": [
+                "bzz-raw://697af9721cf988db98747ea4b7e2e8b61cac7eeab226d019d0a00edd253476e8",
+                "dweb:/ipfs/QmSUTcVtr2ipFFzk1KnWxgHp8WT1kQJgmmBViHVCuY4pVd"
+            ]
+        }
+    },
+    "version": 1
+}
