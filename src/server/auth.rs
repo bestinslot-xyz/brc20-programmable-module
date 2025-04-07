@@ -56,11 +56,12 @@ impl<B> ValidateRequest<B> for HttpNonBlockingAuth {
         &mut self,
         request: &mut hyper::Request<B>,
     ) -> Result<(), hyper::Response<Self::ResponseBody>> {
-        if self.allow_all || request
-            .headers()
-            .get("Authorization")
-            .and_then(|header| header.to_str().ok())
-            == self.header.as_deref()
+        if self.allow_all
+            || request
+                .headers()
+                .get("Authorization")
+                .and_then(|header| header.to_str().ok())
+                == self.header.as_deref()
         {
             request.extensions_mut().insert(Authorized::default());
         }
@@ -108,7 +109,7 @@ where
             .is_err()
         {
             return ResponseFuture::ready(MethodResponse::error(
-                Id::Number(401),
+                req.id(),
                 ErrorObject::borrowed(401, "Unauthorized", None),
             ));
         }
