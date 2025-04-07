@@ -13,122 +13,6 @@
             {
                 "inputs": [
                     {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "spender",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "allowance",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "needed",
-                        "type": "uint256"
-                    }
-                ],
-                "name": "BRC20InsufficientAllowance",
-                "type": "error"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "sender",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "balance",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "needed",
-                        "type": "uint256"
-                    }
-                ],
-                "name": "BRC20InsufficientBalance",
-                "type": "error"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "approver",
-                        "type": "address"
-                    }
-                ],
-                "name": "BRC20InvalidApprover",
-                "type": "error"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "receiver",
-                        "type": "address"
-                    }
-                ],
-                "name": "BRC20InvalidReceiver",
-                "type": "error"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "sender",
-                        "type": "address"
-                    }
-                ],
-                "name": "BRC20InvalidSender",
-                "type": "error"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "bytes",
-                        "name": "ticker",
-                        "type": "bytes"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "spender",
-                        "type": "address"
-                    }
-                ],
-                "name": "BRC20InvalidSpender",
-                "type": "error"
-            },
-            {
-                "inputs": [
-                    {
                         "internalType": "address",
                         "name": "owner",
                         "type": "address"
@@ -177,6 +61,25 @@
                     }
                 ],
                 "name": "Approval",
+                "type": "event"
+            },
+            {
+                "anonymous": false,
+                "inputs": [
+                    {
+                        "indexed": true,
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
+                    },
+                    {
+                        "indexed": true,
+                        "internalType": "address",
+                        "name": "contract_address",
+                        "type": "address"
+                    }
+                ],
+                "name": "BRC20Created",
                 "type": "event"
             },
             {
@@ -346,6 +249,25 @@
                         "internalType": "bytes",
                         "name": "ticker",
                         "type": "bytes"
+                    }
+                ],
+                "name": "getTickerAddress",
+                "outputs": [
+                    {
+                        "internalType": "address",
+                        "name": "",
+                        "type": "address"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes",
+                        "name": "ticker",
+                        "type": "bytes"
                     },
                     {
                         "internalType": "address",
@@ -469,64 +391,6 @@
         "devdoc": {
             "details": "Implementation of the {IBRC20_Controller} interface.",
             "errors": {
-                "BRC20InsufficientAllowance(bytes,address,uint256,uint256)": [
-                    {
-                        "details": "Indicates a failure with the `spender`’s `allowance`. Used in transfers.",
-                        "params": {
-                            "allowance": "Amount of tokens a `spender` is allowed to operate with.",
-                            "needed": "Minimum amount required to perform a transfer.",
-                            "spender": "Address that may be allowed to operate on tokens without being their owner.",
-                            "ticker": "Ticker of tokens."
-                        }
-                    }
-                ],
-                "BRC20InsufficientBalance(bytes,address,uint256,uint256)": [
-                    {
-                        "details": "Indicates an error related to the current `balance` of a `sender`. Used in transfers.",
-                        "params": {
-                            "balance": "Current balance for the interacting account.",
-                            "needed": "Minimum amount required to perform a transfer.",
-                            "sender": "Address whose tokens are being transferred.",
-                            "ticker": "Ticker of tokens."
-                        }
-                    }
-                ],
-                "BRC20InvalidApprover(bytes,address)": [
-                    {
-                        "details": "Indicates a failure with the `approver` of a token to be approved. Used in approvals.",
-                        "params": {
-                            "approver": "Address initiating an approval operation.",
-                            "ticker": "Ticker of tokens."
-                        }
-                    }
-                ],
-                "BRC20InvalidReceiver(bytes,address)": [
-                    {
-                        "details": "Indicates a failure with the token `receiver`. Used in transfers.",
-                        "params": {
-                            "receiver": "Address to which tokens are being transferred.",
-                            "ticker": "Ticker of tokens."
-                        }
-                    }
-                ],
-                "BRC20InvalidSender(bytes,address)": [
-                    {
-                        "details": "Indicates a failure with the token `sender`. Used in transfers.",
-                        "params": {
-                            "sender": "Address whose tokens are being transferred.",
-                            "ticker": "Ticker of tokens."
-                        }
-                    }
-                ],
-                "BRC20InvalidSpender(bytes,address)": [
-                    {
-                        "details": "Indicates a failure with the `spender` to be approved. Used in approvals.",
-                        "params": {
-                            "spender": "Address that may be allowed to operate on tokens without being their owner.",
-                            "ticker": "Ticker of tokens."
-                        }
-                    }
-                ],
                 "OwnableInvalidOwner(address)": [
                     {
                         "details": "The owner is not a valid owner account. (eg. `address(0)`)"
@@ -541,6 +405,9 @@
             "events": {
                 "Approval(bytes,address,address,uint256)": {
                     "details": "Emitted when the allowance of a `spender` for an `owner` is set by a call to {approve}. `value` is the new allowance."
+                },
+                "BRC20Created(bytes,address)": {
+                    "details": "Emitted when a ticker is deposited the first time"
                 },
                 "Transfer(bytes,address,address,uint256)": {
                     "details": "Emitted when `value` tokens are moved from one account (`from`) to another (`to`). Note that `value` may be zero."
@@ -601,19 +468,19 @@
     },
     "sources": {
         "BRC20_Controller.sol": {
-            "keccak256": "0x839d99097958c2fb34a72b799dccd1793d2a45a54f6c27ee1fd73fd0fb9a953b",
+            "keccak256": "0x09c3b4e26c2ca1e1899f6dcaa7402790d1342609381f36b128eb67662550ea76",
             "license": "MIT",
             "urls": [
-                "bzz-raw://62986de2eb7cde5d1cb6f83acc9e69c46dd0ba5944a787beb4d49431fd5c8e7d",
-                "dweb:/ipfs/Qmb7C2aB7FqTbVumFHkLdZuE3PoUCmJYVCqNpN8AUtXybL"
+                "bzz-raw://f97546fbfd7b9d451a57122b08da42da6b1a88d2b1116e00d1a6c5ab43c28653",
+                "dweb:/ipfs/QmT9Z9iYDHiVjGR6qXYvcrKcipqbMDLnUNjBMa79y9mNJu"
             ]
         },
         "IBRC20_Controller.sol": {
-            "keccak256": "0x39065fb1e4cc3201c9b9b77e0f8de2ace8451e46c96c1ec722b3804720bd3f08",
+            "keccak256": "0x3ffe8502a56ad2da6aa04f957b9a70c366955e598465ac8578a6d60e29b29cf2",
             "license": "MIT",
             "urls": [
-                "bzz-raw://65012ede8683f8708bfafb3ffda2669bcf6b5bf4940ea90e4257e1cf44feabc0",
-                "dweb:/ipfs/QmTjJMFVDPsaYTPZRSKTDsrb4EBCCzySBqruUAXe1Ub6jo"
+                "bzz-raw://fd8537aab09ea503dfd981321df16f310a45545c62df950633b51c12a249717d",
+                "dweb:/ipfs/QmcxNXc2CeFjpuzTVHmMuz4jFqjPoAuPN8pMaVfGQKnM7h"
             ]
         },
         "access/Ownable.sol": {
@@ -624,12 +491,28 @@
                 "dweb:/ipfs/QmNTFRv1nrZndRQXEBJ6xwVBohnEnUq3bX8CSkmSWAPPDD"
             ]
         },
-        "interfaces/draft-IBRC6093.sol": {
-            "keccak256": "0xd87f6125fb779e966d4605ed72b1b11ecfc8c13b9d614bb91b1f8fb8aae526cf",
+        "interfaces/IERC20.sol": {
+            "keccak256": "0x91104f4bcc877f2506e4485b871efe0a6beb5c1ef7de9c374d99d75289905905",
             "license": "MIT",
             "urls": [
-                "bzz-raw://9d6b4863bd975348561bf257bc0d76980db2e98a29d4ff534884d8b3b1220ea4",
-                "dweb:/ipfs/QmPe9VEqUuR151hUHpGDqoEDGuHLbQJPNg5rBJmaK4Pcyq"
+                "bzz-raw://57a7ecbec5ff542c117d36c7487386b5653ad21d0a83414e859d4202e069b36f",
+                "dweb:/ipfs/QmaPocSUaysdjd1Ksa5kttxRHxhA7XWd6HrQ9teLFRyR6W"
+            ]
+        },
+        "interfaces/IERC20Metadata.sol": {
+            "keccak256": "0x38821ee4c1716c97a4f1551a59824735552c714a63a6e875717a198f52d0c07b",
+            "license": "MIT",
+            "urls": [
+                "bzz-raw://0b130180d0b3426a0b1ebc6266536497c4975c990ef0c62e318149d51bf5fde4",
+                "dweb:/ipfs/QmVn7LXXYGjHayWiCrAkKQR2K2qhUYSYXRBsM6acLQS67F"
+            ]
+        },
+        "interfaces/draft-IERC6093.sol": {
+            "keccak256": "0x99d2a5a402dc0093e2f4580fd22ce02e3b0e7601dfeb685a73242dbc7dbb0987",
+            "license": "MIT",
+            "urls": [
+                "bzz-raw://dc35b2baddee259793af3239b9a08d54648e439a8e4340fd2dc61a87211560aa",
+                "dweb:/ipfs/QmTXTKZnQ5qc17F8ZfxA5L3vor5QAz9td5RZY5oabAR3AZ"
             ]
         },
         "utils/Context.sol": {
