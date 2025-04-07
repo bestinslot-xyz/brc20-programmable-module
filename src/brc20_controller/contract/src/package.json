@@ -12,10 +12,10 @@
     "dependencies": {
         "ethers": "6.13.6",
         "fs": "0.0.2",
-        "solc_0_8_24": "npm:solc@0.8.24"
+        "solc_0_8_28": "npm:solc@0.8.28"
     },
     "devDependencies": {
-        "eslint": "9.21.0"
+        "eslint": "9.24.0"
     },
     "type": "commonjs"
 }

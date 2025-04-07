@@ -1,4 +1,4 @@
-var solc_fixed = require('solc_0_8_24');
+var solc_fixed = require('solc_0_8_28');
 var ethers = require('ethers');
 var fs = require('fs');
 
