@@ -20,7 +20,7 @@ pub mod types;
 
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-pub use types::{
+use types::{
     AccountInfoED, AddressED, BEncodeDecode, BlockResponseED, BytecodeED, LogResponse, TxED,
     TxReceiptED, UintEncodeDecode, B256ED, U128ED, U256ED, U512ED, U64ED,
 };

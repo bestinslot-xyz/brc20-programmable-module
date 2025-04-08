@@ -120,7 +120,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use jsonrpsee::{server::HttpBody, types::Id};
+    use jsonrpsee::server::HttpBody;
+    use jsonrpsee::types::Id;
 
     use super::*;
 

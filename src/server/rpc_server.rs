@@ -15,7 +15,7 @@ use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
 };
 use crate::db::types::{BlockResponseED, LogResponse, TxED, TxReceiptED};
-use crate::evm::get_evm_address;
+use crate::evm::utils::get_evm_address;
 use crate::server::api::{
     AddressWrapper, B256Wrapper, Brc20ProgApiServer, BytesWrapper, EthCall, GetLogsFilter,
     U256Wrapper,

@@ -2,13 +2,13 @@ use std::error::Error;
 use std::path::Path;
 
 mod brc20_controller;
-pub mod evm;
+mod evm;
 
 mod db;
 use db::DB;
 
 mod server;
-use evm::check_bitcoin_rpc_status;
+use evm::precompiles::check_bitcoin_rpc_status;
 use server::{start_rpc_server, ServerInstance};
 
 lazy_static::lazy_static! {
