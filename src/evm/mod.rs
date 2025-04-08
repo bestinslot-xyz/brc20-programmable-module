@@ -1,13 +1,10 @@
 mod api;
 
 mod handler;
-pub use handler::*;
 
 mod evm;
-pub use evm::*;
+pub use evm::get_evm;
 
-mod precompiles;
-pub use precompiles::{check_bitcoin_rpc_status, get_brc20_balance};
+pub mod precompiles;
 
-mod utils;
-pub use utils::*;
+pub mod utils;

@@ -1,7 +1,6 @@
 pub mod types;
 
 mod rpc_server;
-use alloy_primitives::Address;
 pub use rpc_server::start_rpc_server;
 
 mod server_instance;
@@ -10,6 +9,8 @@ pub use server_instance::ServerInstance;
 mod auth;
 
 mod api;
+
+use alloy_primitives::Address;
 
 lazy_static::lazy_static! {
     pub static ref CHAIN_ID: u64 = 0x4252433230;

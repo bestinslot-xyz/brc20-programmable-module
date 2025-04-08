@@ -12,10 +12,9 @@ use crate::db::types::{
     AddressED, BlockResponseED, Decode, LogED, LogResponse, TxED, TxReceiptED, B2048ED, B256ED,
 };
 use crate::db::{DB, MAX_HISTORY_SIZE};
-use crate::evm::{
-    get_brc20_balance, get_contract_address, get_evm, get_gas_limit, get_result_reason,
-    get_result_type,
-};
+use crate::evm::get_evm;
+use crate::evm::precompiles::get_brc20_balance;
+use crate::evm::utils::{get_contract_address, get_gas_limit, get_result_reason, get_result_type};
 use crate::server::types::{get_tx_hash, TxInfo};
 
 pub struct LastBlockInfo {
