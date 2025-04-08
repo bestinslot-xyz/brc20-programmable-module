@@ -4,12 +4,13 @@ use std::time::Instant;
 use revm::context::{BlockEnv, ContextTr, TransactTo};
 use revm::handler::{EvmTr, ExecuteCommitEvm};
 use revm::primitives::alloy_primitives::logs_bloom;
-use revm::primitives::{Address, Bytes, B256, U256};
+use revm::primitives::{Address, B256, U256};
 use revm::{Database, ExecuteEvm};
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
 use crate::db::types::{
-    AddressED, BlockResponseED, Decode, LogED, LogResponse, TxED, TxReceiptED, B2048ED, B256ED,
+    AddressED, BlockResponseED, BytecodeED, Decode, LogED, LogResponse, TxED, TxReceiptED, B2048ED,
+    B256ED,
 };
 use crate::db::{DB, MAX_HISTORY_SIZE};
 use crate::evm::get_evm;
@@ -703,7 +704,7 @@ impl ServerInstance {
         self.get_block_by_number(block_number.to_u64(), is_full)
     }
 
-    pub fn get_contract_bytecode(&self, addr: Address) -> Option<Bytes> {
+    pub fn get_contract_bytecode(&self, addr: Address) -> Option<BytecodeED> {
         #[cfg(debug_assertions)]
         println!("Getting contract bytecode for {:?}", addr);
 
@@ -721,7 +722,7 @@ impl ServerInstance {
             return None;
         };
 
-        return acct.map(|x| x.0.bytes());
+        return acct;
     }
 
     pub fn clear_caches(&self) -> Result<(), &'static str> {
