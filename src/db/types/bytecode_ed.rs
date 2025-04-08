@@ -13,27 +13,15 @@ impl Serialize for BytecodeED {
     where
         S: serde::Serializer,
     {
-        let hex_string = format!("{:x}", self.0.bytecode());
-        let mut i = hex_string.len();
-        while i > 1 && &hex_string[i - 2..i] == "00" {
-            i -= 2;
-        }
-
-        serializer.serialize_str(&hex_string[0..i])
+        let hex_string = format!("{:x}", self.0.original_bytes());
+        serializer.serialize_str(&hex_string)
     }
 }
 
 impl Encode for BytecodeED {
     fn encode(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        let slice = &self.0.bytes_slice();
-        // remove last bytes that are 00 (padding)
-        let mut i = slice.len();
-        while i > 0 && slice[i - 1] == 0 {
-            i -= 1;
-        }
-        let slice = &slice[..i];
-        bytes.extend_from_slice(slice);
+        bytes.extend_from_slice(&self.0.original_byte_slice());
         bytes
     }
 }
