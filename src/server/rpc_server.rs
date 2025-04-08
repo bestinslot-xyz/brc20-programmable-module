@@ -14,7 +14,7 @@ use tracing::{event, instrument, Level};
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
 };
-use crate::db::types::{BlockResponseED, LogResponse, TxED, TxReceiptED};
+use crate::db::types::{BlockResponseED, BytecodeED, LogResponse, TxED, TxReceiptED};
 use crate::evm::utils::get_evm_address;
 use crate::server::api::{
     AddressWrapper, B256Wrapper, Brc20ProgApiServer, BytesWrapper, EthCall, GetLogsFilter,
@@ -449,10 +449,10 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn get_code(&self, contract: AddressWrapper) -> RpcResult<String> {
+    async fn get_code(&self, contract: AddressWrapper) -> RpcResult<BytecodeED> {
         event!(Level::INFO, "Getting contract code");
         if let Some(bytecode) = self.server_instance.get_contract_bytecode(contract.value()) {
-            Ok(bytecode.to_string())
+            Ok(bytecode)
         } else {
             Err(RpcServerError::new("Contract bytecode not found").into())
         }

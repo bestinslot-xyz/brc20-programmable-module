@@ -6,7 +6,7 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::Deserialize;
 
-use crate::db::types::{BlockResponseED, LogResponse, TxED, TxReceiptED};
+use crate::db::types::{BlockResponseED, BytecodeED, LogResponse, TxED, TxReceiptED};
 use crate::server::{CHAIN_ID_STRING, INDEXER_ADDRESS};
 
 #[rpc(server)]
@@ -185,7 +185,7 @@ pub trait Brc20ProgApi {
 
     /// Returns the bytecode of the contract at the given address
     #[method(name = "eth_getCode")]
-    async fn get_code(&self, contract: AddressWrapper) -> RpcResult<String>;
+    async fn get_code(&self, contract: AddressWrapper) -> RpcResult<BytecodeED>;
 
     /// Returns the transaction receipt for the given transaction hash
     #[method(name = "eth_getTransactionReceipt")]
