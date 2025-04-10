@@ -1,9 +1,7 @@
 use std::error::Error;
 use std::fmt;
 
-use revm::primitives::ruint::aliases::U256;
-use revm::primitives::ruint::Uint;
-use revm::primitives::Address;
+use alloy_primitives::{Address, Uint, U256};
 use serde::Serialize;
 
 use crate::db::types::{Decode, Encode};
@@ -97,8 +95,6 @@ impl<const BITS: usize, const LIMBS: usize> fmt::Display for UintEncodeDecode<BI
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::ruint::aliases::U256;
-
     use super::*;
 
     #[test]

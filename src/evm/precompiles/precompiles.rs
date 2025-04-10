@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
+use alloy_primitives::{Address, Bytes};
 use revm::context::{Block, Cfg, ContextTr};
 use revm::handler::PrecompileProvider;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use revm::precompile::Precompiles;
-use revm::primitives::{Address, Bytes};
 
 use crate::evm::precompiles::{
     bip322_verify_precompile, brc20_balance_precompile, btc_tx_details_precompile,

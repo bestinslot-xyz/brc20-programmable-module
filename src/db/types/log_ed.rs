@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use revm::primitives::{Address, Bytes, Log};
+use alloy_primitives::{Address, Bytes, Log};
 use serde::Serialize;
 use serde_json::Map;
 
@@ -159,8 +159,6 @@ impl Decode for LogED {
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::Log;
-
     use super::*;
 
     #[test]

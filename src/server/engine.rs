@@ -1,10 +1,9 @@
 use std::error::Error;
 use std::time::{Instant, UNIX_EPOCH};
 
+use alloy_primitives::{logs_bloom, Address, B256, U256};
 use revm::context::{BlockEnv, ContextTr, TransactTo};
 use revm::handler::{EvmTr, ExecuteCommitEvm};
-use revm::primitives::alloy_primitives::logs_bloom;
-use revm::primitives::{Address, B256, U256};
 use revm::ExecuteEvm;
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};

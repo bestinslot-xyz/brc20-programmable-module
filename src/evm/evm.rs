@@ -1,3 +1,4 @@
+use alloy_primitives::{B256, U256};
 use revm::context::{BlockEnv, CfgEnv, ContextSetters, ContextTr, Evm, EvmData, TxEnv};
 use revm::context_interface::block::BlobExcessGasAndPrice;
 use revm::handler::instructions::{EthInstructions, InstructionProvider};
@@ -6,7 +7,6 @@ use revm::inspector::{inspect_instructions, InspectorEvmTr, JournalExt, NoOpInsp
 use revm::interpreter::interpreter::EthInterpreter;
 use revm::interpreter::{Interpreter, InterpreterTypes};
 use revm::primitives::hardfork::SpecId;
-use revm::primitives::{B256, U256};
 use revm::{Context, Inspector, Journal, JournalEntry};
 
 use crate::db::DB;

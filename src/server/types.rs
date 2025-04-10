@@ -1,7 +1,6 @@
 use std::time::Instant;
 
-use revm::primitives::alloy_primitives::Bytes;
-use revm::primitives::{keccak256, Address, B256};
+use alloy_primitives::{keccak256, Address, Bytes, B256};
 
 /// This struct is used to store the unfinalised block information
 pub struct LastBlockInfo {

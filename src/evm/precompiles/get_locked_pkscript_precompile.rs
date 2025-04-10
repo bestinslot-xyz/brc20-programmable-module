@@ -1,11 +1,10 @@
-use alloy_primitives::U256;
+use alloy_primitives::{Bytes, U256};
 use alloy_sol_types::{sol, SolCall};
 use bitcoin::key::UntweakedPublicKey;
 use bitcoin::script::PushBytesBuf;
 use bitcoin::taproot::TaprootBuilder;
 use bitcoin::{opcodes, secp256k1, ScriptBuf};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
-use revm::primitives::Bytes;
 
 use crate::evm::precompiles::{
     precompile_error, precompile_output, use_gas, PrecompileCall, BITCOIN_NETWORK,
@@ -133,8 +132,6 @@ fn build_lock_script(
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::U256;
-
     use super::*;
 
     #[test]

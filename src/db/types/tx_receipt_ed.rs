@@ -1,8 +1,7 @@
 use std::error::Error;
 
+use alloy_primitives::{logs_bloom, Address, Bytes, B256};
 use revm::context::result::ExecutionResult;
-use revm::primitives::alloy_primitives::logs_bloom;
-use revm::primitives::{hex, Address, Bytes, B256};
 use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex};
 
@@ -277,7 +276,7 @@ impl Decode for TxReceiptED {
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::Log;
+    use alloy_primitives::Log;
 
     use super::*;
     use crate::db::types::BEncodeDecode;

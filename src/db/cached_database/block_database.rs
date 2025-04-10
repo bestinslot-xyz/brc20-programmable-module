@@ -139,10 +139,10 @@ where
 // tests
 #[cfg(test)]
 mod tests {
-    use revm::primitives::U256;
+    use alloy_primitives::U256;
     use tempfile::TempDir;
 
-    use crate::db::cached_database::BlockDatabase;
+    use super::*;
     use crate::db::types::U256ED;
 
     #[test]

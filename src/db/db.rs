@@ -4,11 +4,9 @@ use std::fmt::Display;
 use std::path::Path;
 
 use alloy_primitives::map::foldhash::fast::RandomState;
+use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, B256, U128, U256, U64};
 use revm::context::result::ExecutionResult;
 use revm::context::DBErrorMarker;
-use revm::primitives::alloy_primitives::{Bloom, U128, U64};
-use revm::primitives::ruint::aliases::U256;
-use revm::primitives::{Address, Bytes, FixedBytes, B256};
 use revm::{Database as DatabaseTrait, DatabaseCommit};
 use revm_state::{Account, AccountInfo, Bytecode};
 use rs_merkle::algorithms::Sha256;

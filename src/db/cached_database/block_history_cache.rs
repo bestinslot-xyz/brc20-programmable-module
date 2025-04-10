@@ -163,7 +163,7 @@ where
 // Tests
 #[cfg(test)]
 mod tests {
-    use revm::primitives::ruint::aliases::U256;
+    use alloy_primitives::U256;
 
     use super::*;
     use crate::db::types::U256ED;

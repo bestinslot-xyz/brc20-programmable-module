@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use revm::primitives::{FixedBytes, B256};
+use alloy_primitives::{FixedBytes, B256};
 use serde::Serialize;
 
 use crate::db::types::{Decode, Encode};
