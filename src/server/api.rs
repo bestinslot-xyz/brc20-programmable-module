@@ -13,6 +13,7 @@ lazy_static::lazy_static! {
     pub static ref CHAIN_ID_STRING: String = CHAIN_ID.to_string();
     pub static ref INDEXER_ADDRESS: Address = "0x0000000000000000000000000000000000003Ca6".parse().expect("Failed to parse indexer address");
     pub static ref INDEXER_ADDRESS_STRING: String = INDEXER_ADDRESS.to_string();
+    pub static ref INVALID_ADDRESS: Address = "0x000000000000000000000000000000000000dead".parse().expect("Failed to parse invalid address");
 }
 
 #[rpc(server)]
@@ -403,18 +404,30 @@ impl<'de> Deserialize<'de> for AddressWrapper {
     where
         D: serde::Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
-        let address = Address::from_str(&s).map_err(serde::de::Error::custom)?;
-        Ok(AddressWrapper(address))
+        let Ok(s) = String::deserialize(deserializer) else {
+            return Ok(AddressWrapper(*INVALID_ADDRESS));
+        };
+        match Address::from_str(&s) {
+            Ok(address) => Ok(AddressWrapper(address)),
+            Err(_) => Ok(AddressWrapper(*INVALID_ADDRESS)),
+        }
     }
 }
 
 #[derive(Debug)]
-pub struct BytesWrapper(Bytes);
+pub struct BytesWrapper(Option<Bytes>);
 
 impl BytesWrapper {
-    pub fn value(&self) -> &Bytes {
-        &self.0
+    pub fn new(bytes: Bytes) -> Self {
+        Self(Some(bytes))
+    }
+
+    pub fn empty() -> Self {
+        Self(None)
+    }
+
+    pub fn value(&self) -> Option<&Bytes> {
+        self.0.as_ref()
     }
 }
 
@@ -423,8 +436,14 @@ impl<'de> Deserialize<'de> for BytesWrapper {
     where
         D: serde::Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
-        let bytes = Bytes::from_hex(&s).map_err(serde::de::Error::custom)?;
-        Ok(BytesWrapper(bytes))
+        let Ok(s) = String::deserialize(deserializer) else {
+            return Ok(BytesWrapper::empty());
+        };
+        match Bytes::from_hex(&s) {
+            Ok(bytes) => Ok(BytesWrapper::new(bytes)),
+            Err(_) => {
+                return Ok(BytesWrapper::empty());
+            }
+        }
     }
 }
