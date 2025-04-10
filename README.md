@@ -160,6 +160,23 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 <hr>
 
+#### Get Inscription ID by Transaction Hash
+
+**Method**: `brc20_getInscriptionIdByTxHash`
+
+**Description**: Returns the inscription ID for given transaction, previously sent via `brc20_deploy` or `brc20_call`. This makes it easier to work with inscriptions rather than transactions in BRC2.0 applications.
+
+**Parameters**:
+
+- tx_hash (`string`): Transaction hash previously added via `brc20_deploy`, `brc20_call`, `brc20_deposit`, or `brc20_withdraw`.
+
+**Returns**:
+
+- Inscription ID, as string
+- None if the transaction doesn't have an inscription
+
+<hr>
+
 #### Finalise Block
 
 **Method**: `brc20_finaliseBlock`
