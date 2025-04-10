@@ -1,8 +1,7 @@
-use alloy_primitives::{FixedBytes, U256};
+use alloy_primitives::{Bytes, FixedBytes, U256};
 use alloy_sol_types::{sol, SolCall};
 use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
-use revm::primitives::Bytes;
 
 use crate::evm::precompiles::btc_utils::get_raw_transaction;
 use crate::evm::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
@@ -166,7 +165,7 @@ mod tests {
     use alloy_primitives::hex::FromHex;
 
     use super::*;
-    use crate::evm::precompiles::btc_utils::skip_btc_tests;
+    use crate::evm::precompiles::skip_btc_tests;
 
     #[test]
     fn test_get_last_sat_location_encode_params_single_vin_vout() {

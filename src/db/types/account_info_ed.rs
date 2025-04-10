@@ -1,7 +1,6 @@
 use std::error::Error;
 
-use revm::primitives::ruint::aliases::U64;
-use revm::primitives::U256;
+use alloy_primitives::{U256, U64};
 use revm_state::AccountInfo;
 
 use crate::db::types::{Decode, Encode};
@@ -39,8 +38,6 @@ impl Decode for AccountInfoED {
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::U256;
-
     use super::*;
 
     #[test]

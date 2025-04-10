@@ -1,4 +1,4 @@
-use revm::primitives::{hex, Address, Bytes};
+use alloy_primitives::{Address, Bytes};
 use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex};
 
@@ -126,7 +126,6 @@ impl Decode for TxED {
 mod tests {
     use super::*;
     use crate::db::types::BEncodeDecode;
-    use crate::server::api::CHAIN_ID;
 
     #[test]
     fn encode_decode() {

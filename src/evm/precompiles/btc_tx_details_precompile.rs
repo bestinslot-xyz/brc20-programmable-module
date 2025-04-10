@@ -1,8 +1,7 @@
-use alloy_primitives::{FixedBytes, U256};
+use alloy_primitives::{Bytes, FixedBytes, U256};
 use alloy_sol_types::{sol, SolCall};
 use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
-use revm::primitives::Bytes;
 
 use crate::evm::precompiles::btc_utils::{get_block_info, get_raw_transaction};
 use crate::evm::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
@@ -123,7 +122,6 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
 #[cfg(test)]
 mod tests {
     use alloy_primitives::hex::FromHex;
-    use alloy_primitives::FixedBytes;
 
     use super::*;
     use crate::evm::precompiles::btc_utils::skip_btc_tests;

@@ -221,14 +221,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::{Address, B256, U256};
+    use alloy_primitives::{Address, B256, U256};
     use revm_state::AccountInfo;
     use tempfile::TempDir;
 
-    use crate::db::cached_database::{
-        BlockCachedDatabase, BlockHistoryCache, BlockHistoryCacheData,
-    };
-    use crate::db::types::{AccountInfoED, AddressED, Decode, Encode};
+    use super::*;
+    use crate::db::cached_database::BlockHistoryCacheData;
+    use crate::db::types::{AccountInfoED, AddressED};
 
     #[test]
     fn test_cache_only() {

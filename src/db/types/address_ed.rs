@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use revm::primitives::Address;
+use alloy_primitives::Address;
 use serde::Serialize;
 
 use crate::db::types::{Decode, Encode};
@@ -39,8 +39,6 @@ impl Decode for AddressED {
 
 #[cfg(test)]
 mod tests {
-    use revm::primitives::Address;
-
     use super::*;
 
     #[test]

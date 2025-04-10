@@ -1,8 +1,7 @@
 use std::cmp::max;
 
-use alloy_primitives::Bytes;
+use alloy_primitives::{keccak256, Address, Bytes};
 use revm::context::result::{ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason};
-use revm::primitives::{keccak256, Address};
 
 static GAS_PER_BYTE: u64 = 12000; // 12M gas per byte
 static MINIMUM_GAS_LIMIT: u64 = 384000; // GAS_PER_BYTE * 32
@@ -124,8 +123,6 @@ pub fn get_contract_address(result: &ExecutionResult) -> Option<Address> {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
 
     #[test]
@@ -134,7 +131,9 @@ mod tests {
         let evm_address = get_evm_address(&hex::decode(btc_pkscript).unwrap().into());
         assert_eq!(
             evm_address,
-            Address::from_str("0x7f217045127859b40ef1a27a5bfe73aa16687467").unwrap(),
+            "0x7f217045127859b40ef1a27a5bfe73aa16687467"
+                .parse::<Address>()
+                .unwrap(),
         );
     }
 }

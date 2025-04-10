@@ -1,9 +1,9 @@
+use alloy_primitives::Bytes;
 use alloy_sol_types::{sol, SolCall};
 use bip322::verify_simple;
 use bitcoin::consensus::Decodable;
 use bitcoin::Witness;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
-use revm::primitives::Bytes;
 
 use crate::evm::precompiles::{
     precompile_error, precompile_output, use_gas, PrecompileCall, BITCOIN_NETWORK,
@@ -58,7 +58,6 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
 #[cfg(test)]
 mod tests {
     use bitcoin::consensus::Encodable;
-    use revm::primitives::Bytes;
 
     use super::*;
 

@@ -1,4 +1,4 @@
-use revm::primitives::{Address, FixedBytes};
+use alloy_primitives::{Address, FixedBytes};
 use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex, StrictPfx};
 

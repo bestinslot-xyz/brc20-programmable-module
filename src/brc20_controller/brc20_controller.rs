@@ -1,8 +1,7 @@
 use std::str::FromStr;
 
-use alloy_primitives::U256;
+use alloy_primitives::{Address, Bytes, U256};
 use alloy_sol_types::{sol, SolCall};
-use revm::primitives::{Address, Bytes};
 use rust_embed::Embed;
 
 use crate::server::api::INDEXER_ADDRESS;
