@@ -2,14 +2,13 @@ use std::error::Error;
 use std::path::Path;
 
 mod brc20_controller;
-mod evm;
-
 mod db;
-use db::DB;
-
+mod evm;
 mod server;
+
+use db::DB;
 use evm::precompiles::check_bitcoin_rpc_status;
-use server::{start_rpc_server, ServerInstance};
+use server::{start_rpc_server, BRC20ProgEngine};
 
 lazy_static::lazy_static! {
     static ref BRC20_PROG_RPC_SERVER_ENABLE_AUTH: bool = std::env::var("BRC20_PROG_RPC_SERVER_ENABLE_AUTH").map(|x| x == "true").unwrap_or(false);
@@ -26,16 +25,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .finish(),
     )?;
 
-    let instance = ServerInstance::new(DB::new(&Path::new("target").join("db"))?);
+    let engine = BRC20ProgEngine::new(DB::new(&Path::new("target").join("db"))?);
     println!("--- Database ---");
-    println!(
-        "Latest block number: {}",
-        instance.get_latest_block_height()
-    );
+    println!("Latest block number: {}", engine.get_latest_block_height()?);
     println!(
         "Genesis block hash: {}",
-        instance
-            .get_block_by_number(0, false)
+        engine
+            .get_block_by_number(0, false)?
             .map(|block| block.hash.0.to_string())
             .unwrap_or("None".to_string())
     );
@@ -57,8 +53,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     );
     println!("Started JSON-RPC server on {}", *BRC20_PROG_RPC_SERVER_URL);
     let handle = start_rpc_server(
+        engine,
         BRC20_PROG_RPC_SERVER_URL.to_string(),
-        instance,
         *BRC20_PROG_RPC_SERVER_ENABLE_AUTH,
         BRC20_PROG_RPC_SERVER_USER.as_ref(),
         BRC20_PROG_RPC_SERVER_PASSWORD.as_ref(),

@@ -1,5 +1,30 @@
+use std::time::Instant;
+
 use revm::primitives::alloy_primitives::Bytes;
 use revm::primitives::{keccak256, Address, B256};
+
+/// This struct is used to store the unfinalised block information
+pub struct LastBlockInfo {
+    pub waiting_tx_count: u64,
+    pub timestamp: u64,
+    pub hash: B256,
+    pub gas_used: u64,
+    pub log_index: u64,
+    pub start_time: Option<Instant>,
+}
+
+impl LastBlockInfo {
+    pub fn new() -> Self {
+        LastBlockInfo {
+            waiting_tx_count: 0,
+            timestamp: 0,
+            hash: B256::ZERO,
+            gas_used: 0,
+            log_index: 0,
+            start_time: None,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct TxInfo {

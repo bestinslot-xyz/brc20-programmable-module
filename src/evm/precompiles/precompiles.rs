@@ -81,11 +81,6 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
         bytes: &Bytes,
         gas_limit: u64,
     ) -> Result<Option<Self::Output>, String> {
-        #[cfg(debug_assertions)]
-        if self.all_addresses.contains(address) {
-            println!("BRC20Precompiles handling: {:?}", address);
-        }
-
         if let Some(cancun_precompile) = self.eth_precompiles.get(address) {
             match cancun_precompile(bytes, gas_limit) {
                 Ok(output) => {

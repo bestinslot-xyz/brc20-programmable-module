@@ -35,11 +35,7 @@ where
     /// Returns: BlockHistoryCacheData<V> - the created BlockHistoryCache
     fn new(initial_value: Option<V>) -> Self {
         let mut cache = BTreeMap::new();
-        if let Some(value) = initial_value {
-            cache.insert(0, Some(value));
-        } else {
-            cache.insert(0, None);
-        }
+        cache.insert(0, initial_value);
         Self { cache }
     }
 
@@ -170,7 +166,7 @@ mod tests {
     use revm::primitives::ruint::aliases::U256;
 
     use super::*;
-    use crate::db::U256ED;
+    use crate::db::types::U256ED;
 
     #[test]
     fn test_block_cache() {

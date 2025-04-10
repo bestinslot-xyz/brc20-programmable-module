@@ -1,10 +1,8 @@
 mod api;
-
+mod evm;
 mod handler;
 
-mod evm;
-pub use evm::get_evm;
-
 pub mod precompiles;
-
 pub mod utils;
+
+pub use evm::get_evm;
