@@ -20,10 +20,10 @@ use crate::server::api::{
     U256Wrapper,
 };
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthAllowEth};
+use crate::server::engine::BRC20ProgEngine;
 use crate::server::error::{
     wrap_hex_error, wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
 };
-use crate::server::server_instance::BRC20ProgEngine;
 use crate::server::types::TxInfo;
 
 pub struct RpcServer {
