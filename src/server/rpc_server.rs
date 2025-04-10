@@ -168,6 +168,18 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_rpc_error)
     }
 
+    #[instrument(skip(self))]
+    async fn get_inscription_id_by_tx_hash(
+        &self,
+        transaction: B256Wrapper,
+    ) -> RpcResult<Option<String>> {
+        event!(Level::INFO, "Getting inscription id by transaction hash");
+        self.engine
+            .get_transaction_by_hash(transaction.value())
+            .map(|tx| tx.and_then(|tx| tx.inscription_id))
+            .map_err(wrap_rpc_error)
+    }
+
     #[instrument(skip(self, data))]
     async fn deploy_contract(
         &self,

@@ -36,6 +36,8 @@ pub struct TxED {
     pub chain_id: u64,
     #[serde(rename = "type")]
     pub tx_type: u8,
+    #[serde(skip_serializing)]
+    pub inscription_id: Option<String>,
 }
 
 fn bytes_to_hex<S>(bytes: &Bytes, serializer: S) -> Result<S::Ok, S::Error>
@@ -66,6 +68,16 @@ impl Encode for TxED {
         bytes.extend_from_slice(&self.gas_price.to_be_bytes());
         bytes.extend_from_slice(&(self.input.len() as u32).to_be_bytes());
         bytes.extend_from_slice(&self.input as &[u8]);
+
+        let inscription_bytes = self
+            .inscription_id
+            .as_ref()
+            .map(|id| id.as_bytes())
+            .unwrap_or(&[]);
+
+        bytes.extend_from_slice(&(inscription_bytes.len() as u32).to_be_bytes());
+        bytes.extend_from_slice(inscription_bytes);
+
         bytes
     }
 }
@@ -101,6 +113,16 @@ impl Decode for TxED {
         let input_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?);
         i += 4;
         let input = bytes[i..i + input_len as usize].to_vec();
+        i += input_len as usize;
+        let inscription_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?);
+        i += 4;
+        let inscription_id = if inscription_len > 0 {
+            Some(String::from_utf8(
+                bytes[i..i + inscription_len as usize].to_vec(),
+            )?)
+        } else {
+            None
+        };
         Ok(TxED {
             hash,
             nonce,
@@ -118,6 +140,7 @@ impl Decode for TxED {
             s: 0,
             chain_id: *CHAIN_ID,
             tx_type: 0,
+            inscription_id,
         })
     }
 }
@@ -146,6 +169,7 @@ mod tests {
             s: 0,
             chain_id: *CHAIN_ID,
             tx_type: 0,
+            inscription_id: Some("inscription_id".to_string()),
         };
         let encoded = tx.encode();
         let decoded = TxED::decode(encoded).unwrap();
@@ -171,6 +195,7 @@ mod tests {
             s: 0,
             chain_id: *CHAIN_ID,
             tx_type: 0,
+            inscription_id: Some("inscription_id".to_string()),
         };
         let serialized = serde_json::to_string(&tx).unwrap();
         assert_eq!(

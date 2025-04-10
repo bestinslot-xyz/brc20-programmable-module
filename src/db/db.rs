@@ -435,6 +435,7 @@ impl DB {
             s: 0,
             chain_id: *CHAIN_ID,
             tx_type: 0,
+            inscription_id: inscription_id.clone(),
         };
 
         self.db_tx

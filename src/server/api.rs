@@ -106,6 +106,13 @@ pub trait Brc20ProgApi {
         inscription_id: String,
     ) -> RpcResult<Option<TxReceiptED>>;
 
+    /// Retrieves inscription id for given transaction hash
+    #[method(name = "brc20_getInscriptionIdByTxHash")]
+    async fn get_inscription_id_by_tx_hash(
+        &self,
+        transaction: B256Wrapper,
+    ) -> RpcResult<Option<String>>;
+
     /// Finalises the block with the given parameters
     #[method(name = "brc20_finaliseBlock")]
     async fn finalise_block(
