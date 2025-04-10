@@ -5,7 +5,6 @@ use alloy_primitives::{Address, Bytes};
 use hyper::Method;
 use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::server::{RpcServiceBuilder, Server, ServerHandle};
-use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
@@ -21,35 +20,30 @@ use crate::server::api::{
     U256Wrapper,
 };
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthAllowEth};
-use crate::server::server_instance::ServerInstance;
+use crate::server::error::{
+    wrap_hex_error, wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
+};
+use crate::server::server_instance::BRC20ProgEngine;
 use crate::server::types::TxInfo;
 
 pub struct RpcServer {
-    server_instance: ServerInstance,
+    engine: BRC20ProgEngine,
 }
 
 impl RpcServer {
-    fn parse_block_number(&self, number: &str) -> Result<u64, ErrorObject<'static>> {
+    fn parse_block_number(&self, number: &str) -> Result<u64, Box<dyn Error>> {
         if number == "latest" || number == "safe" || number == "finalized" {
-            Ok(self.server_instance.get_latest_block_height())
+            self.engine.get_latest_block_height()
         } else if number == "pending" {
-            Ok(self.server_instance.get_next_block_height())
+            self.engine.get_next_block_height()
         } else if number == "earliest" {
             Ok(0)
         } else if number.starts_with("0x") {
-            u64::from_str_radix(&number[2..], 16)
-                .map_err(|_| wrap_error_message("Invalid block number"))
+            u64::from_str_radix(&number[2..], 16).map_err(|_| "Invalid block number".into())
         } else {
-            number
-                .parse()
-                .map_err(|_| wrap_error_message("Invalid block number"))
+            number.parse().map_err(|_| "Invalid block number".into())
         }
     }
-}
-
-fn wrap_error_message(message: &'static str) -> ErrorObject<'static> {
-    event!(Level::ERROR, "Error: {:?}", message);
-    RpcServerError::new(message).into()
 }
 
 #[async_trait]
@@ -57,9 +51,9 @@ impl Brc20ProgApiServer for RpcServer {
     #[instrument(skip(self))]
     async fn mine(&self, block_count: u64, timestamp: u64) -> RpcResult<()> {
         event!(Level::INFO, "Mining empty blocks");
-        self.server_instance
+        self.engine
             .mine_blocks(block_count, timestamp)
-            .map_err(wrap_error_message)
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
@@ -75,11 +69,9 @@ impl Brc20ProgApiServer for RpcServer {
     ) -> RpcResult<TxReceiptED> {
         event!(Level::INFO, "Depositing");
 
-        let to_pkscript = hex::decode(to_pkscript)
-            .map_err(|_| wrap_error_message("Invalid pkscript"))?
-            .into();
+        let to_pkscript = hex::decode(to_pkscript).map_err(wrap_hex_error)?.into();
 
-        self.server_instance
+        self.engine
             .add_tx_to_block(
                 timestamp,
                 &load_brc20_mint_tx(
@@ -88,12 +80,14 @@ impl Brc20ProgApiServer for RpcServer {
                     amount.value(),
                 ),
                 tx_idx,
-                self.server_instance.get_next_block_height(),
+                self.engine
+                    .get_next_block_height()
+                    .map_err(wrap_rpc_error)?,
                 hash.value(),
                 inscription_id,
                 Some(u64::MAX),
             )
-            .map_err(wrap_error_message)
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
@@ -109,11 +103,9 @@ impl Brc20ProgApiServer for RpcServer {
     ) -> RpcResult<TxReceiptED> {
         event!(Level::INFO, "Withdrawing");
 
-        let from_pkscript = hex::decode(from_pkscript)
-            .map_err(|_| wrap_error_message("Invalid pkscript"))?
-            .into();
+        let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
 
-        self.server_instance
+        self.engine
             .add_tx_to_block(
                 timestamp,
                 &load_brc20_burn_tx(
@@ -122,23 +114,23 @@ impl Brc20ProgApiServer for RpcServer {
                     amount.value(),
                 ),
                 tx_idx,
-                self.server_instance.get_next_block_height(),
+                self.engine
+                    .get_next_block_height()
+                    .map_err(wrap_rpc_error)?,
                 hash.value(),
                 inscription_id,
                 Some(u64::MAX),
             )
-            .map_err(wrap_error_message)
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
     async fn balance(&self, pkscript: String, ticker: String) -> RpcResult<String> {
         event!(Level::INFO, "Checking balance");
 
-        let pkscript = hex::decode(pkscript)
-            .map_err(|_| wrap_error_message("Invalid pkscript"))?
-            .into();
+        let pkscript = hex::decode(pkscript).map_err(wrap_hex_error)?.into();
 
-        self.server_instance
+        self.engine
             .call_contract(&load_brc20_balance_tx(
                 ticker_as_bytes(&ticker),
                 get_evm_address(&pkscript),
@@ -149,7 +141,7 @@ impl Brc20ProgApiServer for RpcServer {
                     decode_brc20_balance_result(receipt.result_bytes.as_ref())
                 )
             })
-            .map_err(wrap_error_message)
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
@@ -160,9 +152,9 @@ impl Brc20ProgApiServer for RpcServer {
         genesis_height: u64,
     ) -> RpcResult<()> {
         event!(Level::INFO, "Initialising server");
-        self.server_instance
+        self.engine
             .initialise(genesis_hash.value(), genesis_timestamp, genesis_height)
-            .map_err(wrap_error_message)
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
@@ -171,10 +163,9 @@ impl Brc20ProgApiServer for RpcServer {
         inscription_id: String,
     ) -> RpcResult<Option<TxReceiptED>> {
         event!(Level::INFO, "Getting transaction receipt by inscription id");
-        let receipt = self
-            .server_instance
-            .get_transaction_receipt_by_inscription_id(inscription_id);
-        Ok(receipt)
+        self.engine
+            .get_transaction_receipt_by_inscription_id(inscription_id)
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self, data))]
@@ -190,11 +181,9 @@ impl Brc20ProgApiServer for RpcServer {
     ) -> RpcResult<TxReceiptED> {
         event!(Level::INFO, "Deploying contract");
 
-        let from_pkscript = hex::decode(from_pkscript)
-            .map_err(|_| wrap_error_message("Invalid pkscript"))?
-            .into();
+        let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
 
-        self.server_instance
+        self.engine
             .add_tx_to_block(
                 timestamp,
                 &TxInfo {
@@ -203,12 +192,14 @@ impl Brc20ProgApiServer for RpcServer {
                     data: data.value().clone(),
                 },
                 tx_idx,
-                self.server_instance.get_next_block_height(),
+                self.engine
+                    .get_next_block_height()
+                    .map_err(wrap_rpc_error)?,
                 hash.value(),
                 inscription_id,
                 inscription_byte_len,
             )
-            .map_err(wrap_error_message)
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self, data))]
@@ -223,27 +214,26 @@ impl Brc20ProgApiServer for RpcServer {
         tx_idx: u64,
         inscription_id: Option<String>,
         inscription_byte_len: Option<u64>,
-    ) -> RpcResult<TxReceiptED> {
+    ) -> RpcResult<Option<TxReceiptED>> {
         event!(Level::INFO, "Calling contract");
 
-        let from_pkscript = hex::decode(from_pkscript)
-            .map_err(|_| wrap_error_message("Invalid pkscript"))?
-            .into();
+        let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
 
-        let derived_contract_address: Option<Address>;
-        if let Some(contract_address) = contract_address {
-            derived_contract_address = Some(contract_address.value());
-        } else if let Some(contract_inscription_id) = contract_inscription_id {
-            derived_contract_address = Some(
-                self.server_instance
+        let derived_contract_address =
+            if let Some(contract_inscription_id) = contract_inscription_id {
+                self.engine
                     .get_contract_address_by_inscription_id(contract_inscription_id)
-                    .unwrap_or(Address::ZERO),
-            );
-        } else {
-            derived_contract_address = Address::ZERO.into();
+                    .map_err(wrap_rpc_error)?
+            } else {
+                contract_address.map(|x| x.value())
+            };
+
+        // Check if a valid contract address is provided
+        if derived_contract_address.is_none() {
+            return Ok(None);
         }
 
-        self.server_instance
+        self.engine
             .add_tx_to_block(
                 timestamp,
                 &TxInfo {
@@ -252,12 +242,15 @@ impl Brc20ProgApiServer for RpcServer {
                     data: data.value().clone(),
                 },
                 tx_idx,
-                self.server_instance.get_next_block_height(),
+                self.engine
+                    .get_next_block_height()
+                    .map_err(wrap_rpc_error)?,
                 hash.value(),
                 inscription_id,
                 inscription_byte_len,
             )
-            .map_err(wrap_error_message)
+            .map(|receipt| Some(receipt))
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
@@ -267,40 +260,43 @@ impl Brc20ProgApiServer for RpcServer {
         hash: B256Wrapper,
         block_tx_count: u64,
     ) -> RpcResult<()> {
-        let block_height = self.server_instance.get_next_block_height();
+        let block_height = self
+            .engine
+            .get_next_block_height()
+            .map_err(wrap_rpc_error)?;
         event!(Level::INFO, "Finalising block {}", block_height);
-        self.server_instance
+        self.engine
             .finalise_block(timestamp, block_height, hash.value(), block_tx_count)
-            .map_err(wrap_error_message)
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
     async fn reorg(&self, latest_valid_block_number: u64) -> RpcResult<()> {
         event!(Level::WARN, "Reorg!");
-        self.server_instance
+        self.engine
             .reorg(latest_valid_block_number)
-            .map_err(wrap_error_message)
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
     async fn commit_to_database(&self) -> RpcResult<()> {
         event!(Level::INFO, "Committing to database");
-        self.server_instance
-            .commit_to_db()
-            .map_err(wrap_error_message)
+        self.engine.commit_to_db().map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
     async fn clear_caches(&self) -> RpcResult<()> {
         event!(Level::INFO, "Clearing caches");
-        self.server_instance
-            .clear_caches()
-            .map_err(wrap_error_message)
+        self.engine.clear_caches().map_err(wrap_rpc_error)
     }
 
     async fn block_number(&self) -> RpcResult<String> {
-        let height = self.server_instance.get_latest_block_height();
-        Ok(format!("0x{:x}", height))
+        Ok(format!(
+            "0x{:x}",
+            self.engine
+                .get_latest_block_height()
+                .map_err(wrap_rpc_error)?
+        ))
     }
 
     #[instrument(skip(self))]
@@ -309,15 +305,16 @@ impl Brc20ProgApiServer for RpcServer {
         block: String,
         is_full: Option<bool>,
     ) -> RpcResult<BlockResponseED> {
-        let number = self.parse_block_number(&block)?;
-        event!(Level::INFO, "Getting block by number: {}", number);
-        let block = self
-            .server_instance
-            .get_block_by_number(number, is_full.unwrap_or(false));
-        if let Some(block) = block {
+        let block_number = self.parse_block_number(&block).map_err(wrap_rpc_error)?;
+        event!(Level::INFO, "Getting block by number: {}", block_number);
+        if let Some(block) = self
+            .engine
+            .get_block_by_number(block_number, is_full.unwrap_or(false))
+            .map_err(wrap_rpc_error)?
+        {
             Ok(block)
         } else {
-            Err(RpcServerError::new("Block not found").into())
+            Err(wrap_rpc_error_string("Block not found"))
         }
     }
 
@@ -328,13 +325,14 @@ impl Brc20ProgApiServer for RpcServer {
         is_full: Option<bool>,
     ) -> RpcResult<BlockResponseED> {
         event!(Level::INFO, "Getting block by number");
-        let block = self
-            .server_instance
-            .get_block_by_hash(block.value(), is_full.unwrap_or(false));
-        if let Some(block) = block {
+        if let Some(block) = self
+            .engine
+            .get_block_by_hash(block.value(), is_full.unwrap_or(false))
+            .map_err(wrap_rpc_error)?
+        {
             Ok(block)
         } else {
-            Err(RpcServerError::new("Block not found").into())
+            Err(wrap_rpc_error_string("Block not found"))
         }
     }
 
@@ -345,52 +343,61 @@ impl Brc20ProgApiServer for RpcServer {
         block: String,
     ) -> RpcResult<String> {
         event!(Level::INFO, "Getting transaction count");
-        let block = self.parse_block_number(&block)?;
-        self.server_instance
-            .get_transaction_count(account.value(), block)
+        let block_number = self.parse_block_number(&block).map_err(wrap_rpc_error)?;
+        self.engine
+            .get_transaction_count(account.value(), block_number)
             .map(|count| format!("0x{:x}", count))
-            .map_err(wrap_error_message)
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
     async fn get_block_transaction_count_by_number(&self, block: String) -> RpcResult<String> {
         event!(Level::INFO, "Getting block transaction count");
-        let block = self.parse_block_number(&block)?;
-        self.server_instance
-            .get_block_transaction_count_by_number(block)
+        let block_number = self.parse_block_number(&block).map_err(wrap_rpc_error)?;
+        self.engine
+            .get_block_transaction_count_by_number(block_number)
             .map(|count| format!("0x{:x}", count))
-            .map_err(wrap_error_message)
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
     async fn get_block_transaction_count_by_hash(&self, block: B256Wrapper) -> RpcResult<String> {
         event!(Level::INFO, "Getting block transaction count");
-        self.server_instance
+        self.engine
             .get_block_transaction_count_by_hash(block.value())
             .map(|count| format!("0x{:x}", count))
-            .map_err(wrap_error_message)
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
     async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogResponse>> {
         event!(Level::INFO, "Getting logs");
-        Ok(self.server_instance.get_logs(
-            Some(self.parse_block_number(&filter.from_block.unwrap_or("latest".to_string()))?),
-            Some(self.parse_block_number(&filter.to_block.unwrap_or("latest".to_string()))?),
-            filter.address.map(|x| x.value()),
-            filter
-                .topics
-                .map(|vec| vec.into_iter().map(|topic| topic.value()).collect()),
-        ))
+        let from_block = filter
+            .from_block
+            .and_then(|from| self.parse_block_number(&from).ok());
+        let to_block = filter
+            .to_block
+            .and_then(|to| self.parse_block_number(&to).ok());
+        Ok(self
+            .engine
+            .get_logs(
+                from_block,
+                to_block,
+                filter.address.map(|x| x.value()),
+                filter
+                    .topics
+                    .map(|vec| vec.into_iter().map(|topic| topic.value()).collect()),
+            )
+            .map_err(wrap_rpc_error)?)
     }
 
     #[instrument(skip(self))]
     async fn call(&self, call: EthCall, _: Option<String>) -> RpcResult<String> {
         event!(Level::INFO, "Calling contract");
         let Some(data) = call.data_or_input() else {
-            return Err(RpcServerError::new("No data or input provided").into());
+            return Err(wrap_rpc_error_string("No data or input provided"));
         };
-        let receipt = self.server_instance.call_contract(&TxInfo {
+        let receipt = self.engine.call_contract(&TxInfo {
             from: call
                 .from
                 .as_ref()
@@ -400,11 +407,11 @@ impl Brc20ProgApiServer for RpcServer {
             data: data.value().clone(),
         });
         let Ok(receipt) = receipt else {
-            return Err(RpcServerError::new("Call failed").into());
+            return Err(wrap_rpc_error_string("Call failed"));
         };
         let data_string = receipt.result_bytes.unwrap_or(Bytes::new()).to_string();
         if receipt.status == 0 {
-            return Err(RpcServerError::new_with_data("Call failed", data_string).into());
+            return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
         }
         Ok(data_string)
     }
@@ -413,9 +420,9 @@ impl Brc20ProgApiServer for RpcServer {
     async fn estimate_gas(&self, call: EthCall, _: Option<String>) -> RpcResult<String> {
         event!(Level::INFO, "Estimating gas");
         let Some(data) = call.data_or_input() else {
-            return Err(RpcServerError::new("No data or input provided").into());
+            return Err(wrap_rpc_error_string("No data or input provided"));
         };
-        let receipt = self.server_instance.call_contract(&TxInfo {
+        let receipt = self.engine.call_contract(&TxInfo {
             from: call
                 .from
                 .as_ref()
@@ -425,11 +432,11 @@ impl Brc20ProgApiServer for RpcServer {
             data: data.value().clone(),
         });
         let Ok(receipt) = receipt else {
-            return Err(RpcServerError::new("Call failed").into());
+            return Err(wrap_rpc_error_string("Call failed"));
         };
         let data_string = receipt.result_bytes.unwrap_or(Bytes::new()).to_string();
         if receipt.status == 0 {
-            return Err(RpcServerError::new_with_data("Call failed", data_string).into());
+            return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
         }
         Ok(format!("0x{:x}", receipt.gas_used))
     }
@@ -443,18 +450,23 @@ impl Brc20ProgApiServer for RpcServer {
         event!(Level::INFO, "Getting storage value");
         Ok(format!(
             "0x{:x}",
-            self.server_instance
+            self.engine
                 .get_storage_at(contract.value(), location.value())
+                .map_err(wrap_rpc_error)?
         ))
     }
 
     #[instrument(skip(self))]
     async fn get_code(&self, contract: AddressWrapper) -> RpcResult<BytecodeED> {
         event!(Level::INFO, "Getting contract code");
-        if let Some(bytecode) = self.server_instance.get_contract_bytecode(contract.value()) {
+        if let Some(bytecode) = self
+            .engine
+            .get_contract_bytecode(contract.value())
+            .map_err(wrap_rpc_error)?
+        {
             Ok(bytecode)
         } else {
-            Err(RpcServerError::new("Contract bytecode not found").into())
+            Err(wrap_rpc_error_string("Contract bytecode not found"))
         }
     }
 
@@ -464,17 +476,17 @@ impl Brc20ProgApiServer for RpcServer {
         transaction: B256Wrapper,
     ) -> RpcResult<Option<TxReceiptED>> {
         event!(Level::INFO, "Getting transaction receipt");
-        Ok(self
-            .server_instance
-            .get_transaction_receipt(transaction.value()))
+        self.engine
+            .get_transaction_receipt(transaction.value())
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
     async fn get_transaction_by_hash(&self, transaction: B256Wrapper) -> RpcResult<Option<TxED>> {
         event!(Level::INFO, "Getting transaction by hash");
-        Ok(self
-            .server_instance
-            .get_transaction_by_hash(transaction.value()))
+        self.engine
+            .get_transaction_by_hash(transaction.value())
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
@@ -484,10 +496,9 @@ impl Brc20ProgApiServer for RpcServer {
         tx_idx: Option<u64>,
     ) -> RpcResult<Option<TxED>> {
         event!(Level::INFO, "Getting transaction by block number and index");
-        let tx = self
-            .server_instance
-            .get_transaction_by_block_number_and_index(block_number, tx_idx.unwrap_or(0));
-        Ok(tx)
+        self.engine
+            .get_transaction_by_block_number_and_index(block_number, tx_idx.unwrap_or(0))
+            .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
@@ -497,47 +508,15 @@ impl Brc20ProgApiServer for RpcServer {
         tx_idx: Option<u64>,
     ) -> RpcResult<Option<TxED>> {
         event!(Level::INFO, "Getting transaction by block hash and index");
-        Ok(self
-            .server_instance
-            .get_transaction_by_block_hash_and_index(block_hash.value(), tx_idx.unwrap_or(0)))
-    }
-}
-
-fn ticker_as_bytes(ticker: &str) -> Bytes {
-    let ticker_lowercase = ticker.to_lowercase();
-    Bytes::from(ticker_lowercase.as_bytes().to_vec())
-}
-
-struct RpcServerError {
-    message: &'static str,
-    data: Option<String>,
-}
-
-impl RpcServerError {
-    fn new(message: &'static str) -> Self {
-        Self {
-            message,
-            data: None,
-        }
-    }
-
-    fn new_with_data(message: &'static str, data: String) -> Self {
-        Self {
-            message,
-            data: Some(data),
-        }
-    }
-}
-
-impl Into<ErrorObject<'static>> for RpcServerError {
-    fn into(self) -> ErrorObject<'static> {
-        ErrorObjectOwned::owned(400, self.message, self.data).into()
+        self.engine
+            .get_transaction_by_block_hash_and_index(block_hash.value(), tx_idx.unwrap_or(0))
+            .map_err(wrap_rpc_error)
     }
 }
 
 pub async fn start_rpc_server(
+    engine: BRC20ProgEngine,
     addr: String,
-    server_instance: ServerInstance,
     use_auth: bool,
     rpc_username: Option<&String>,
     rpc_password: Option<&String>,
@@ -572,7 +551,7 @@ pub async fn start_rpc_server(
     let rpc_middleware = RpcServiceBuilder::new()
         .rpc_logger(1024)
         .layer_fn(|service| RpcAuthAllowEth::new(service));
-    let module = RpcServer { server_instance }.into_rpc();
+    let module = RpcServer { engine }.into_rpc();
 
     let handle = Server::builder()
         .set_http_middleware(http_middleware)
@@ -582,4 +561,9 @@ pub async fn start_rpc_server(
         .start(module);
 
     Ok(handle)
+}
+
+fn ticker_as_bytes(ticker: &str) -> Bytes {
+    let ticker_lowercase = ticker.to_lowercase();
+    Bytes::from(ticker_lowercase.as_bytes().to_vec())
 }

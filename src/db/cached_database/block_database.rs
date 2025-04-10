@@ -53,7 +53,7 @@ where
     //
     /// block_number: u64 - the block number to get the value for
     /// Returns: Option<V> - the value for the block number
-    pub fn get(&mut self, key: u64) -> Result<Option<V>, Box<dyn Error>> {
+    pub fn get(&self, key: u64) -> Result<Option<V>, Box<dyn Error>> {
         if let Some(value) = self.cache.get(&key) {
             return Ok(Some(value.clone()));
         }
@@ -63,7 +63,6 @@ where
         };
 
         let value = V::decode(value_bytes)?;
-        self.cache.insert(key, value.clone());
         Ok(Some(value))
     }
 

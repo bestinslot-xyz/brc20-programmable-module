@@ -4,7 +4,6 @@ use std::fmt::Display;
 use std::path::Path;
 
 use alloy_primitives::map::foldhash::fast::RandomState;
-use cached_database::BlockDatabase;
 use revm::context::result::ExecutionResult;
 use revm::context::DBErrorMarker;
 use revm::primitives::alloy_primitives::{Bloom, U128, U64};
@@ -12,21 +11,19 @@ use revm::primitives::ruint::aliases::U256;
 use revm::primitives::{Address, Bytes, FixedBytes, B256};
 use revm::{Database as DatabaseTrait, DatabaseCommit};
 use revm_state::{Account, AccountInfo, Bytecode};
-
-mod cached_database;
-use cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
-
-pub mod types;
-
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use types::{
+
+use crate::db::cached_database::{BlockCachedDatabase, BlockDatabase, BlockHistoryCacheData};
+use crate::db::types::{
     AccountInfoED, AddressED, BEncodeDecode, BlockResponseED, BytecodeED, LogResponse, TxED,
     TxReceiptED, UintEncodeDecode, B256ED, U128ED, U256ED, U512ED, U64ED,
 };
+use crate::server::api::CHAIN_ID;
 
-use crate::server::CHAIN_ID;
+mod cached_database;
 
+pub mod types;
 pub const MAX_HISTORY_SIZE: u64 = 10;
 
 pub struct DB {
@@ -158,7 +155,7 @@ impl DB {
     }
 
     pub fn get_account_memory(
-        &mut self,
+        &self,
         account: Address,
         mem_loc: U256,
     ) -> Result<Option<U256ED>, Box<dyn Error>> {
@@ -184,7 +181,7 @@ impl DB {
         Ok(())
     }
 
-    pub fn get_code(&mut self, code_hash: B256) -> Result<Option<BytecodeED>, Box<dyn Error>> {
+    pub fn get_code(&self, code_hash: B256) -> Result<Option<BytecodeED>, Box<dyn Error>> {
         self.db_code
             .as_ref()
             .ok_or("DB Error")?
@@ -205,7 +202,7 @@ impl DB {
     }
 
     pub fn get_logs(
-        &mut self,
+        &self,
         block_number_from: Option<u64>,
         block_number_to: Option<u64>,
         contract_address: Option<Address>,
@@ -213,7 +210,7 @@ impl DB {
     ) -> Result<Vec<LogResponse>, Box<dyn Error>> {
         let latest_block_number = self.get_latest_block_height()?;
         let block_number_from = block_number_from.unwrap_or(latest_block_number);
-        let block_number_to = block_number_to.unwrap_or(latest_block_number);
+        let block_number_to = block_number_to.unwrap_or(block_number_from);
 
         // Limit the number of blocks to be fetched
         // DB is under a lock here and if this takes too long, it will block other threads
@@ -288,7 +285,7 @@ impl DB {
     }
 
     pub fn get_tx_count(
-        &mut self,
+        &self,
         account: Option<Address>,
         block_number: u64,
     ) -> Result<u64, Box<dyn Error>> {
@@ -313,7 +310,7 @@ impl DB {
     }
 
     pub fn get_tx_hash_by_inscription_id(
-        &mut self,
+        &self,
         inscription_id: String,
     ) -> Result<Option<B256ED>, Box<dyn Error>> {
         self.db_inscription_id_to_tx_hash
@@ -336,7 +333,7 @@ impl DB {
     }
 
     pub fn get_tx_hash_by_block_number_and_index(
-        &mut self,
+        &self,
         block_number: u64,
         tx_idx: u64,
     ) -> Result<Option<B256ED>, Box<dyn Error>> {
@@ -348,7 +345,7 @@ impl DB {
     }
 
     pub fn get_tx_hash_by_block_hash_and_index(
-        &mut self,
+        &self,
         block_hash: B256,
         tx_idx: u64,
     ) -> Result<Option<B256ED>, Box<dyn Error>> {
@@ -359,14 +356,14 @@ impl DB {
         };
     }
 
-    pub fn get_tx_by_hash(&mut self, tx_hash: B256) -> Result<Option<TxED>, Box<dyn Error>> {
+    pub fn get_tx_by_hash(&self, tx_hash: B256) -> Result<Option<TxED>, Box<dyn Error>> {
         self.db_tx
             .as_ref()
             .ok_or("DB Error")?
             .latest(&B256ED::from_b256(tx_hash))
     }
 
-    pub fn get_tx_receipt(&mut self, tx_hash: B256) -> Result<Option<TxReceiptED>, Box<dyn Error>> {
+    pub fn get_tx_receipt(&self, tx_hash: B256) -> Result<Option<TxReceiptED>, Box<dyn Error>> {
         self.db_tx_receipt
             .as_ref()
             .ok_or("DB Error")?
@@ -374,15 +371,15 @@ impl DB {
     }
 
     pub fn require_block_does_not_exist(
-        &mut self,
+        &self,
         block_hash: B256,
         block_number: u64,
     ) -> Result<(), Box<dyn Error>> {
         if self.get_block_hash(block_number)?.is_some() {
-            return Err(format!("Block with hash {} already exists", block_hash).into());
+            return Err(format!("Block with number {} already exists", block_number).into());
         }
         if self.get_block_number(block_hash)?.is_some() {
-            return Err(format!("Block with number {} already exists", block_number).into());
+            return Err(format!("Block with hash {} already exists", block_hash).into());
         }
         Ok(())
     }
@@ -473,7 +470,7 @@ impl DB {
     }
 
     pub fn get_account_info(
-        &mut self,
+        &self,
         account: Address,
     ) -> Result<Option<AccountInfoED>, Box<dyn Error>> {
         self.db_account
@@ -495,33 +492,25 @@ impl DB {
         )?)
     }
 
-    pub fn get_block(
-        &mut self,
-        block_number: u64,
-    ) -> Result<Option<BlockResponseED>, Box<dyn Error>> {
-        let Some(block_hash) = self.get_block_hash(block_number)? else {
-            return Ok(None);
-        };
-
-        let stored_block = self
-            .db_block_number_to_block
-            .as_mut()
-            .ok_or("DB Error")?
-            .get(block_number)?;
-
-        if stored_block.is_some() {
-            return Ok(stored_block);
-        }
-
-        let block_timestamp = self.get_block_timestamp(block_number)?;
-        let gas_used = self.get_gas_used(block_number)?;
-        let mine_timestamp = self.get_mine_timestamp(block_number)?;
+    pub fn generate_block(&self, block_number: u64) -> Result<BlockResponseED, Box<dyn Error>> {
+        let block_timestamp = self
+            .get_block_timestamp(block_number)?
+            .ok_or("Block timestamp not set")?;
+        let gas_used = self
+            .get_gas_used(block_number)?
+            .ok_or("Block gasUsed is not set")?;
+        let mine_timestamp = self
+            .get_mine_timestamp(block_number)?
+            .ok_or("Block mine timestamp not set")?;
+        let block_hash = self
+            .get_block_hash(block_number)?
+            .ok_or("Block hash not set")?;
 
         let parent_hash = if block_number == 0 {
             B256::ZERO
         } else {
             self.get_block_hash(block_number - 1)?
-                .unwrap_or(FixedBytes([0u8; 32]))
+                .ok_or("Parent block is missing")?
         };
 
         let tx_ids = self
@@ -552,13 +541,13 @@ impl DB {
         let block_response = BlockResponseED::new(
             0,
             36000000,
-            gas_used.unwrap_or(U64::ZERO).as_limbs()[0],
+            gas_used.as_limbs()[0],
             BEncodeDecode(block_hash),
             BEncodeDecode(FixedBytes(bloom.as_slice().try_into()?)),
             transactions.len() as u64,
             block_number,
-            block_timestamp.unwrap_or(U64::ZERO).as_limbs()[0],
-            UintEncodeDecode(mine_timestamp.unwrap_or(U128::ZERO)),
+            block_timestamp.as_limbs()[0],
+            UintEncodeDecode(mine_timestamp),
             transactions,
             BEncodeDecode(FixedBytes(tx_merkle.root().unwrap_or([0; 32]))),
             0,
@@ -567,24 +556,38 @@ impl DB {
             0,
         );
 
-        self.db_block_number_to_block
-            .as_mut()
-            .ok_or("DB Error")?
-            .set(block_number, block_response.clone());
-
-        Ok(Some(block_response))
+        Ok(block_response)
     }
 
-    pub fn get_block_number(&mut self, block_hash: B256) -> Result<Option<U64ED>, Box<dyn Error>> {
+    pub fn get_block(&self, block_number: u64) -> Result<Option<BlockResponseED>, Box<dyn Error>> {
+        self.db_block_number_to_block
+            .as_ref()
+            .ok_or("DB Error")?
+            .get(block_number)
+    }
+
+    pub fn set_block(
+        &mut self,
+        block_number: u64,
+        block_response: BlockResponseED,
+    ) -> Result<(), Box<dyn Error>> {
+        Ok(self
+            .db_block_number_to_block
+            .as_mut()
+            .ok_or("DB Error")?
+            .set(block_number, block_response))
+    }
+
+    pub fn get_block_number(&self, block_hash: B256) -> Result<Option<U64ED>, Box<dyn Error>> {
         self.db_block_hash_to_number
             .as_ref()
             .ok_or("DB Error")?
             .latest(&B256ED::from_b256(block_hash))
     }
 
-    pub fn get_block_hash(&mut self, block_number: u64) -> Result<Option<B256>, Box<dyn Error>> {
+    pub fn get_block_hash(&self, block_number: u64) -> Result<Option<B256>, Box<dyn Error>> {
         self.db_block_number_to_hash
-            .as_mut()
+            .as_ref()
             .ok_or("DB Error")?
             .get(block_number)
             .map(|op| op.map(|x| x.0))
@@ -619,9 +622,9 @@ impl DB {
             )?)
     }
 
-    pub fn get_block_timestamp(&mut self, number: u64) -> Result<Option<U64>, Box<dyn Error>> {
+    pub fn get_block_timestamp(&self, number: u64) -> Result<Option<U64>, Box<dyn Error>> {
         self.db_block_number_to_timestamp
-            .as_mut()
+            .as_ref()
             .ok_or("DB Error")?
             .get(number)
             .map(|x| x.map(|x| x.0))
@@ -639,9 +642,9 @@ impl DB {
             .set(block_number, U64ED::from_u64(block_timestamp)))
     }
 
-    pub fn get_gas_used(&mut self, block_number: u64) -> Result<Option<U64>, Box<dyn Error>> {
+    pub fn get_gas_used(&self, block_number: u64) -> Result<Option<U64>, Box<dyn Error>> {
         self.db_block_number_to_gas_used
-            .as_mut()
+            .as_ref()
             .ok_or("DB Error")?
             .get(block_number)
             .map(|x| x.map(|x| x.0))
@@ -655,12 +658,9 @@ impl DB {
             .set(block_number, U64ED::from_u64(gas_used)))
     }
 
-    pub fn get_mine_timestamp(
-        &mut self,
-        block_number: u64,
-    ) -> Result<Option<U128>, Box<dyn Error>> {
+    pub fn get_mine_timestamp(&self, block_number: u64) -> Result<Option<U128>, Box<dyn Error>> {
         self.db_block_number_to_mine_tm
-            .as_mut()
+            .as_ref()
             .ok_or("DB Error")?
             .get(block_number)
             .map(|x| x.map(|x| x.0))
@@ -1009,7 +1009,7 @@ mod tests {
             db.commit_changes().unwrap();
         }
 
-        let mut db = DB::new(&path).unwrap();
+        let db = DB::new(&path).unwrap();
 
         assert_eq!(
             db.get_account_info(address).unwrap().unwrap().0,
@@ -1094,7 +1094,7 @@ mod tests {
             db.commit_changes().unwrap();
         }
 
-        let mut db = DB::new(&path).unwrap();
+        let db = DB::new(&path).unwrap();
 
         assert_eq!(
             db.get_tx_hash_by_inscription_id("inscription_id".to_string())

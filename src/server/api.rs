@@ -7,7 +7,13 @@ use jsonrpsee::proc_macros::rpc;
 use serde::Deserialize;
 
 use crate::db::types::{BlockResponseED, BytecodeED, LogResponse, TxED, TxReceiptED};
-use crate::server::{CHAIN_ID_STRING, INDEXER_ADDRESS};
+
+lazy_static::lazy_static! {
+    pub static ref CHAIN_ID: u64 = 0x4252433230;
+    pub static ref CHAIN_ID_STRING: String = CHAIN_ID.to_string();
+    pub static ref INDEXER_ADDRESS: Address = "0x0000000000000000000000000000000000003Ca6".parse().expect("Failed to parse indexer address");
+    pub static ref INDEXER_ADDRESS_STRING: String = INDEXER_ADDRESS.to_string();
+}
 
 #[rpc(server)]
 pub trait Brc20ProgApi {
@@ -52,7 +58,7 @@ pub trait Brc20ProgApi {
         tx_idx: u64,
         inscription_id: Option<String>,
         inscription_byte_len: Option<u64>,
-    ) -> RpcResult<TxReceiptED>;
+    ) -> RpcResult<Option<TxReceiptED>>;
 
     /// Deposits brc20 tokens to the given address
     #[method(name = "brc20_deposit")]

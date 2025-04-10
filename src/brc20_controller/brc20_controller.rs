@@ -5,8 +5,8 @@ use alloy_sol_types::{sol, SolCall};
 use revm::primitives::{Address, Bytes};
 use rust_embed::Embed;
 
+use crate::server::api::INDEXER_ADDRESS;
 use crate::server::types::TxInfo;
-use crate::server::INDEXER_ADDRESS;
 
 lazy_static::lazy_static! {
     pub static ref BRC20_CONTROLLER_PATH: String = "BRC20_Controller".to_string();

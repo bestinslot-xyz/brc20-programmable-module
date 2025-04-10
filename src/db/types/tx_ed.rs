@@ -3,7 +3,7 @@ use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex};
 
 use crate::db::types::{AddressED, Decode, Encode, B256ED};
-use crate::server::CHAIN_ID;
+use crate::server::api::CHAIN_ID;
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct TxED {
@@ -126,7 +126,7 @@ impl Decode for TxED {
 mod tests {
     use super::*;
     use crate::db::types::BEncodeDecode;
-    use crate::server::CHAIN_ID;
+    use crate::server::api::CHAIN_ID;
 
     #[test]
     fn encode_decode() {
