@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::net::SocketAddr;
 
-use alloy_primitives::{Address, Bytes};
+use alloy_primitives::Bytes;
 use hyper::Method;
 use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::server::{RpcServiceBuilder, Server, ServerHandle};
@@ -17,7 +17,7 @@ use crate::db::types::{BlockResponseED, BytecodeED, LogResponse, TxED, TxReceipt
 use crate::evm::utils::get_evm_address;
 use crate::server::api::{
     AddressWrapper, B256Wrapper, Brc20ProgApiServer, BytesWrapper, EthCall, GetLogsFilter,
-    U256Wrapper,
+    U256Wrapper, INVALID_ADDRESS,
 };
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthAllowEth};
 use crate::server::engine::BRC20ProgEngine;
@@ -194,14 +194,19 @@ impl Brc20ProgApiServer for RpcServer {
         event!(Level::INFO, "Deploying contract");
 
         let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
+        let to = if data.value().is_some() {
+            None
+        } else {
+            Some(*INVALID_ADDRESS) // If data is not valid, send transaction to 0xdead
+        };
 
         self.engine
             .add_tx_to_block(
                 timestamp,
                 &TxInfo {
                     from: get_evm_address(&from_pkscript),
-                    to: None,
-                    data: data.value().clone(),
+                    to,
+                    data: data.value().unwrap_or_default().clone(),
                 },
                 tx_idx,
                 self.engine
@@ -231,27 +236,26 @@ impl Brc20ProgApiServer for RpcServer {
 
         let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
 
-        let derived_contract_address =
-            if let Some(contract_inscription_id) = contract_inscription_id {
-                self.engine
-                    .get_contract_address_by_inscription_id(contract_inscription_id)
-                    .map_err(wrap_rpc_error)?
-            } else {
-                contract_address.map(|x| x.value())
-            };
-
-        // Check if a valid contract address is provided
-        if derived_contract_address.is_none() {
-            return Ok(None);
-        }
+        let derived_contract_address = if !data.value().is_some() {
+            *INVALID_ADDRESS
+        } else if let Some(contract_inscription_id) = contract_inscription_id {
+            self.engine
+                .get_contract_address_by_inscription_id(contract_inscription_id)
+                .unwrap_or(None)
+                .unwrap_or(*INVALID_ADDRESS)
+        } else {
+            contract_address
+                .map(|x| x.value())
+                .unwrap_or(*INVALID_ADDRESS)
+        };
 
         self.engine
             .add_tx_to_block(
                 timestamp,
                 &TxInfo {
                     from: get_evm_address(&from_pkscript),
-                    to: derived_contract_address,
-                    data: data.value().clone(),
+                    to: derived_contract_address.into(),
+                    data: data.value().unwrap_or_default().clone(),
                 },
                 tx_idx,
                 self.engine
@@ -414,9 +418,9 @@ impl Brc20ProgApiServer for RpcServer {
                 .from
                 .as_ref()
                 .map(|x| x.value())
-                .unwrap_or(Address::ZERO),
+                .unwrap_or(*INVALID_ADDRESS),
             to: call.to.as_ref().map(|x| x.value()),
-            data: data.value().clone(),
+            data: data.value().unwrap_or_default().clone(),
         });
         let Ok(receipt) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
@@ -439,9 +443,9 @@ impl Brc20ProgApiServer for RpcServer {
                 .from
                 .as_ref()
                 .map(|x| x.value())
-                .unwrap_or(Address::ZERO),
+                .unwrap_or(*INVALID_ADDRESS),
             to: call.to.as_ref().map(|x| x.value()),
-            data: data.value().clone(),
+            data: data.value().unwrap_or_default().clone(),
         });
         let Ok(receipt) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
