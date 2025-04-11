@@ -28,7 +28,7 @@ pub fn brc20_balance_precompile(call: &PrecompileCall) -> InterpreterResult {
         return interpreter_result;
     }
 
-    let Ok(inputs) = balanceOfCall::abi_decode(&call.bytes, false) else {
+    let Ok(inputs) = balanceOfCall::abi_decode(&call.bytes) else {
         return precompile_error(interpreter_result);
     };
 
@@ -36,8 +36,7 @@ pub fn brc20_balance_precompile(call: &PrecompileCall) -> InterpreterResult {
         return precompile_error(interpreter_result);
     };
 
-    let balance = U256::from(balance);
-    let bytes = balanceOfCall::abi_encode_returns(&(balance,));
+    let bytes = balanceOfCall::abi_encode_returns(&U256::from(balance));
 
     return precompile_output(interpreter_result, bytes);
 }

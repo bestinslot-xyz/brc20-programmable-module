@@ -31,11 +31,11 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
         return interpreter_result;
     }
 
-    let Ok(txid) = getTxDetailsCall::abi_decode(&call.bytes, false) else {
+    let Ok(txid) = getTxDetailsCall::abi_decode(&call.bytes) else {
         return precompile_error(interpreter_result);
     };
 
-    let Ok(raw_tx_info) = get_raw_transaction(&txid._0) else {
+    let Ok(raw_tx_info) = get_raw_transaction(&txid.0) else {
         // Failed to get transaction details
         return precompile_error(interpreter_result);
     };
@@ -106,7 +106,7 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
         vout_values.push(U256::from(vout.value.to_sat()));
     }
 
-    let bytes = getTxDetailsCall::abi_encode_returns(&(
+    let bytes = getTxDetailsCall::abi_encode_returns_tuple(&(
         U256::from(block_info.height),
         vin_txids,
         vin_vouts,
@@ -169,7 +169,7 @@ mod tests {
 
         assert!(response.is_ok());
 
-        let returns = getTxDetailsCall::abi_decode_returns(&response.output, false).unwrap();
+        let returns = getTxDetailsCall::abi_decode_returns(&response.output).unwrap();
 
         assert_eq!(returns.block_height, U256::from(240960u64));
         assert_eq!(returns.vin_txids.len(), 1);

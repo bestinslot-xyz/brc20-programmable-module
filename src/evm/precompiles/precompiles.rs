@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use alloy_primitives::{Address, Bytes};
 use revm::context::{Block, Cfg, ContextTr};
 use revm::handler::PrecompileProvider;
-use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
+use revm::interpreter::{Gas, InputsImpl, InstructionResult, InterpreterResult};
 use revm::precompile::Precompiles;
 
 use crate::evm::precompiles::{
@@ -72,17 +72,21 @@ impl Default for BRC20Precompiles {
 impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
     type Output = InterpreterResult;
 
-    fn set_spec(&mut self, _: <CTX::Cfg as Cfg>::Spec) {}
+    fn set_spec(&mut self, _: <CTX::Cfg as Cfg>::Spec) -> bool {
+        // No-op
+        true
+    }
 
     fn run(
         &mut self,
         ctx: &mut CTX,
         address: &Address,
-        bytes: &Bytes,
+        inputs: &InputsImpl,
+        _: bool,
         gas_limit: u64,
     ) -> Result<Option<Self::Output>, String> {
         if let Some(cancun_precompile) = self.eth_precompiles.get(address) {
-            match cancun_precompile(bytes, gas_limit) {
+            match cancun_precompile(&inputs.input, gas_limit) {
                 Ok(output) => {
                     let mut gas = Gas::new(gas_limit);
                     if !gas.record_cost(output.gas_used) {
@@ -103,7 +107,7 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
             }
         } else if let Some(custom_precompile) = self.custom_precompiles.get(address) {
             return Ok(Some(custom_precompile(&PrecompileCall {
-                bytes: bytes.clone(),
+                bytes: inputs.input.clone(),
                 gas_limit,
                 block_height: ctx.block().number(),
             })));
