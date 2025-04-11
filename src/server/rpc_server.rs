@@ -583,3 +583,127 @@ fn ticker_as_bytes(ticker: &str) -> Bytes {
     let ticker_lowercase = ticker.to_lowercase();
     Bytes::from(ticker_lowercase.as_bytes().to_vec())
 }
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::B256;
+    use tempfile::TempDir;
+
+    use super::*;
+    use crate::db::DB;
+    use crate::server::engine::BRC20ProgEngine;
+
+    fn create_test_server() -> RpcServer {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        RpcServer {
+            engine: BRC20ProgEngine::new(db),
+        }
+    }
+
+    #[test]
+    fn test_ticker_as_bytes() {
+        assert_eq!(
+            ticker_as_bytes("BRC20"),
+            Bytes::from(vec![0x62, 0x72, 0x63, 0x32, 0x30])
+        );
+        assert_eq!(
+            ticker_as_bytes("brc20"),
+            Bytes::from(vec![0x62, 0x72, 0x63, 0x32, 0x30])
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_block_number() {
+        let server = create_test_server();
+
+        assert!(server
+            .initialise(B256Wrapper::new(B256::from_slice(&[1; 32])), 20, 0)
+            .await
+            .is_ok());
+
+        assert_eq!(server.parse_block_number("latest").unwrap(), 0);
+        assert_eq!(server.parse_block_number("safe").unwrap(), 0);
+        assert_eq!(server.parse_block_number("finalized").unwrap(), 0);
+        assert_eq!(server.parse_block_number("pending").unwrap(), 1);
+        assert_eq!(server.parse_block_number("earliest").unwrap(), 0);
+        assert_eq!(server.parse_block_number("0x1").unwrap(), 1);
+        assert_eq!(server.parse_block_number("1").unwrap(), 1);
+    }
+
+    #[test]
+    fn test_parse_block_number_invalid() {
+        let server = create_test_server();
+        assert!(server.parse_block_number("invalid").is_err());
+        assert!(server.parse_block_number("0xinvalid").is_err());
+    }
+
+    #[tokio::test]
+    async fn test_initialise() {
+        let server = create_test_server();
+        assert!(server
+            .initialise(B256Wrapper::new(B256::from_slice(&[1; 32])), 20, 0)
+            .await
+            .is_ok());
+
+        assert_eq!(server.engine.get_latest_block_height().unwrap(), 0);
+        assert_eq!(server.engine.get_next_block_height().unwrap(), 1);
+        assert_eq!(
+            server
+                .engine
+                .get_block_by_number(0, false)
+                .unwrap()
+                .unwrap()
+                .number,
+            0
+        );
+        assert_eq!(server.engine.get_block_by_number(1, true).unwrap(), None);
+        assert_eq!(
+            server
+                .engine
+                .get_block_by_hash(B256::from_slice(&[1; 32]), true)
+                .unwrap()
+                .unwrap()
+                .number,
+            0
+        )
+    }
+
+    #[tokio::test]
+    async fn test_mine() {
+        let server = create_test_server();
+        assert!(server
+            .initialise(B256Wrapper::new(B256::from_slice(&[1; 32])), 20, 0)
+            .await
+            .is_ok());
+
+        assert_eq!(server.engine.get_latest_block_height().unwrap(), 0);
+        assert_eq!(server.engine.get_next_block_height().unwrap(), 1);
+
+        assert!(server.mine(1, 20).await.is_ok());
+        assert_eq!(server.engine.get_latest_block_height().unwrap(), 1);
+        assert_eq!(server.engine.get_next_block_height().unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_invalid_tx() {
+        let server = create_test_server();
+
+        let result = server
+            .call_contract(
+                "deadbeef".to_string(),
+                None,
+                None,
+                BytesWrapper::empty(),
+                20,
+                B256Wrapper::new(B256::from_slice(&[1; 32])),
+                0,
+                None,
+                None,
+            )
+            .await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().unwrap().to.unwrap().0, *INVALID_ADDRESS);
+    }
+}
