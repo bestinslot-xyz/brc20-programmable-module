@@ -2,9 +2,9 @@ use std::error::Error;
 use std::time::{Instant, UNIX_EPOCH};
 
 use alloy_primitives::{logs_bloom, Address, B256, U256};
-use revm::context::{BlockEnv, ContextTr, TransactTo};
-use revm::handler::{EvmTr, ExecuteCommitEvm};
-use revm::ExecuteEvm;
+use revm::context::{ContextTr, TransactTo};
+use revm::handler::EvmTr;
+use revm::{ExecuteCommitEvm, ExecuteEvm};
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
 use crate::db::types::{
@@ -154,7 +154,7 @@ impl BRC20ProgEngine {
 
         // First tx in block, set last block info
         if self.last_block_info.read().waiting_tx_count == 0 {
-            self.last_block_info.write_fn(|block_info| {
+            self.last_block_info.write_fn_unchecked(|block_info| {
                 *block_info = LastBlockInfo {
                     waiting_tx_count: 0,
                     timestamp,
@@ -163,26 +163,18 @@ impl BRC20ProgEngine {
                     log_index: 0,
                     start_time: Instant::now().into(),
                 };
-                Ok(())
-            })?;
+            });
         }
-
-        let block_info: BlockEnv = BlockEnv {
-            number: block_number,
-            timestamp: timestamp,
-            ..Default::default()
-        };
 
         let nonce = self.get_nonce(tx_info.from)?;
         let tx_hash = get_tx_hash(&tx_info, &nonce);
         let gas_limit = get_gas_limit(inscription_byte_len.unwrap_or(tx_info.data.len() as u64));
 
-        let output = self.db.write_fn(|db| {
+        self.db.write_fn(|db| {
             let db_moved = core::mem::take(&mut *db);
-            let mut evm = get_evm(block_info, db_moved, None);
+            let mut evm = get_evm(block_number, block_hash, timestamp, db_moved, None);
 
             evm.ctx().modify_tx(|tx| {
-                tx.chain_id = Some(331337);
                 tx.caller = tx_info.from;
                 tx.kind = tx_info
                     .to
@@ -193,24 +185,16 @@ impl BRC20ProgEngine {
                 tx.gas_limit = gas_limit;
             });
 
-            let tx = evm.ctx().tx().clone();
-            let output = evm.transact_commit(tx)?;
-
+            let output = evm.replay_commit()?;
             core::mem::swap(&mut *db, &mut evm.ctx().db());
-            Ok(output)
-        })?;
 
-        self.last_block_info.write_fn(|last_block_info| {
-            last_block_info.waiting_tx_count += 1;
-            last_block_info.gas_used = last_block_info
+            let cumulative_gas_used = self
+                .last_block_info
+                .read()
                 .gas_used
                 .checked_add(output.gas_used())
-                .unwrap_or(last_block_info.gas_used);
-            last_block_info.log_index += output.logs().len() as u64;
-            Ok(())
-        })?;
+                .unwrap_or(self.last_block_info.read().gas_used);
 
-        self.db.write_fn(|db| {
             db.set_tx_receipt(
                 &get_result_type(&output),
                 &get_result_reason(&output),
@@ -225,12 +209,21 @@ impl BRC20ProgEngine {
                 tx_hash,
                 tx_idx,
                 &output.clone(),
-                self.last_block_info.read().gas_used,
+                cumulative_gas_used,
                 nonce,
                 self.last_block_info.read().log_index,
                 inscription_id,
                 gas_limit,
             )?;
+
+            self.last_block_info.write_fn_unchecked(|last_block_info| {
+                last_block_info.waiting_tx_count += 1;
+                last_block_info.gas_used = last_block_info
+                    .gas_used
+                    .checked_add(output.gas_used())
+                    .unwrap_or(last_block_info.gas_used);
+                last_block_info.log_index += output.logs().len() as u64;
+            });
 
             db.get_tx_receipt(tx_hash)?
                 .ok_or("Failed to set tx receipt".into())
@@ -360,26 +353,20 @@ impl BRC20ProgEngine {
         Ok(())
     }
 
-    pub fn call_contract(&self, tx_info: &TxInfo) -> Result<TxReceiptED, Box<dyn Error>> {
+    pub fn read_contract(&self, tx_info: &TxInfo) -> Result<TxReceiptED, Box<dyn Error>> {
         self.require_no_waiting_txes()?;
 
         let block_number = self.get_next_block_height()?;
         let timestamp = UNIX_EPOCH.elapsed().map(|x| x.as_secs())?;
         let nonce = self.get_nonce(tx_info.from)?;
         let txhash = get_tx_hash(&tx_info, &nonce);
-        let block_info: BlockEnv = BlockEnv {
-            number: block_number,
-            timestamp,
-            ..Default::default()
-        };
 
         // This isn't actually writing to the database, but the EVM context requires a mutable reference
         let output = self.db.write_fn(|db| {
             let db_moved = core::mem::take(&mut *db);
-            let mut evm = get_evm(block_info, db_moved, None);
+            let mut evm = get_evm(block_number, B256::ZERO, timestamp, db_moved, None);
 
             evm.ctx().modify_tx(|tx| {
-                tx.chain_id = Some(331337);
                 tx.caller = tx_info.from;
                 tx.kind = tx_info
                     .to
@@ -391,9 +378,7 @@ impl BRC20ProgEngine {
                 tx.gas_limit = get_gas_limit(tx_info.data.len() as u64) * 10;
             });
 
-            let tx = evm.ctx().tx().clone();
-            let output = evm.transact(tx).map(|x| x.result);
-
+            let output = evm.replay().map(|x| x.result);
             core::mem::swap(&mut *db, &mut evm.ctx().db());
 
             output.map_err(|e| e.into())

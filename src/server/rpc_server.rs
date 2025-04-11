@@ -131,7 +131,7 @@ impl Brc20ProgApiServer for RpcServer {
         let pkscript = hex::decode(pkscript).map_err(wrap_hex_error)?.into();
 
         self.engine
-            .call_contract(&load_brc20_balance_tx(
+            .read_contract(&load_brc20_balance_tx(
                 ticker_as_bytes(&ticker),
                 get_evm_address(&pkscript),
             ))
@@ -413,7 +413,7 @@ impl Brc20ProgApiServer for RpcServer {
         let Some(data) = call.data_or_input() else {
             return Err(wrap_rpc_error_string("No data or input provided"));
         };
-        let receipt = self.engine.call_contract(&TxInfo {
+        let receipt = self.engine.read_contract(&TxInfo {
             from: call
                 .from
                 .as_ref()
@@ -438,7 +438,7 @@ impl Brc20ProgApiServer for RpcServer {
         let Some(data) = call.data_or_input() else {
             return Err(wrap_rpc_error_string("No data or input provided"));
         };
-        let receipt = self.engine.call_contract(&TxInfo {
+        let receipt = self.engine.read_contract(&TxInfo {
             from: call
                 .from
                 .as_ref()
