@@ -581,3 +581,595 @@ fn generate_block_hash(block_number: u64) -> B256 {
         .collect::<Vec<u8>>();
     B256::from_slice(&full_bytes)
 }
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::B256;
+    use tempfile::TempDir;
+
+    use super::*;
+    use crate::db::DB;
+    use crate::server::api::INDEXER_ADDRESS;
+
+    #[test]
+    fn test_initialise() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+        let genesis_hash = B256::from_slice([1; 32].as_ref());
+        let genesis_timestamp = 1622547800;
+        let genesis_height = 0;
+
+        assert!(engine
+            .initialise(genesis_hash, genesis_timestamp, genesis_height)
+            .is_ok());
+
+        let block = engine.get_block_by_number(0, true).unwrap();
+        assert!(block.is_some());
+        let block = block.unwrap();
+        assert_eq!(block.number, 0);
+        assert_eq!(block.hash.0, genesis_hash);
+        assert_eq!(block.timestamp, genesis_timestamp);
+
+        let full_transactions = block.full_transactions.unwrap();
+        assert_eq!(full_transactions.len(), 1);
+        assert_eq!(full_transactions[0].from.0, *INDEXER_ADDRESS);
+        assert_eq!(full_transactions[0].to, None);
+    }
+
+    #[test]
+    fn test_get_next_block_height() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        assert_eq!(engine.get_next_block_height().unwrap(), 0);
+        engine.initialise(B256::ZERO, 1622547800, 0).unwrap();
+        assert_eq!(engine.get_next_block_height().unwrap(), 1);
+    }
+
+    #[test]
+    fn test_get_latest_block_height() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        assert_eq!(engine.get_latest_block_height().unwrap(), 0);
+        engine.initialise(B256::ZERO, 1622547800, 0).unwrap();
+        assert_eq!(engine.get_latest_block_height().unwrap(), 0);
+        engine.mine_blocks(123, 1622547800).unwrap();
+        assert_eq!(engine.get_latest_block_height().unwrap(), 123);
+    }
+
+    #[test]
+    fn test_mine_blocks() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        engine.initialise(B256::ZERO, 1622547800, 0).unwrap();
+        assert_eq!(engine.get_next_block_height().unwrap(), 1);
+        engine.mine_blocks(2, 1622547800).unwrap();
+        assert_eq!(engine.get_next_block_height().unwrap(), 3);
+    }
+
+    #[test]
+    fn test_get_contract_address_by_inscription_id() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let inscription_id = "test_inscription_id".to_string();
+
+        let deployed_contract = engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: *INDEXER_ADDRESS,
+                    to: None,
+                    data: vec![].into(),
+                },
+                0,
+                1,
+                B256::ZERO,
+                Some(inscription_id.clone()),
+                Some(0),
+            )
+            .unwrap()
+            .contract_address
+            .unwrap();
+
+        let contract_address = engine
+            .get_contract_address_by_inscription_id(inscription_id.clone())
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(contract_address, deployed_contract.0);
+    }
+
+    #[test]
+    fn test_add_tx_to_block() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let from_address = Address::from_slice([1; 20].as_ref());
+        let tx_info = TxInfo {
+            from: from_address,
+            to: None,
+            data: vec![].into(),
+        };
+        let block_number = 1;
+        let block_hash = B256::ZERO;
+        let timestamp = 1622547800;
+
+        let result = engine
+            .add_tx_to_block(
+                timestamp,
+                &tx_info,
+                0,
+                block_number,
+                block_hash,
+                None,
+                Some(0),
+            )
+            .unwrap();
+
+        assert_eq!(result.from.0, from_address);
+    }
+
+    #[test]
+    fn test_get_transaction_count() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let account_1 = Address::from_slice([1; 20].as_ref());
+        let account_2 = Address::from_slice([2; 20].as_ref());
+
+        engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: account_1,
+                    to: None,
+                    data: vec![].into(),
+                },
+                0,
+                0,
+                B256::ZERO,
+                None,
+                Some(0),
+            )
+            .unwrap();
+
+        engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: account_2,
+                    to: None,
+                    data: vec![].into(),
+                },
+                1,
+                0,
+                B256::ZERO,
+                None,
+                Some(0),
+            )
+            .unwrap();
+
+        engine.finalise_block(1622547800, 0, B256::ZERO, 2).unwrap();
+
+        assert_eq!(engine.get_transaction_count(account_1, 0).unwrap(), 1);
+        assert_eq!(engine.get_transaction_count(account_2, 0).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_get_block_transaction_count_by_number() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        engine.mine_blocks(100, 1622547800).unwrap();
+        engine.initialise(B256::ZERO, 1622547800, 100).unwrap();
+
+        assert_eq!(engine.get_block_transaction_count_by_number(0).unwrap(), 0);
+
+        assert_eq!(engine.get_block_transaction_count_by_number(50).unwrap(), 0);
+
+        assert_eq!(
+            engine.get_block_transaction_count_by_number(100).unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_get_block_transaction_count_by_hash() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+        let hash = B256::from_slice([1; 32].as_ref());
+
+        engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: *INDEXER_ADDRESS,
+                    to: None,
+                    data: vec![].into(),
+                },
+                0,
+                0,
+                hash,
+                None,
+                Some(0),
+            )
+            .unwrap();
+
+        engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: *INDEXER_ADDRESS,
+                    to: None,
+                    data: vec![].into(),
+                },
+                1,
+                0,
+                hash,
+                None,
+                Some(0),
+            )
+            .unwrap();
+        engine.finalise_block(1622547800, 0, hash, 2).unwrap();
+        assert_eq!(engine.get_block_transaction_count_by_hash(hash).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_get_transaction_by_block_hash_and_index() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+        let hash = B256::from_slice([1; 32].as_ref());
+
+        let account_1 = Address::from_slice([1; 20].as_ref());
+        let account_2 = Address::from_slice([2; 20].as_ref());
+        engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: account_1,
+                    to: None,
+                    data: vec![].into(),
+                },
+                0,
+                0,
+                hash,
+                None,
+                Some(0),
+            )
+            .unwrap();
+
+        engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: account_2,
+                    to: None,
+                    data: vec![].into(),
+                },
+                1,
+                0,
+                hash,
+                None,
+                Some(0),
+            )
+            .unwrap();
+        engine.finalise_block(1622547800, 0, hash, 2).unwrap();
+        assert_eq!(
+            engine
+                .get_transaction_by_block_hash_and_index(hash, 0)
+                .unwrap()
+                .unwrap()
+                .from
+                .0,
+            account_1
+        );
+        assert_eq!(
+            engine
+                .get_transaction_by_block_hash_and_index(hash, 1)
+                .unwrap()
+                .unwrap()
+                .from
+                .0,
+            account_2
+        );
+    }
+
+    #[test]
+    fn test_get_transaction_by_block_number_and_index() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+        let hash = B256::from_slice([1; 32].as_ref());
+
+        let account_1 = Address::from_slice([1; 20].as_ref());
+        let account_2 = Address::from_slice([2; 20].as_ref());
+        engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: account_1,
+                    to: None,
+                    data: vec![].into(),
+                },
+                0,
+                0,
+                hash,
+                None,
+                Some(0),
+            )
+            .unwrap();
+
+        engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: account_2,
+                    to: None,
+                    data: vec![].into(),
+                },
+                1,
+                0,
+                hash,
+                None,
+                Some(0),
+            )
+            .unwrap();
+        engine.finalise_block(1622547800, 0, hash, 2).unwrap();
+        assert_eq!(
+            engine
+                .get_transaction_by_block_number_and_index(0, 0)
+                .unwrap()
+                .unwrap()
+                .from
+                .0,
+            account_1
+        );
+        assert_eq!(
+            engine
+                .get_transaction_by_block_number_and_index(0, 1)
+                .unwrap()
+                .unwrap()
+                .from
+                .0,
+            account_2
+        );
+    }
+
+    #[test]
+    fn test_get_transaction_by_hash() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+        let hash = B256::from_slice([1; 32].as_ref());
+
+        let account_1 = Address::from_slice([1; 20].as_ref());
+        let tx_hash = engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: account_1,
+                    to: None,
+                    data: vec![].into(),
+                },
+                0,
+                0,
+                hash,
+                None,
+                Some(0),
+            )
+            .unwrap()
+            .transaction_hash
+            .0;
+
+        assert_eq!(
+            engine
+                .get_transaction_by_hash(tx_hash)
+                .unwrap()
+                .unwrap()
+                .from
+                .0,
+            account_1
+        );
+    }
+
+    #[test]
+    fn test_get_transaction_receipt_by_inscription_id() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let inscription_id = "test_inscription_id".to_string();
+
+        let result = engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: *INDEXER_ADDRESS,
+                    to: None,
+                    data: vec![].into(),
+                },
+                0,
+                0,
+                B256::ZERO,
+                Some(inscription_id.clone()),
+                Some(0),
+            )
+            .unwrap();
+
+        let receipt = engine
+            .get_transaction_receipt_by_inscription_id(inscription_id)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(receipt.hash.0, result.hash.0);
+    }
+
+    #[test]
+    fn test_get_transaction_receipt() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+        let hash = B256::from_slice([1; 32].as_ref());
+
+        let account_1 = Address::from_slice([1; 20].as_ref());
+        let tx_hash = engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: account_1,
+                    to: None,
+                    data: vec![].into(),
+                },
+                0,
+                0,
+                hash,
+                None,
+                Some(0),
+            )
+            .unwrap()
+            .transaction_hash
+            .0;
+
+        assert_eq!(
+            engine
+                .get_transaction_receipt(tx_hash)
+                .unwrap()
+                .unwrap()
+                .from
+                .0,
+            account_1
+        );
+    }
+
+    #[test]
+    fn test_require_no_waiting_txes() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        assert!(engine.require_no_waiting_txes().is_ok());
+
+        engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: *INDEXER_ADDRESS,
+                    to: None,
+                    data: vec![].into(),
+                },
+                0,
+                0,
+                B256::ZERO,
+                None,
+                Some(0),
+            )
+            .unwrap();
+
+        assert!(engine.require_no_waiting_txes().is_err());
+    }
+
+    #[test]
+    fn test_validate_next_tx() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let block_hash = B256::from_slice([1; 32].as_ref());
+        let block_number = 0;
+        let timestamp = 1622547800;
+
+        assert!(engine
+            .validate_next_tx(0, block_hash, block_number, timestamp)
+            .is_ok());
+
+        engine
+            .add_tx_to_block(
+                timestamp,
+                &TxInfo {
+                    from: *INDEXER_ADDRESS,
+                    to: None,
+                    data: vec![].into(),
+                },
+                0,
+                block_number,
+                block_hash,
+                None,
+                Some(0),
+            )
+            .unwrap();
+
+        assert!(engine
+            .validate_next_tx(1, block_hash, block_number, timestamp)
+            .is_ok());
+
+        engine
+            .add_tx_to_block(
+                timestamp,
+                &TxInfo {
+                    from: *INDEXER_ADDRESS,
+                    to: None,
+                    data: vec![].into(),
+                },
+                1,
+                block_number,
+                block_hash,
+                None,
+                Some(0),
+            )
+            .unwrap();
+
+        assert!(engine
+            .validate_next_tx(3, block_hash, block_number, timestamp)
+            .is_err());
+    }
+
+    #[test]
+    fn test_get_nonce() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = DB::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let account = Address::from_slice([1; 20].as_ref());
+
+        assert_eq!(engine.get_nonce(account).unwrap(), 0);
+
+        engine
+            .add_tx_to_block(
+                1622547800,
+                &TxInfo {
+                    from: account,
+                    to: None,
+                    data: vec![].into(),
+                },
+                0,
+                0,
+                B256::ZERO,
+                None,
+                Some(0),
+            )
+            .unwrap();
+
+        assert_eq!(engine.get_nonce(account).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_generate_block_hash() {
+        let block_number = 1;
+        let block_hash = generate_block_hash(block_number);
+        assert_eq!(block_hash.0[0..30], [0u8; 30]);
+        assert_eq!(block_hash.0[31] as u64, block_number + 1);
+    }
+}

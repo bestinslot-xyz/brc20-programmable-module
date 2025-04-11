@@ -374,6 +374,11 @@ impl<'de> Deserialize<'de> for U256Wrapper {
 pub struct B256Wrapper(B256);
 
 impl B256Wrapper {
+    #[cfg(test)]
+    pub fn new(b256: B256) -> Self {
+        Self(b256)
+    }
+
     pub fn value(&self) -> B256 {
         self.0
     }
