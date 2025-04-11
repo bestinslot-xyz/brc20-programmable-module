@@ -31,8 +31,8 @@ pub struct BRC20Precompiles {
     pub all_addresses: HashSet<Address>,
 }
 
-impl Default for BRC20Precompiles {
-    fn default() -> Self {
+impl BRC20Precompiles {
+    pub fn new() -> Self {
         let eth_precompiles = Precompiles::cancun();
         let mut all_addresses = eth_precompiles
             .addresses()
