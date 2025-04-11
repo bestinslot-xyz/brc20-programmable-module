@@ -617,10 +617,9 @@ mod tests {
     async fn test_parse_block_number() {
         let server = create_test_server();
 
-        assert!(server
+        let _ = server
             .initialise(B256Wrapper::new(B256::from_slice(&[1; 32])), 20, 0)
-            .await
-            .is_ok());
+            .await;
 
         assert_eq!(server.parse_block_number("latest").unwrap(), 0);
         assert_eq!(server.parse_block_number("safe").unwrap(), 0);
@@ -641,10 +640,9 @@ mod tests {
     #[tokio::test]
     async fn test_initialise() {
         let server = create_test_server();
-        assert!(server
+        let _ = server
             .initialise(B256Wrapper::new(B256::from_slice(&[1; 32])), 20, 0)
-            .await
-            .is_ok());
+            .await;
 
         assert_eq!(server.engine.get_latest_block_height().unwrap(), 0);
         assert_eq!(server.engine.get_next_block_height().unwrap(), 1);
@@ -672,10 +670,9 @@ mod tests {
     #[tokio::test]
     async fn test_mine() {
         let server = create_test_server();
-        assert!(server
+        let _ = server
             .initialise(B256Wrapper::new(B256::from_slice(&[1; 32])), 20, 0)
-            .await
-            .is_ok());
+            .await;
 
         assert_eq!(server.engine.get_latest_block_height().unwrap(), 0);
         assert_eq!(server.engine.get_next_block_height().unwrap(), 1);

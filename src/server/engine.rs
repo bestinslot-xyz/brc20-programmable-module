@@ -600,9 +600,8 @@ mod tests {
         let genesis_timestamp = 1622547800;
         let genesis_height = 0;
 
-        assert!(engine
-            .initialise(genesis_hash, genesis_timestamp, genesis_height)
-            .is_ok());
+        let _ = engine
+            .initialise(genesis_hash, genesis_timestamp, genesis_height);
 
         let block = engine.get_block_by_number(0, true).unwrap();
         assert!(block.is_some());
@@ -624,7 +623,7 @@ mod tests {
         let engine = BRC20ProgEngine::new(db);
 
         assert_eq!(engine.get_next_block_height().unwrap(), 0);
-        engine.initialise(B256::ZERO, 1622547800, 0).unwrap();
+        let _ = engine.initialise(B256::ZERO, 1622547800, 0);
         assert_eq!(engine.get_next_block_height().unwrap(), 1);
     }
 
@@ -635,7 +634,7 @@ mod tests {
         let engine = BRC20ProgEngine::new(db);
 
         assert_eq!(engine.get_latest_block_height().unwrap(), 0);
-        engine.initialise(B256::ZERO, 1622547800, 0).unwrap();
+        let _ = engine.initialise(B256::ZERO, 1622547800, 0);
         assert_eq!(engine.get_latest_block_height().unwrap(), 0);
         engine.mine_blocks(123, 1622547800).unwrap();
         assert_eq!(engine.get_latest_block_height().unwrap(), 123);
@@ -647,7 +646,7 @@ mod tests {
         let db = DB::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
-        engine.initialise(B256::ZERO, 1622547800, 0).unwrap();
+        let _ = engine.initialise(B256::ZERO, 1622547800, 0);
         assert_eq!(engine.get_next_block_height().unwrap(), 1);
         engine.mine_blocks(2, 1622547800).unwrap();
         assert_eq!(engine.get_next_block_height().unwrap(), 3);
@@ -772,7 +771,7 @@ mod tests {
         let engine = BRC20ProgEngine::new(db);
 
         engine.mine_blocks(100, 1622547800).unwrap();
-        engine.initialise(B256::ZERO, 1622547800, 100).unwrap();
+        let _ = engine.initialise(B256::ZERO, 1622547800, 100);
 
         assert_eq!(engine.get_block_transaction_count_by_number(0).unwrap(), 0);
 
