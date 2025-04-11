@@ -600,8 +600,7 @@ mod tests {
         let genesis_timestamp = 1622547800;
         let genesis_height = 0;
 
-        let _ = engine
-            .initialise(genesis_hash, genesis_timestamp, genesis_height);
+        let _ = engine.initialise(genesis_hash, genesis_timestamp, genesis_height);
 
         let block = engine.get_block_by_number(0, true).unwrap();
         assert!(block.is_some());
