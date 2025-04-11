@@ -25,7 +25,7 @@ pub fn get_locked_pkscript_precompile(call: &PrecompileCall) -> InterpreterResul
         return interpreter_result;
     }
 
-    let Ok(inputs) = getLockedPkscriptCall::abi_decode(&call.bytes, false) else {
+    let Ok(inputs) = getLockedPkscriptCall::abi_decode(&call.bytes) else {
         return precompile_error(interpreter_result);
     };
 
@@ -43,7 +43,7 @@ pub fn get_locked_pkscript_precompile(call: &PrecompileCall) -> InterpreterResul
         return precompile_error(interpreter_result);
     };
 
-    let bytes = getLockedPkscriptCall::abi_encode_returns(&(result,));
+    let bytes = getLockedPkscriptCall::abi_encode_returns(&result);
 
     return precompile_output(interpreter_result, bytes);
 }
@@ -148,9 +148,9 @@ mod tests {
             gas_limit: 100000,
             block_height: 0,
         });
-        let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
+        let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
         assert_eq!(
-            hex::encode(result.locked_pkscript),
+            hex::encode(result.iter().as_slice()),
             "51206ec7460e24bdaeba7384e2d5ff54a4645e0b53854594d225c52a4195eba194ca"
         )
     }
@@ -169,9 +169,9 @@ mod tests {
             gas_limit: 100000,
             block_height: 0,
         });
-        let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
+        let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
         assert_eq!(
-            hex::encode(result.locked_pkscript),
+            hex::encode(result.iter().as_slice()),
             "512015f5761f81118dddccfe8a25ed99a2b8c6f3a0782efd76f0871b45c6737b1f7e"
         )
     }
@@ -190,9 +190,9 @@ mod tests {
             gas_limit: 100000,
             block_height: 0,
         });
-        let result = getLockedPkscriptCall::abi_decode_returns(&result.output, false).unwrap();
+        let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
         assert_eq!(
-            hex::encode(result.locked_pkscript),
+            hex::encode(result.iter().as_slice()),
             "5120397a9ad3d17d8601ff2f139be6b9b7b5d0e0daac8565c27f617f8eaf7719ab9d"
         )
     }

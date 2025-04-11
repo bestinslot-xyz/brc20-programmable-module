@@ -24,7 +24,7 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
         return interpreter_result;
     }
 
-    let Ok(inputs) = verifyCall::abi_decode(&call.bytes, false) else {
+    let Ok(inputs) = verifyCall::abi_decode(&call.bytes) else {
         return precompile_error(interpreter_result);
     };
 
@@ -52,7 +52,7 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
         return precompile_error(interpreter_result);
     };
 
-    return precompile_output(interpreter_result, verifyCall::abi_encode_returns(&(true,)));
+    return precompile_output(interpreter_result, verifyCall::abi_encode_returns(&true));
 }
 
 #[cfg(test)]
@@ -97,7 +97,7 @@ mod tests {
 
         assert!(result.is_ok());
 
-        let returns = verifyCall::abi_decode_returns(&result.output, false).unwrap();
-        assert!(returns.success);
+        let success = verifyCall::abi_decode_returns(&result.output).unwrap();
+        assert!(success);
     }
 }

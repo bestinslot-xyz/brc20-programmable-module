@@ -4,8 +4,8 @@ version = "0.1.1"
 edition = "2021"
 
 [dependencies]
-alloy-primitives = "0.8.25"
-alloy-sol-types = "0.8.25"
+alloy-primitives = "1.0.0"
+alloy-sol-types = "1.0.0"
 base64 = "0.22.1"
 bip322 = "0.0.9"
 bitcoin = "0.32.5"
@@ -15,12 +15,12 @@ hex = "0.4.3"
 hyper = "1.6.0"
 jsonrpsee = { version = "0.24.9", features = [ "server", "macros", "jsonrpsee-core", "jsonrpsee-types" ] }
 lazy_static = "1.5.0"
-revm = "20.0.0"
-revm-state = "1.0.0"
+revm = { version = "22.0.0", default-features = false }
+revm-state = "3.0.0"
 rlimit = "0.10.2"
 rocksdb = "0.23.0"
 rs_merkle = "1.4.2"
-rust-embed = "8.5.0"
+rust-embed = "8.7.0"
 serde = { version = "1.0.217", features = ["derive"] }
 serde-hex = "0.1.0"
 serde_json = "1.0.138"

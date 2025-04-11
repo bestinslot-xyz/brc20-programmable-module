@@ -27,7 +27,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
         Gas::new(call.gas_limit),
     );
 
-    let Ok(inputs) = getLastSatLocationCall::abi_decode(&call.bytes, false) else {
+    let Ok(inputs) = getLastSatLocationCall::abi_decode(&call.bytes) else {
         return precompile_error(interpreter_result);
     };
 
@@ -149,7 +149,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
         return precompile_error(interpreter_result);
     }
 
-    let bytes = getLastSatLocationCall::abi_encode_returns(&(
+    let bytes = getLastSatLocationCall::abi_encode_returns_tuple(&(
         result_vin_txid,
         U256::from(result_vin_vout as u64),
         U256::from(total_vout_sat_count - (total_vin_sat_count - current_vin_value)),
@@ -193,7 +193,7 @@ mod tests {
             block_height: 0,
         });
         let result = result;
-        let returns = getLastSatLocationCall::abi_decode_returns(&result.output, false).unwrap();
+        let returns = getLastSatLocationCall::abi_decode_returns(&result.output).unwrap();
 
         let returns = (
             returns.last_txid,
@@ -244,7 +244,7 @@ mod tests {
             block_height: 0,
         });
         let result = result;
-        let returns = getLastSatLocationCall::abi_decode_returns(&result.output, false).unwrap();
+        let returns = getLastSatLocationCall::abi_decode_returns(&result.output).unwrap();
 
         let returns = (
             returns.last_txid,
