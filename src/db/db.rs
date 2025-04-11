@@ -5,6 +5,7 @@ use std::path::Path;
 
 use alloy_primitives::map::foldhash::fast::RandomState;
 use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, B256, U128, U256, U64};
+use alloy_rpc_types_trace::geth::CallFrame;
 use revm::context::result::ExecutionResult;
 use revm::context::DBErrorMarker;
 use revm::{Database as DatabaseTrait, DatabaseCommit};
@@ -12,10 +13,11 @@ use revm_state::{Account, AccountInfo, Bytecode};
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 
+use super::types::TraceED;
 use crate::db::cached_database::{BlockCachedDatabase, BlockDatabase, BlockHistoryCacheData};
 use crate::db::types::{
-    AccountInfoED, AddressED, BEncodeDecode, BlockResponseED, BytecodeED, LogResponse, TxED,
-    TxReceiptED, UintEncodeDecode, B256ED, U128ED, U256ED, U512ED, U64ED,
+    AccountInfoED, AddressED, BEncodeDecode, BlockResponseED, BytecodeED, BytesED, LogResponse,
+    TxED, TxReceiptED, UintEncodeDecode, B256ED, U128ED, U256ED, U512ED, U64ED,
 };
 use crate::server::api::CHAIN_ID;
 
@@ -41,6 +43,9 @@ pub struct DB {
 
     /// Tx hash to Tx
     db_tx: Option<BlockCachedDatabase<B256ED, TxED, BlockHistoryCacheData<TxED>>>,
+
+    /// TxHash to trace
+    db_tx_trace: Option<BlockCachedDatabase<B256ED, TraceED, BlockHistoryCacheData<TraceED>>>,
 
     /// Hash of Inscription IDs to TxHash
     db_inscription_id_to_tx_hash:
@@ -78,6 +83,7 @@ impl Default for DB {
             db_number_and_index_to_tx_hash: None,
             db_tx_receipt: None,
             db_tx: None,
+            db_tx_trace: None,
             db_inscription_id_to_tx_hash: None,
             db_block_number_to_block: None,
             db_block_number_to_hash: None,
@@ -108,6 +114,7 @@ impl DB {
                 "inscription_id_to_tx_hash",
             )?),
             db_tx: Some(BlockCachedDatabase::new(&base_path, "tx")?),
+            db_tx_trace: Some(BlockCachedDatabase::new(&base_path, "tx_trace")?),
             db_block_hash_to_number: Some(BlockCachedDatabase::new(
                 &base_path,
                 "block_hash_to_number",
@@ -238,7 +245,7 @@ impl DB {
                 continue;
             }
 
-            let mut current_index = tx_receipt.logs.log_index;
+            let mut current_index: u64 = tx_receipt.logs.log_index.into();
             for log in tx_receipt.logs.logs {
                 let mut matched = true;
                 if topics.len() != 0 && log.topics().len() != topics.len() {
@@ -261,12 +268,12 @@ impl DB {
                             .iter()
                             .map(|x: &FixedBytes<32>| B256ED::from_b256(*x))
                             .collect(),
-                        data: log.data.data,
-                        transaction_index: U64ED::from_u64(tx_receipt.transaction_index),
+                        data: BytesED(log.data.data),
+                        transaction_index: tx_receipt.transaction_index.clone(),
                         transaction_hash: tx_receipt.transaction_hash.clone(),
                         block_hash: tx_receipt.hash.clone(),
-                        block_number: U64ED::from_u64(tx_receipt.block_number),
-                        log_index: U64ED::from_u64(current_index),
+                        block_number: tx_receipt.block_number.clone(),
+                        log_index: current_index.into(),
                     });
                 }
 
@@ -343,7 +350,7 @@ impl DB {
         tx_idx: u64,
     ) -> Result<Option<B256ED>, Box<dyn Error>> {
         return if let Some(block_number) = self.get_block_number(block_hash)? {
-            self.get_tx_hash_by_block_number_and_index(block_number.to_u64(), tx_idx)
+            self.get_tx_hash_by_block_number_and_index(block_number.into(), tx_idx)
         } else {
             return Ok(None);
         };
@@ -377,6 +384,21 @@ impl DB {
         Ok(())
     }
 
+    pub fn get_tx_trace(&self, tx_hash: B256) -> Result<Option<TraceED>, Box<dyn Error>> {
+        self.db_tx_trace
+            .as_ref()
+            .ok_or("DB Error")?
+            .latest(&B256ED::from_b256(tx_hash))
+    }
+
+    pub fn set_tx_trace(&mut self, tx_hash: B256, call: &CallFrame) -> Result<(), Box<dyn Error>> {
+        self.db_tx_trace.as_mut().ok_or("DB Error")?.set(
+            0,
+            B256ED::from_b256(tx_hash),
+            TraceED::new(call),
+        )
+    }
+
     pub fn set_tx_receipt(
         &mut self,
         result_type: &str,
@@ -402,17 +424,17 @@ impl DB {
 
         let tx_receipt = TxReceiptED::new(
             block_hash,
-            block_number,
-            block_timestamp,
+            block_number.into(),
+            block_timestamp.into(),
             contract_address,
             from,
             to,
             tx_hash,
-            tx_idx,
+            tx_idx.into(),
             output,
-            cumulative_gas_used,
-            nonce,
-            start_log_index,
+            cumulative_gas_used.into(),
+            nonce.into(),
+            start_log_index.into(),
             result_type.to_string(),
             reason.to_string(),
             result,
@@ -420,20 +442,20 @@ impl DB {
 
         let tx = TxED {
             hash: B256ED::from_b256(tx_hash),
-            nonce,
+            nonce: nonce.into(),
             block_hash: B256ED::from_b256(block_hash),
-            block_number,
-            transaction_index: tx_idx,
+            block_number: block_number.into(),
+            transaction_index: tx_idx.into(),
             from: AddressED(from),
             to: to.map(AddressED),
-            value: 0,
-            gas: gas_limit,
-            gas_price: 0,
-            input: data.clone(),
+            value: 0.into(),
+            gas: gas_limit.into(),
+            gas_price: 0.into(),
+            input: BytesED(data.clone()),
             v: 0,
             r: 0,
             s: 0,
-            chain_id: *CHAIN_ID,
+            chain_id: (*CHAIN_ID).into(),
             tx_type: 0,
             inscription_id: inscription_id.clone(),
         };
@@ -533,21 +555,21 @@ impl DB {
         }
 
         let block_response = BlockResponseED::new(
-            0,
-            36000000,
-            gas_used.as_limbs()[0],
-            BEncodeDecode(block_hash),
+            0.into(),
+            36000000.into(),
+            gas_used.as_limbs()[0].into(),
+            BEncodeDecode(block_hash).into(),
             BEncodeDecode(FixedBytes(bloom.as_slice().try_into()?)),
-            transactions.len() as u64,
-            block_number,
-            block_timestamp.as_limbs()[0],
+            (transactions.len() as u64).into(),
+            block_number.into(),
+            block_timestamp.as_limbs()[0].into(),
             UintEncodeDecode(mine_timestamp),
             transactions,
             BEncodeDecode(FixedBytes(tx_merkle.root().unwrap_or([0; 32]))),
-            0,
+            0.into(),
             BEncodeDecode(parent_hash),
             BEncodeDecode(FixedBytes([0; 32])),
-            0,
+            0.into(),
         );
 
         Ok(block_response)
@@ -612,7 +634,7 @@ impl DB {
             .set(
                 block_number,
                 B256ED::from_b256(block_hash),
-                U64ED::from_u64(block_number),
+                U64ED::from(block_number),
             )?)
     }
 
@@ -633,7 +655,7 @@ impl DB {
             .db_block_number_to_timestamp
             .as_mut()
             .ok_or("DB Error")?
-            .set(block_number, U64ED::from_u64(block_timestamp)))
+            .set(block_number, U64ED::from(block_timestamp)))
     }
 
     pub fn get_gas_used(&self, block_number: u64) -> Result<Option<U64>, Box<dyn Error>> {
@@ -649,7 +671,7 @@ impl DB {
             .db_block_number_to_gas_used
             .as_mut()
             .ok_or("DB Error")?
-            .set(block_number, U64ED::from_u64(gas_used)))
+            .set(block_number, U64ED::from(gas_used)))
     }
 
     pub fn get_mine_timestamp(&self, block_number: u64) -> Result<Option<U128>, Box<dyn Error>> {
@@ -709,6 +731,10 @@ impl DB {
             .as_mut()
             .ok_or("DB Error")?
             .commit(latest_block_number)?;
+        self.db_tx_trace
+            .as_mut()
+            .ok_or("DB Error")?
+            .commit(latest_block_number)?;
         self.db_tx_receipt
             .as_mut()
             .ok_or("DB Error")?
@@ -754,6 +780,7 @@ impl DB {
             .ok_or("DB Error")?
             .clear_cache();
         self.db_tx.as_mut().ok_or("DB Error")?.clear_cache();
+        self.db_tx_trace.as_mut().ok_or("DB Error")?.clear_cache();
         self.db_tx_receipt.as_mut().ok_or("DB Error")?.clear_cache();
         self.db_number_and_index_to_tx_hash
             .as_mut()
@@ -810,6 +837,10 @@ impl DB {
             .ok_or("DB Error")?
             .reorg(latest_valid_block_number)?;
         self.db_tx
+            .as_mut()
+            .ok_or("DB Error")?
+            .reorg(latest_valid_block_number)?;
+        self.db_tx_trace
             .as_mut()
             .ok_or("DB Error")?
             .reorg(latest_valid_block_number)?;
@@ -1115,17 +1146,17 @@ mod tests {
             db.get_tx_receipt(tx_hash).unwrap().unwrap(),
             TxReceiptED::new(
                 block_hash,
-                block_number,
-                block_timestamp,
+                block_number.into(),
+                block_timestamp.into(),
                 Some(contract_address),
                 from,
                 Some(to),
                 tx_hash,
-                tx_idx,
+                tx_idx.into(),
                 &output,
-                cumulative_gas_used,
-                nonce,
-                start_log_index,
+                cumulative_gas_used.into(),
+                nonce.into(),
+                start_log_index.into(),
                 "type".to_string(),
                 "reason".to_string(),
                 Some(&vec![11u8; 32].into()),

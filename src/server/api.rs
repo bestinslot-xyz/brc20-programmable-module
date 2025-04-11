@@ -6,7 +6,7 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::Deserialize;
 
-use crate::db::types::{BlockResponseED, BytecodeED, LogResponse, TxED, TxReceiptED};
+use crate::db::types::{BlockResponseED, BytecodeED, LogResponse, TraceED, TxED, TxReceiptED};
 
 lazy_static::lazy_static! {
     pub static ref CHAIN_ID: u64 = 0x4252433230;
@@ -207,6 +207,11 @@ pub trait Brc20ProgApi {
         &self,
         transaction: B256Wrapper,
     ) -> RpcResult<Option<TxReceiptED>>;
+
+    /// Returns the trace for the given transaction hash
+    #[method(name = "debug_traceTransaction")]
+    async fn debug_trace_transaction(&self, transaction: B256Wrapper)
+        -> RpcResult<Option<TraceED>>;
 
     /// Returns the transaction by hash
     #[method(name = "eth_getTransactionByHash")]

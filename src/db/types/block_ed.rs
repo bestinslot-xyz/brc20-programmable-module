@@ -1,26 +1,23 @@
 use alloy_primitives::{Address, FixedBytes};
 use serde::Serialize;
-use serde_hex::{CompactPfx, SerHex, StrictPfx};
 
-use crate::db::types::{AddressED, BEncodeDecode, Decode, Encode, TxED, B2048ED, B256ED, U128ED};
+use crate::db::types::{
+    AddressED, BEncodeDecode, Decode, Encode, TxED, B2048ED, B256ED, U128ED, U64ED,
+};
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct BlockResponseED {
-    #[serde(with = "SerHex::<CompactPfx>")]
-    pub difficulty: u64,
-    #[serde(with = "SerHex::<CompactPfx>", rename = "gasLimit")]
-    pub gas_limit: u64,
-    #[serde(with = "SerHex::<CompactPfx>", rename = "gasUsed")]
-    pub gas_used: u64,
+    pub difficulty: U64ED,
+    #[serde(rename = "gasLimit")]
+    pub gas_limit: U64ED,
+    #[serde(rename = "gasUsed")]
+    pub gas_used: U64ED,
     pub hash: B256ED,
     #[serde(rename = "logsBloom")]
     pub logs_bloom: B2048ED,
-    #[serde(with = "SerHex::<StrictPfx>")]
-    pub nonce: u64,
-    #[serde(with = "SerHex::<CompactPfx>")]
-    pub number: u64,
-    #[serde(with = "SerHex::<CompactPfx>")]
-    pub timestamp: u64,
+    pub nonce: U64ED,
+    pub number: U64ED,
+    pub timestamp: U64ED,
     #[serde(rename = "mineTimestamp")]
     pub mine_timestamp: U128ED,
 
@@ -31,8 +28,8 @@ pub struct BlockResponseED {
     pub full_transactions: Option<Vec<TxED>>,
 
     // Always empty values
-    #[serde(with = "SerHex::<CompactPfx>", rename = "baseFeePerGas")]
-    pub base_fee_per_gas: u64,
+    #[serde(rename = "baseFeePerGas")]
+    pub base_fee_per_gas: U64ED,
 
     #[serde(rename = "transactionsRoot")]
     pub transactions_root: B256ED,
@@ -45,8 +42,8 @@ pub struct BlockResponseED {
     #[serde(rename = "withdrawalsRoot")]
     pub withdrawals_root: B256ED,
 
-    #[serde(rename = "totalDifficulty", with = "SerHex::<CompactPfx>")]
-    pub total_difficulty: u64,
+    #[serde(rename = "totalDifficulty")]
+    pub total_difficulty: U64ED,
 
     #[serde(rename = "parentBeaconBlockRoot")]
     pub parent_beacon_block_root: B256ED,
@@ -61,7 +58,7 @@ pub struct BlockResponseED {
     pub sha3_uncles: B256ED,
 
     #[serde(rename = "size")]
-    pub size: u64,
+    pub size: U64ED,
 
     #[serde(rename = "stateRoot")]
     pub state_root: B256ED,
@@ -72,33 +69,33 @@ pub struct BlockResponseED {
     #[serde(rename = "mixHash")]
     pub mix_hash: B256ED,
 
-    #[serde(rename = "excessBlobGas", with = "SerHex::<CompactPfx>")]
-    pub excess_blob_gas: u64,
+    #[serde(rename = "excessBlobGas")]
+    pub excess_blob_gas: U64ED,
 
     #[serde(rename = "extraData")]
     pub extra_data: B256ED,
 
-    #[serde(rename = "blobGasUsed", with = "SerHex::<CompactPfx>")]
-    pub blob_gas_used: u64,
+    #[serde(rename = "blobGasUsed")]
+    pub blob_gas_used: U64ED,
 }
 
 impl BlockResponseED {
     pub fn new(
-        difficulty: u64,
-        gas_limit: u64,
-        gas_used: u64,
+        difficulty: U64ED,
+        gas_limit: U64ED,
+        gas_used: U64ED,
         hash: B256ED,
         logs_bloom: B2048ED,
-        nonce: u64,
-        number: u64,
-        timestamp: u64,
+        nonce: U64ED,
+        number: U64ED,
+        timestamp: U64ED,
         mine_timestamp: U128ED,
         transactions: Vec<B256ED>,
         transactions_root: B256ED,
-        total_difficulty: u64,
+        total_difficulty: U64ED,
         parent_hash: B256ED,
         receipts_root: B256ED,
-        size: u64,
+        size: U64ED,
     ) -> Self {
         Self {
             difficulty,
@@ -117,7 +114,7 @@ impl BlockResponseED {
             parent_hash,
             receipts_root,
             total_difficulty,
-            base_fee_per_gas: 0,
+            base_fee_per_gas: U64ED::from(0),
             uncles: Vec::new(),
             withdrawals: Vec::new(),
             withdrawals_root: BEncodeDecode(FixedBytes([0u8; 32])),
@@ -126,9 +123,9 @@ impl BlockResponseED {
             state_root: BEncodeDecode(FixedBytes([0u8; 32])),
             miner: AddressED(Address::new([0u8; 20])),
             mix_hash: BEncodeDecode(FixedBytes([0u8; 32])),
-            excess_blob_gas: 0,
+            excess_blob_gas: U64ED::from(0),
             extra_data: BEncodeDecode(FixedBytes([0u8; 32])),
-            blob_gas_used: 0,
+            blob_gas_used: U64ED::from(0),
         }
     }
 }
@@ -136,26 +133,26 @@ impl BlockResponseED {
 impl Encode for BlockResponseED {
     fn encode(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.difficulty.to_be_bytes());
-        bytes.extend_from_slice(&self.gas_limit.to_be_bytes());
-        bytes.extend_from_slice(&self.gas_used.to_be_bytes());
+        bytes.extend_from_slice(&self.difficulty.encode());
+        bytes.extend_from_slice(&self.gas_limit.encode());
+        bytes.extend_from_slice(&self.gas_used.encode());
         bytes.extend_from_slice(&self.hash.encode());
         bytes.extend_from_slice(&self.logs_bloom.encode());
-        bytes.extend_from_slice(&self.nonce.to_be_bytes());
-        bytes.extend_from_slice(&self.number.to_be_bytes());
-        bytes.extend_from_slice(&self.timestamp.to_be_bytes());
+        bytes.extend_from_slice(&self.nonce.encode());
+        bytes.extend_from_slice(&self.number.encode());
+        bytes.extend_from_slice(&self.timestamp.encode());
         bytes.extend_from_slice(&self.mine_timestamp.encode());
         let transactions = self.transactions.clone().unwrap_or(vec![]);
-        let transactions_count = transactions.len() as u64;
+        let transactions_count = transactions.len() as u32;
         bytes.extend_from_slice(&transactions_count.to_be_bytes());
         for tx in &transactions {
             bytes.extend_from_slice(&tx.encode());
         }
         bytes.extend_from_slice(&self.transactions_root.encode());
-        bytes.extend_from_slice(&self.total_difficulty.to_be_bytes());
+        bytes.extend_from_slice(&self.total_difficulty.encode());
         bytes.extend_from_slice(&self.parent_hash.encode());
         bytes.extend_from_slice(&self.receipts_root.encode());
-        bytes.extend_from_slice(&self.size.to_be_bytes());
+        bytes.extend_from_slice(&self.size.encode());
         bytes
     }
 }
@@ -166,26 +163,26 @@ impl Decode for BlockResponseED {
         Self: Sized,
     {
         let mut i = 0;
-        let difficulty = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        let difficulty = U64ED::decode(bytes[i..i + 8].try_into()?)?;
         i += 8;
-        let gas_limit = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        let gas_limit = U64ED::decode(bytes[i..i + 8].try_into()?)?;
         i += 8;
-        let gas_used = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        let gas_used = U64ED::decode(bytes[i..i + 8].try_into()?)?;
         i += 8;
         let hash = B256ED::decode(bytes[i..i + 32].to_vec())?;
         i += 32;
         let logs_bloom = B2048ED::decode(bytes[i..i + 256].to_vec())?;
         i += 256;
-        let nonce = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        let nonce = U64ED::decode(bytes[i..i + 8].try_into()?)?;
         i += 8;
-        let number = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        let number = U64ED::decode(bytes[i..i + 8].try_into()?)?;
         i += 8;
-        let timestamp = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        let timestamp = U64ED::decode(bytes[i..i + 8].try_into()?)?;
         i += 8;
         let mine_timestamp = U128ED::decode(bytes[i..i + 16].to_vec())?;
         i += 16;
-        let transactions_count = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
-        i += 8;
+        let transactions_count = u32::from_be_bytes(bytes[i..i + 4].try_into()?);
+        i += 4;
         let mut transactions = Vec::new();
         for _ in 0..transactions_count {
             let tx = B256ED::decode(bytes[i..i + 32].to_vec())?;
@@ -194,13 +191,13 @@ impl Decode for BlockResponseED {
         }
         let transactions_root = B256ED::decode(bytes[i..i + 32].to_vec())?;
         i += 32;
-        let total_difficulty = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        let total_difficulty = U64ED::decode(bytes[i..i + 8].try_into()?)?;
         i += 8;
         let parent_hash = B256ED::decode(bytes[i..i + 32].to_vec())?;
         i += 32;
         let receipts_root = B256ED::decode(bytes[i..i + 32].to_vec())?;
         i += 32;
-        let size = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
+        let size = U64ED::decode(bytes[i..i + 8].try_into()?)?;
 
         Ok(BlockResponseED::new(
             difficulty,
@@ -229,24 +226,24 @@ mod tests {
     #[test]
     fn test_block_response_encode_decode() {
         let block = BlockResponseED::new(
-            1,
-            2,
-            3,
+            1.into(),
+            2.into(),
+            3.into(),
             BEncodeDecode(FixedBytes([4u8; 32])),
             BEncodeDecode(FixedBytes([5u8; 256])),
-            6,
-            7,
-            8,
+            6.into(),
+            7.into(),
+            8.into(),
             U128ED::from_u128(9),
             vec![
                 BEncodeDecode(FixedBytes([10u8; 32])),
                 BEncodeDecode(FixedBytes([11u8; 32])),
             ],
             BEncodeDecode(FixedBytes([12u8; 32])),
-            13,
+            13.into(),
             BEncodeDecode(FixedBytes([14u8; 32])),
             BEncodeDecode(FixedBytes([15u8; 32])),
-            16,
+            16.into(),
         );
 
         let encoded = block.encode();

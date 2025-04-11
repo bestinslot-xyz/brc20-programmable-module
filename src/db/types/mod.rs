@@ -22,8 +22,14 @@ pub use tx_ed::*;
 mod tx_receipt_ed;
 pub use tx_receipt_ed::*;
 
+mod trace_ed;
+pub use trace_ed::*;
+
 mod block_ed;
 pub use block_ed::*;
 
 mod encode_decode;
 pub use encode_decode::*;
+
+mod bytes_ed;
+pub use bytes_ed::*;

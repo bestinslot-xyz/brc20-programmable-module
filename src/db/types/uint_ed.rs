@@ -38,12 +38,20 @@ impl U128ED {
 }
 
 impl U64ED {
-    pub fn from_u64(a: u64) -> Self {
-        Self(Uint::from(a))
-    }
-
-    pub fn to_u64(&self) -> u64 {
+    pub fn as_u64(&self) -> u64 {
         self.0.as_limbs()[0]
+    }
+}
+
+impl Into<u64> for U64ED {
+    fn into(self) -> u64 {
+        self.0.as_limbs()[0]
+    }
+}
+
+impl From<u64> for U64ED {
+    fn from(value: u64) -> Self {
+        Self(Uint::from(value))
     }
 }
 
@@ -142,5 +150,19 @@ mod tests {
         let bytes = u512_ed.encode();
         let decoded = U512ED::decode(bytes).unwrap();
         assert_eq!(u512_ed.0, decoded.0);
+    }
+
+    #[test]
+    fn test_u64_ed_serialize() {
+        let u64_ed = U64ED::from(100u64);
+        let serialized = serde_json::to_string(&u64_ed).unwrap();
+        assert_eq!(serialized, "\"0x64\"");
+    }
+    #[test]
+
+    fn test_u256_ed_serialize() {
+        let u256_ed = U256ED::from_u256(U256::from(100u64));
+        let serialized = serde_json::to_string(&u256_ed).unwrap();
+        assert_eq!(serialized, "\"0x64\"");
     }
 }

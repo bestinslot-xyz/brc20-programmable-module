@@ -58,7 +58,7 @@ where
             return Ok(Some(value.clone()));
         }
 
-        let Some(value_bytes) = self.db.get(U64ED::from_u64(key).encode())? else {
+        let Some(value_bytes) = self.db.get(U64ED::from(key).encode())? else {
             return Ok(None);
         };
 
@@ -83,7 +83,7 @@ where
     pub fn commit(&mut self) -> Result<(), Box<dyn Error>> {
         for (key, value) in self.cache.iter() {
             let value_bytes = value.encode();
-            self.db.put(U64ED::from_u64(*key).encode(), &value_bytes)?;
+            self.db.put(U64ED::from(*key).encode(), &value_bytes)?;
         }
         self.db.flush()?;
         Ok(())
@@ -107,7 +107,7 @@ where
     /// Returns: Option<u64> - the last key in the database
     pub fn last_key(&self) -> Result<Option<u64>, Box<dyn Error>> {
         let db_last_key = match self.db.full_iterator(IteratorMode::End).take(1).last() {
-            Some(Ok((key, _))) => Some(U64ED::decode(key.to_vec())?.to_u64()),
+            Some(Ok((key, _))) => Some(U64ED::decode(key.to_vec())?.into()),
             _ => None,
         };
 
@@ -127,7 +127,7 @@ where
         let last_block = self.last_key()?;
         if let Some(end) = last_block {
             while end >= current {
-                self.db.delete(U64ED::from_u64(current).encode())?;
+                self.db.delete(U64ED::from(current).encode())?;
                 self.cache.remove(&current);
                 current += 1;
             }

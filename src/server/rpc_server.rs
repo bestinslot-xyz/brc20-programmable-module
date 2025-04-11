@@ -13,7 +13,7 @@ use tracing::{event, instrument, Level};
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
 };
-use crate::db::types::{BlockResponseED, BytecodeED, LogResponse, TxED, TxReceiptED};
+use crate::db::types::{BlockResponseED, BytecodeED, LogResponse, TraceED, TxED, TxReceiptED};
 use crate::evm::utils::get_evm_address;
 use crate::server::api::{
     AddressWrapper, B256Wrapper, Brc20ProgApiServer, BytesWrapper, EthCall, GetLogsFilter,
@@ -454,7 +454,7 @@ impl Brc20ProgApiServer for RpcServer {
         if receipt.status == 0 {
             return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
         }
-        Ok(format!("0x{:x}", receipt.gas_used))
+        Ok(format!("0x{:x}", receipt.gas_used.as_u64()))
     }
 
     #[instrument(skip(self))]
@@ -494,6 +494,17 @@ impl Brc20ProgApiServer for RpcServer {
         event!(Level::INFO, "Getting transaction receipt");
         self.engine
             .get_transaction_receipt(transaction.value())
+            .map_err(wrap_rpc_error)
+    }
+
+    #[instrument(skip(self))]
+    async fn debug_trace_transaction(
+        &self,
+        transaction: B256Wrapper,
+    ) -> RpcResult<Option<TraceED>> {
+        event!(Level::INFO, "Retrieving transaction trace");
+        self.engine
+            .get_trace(transaction.value())
             .map_err(wrap_rpc_error)
     }
 
@@ -653,7 +664,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .number,
-            0
+            0.into()
         );
         assert_eq!(server.engine.get_block_by_number(1, true).unwrap(), None);
         assert_eq!(
@@ -663,7 +674,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .number,
-            0
+            0.into()
         )
     }
 
