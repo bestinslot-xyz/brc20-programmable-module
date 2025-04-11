@@ -2,14 +2,16 @@ use std::error::Error;
 use std::time::{Instant, UNIX_EPOCH};
 
 use alloy_primitives::{logs_bloom, Address, B256, U256};
+use alloy_rpc_types_trace::geth::CallConfig;
 use revm::context::{ContextTr, TransactTo};
 use revm::handler::EvmTr;
-use revm::{ExecuteCommitEvm, ExecuteEvm};
+use revm::inspector::InspectorEvmTr;
+use revm::{ExecuteEvm, InspectCommitEvm};
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
 use crate::db::types::{
-    AddressED, BlockResponseED, BytecodeED, Decode, LogED, LogResponse, TxED, TxReceiptED, B2048ED,
-    B256ED,
+    AddressED, BlockResponseED, BytecodeED, Decode, LogED, LogResponse, TraceED, TxED, TxReceiptED,
+    B2048ED, B256ED,
 };
 use crate::db::{DB, MAX_HISTORY_SIZE};
 use crate::evm::get_evm;
@@ -185,8 +187,19 @@ impl BRC20ProgEngine {
                 tx.gas_limit = gas_limit;
             });
 
-            let output = evm.replay_commit()?;
+            let output = evm.inspect_replay_commit()?;
             core::mem::swap(&mut *db, &mut evm.ctx().db());
+
+            db.set_tx_trace(
+                tx_hash,
+                &evm.inspector().geth_builder().geth_call_traces(
+                    CallConfig {
+                        only_top_call: Some(false),
+                        with_log: Some(true),
+                    },
+                    output.gas_used(),
+                ),
+            )?;
 
             let cumulative_gas_used = self
                 .last_block_info
@@ -230,6 +243,10 @@ impl BRC20ProgEngine {
         })
     }
 
+    pub fn get_trace(&self, tx_hash: B256) -> Result<Option<TraceED>, Box<dyn Error>> {
+        self.db.read().get_tx_trace(tx_hash)
+    }
+
     pub fn get_transaction_count(
         &self,
         account: Address,
@@ -253,7 +270,7 @@ impl BRC20ProgEngine {
             let block_number = db
                 .get_block_number(block_hash)?
                 .ok_or("Block not found")?
-                .to_u64();
+                .into();
 
             db.get_tx_count(None, block_number)
         })
@@ -391,32 +408,32 @@ impl BRC20ProgEngine {
             result_bytes: output.output().cloned(),
             logs: LogED {
                 logs: output.logs().to_vec(),
-                log_index: 0,
+                log_index: 0.into(),
             },
             log_responses: LogResponse::new_vec(
                 &LogED {
                     logs: output.logs().to_vec(),
-                    log_index: 0,
+                    log_index: 0.into(),
                 },
-                0,
+                0.into(),
                 B256ED::from_b256(txhash),
                 B256ED::from_b256(txhash),
-                block_number,
+                block_number.into(),
             ),
-            gas_used: output.gas_used(),
+            gas_used: output.gas_used().into(),
             from: AddressED(tx_info.from),
             to: tx_info.to.map(AddressED),
             contract_address: get_contract_address(&output).map(AddressED),
             logs_bloom: B2048ED::decode(logs_bloom(output.logs()).to_vec())
                 .map_err(|_| "Error while decoding logs bloom")?,
             hash: B256ED::from_b256(txhash),
-            block_number,
-            block_timestamp: timestamp,
+            block_number: block_number.into(),
+            block_timestamp: timestamp.into(),
             transaction_hash: B256ED::from_b256(txhash),
-            transaction_index: 0,
-            cumulative_gas_used: output.gas_used(),
-            nonce,
-            effective_gas_price: 0,
+            transaction_index: 0.into(),
+            cumulative_gas_used: output.gas_used().into(),
+            nonce: nonce.into(),
+            effective_gas_price: 0.into(),
             transaction_type: 0,
         })
     }
@@ -467,7 +484,7 @@ impl BRC20ProgEngine {
         self.db.read_fn(|db| {
             db.get_block_number(block_hash)?
                 .map_or(Ok(None), |block_number| {
-                    self.get_block_by_number(block_number.to_u64(), is_full)
+                    self.get_block_by_number(block_number.into(), is_full)
                 })
         })
     }
@@ -590,9 +607,9 @@ mod tests {
         let block = engine.get_block_by_number(0, true).unwrap();
         assert!(block.is_some());
         let block = block.unwrap();
-        assert_eq!(block.number, 0);
+        assert_eq!(block.number, 0.into());
         assert_eq!(block.hash.0, genesis_hash);
-        assert_eq!(block.timestamp, genesis_timestamp);
+        assert_eq!(block.timestamp, genesis_timestamp.into());
 
         let full_transactions = block.full_transactions.unwrap();
         assert_eq!(full_transactions.len(), 1);

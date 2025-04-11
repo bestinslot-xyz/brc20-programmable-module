@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 alloy-primitives = "1.0.0"
+alloy-rpc-types-trace = "0.14.0"
 alloy-sol-types = "1.0.0"
 base64 = "0.22.1"
 bip322 = "0.0.9"

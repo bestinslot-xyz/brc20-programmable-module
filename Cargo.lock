@@ -968,6 +968,7 @@ name = "brc20_prog"
 version = "0.1.1"
 dependencies = [
  "alloy-primitives",
+ "alloy-rpc-types-trace",
  "alloy-sol-types",
  "base64 0.22.1",
  "bip322",
