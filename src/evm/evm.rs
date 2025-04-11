@@ -49,6 +49,6 @@ pub fn get_evm(
         ctx,
         TracingInspector::new(TracingInspectorConfig::none()),
         EthInstructions::new_mainnet(),
-        BRC20Precompiles::default(),
+        BRC20Precompiles::new(),
     )
 }
