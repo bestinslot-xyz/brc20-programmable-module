@@ -74,6 +74,8 @@ impl Encode for TraceED {
             let error_bytes = error.as_bytes();
             bytes.extend_from_slice(&(error_bytes.len() as u32).to_be_bytes());
             bytes.extend_from_slice(&error.as_bytes());
+        } else {
+            bytes.extend_from_slice(&[0; 4]);
         }
         bytes
     }

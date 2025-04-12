@@ -84,11 +84,8 @@ impl<S> RpcAuthAllowEth<S> {
     }
 
     fn validate(&self, authorized: bool, method: &str) -> Result<(), ()> {
-        if !authorized {
-            let is_eth_method = method.starts_with("eth_");
-            if !is_eth_method {
-                return Err(());
-            }
+        if !authorized && method.starts_with("brc20_") {
+            return Err(());
         }
         Ok(())
     }
