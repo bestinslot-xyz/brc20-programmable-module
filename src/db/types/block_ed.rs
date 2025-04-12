@@ -252,4 +252,31 @@ mod tests {
 
         assert_eq!(block, decoded);
     }
+
+    #[test]
+    fn test_block_response_serialize() {
+        let block = BlockResponseED::new(
+            1.into(),
+            2.into(),
+            3.into(),
+            BEncodeDecode(FixedBytes([4u8; 32])),
+            BEncodeDecode(FixedBytes([5u8; 256])),
+            6.into(),
+            7.into(),
+            8.into(),
+            U128ED::from_u128(9),
+            vec![
+                BEncodeDecode(FixedBytes([10u8; 32])),
+                BEncodeDecode(FixedBytes([11u8; 32])),
+            ],
+            BEncodeDecode(FixedBytes([12u8; 32])),
+            13.into(),
+            BEncodeDecode(FixedBytes([14u8; 32])),
+            BEncodeDecode(FixedBytes([15u8; 32])),
+            16.into(),
+        );
+
+        let serialized = serde_json::to_string(&block).unwrap();
+        assert_eq!(serialized, "{\"difficulty\":\"0x1\",\"gasLimit\":\"0x2\",\"gasUsed\":\"0x3\",\"hash\":\"0x0404040404040404040404040404040404040404040404040404040404040404\",\"logsBloom\":\"0x05050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505\",\"nonce\":\"0x0000000000000006\",\"number\":\"0x7\",\"timestamp\":\"0x8\",\"mineTimestamp\":\"0x9\",\"transactions\":[\"0x0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a\",\"0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b\"],\"baseFeePerGas\":\"0x0\",\"transactionsRoot\":\"0x0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c\",\"uncles\":[],\"withdrawals\":[],\"withdrawalsRoot\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"totalDifficulty\":\"0xd\",\"parentBeaconBlockRoot\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"parentHash\":\"0x0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e\",\"receiptsRoot\":\"0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f\",\"sha3Uncles\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"size\":\"0x10\",\"stateRoot\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"miner\":\"0x0000000000000000000000000000000000000000\",\"mixHash\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"excessBlobGas\":\"0x0\",\"extraData\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"blobGasUsed\":\"0x0\"}");
+    }
 }
