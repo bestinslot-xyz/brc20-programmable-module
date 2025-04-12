@@ -2,7 +2,7 @@ use alloy_primitives::{Address, FixedBytes};
 use serde::Serialize;
 
 use crate::db::types::{
-    AddressED, BEncodeDecode, Decode, Encode, TxED, B2048ED, B256ED, U128ED, U64ED,
+    uint_full_hex, AddressED, BEncodeDecode, Decode, Encode, TxED, B2048ED, B256ED, U128ED, U64ED,
 };
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
@@ -15,6 +15,7 @@ pub struct BlockResponseED {
     pub hash: B256ED,
     #[serde(rename = "logsBloom")]
     pub logs_bloom: B2048ED,
+    #[serde(serialize_with = "uint_full_hex")]
     pub nonce: U64ED,
     pub number: U64ED,
     pub timestamp: U64ED,
