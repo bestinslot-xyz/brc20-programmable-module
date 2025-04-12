@@ -2,7 +2,7 @@ use std::error::Error;
 use std::fmt;
 
 use alloy_primitives::{Address, Uint, U256};
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 
 use crate::db::types::{Decode, Encode};
 
@@ -53,6 +53,14 @@ impl From<u64> for U64ED {
     fn from(value: u64) -> Self {
         Self(Uint::from(value))
     }
+}
+
+pub fn uint_full_hex<const BITS: usize, const LIMBS: usize, S: Serializer>(number: &UintEncodeDecode<BITS, LIMBS>, s: S) -> Result<S::Ok, S::Error> {
+    let hex_string = format!("{:x}", number.0);
+    let padding = BITS / 4 - hex_string.len();
+    let hex_string = format!("{:0>width$}", hex_string, width = padding + hex_string.len());
+    let hex_string = format!("0x{}", hex_string);
+    s.serialize_str(&hex_string)
 }
 
 impl<const BITS: usize, const LIMBS: usize> Serialize for UintEncodeDecode<BITS, LIMBS> {
