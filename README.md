@@ -59,6 +59,15 @@ JSON-RPC methods work the same way as the official implementation, e.g. `eth_blo
 > [!WARNING]
 > Filter methods such as `eth_newFilter`, `eth_getFilterChanges` are not supported yet, but they are planned for after release.
 
+### debug_* methods
+
+BRC2.0 can record traces of transactions and serve a [callTracer](https://geth.ethereum.org/docs/developers/evm-tracing/built-in-tracers#call-tracer) result via [`debug_traceTransaction`](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-debug#debugtracetransaction) method similar to Geth.
+
+This needs to be enabled by setting `EVM_RECORD_TRACES` environment variable to `true`.
+
+> [!NOTE]
+> Currently, only `debug_traceTransaction` method with a `callTracer` is supported.
+
 ### brc20_* methods (for indexers)
 
 BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usage

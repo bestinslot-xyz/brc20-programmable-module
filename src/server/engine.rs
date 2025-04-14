@@ -6,7 +6,7 @@ use alloy_rpc_types_trace::geth::CallConfig;
 use revm::context::{ContextTr, TransactTo};
 use revm::handler::EvmTr;
 use revm::inspector::InspectorEvmTr;
-use revm::{ExecuteEvm, InspectCommitEvm};
+use revm::{ExecuteCommitEvm, ExecuteEvm, InspectCommitEvm};
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
 use crate::db::types::{
@@ -19,6 +19,10 @@ use crate::evm::precompiles::get_brc20_balance;
 use crate::evm::utils::{get_contract_address, get_gas_limit, get_result_reason, get_result_type};
 use crate::server::shared_data::SharedData;
 use crate::server::types::{get_tx_hash, LastBlockInfo, TxInfo};
+
+lazy_static::lazy_static! {
+    static ref EVM_RECORD_TRACES: bool = std::env::var("EVM_RECORD_TRACES").map(|x| x == "true").unwrap_or(false);
+}
 
 pub struct BRC20ProgEngine {
     pub db: SharedData<DB>,
@@ -187,19 +191,26 @@ impl BRC20ProgEngine {
                 tx.gas_limit = gas_limit;
             });
 
-            let output = evm.inspect_replay_commit()?;
+            let output = if *EVM_RECORD_TRACES {
+                evm.inspect_replay_commit()?
+            } else {
+                evm.replay_commit()?
+            };
+
             core::mem::swap(&mut *db, &mut evm.ctx().db());
 
-            db.set_tx_trace(
-                tx_hash,
-                &evm.inspector().geth_builder().geth_call_traces(
-                    CallConfig {
-                        only_top_call: Some(false),
-                        with_log: Some(true),
-                    },
-                    output.gas_used(),
-                ),
-            )?;
+            if *EVM_RECORD_TRACES {
+                db.set_tx_trace(
+                    tx_hash,
+                    &evm.inspector().geth_builder().geth_call_traces(
+                        CallConfig {
+                            only_top_call: Some(false),
+                            with_log: Some(true),
+                        },
+                        output.gas_used(),
+                    ),
+                )?;
+            }
 
             let cumulative_gas_used = self
                 .last_block_info
