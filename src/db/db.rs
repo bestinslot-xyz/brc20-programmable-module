@@ -986,8 +986,8 @@ mod tests {
 
             db.set_account_info(address, account_info.clone()).unwrap();
             assert_eq!(
-                Into::<AccountInfo>::into(db.get_account_info(address).unwrap().unwrap()),
-                account_info
+                db.get_account_info(address).unwrap().unwrap(),
+                account_info.clone().into()
             );
 
             db.set_code(code_hash, bytecode.clone()).unwrap();
@@ -1033,8 +1033,8 @@ mod tests {
         let db = DB::new(&path).unwrap();
 
         assert_eq!(
-            Into::<AccountInfo>::into(db.get_account_info(address).unwrap().unwrap()),
-            account_info
+            db.get_account_info(address).unwrap().unwrap(),
+            account_info.into()
         );
         assert_eq!(db.get_code(code_hash).unwrap().unwrap().bytecode, bytecode);
         assert_eq!(
