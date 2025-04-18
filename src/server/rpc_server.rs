@@ -454,7 +454,8 @@ impl Brc20ProgApiServer for RpcServer {
         if receipt.status == 0 {
             return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
         }
-        Ok(format!("0x{:x}", receipt.gas_used.as_u64()))
+        let gas_used: u64 = receipt.gas_used.into();
+        Ok(format!("0x{:x}", gas_used))
     }
 
     #[instrument(skip(self))]
@@ -664,7 +665,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .number,
-            0.into()
+            0u64.into()
         );
         assert_eq!(server.engine.get_block_by_number(1, true).unwrap(), None);
         assert_eq!(
@@ -674,7 +675,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .number,
-            0.into()
+            0u64.into()
         )
     }
 
@@ -712,6 +713,9 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().unwrap().to.unwrap().0, *INVALID_ADDRESS);
+        assert_eq!(
+            result.unwrap().unwrap().to.unwrap().address,
+            *INVALID_ADDRESS
+        );
     }
 }

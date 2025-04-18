@@ -36,17 +36,13 @@ impl LogResponse {
         block_hash: B256ED,
         block_number: U64ED,
     ) -> Vec<LogResponse> {
-        let mut log_index: u64 = log.log_index.clone().into();
+        let mut log_index: u64 = log.log_index.into();
         let mut log_responses = Vec::new();
         for log in &log.logs {
             log_responses.push(LogResponse {
-                address: AddressED(log.address),
-                topics: log
-                    .topics()
-                    .iter()
-                    .map(|topic| B256ED::from_b256(*topic))
-                    .collect(),
-                data: BytesED(log.data.data.clone()),
+                address: log.address.into(),
+                topics: log.topics().iter().map(|topic| (*topic).into()).collect(),
+                data: log.data.data.clone().into(),
                 transaction_index: transaction_index.clone(),
                 transaction_hash: transaction_hash.clone(),
                 block_hash: block_hash.clone(),
@@ -98,7 +94,7 @@ impl Decode for LogED {
             let mut topics = Vec::new();
             for _ in 0..topics_len {
                 let topic = B256ED::decode(bytes[i..i + 32].try_into()?)?;
-                topics.push(topic.0);
+                topics.push(topic.into());
                 i += 32;
             }
 
@@ -127,7 +123,7 @@ mod tests {
         .unwrap();
         let log_ed = LogED {
             logs: vec![log],
-            log_index: 0.into(),
+            log_index: 0u64.into(),
         };
         let bytes = log_ed.encode();
         assert_eq!(bytes.len(), 104);
@@ -146,12 +142,12 @@ mod tests {
         .unwrap();
         let log_ed = LogED {
             logs: vec![log],
-            log_index: 0.into(),
+            log_index: 0u64.into(),
         };
-        let transaction_index = 1;
-        let transaction_hash = B256ED::from_b256([4u8; 32].into());
-        let block_hash = B256ED::from_b256([5u8; 32].into());
-        let block_number = 2;
+        let transaction_index = 1u32;
+        let transaction_hash: B256ED = [4u8; 32].into();
+        let block_hash: B256ED = [5u8; 32].into();
+        let block_number = 2u32;
 
         let log_responses = LogResponse::new_vec(
             &log_ed,
@@ -162,25 +158,22 @@ mod tests {
         );
 
         assert_eq!(log_responses.len(), 1);
-        assert_eq!(
-            log_responses[0].transaction_index,
-            U64ED::from(transaction_index)
-        );
+        assert_eq!(log_responses[0].transaction_index, transaction_index.into());
         assert_eq!(log_responses[0].transaction_hash, transaction_hash);
         assert_eq!(log_responses[0].block_hash, block_hash);
-        assert_eq!(log_responses[0].block_number, U64ED::from(block_number));
+        assert_eq!(log_responses[0].block_number, block_number.into());
     }
 
     #[test]
     fn test_log_response_empty() {
         let log = LogED {
             logs: vec![],
-            log_index: 0.into(),
+            log_index: 0u64.into(),
         };
-        let transaction_index = 1;
-        let transaction_hash = B256ED::from_b256([4u8; 32].into());
-        let block_hash = B256ED::from_b256([5u8; 32].into());
-        let block_number = 2;
+        let transaction_index = 1u32;
+        let transaction_hash: B256ED = [4u8; 32].into();
+        let block_hash: B256ED = [5u8; 32].into();
+        let block_number = 2u32;
 
         let log_responses = LogResponse::new_vec(
             &log,
@@ -209,12 +202,12 @@ mod tests {
         .unwrap();
         let log_ed = LogED {
             logs: vec![log1, log2],
-            log_index: 0.into(),
+            log_index: 0u64.into(),
         };
-        let transaction_index = 1;
-        let transaction_hash = B256ED::from_b256([7u8; 32].into());
-        let block_hash = B256ED::from_b256([8u8; 32].into());
-        let block_number = 2;
+        let transaction_index = 1u32;
+        let transaction_hash: B256ED = [7u8; 32].into();
+        let block_hash: B256ED = [8u8; 32].into();
+        let block_number = 2u32;
 
         let log_responses = LogResponse::new_vec(
             &log_ed,

@@ -1,19 +1,43 @@
 use std::error::Error;
 
-use alloy_primitives::{U256, U64};
 use revm_state::AccountInfo;
 
-use crate::db::types::{Decode, Encode};
+use crate::db::types::{Decode, Encode, B256ED, U256ED, U64ED};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct AccountInfoED(pub AccountInfo);
+pub struct AccountInfoED {
+    pub balance: U256ED,
+    pub nonce: U64ED,
+    pub code_hash: B256ED,
+}
+
+impl From<AccountInfo> for AccountInfoED {
+    fn from(account_info: AccountInfo) -> Self {
+        AccountInfoED {
+            balance: account_info.balance.into(),
+            nonce: account_info.nonce.into(),
+            code_hash: account_info.code_hash.into(),
+        }
+    }
+}
+
+impl Into<AccountInfo> for AccountInfoED {
+    fn into(self) -> AccountInfo {
+        AccountInfo {
+            balance: self.balance.uint,
+            nonce: self.nonce.into(),
+            code_hash: self.code_hash.into(),
+            code: None,
+        }
+    }
+}
 
 impl Encode for AccountInfoED {
     fn encode(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.0.balance.to_be_bytes::<32>());
-        bytes.extend_from_slice(&self.0.nonce.to_be_bytes());
-        bytes.extend_from_slice(&self.0.code_hash.0.to_vec());
+        bytes.extend_from_slice(&self.balance.encode());
+        bytes.extend_from_slice(&self.nonce.encode());
+        bytes.extend_from_slice(&self.code_hash.encode());
         bytes
     }
 }
@@ -23,36 +47,36 @@ impl Decode for AccountInfoED {
     where
         Self: Sized,
     {
-        let balance = U256::from_be_bytes::<32>(bytes[0..32].try_into()?);
-        let nonce = U64::from_be_bytes::<8>(bytes[32..40].try_into()?).try_into()?;
-        let code_hash_u = U256::from_be_bytes::<32>(bytes[40..72].try_into()?);
-        let code_hash = code_hash_u.into();
-        Ok(AccountInfoED(AccountInfo {
+        let balance = U256ED::decode(bytes[0..32].try_into()?).unwrap();
+        let nonce = U64ED::decode(bytes[32..40].try_into()?).unwrap();
+        let code_hash = B256ED::decode(bytes[40..72].try_into()?).unwrap();
+        Ok(AccountInfoED {
             balance,
             nonce,
             code_hash,
-            code: None,
-        }))
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::U256;
+
     use super::*;
 
     #[test]
     fn test_account_info_ed() {
-        let account_info = AccountInfoED(AccountInfo {
+        let account_info: AccountInfoED = AccountInfo {
             balance: U256::from(100),
             nonce: 1,
             code_hash: [1; 32].into(),
             code: None,
-        });
+        }
+        .into();
         let bytes = account_info.encode();
         let decoded = AccountInfoED::decode(bytes).unwrap();
-        assert_eq!(account_info.0.balance, decoded.0.balance);
-        assert_eq!(account_info.0.nonce, decoded.0.nonce);
-        assert_eq!(account_info.0.code_hash, decoded.0.code_hash);
-        assert_eq!(account_info.0.code, decoded.0.code);
+        assert_eq!(account_info.balance, decoded.balance);
+        assert_eq!(account_info.nonce, decoded.nonce);
+        assert_eq!(account_info.code_hash, decoded.code_hash);
     }
 }

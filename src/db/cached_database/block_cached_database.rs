@@ -130,7 +130,7 @@ where
     /// block_number: U256 - the block number to set the value for
     /// key: K - the key to set the value for
     /// value: V - the value to set
-    pub fn set(&mut self, block_number: u64, key: K, value: V) -> Result<(), Box<dyn Error>> {
+    pub fn set(&mut self, block_number: u64, key: &K, value: V) -> Result<(), Box<dyn Error>> {
         let cache = self.retrieve_cache(&key)?;
         cache.set(block_number, value);
         Ok(())
@@ -242,25 +242,26 @@ mod tests {
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
             .unwrap();
-        let account_info = AccountInfoED(AccountInfo {
+        let account_info: AccountInfoED = AccountInfo {
             balance: U256::from(100),
             nonce: 1,
             code_hash: [1; 32].into(),
             code: None,
-        });
-        let address_ed = AddressED(address);
-        let _ = db.set(1, address_ed.clone(), account_info.clone());
+        }
+        .into();
+        let address_ed: AddressED = address.into();
+        let _ = db.set(1, &address_ed.clone(), account_info.clone());
 
         let account_info = db.latest(&address_ed).unwrap().unwrap();
-        assert_eq!(account_info.0.balance, U256::from(100));
-        assert_eq!(account_info.0.nonce, 1);
-        assert_eq!(account_info.0.code_hash, B256::from([1; 32]));
+        assert_eq!(account_info.balance, 100u64.into());
+        assert_eq!(account_info.nonce, 1u64.into());
+        assert_eq!(account_info.code_hash, [1; 32].into());
 
         // verify the cache content
         let cache = db.cache.get(&address_ed).unwrap();
-        assert_eq!(cache.latest().unwrap().0.balance, U256::from(100));
-        assert_eq!(cache.latest().unwrap().0.nonce, 1);
-        assert_eq!(cache.latest().unwrap().0.code_hash, B256::from([1; 32]));
+        assert_eq!(cache.latest().unwrap().balance, U256::from(100).into());
+        assert_eq!(cache.latest().unwrap().nonce, 1u64.into());
+        assert_eq!(cache.latest().unwrap().code_hash, [1; 32].into());
     }
 
     #[test]
@@ -276,19 +277,20 @@ mod tests {
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
             .unwrap();
-        let account_info = AccountInfoED(AccountInfo {
+        let address_ed: AddressED = address.into();
+        let account_info_ed: AccountInfoED = AccountInfo {
             balance: U256::from(100),
             nonce: 1,
             code_hash: [1; 32].into(),
             code: None,
-        });
-        let address_ed = AddressED(address);
-        let _ = db.set(1, address_ed.clone(), account_info.clone());
+        }
+        .into();
+        let _ = db.set(1, &address.into(), account_info_ed.clone());
 
-        let account_info = db.latest(&address_ed).unwrap().unwrap();
-        assert_eq!(account_info.0.balance, U256::from(100));
-        assert_eq!(account_info.0.nonce, 1);
-        assert_eq!(account_info.0.code_hash, B256::from([1; 32]));
+        let account_info = db.latest(&address.into()).unwrap().unwrap();
+        assert_eq!(account_info.balance, U256::from(100).into());
+        assert_eq!(account_info.nonce, 1u64.into());
+        assert_eq!(account_info.code_hash, B256::from([1; 32]).into());
 
         db.commit(1).unwrap();
 
@@ -297,9 +299,9 @@ mod tests {
         let account_info = real_db.get(address_ed.encode()).unwrap();
 
         let account_info = AccountInfoED::decode(account_info.unwrap().to_vec()).unwrap();
-        assert_eq!(account_info.0.balance, U256::from(100));
-        assert_eq!(account_info.0.nonce, 1);
-        assert_eq!(account_info.0.code_hash, B256::from([1; 32]));
+        assert_eq!(account_info.balance, U256::from(100).into());
+        assert_eq!(account_info.nonce, 1u64.into());
+        assert_eq!(account_info.code_hash, B256::from([1; 32]).into());
 
         let cache_db = db.cache_db;
 
@@ -307,9 +309,12 @@ mod tests {
 
         let cache =
             BlockHistoryCacheData::<AccountInfoED>::decode(cache.unwrap().to_vec()).unwrap();
-        assert_eq!(cache.latest().unwrap().0.balance, U256::from(100));
-        assert_eq!(cache.latest().unwrap().0.nonce, 1);
-        assert_eq!(cache.latest().unwrap().0.code_hash, B256::from([1; 32]));
+        assert_eq!(cache.latest().unwrap().balance, U256::from(100).into());
+        assert_eq!(cache.latest().unwrap().nonce, 1u64.into());
+        assert_eq!(
+            cache.latest().unwrap().code_hash,
+            B256::from([1; 32]).into()
+        );
     }
 
     #[test]
@@ -325,19 +330,20 @@ mod tests {
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
             .unwrap();
-        let account_info = AccountInfoED(AccountInfo {
+        let account_info: AccountInfoED = AccountInfo {
             balance: U256::from(100),
             nonce: 1,
             code_hash: [1; 32].into(),
             code: None,
-        });
-        let address_ed = AddressED(address);
-        let _ = db.set(1, address_ed.clone(), account_info.clone());
+        }
+        .into();
+        let address_ed: AddressED = address.into();
+        let _ = db.set(1, &address_ed.clone(), account_info.clone());
 
         let account_info = db.latest(&address_ed).unwrap().unwrap();
-        assert_eq!(account_info.0.balance, U256::from(100));
-        assert_eq!(account_info.0.nonce, 1);
-        assert_eq!(account_info.0.code_hash, B256::from([1; 32]));
+        assert_eq!(account_info.balance, U256::from(100).into());
+        assert_eq!(account_info.nonce, 1u64.into());
+        assert_eq!(account_info.code_hash, B256::from([1; 32]).into());
 
         db.commit(1).unwrap();
         db.reorg(0).unwrap();
@@ -360,18 +366,19 @@ mod tests {
         let address: Address = "0x1234567890123456789012345678901234567890"
             .parse()
             .unwrap();
-        let address_ed = AddressED(address);
+        let address_ed: AddressED = address.into();
 
         for i in 1..=10 {
             let _ = db.set(
                 i,
-                address_ed.clone(),
-                AccountInfoED(AccountInfo {
+                &address_ed.clone(),
+                AccountInfo {
                     balance: U256::from(100 + i),
                     nonce: i + 1,
                     code_hash: [1; 32].into(),
                     code: None,
-                }),
+                }
+                .into(),
             );
         }
         db.commit(10).unwrap();
@@ -381,8 +388,8 @@ mod tests {
         db.commit(5).unwrap();
 
         let account_info = db.latest(&address_ed).unwrap().unwrap();
-        assert_eq!(account_info.0.balance, U256::from(100 + 5));
-        assert_eq!(account_info.0.nonce, 1 + 5);
-        assert_eq!(account_info.0.code_hash, B256::from([1; 32]));
+        assert_eq!(account_info.balance, U256::from(100 + 5).into());
+        assert_eq!(account_info.nonce, 6u64.into());
+        assert_eq!(account_info.code_hash, B256::from([1; 32]).into());
     }
 }

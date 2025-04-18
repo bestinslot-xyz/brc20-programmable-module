@@ -1,8 +1,7 @@
-use alloy_primitives::{Address, FixedBytes};
 use serde::Serialize;
 
 use crate::db::types::{
-    uint_full_hex, AddressED, BEncodeDecode, Decode, Encode, TxED, B2048ED, B256ED, U128ED, U64ED,
+    uint_full_hex, AddressED, Decode, Encode, TxED, B2048ED, B256ED, U128ED, U64ED,
 };
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
@@ -115,18 +114,18 @@ impl BlockResponseED {
             parent_hash,
             receipts_root,
             total_difficulty,
-            base_fee_per_gas: U64ED::from(0),
+            base_fee_per_gas: 0u64.into(),
             uncles: Vec::new(),
             withdrawals: Vec::new(),
-            withdrawals_root: BEncodeDecode(FixedBytes([0u8; 32])),
-            parent_beacon_block_root: BEncodeDecode(FixedBytes([0u8; 32])),
-            sha3_uncles: BEncodeDecode(FixedBytes([0u8; 32])),
-            state_root: BEncodeDecode(FixedBytes([0u8; 32])),
-            miner: AddressED(Address::new([0u8; 20])),
-            mix_hash: BEncodeDecode(FixedBytes([0u8; 32])),
-            excess_blob_gas: U64ED::from(0),
-            extra_data: BEncodeDecode(FixedBytes([0u8; 32])),
-            blob_gas_used: U64ED::from(0),
+            withdrawals_root: [0u8; 32].into(),
+            parent_beacon_block_root: [0u8; 32].into(),
+            sha3_uncles: [0u8; 32].into(),
+            state_root: [0u8; 32].into(),
+            miner: [0u8; 20].into(),
+            mix_hash: [0u8; 32].into(),
+            excess_blob_gas: 0u64.into(),
+            extra_data: [0u8; 32].into(),
+            blob_gas_used: 0u64.into(),
         }
     }
 }
@@ -227,24 +226,21 @@ mod tests {
     #[test]
     fn test_block_response_encode_decode() {
         let block = BlockResponseED::new(
-            1.into(),
-            2.into(),
-            3.into(),
-            BEncodeDecode(FixedBytes([4u8; 32])),
-            BEncodeDecode(FixedBytes([5u8; 256])),
-            6.into(),
-            7.into(),
-            8.into(),
-            U128ED::from_u128(9),
-            vec![
-                BEncodeDecode(FixedBytes([10u8; 32])),
-                BEncodeDecode(FixedBytes([11u8; 32])),
-            ],
-            BEncodeDecode(FixedBytes([12u8; 32])),
-            13.into(),
-            BEncodeDecode(FixedBytes([14u8; 32])),
-            BEncodeDecode(FixedBytes([15u8; 32])),
-            16.into(),
+            1u64.into(),
+            2u64.into(),
+            3u64.into(),
+            [4u8; 32].into(),
+            [5u8; 256].into(),
+            6u64.into(),
+            7u64.into(),
+            8u64.into(),
+            9u64.into(),
+            vec![[10u8; 32].into(), [11u8; 32].into()],
+            [12u8; 32].into(),
+            13u64.into(),
+            [14u8; 32].into(),
+            [15u8; 32].into(),
+            16u64.into(),
         );
 
         let encoded = block.encode();
@@ -256,24 +252,21 @@ mod tests {
     #[test]
     fn test_block_response_serialize() {
         let block = BlockResponseED::new(
-            1.into(),
-            2.into(),
-            3.into(),
-            BEncodeDecode(FixedBytes([4u8; 32])),
-            BEncodeDecode(FixedBytes([5u8; 256])),
-            6.into(),
-            7.into(),
-            8.into(),
-            U128ED::from_u128(9),
-            vec![
-                BEncodeDecode(FixedBytes([10u8; 32])),
-                BEncodeDecode(FixedBytes([11u8; 32])),
-            ],
-            BEncodeDecode(FixedBytes([12u8; 32])),
-            13.into(),
-            BEncodeDecode(FixedBytes([14u8; 32])),
-            BEncodeDecode(FixedBytes([15u8; 32])),
-            16.into(),
+            1u64.into(),
+            2u64.into(),
+            3u64.into(),
+            [4u8; 32].into(),
+            [5u8; 256].into(),
+            6u64.into(),
+            7u64.into(),
+            8u64.into(),
+            9u64.into(),
+            vec![[10u8; 32].into(), [11u8; 32].into()],
+            [12u8; 32].into(),
+            13u64.into(),
+            [14u8; 32].into(),
+            [15u8; 32].into(),
+            16u64.into(),
         );
 
         let serialized = serde_json::to_string(&block).unwrap();

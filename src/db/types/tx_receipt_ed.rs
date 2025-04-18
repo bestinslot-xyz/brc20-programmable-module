@@ -101,24 +101,24 @@ impl TxReceiptED {
             log_responses: LogResponse::new_vec(
                 &logs,
                 tx_idx.clone(),
-                B256ED::from_b256(tx_hash),
-                B256ED::from_b256(block_hash),
+                tx_hash.into(),
+                block_hash.into(),
                 block_number.clone(),
             ),
             gas_used: output.gas_used().into(),
-            from: AddressED(from),
-            to: to.map(AddressED),
-            contract_address: contract_address.map(AddressED),
+            from: from.into(),
+            to: to.map(Into::<AddressED>::into),
+            contract_address: contract_address.map(Into::<AddressED>::into),
             logs_bloom,
-            hash: B256ED::from_b256(block_hash),
+            hash: block_hash.into(),
             block_number: block_number.clone(),
             block_timestamp: block_timestamp,
-            transaction_hash: B256ED::from_b256(tx_hash),
+            transaction_hash: tx_hash.into(),
             transaction_index: tx_idx.clone(),
             cumulative_gas_used,
             nonce,
             result_bytes: output_bytes.cloned(),
-            effective_gas_price: 0.into(),
+            effective_gas_price: 0u64.into(),
             transaction_type: 0,
         })
     }
@@ -144,19 +144,13 @@ impl Encode for TxReceiptED {
 
         bytes.extend_from_slice(&self.gas_used.encode());
         bytes.extend_from_slice(&self.from.encode());
-        bytes.extend_from_slice(
-            &self
-                .to
-                .as_ref()
-                .unwrap_or(&AddressED(Address::ZERO))
-                .encode(),
-        );
+        bytes.extend_from_slice(&self.to.as_ref().unwrap_or(&Address::ZERO.into()).encode());
 
         bytes.extend_from_slice(
             &self
                 .contract_address
                 .as_ref()
-                .unwrap_or(&AddressED(Address::ZERO))
+                .unwrap_or(&Address::ZERO.into())
                 .encode(),
         );
 
@@ -249,12 +243,8 @@ impl Decode for TxReceiptED {
             ),
             gas_used,
             from,
-            to: if to.0 == Address::ZERO {
-                None
-            } else {
-                Some(to)
-            },
-            contract_address: if contract_address.0 == Address::ZERO {
+            to: if to.is_zero() { None } else { Some(to) },
+            contract_address: if contract_address.is_zero() {
                 None
             } else {
                 Some(contract_address)
@@ -266,7 +256,7 @@ impl Decode for TxReceiptED {
             transaction_hash,
             transaction_index,
             cumulative_gas_used,
-            effective_gas_price: 0.into(),
+            effective_gas_price: 0u64.into(),
             transaction_type: 0,
             nonce,
             result_bytes: result_bytes,
@@ -279,7 +269,6 @@ mod tests {
     use alloy_primitives::Log;
 
     use super::*;
-    use crate::db::types::BEncodeDecode;
 
     #[test]
     fn test_tx_receipt_ed() {
@@ -290,7 +279,7 @@ mod tests {
                 vec![3u8; 32].into(),
             )
             .unwrap()],
-            log_index: 0.into(),
+            log_index: 0u64.into(),
         };
         let tx_receipt_ed = TxReceiptED {
             status: 4,
@@ -299,25 +288,25 @@ mod tests {
             logs: logs.clone(),
             log_responses: LogResponse::new_vec(
                 &logs,
-                13.into(),
-                B256ED::from_b256([12u8; 32].into()),
-                B256ED::from_b256([10u8; 32].into()),
-                11.into(),
+                13u32.into(),
+                [12u8; 32].into(),
+                [10u8; 32].into(),
+                11u32.into(),
             ),
-            gas_used: 5.into(),
-            from: AddressED([6u8; 20].into()),
-            to: Some(AddressED([7u8; 20].into())),
-            contract_address: Some(AddressED([8u8; 20].into())),
-            logs_bloom: BEncodeDecode([9u8; 256].into()),
-            hash: BEncodeDecode([10u8; 32].into()),
-            block_number: 11.into(),
-            block_timestamp: 12.into(),
-            transaction_hash: BEncodeDecode([12u8; 32].into()),
-            transaction_index: 13.into(),
-            cumulative_gas_used: 14.into(),
-            nonce: 15.into(),
+            gas_used: 5u64.into(),
+            from: [6u8; 20].into(),
+            to: Some([7u8; 20].into()),
+            contract_address: Some([8u8; 20].into()),
+            logs_bloom: [9u8; 256].into(),
+            hash: [10u8; 32].into(),
+            block_number: 11u64.into(),
+            block_timestamp: 12u64.into(),
+            transaction_hash: [12u8; 32].into(),
+            transaction_index: 13u64.into(),
+            cumulative_gas_used: 14u64.into(),
+            nonce: 15u64.into(),
             result_bytes: None,
-            effective_gas_price: 0.into(),
+            effective_gas_price: 0u64.into(),
             transaction_type: 0,
         };
         let bytes = tx_receipt_ed.encode();

@@ -11,7 +11,7 @@ use revm::{ExecuteCommitEvm, ExecuteEvm, InspectCommitEvm};
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, Decode, LogED, LogResponse, TraceED, TxED, TxReceiptED,
-    B2048ED, B256ED,
+    B2048ED,
 };
 use crate::db::{DB, MAX_HISTORY_SIZE};
 use crate::evm::get_evm;
@@ -50,7 +50,7 @@ impl BRC20ProgEngine {
         }
 
         if let Some(genesis) = self.get_block_by_number(genesis_height, false)? {
-            if genesis.hash.0 == genesis_hash {
+            if genesis.hash.bytes == genesis_hash {
                 return Ok(());
             } else {
                 return Err("Genesis block hash mismatch".into());
@@ -72,7 +72,7 @@ impl BRC20ProgEngine {
             .contract_address
             .ok_or("Failed to deploy BRC20_Controller")?;
 
-        verify_brc20_contract_address(&brc20_controller_contract.0.to_string())
+        verify_brc20_contract_address(&brc20_controller_contract.address.to_string())
             .map_err(|_| "Invalid BRC20_Controller contract address")?;
 
         self.finalise_block(genesis_timestamp, genesis_height, genesis_hash, 1)?;
@@ -133,11 +133,11 @@ impl BRC20ProgEngine {
             let Some(tx_hash) = db.get_tx_hash_by_inscription_id(inscription_id)? else {
                 return Ok(None);
             };
-            let Some(receipt) = db.get_tx_receipt(tx_hash.0)? else {
+            let Some(receipt) = db.get_tx_receipt(tx_hash.bytes)? else {
                 return Ok(None);
             };
 
-            Ok(receipt.contract_address.map(|x| x.0))
+            Ok(receipt.contract_address.map(|x| x.address))
         })
     }
 
@@ -294,7 +294,7 @@ impl BRC20ProgEngine {
     ) -> Result<Option<TxED>, Box<dyn Error>> {
         self.db.read_fn(|db| {
             db.get_tx_hash_by_block_hash_and_index(block_hash, tx_idx)?
-                .map_or(Ok(None), |tx_hash| db.get_tx_by_hash(tx_hash.0))
+                .map_or(Ok(None), |tx_hash| db.get_tx_by_hash(tx_hash.bytes))
         })
     }
 
@@ -305,7 +305,7 @@ impl BRC20ProgEngine {
     ) -> Result<Option<TxED>, Box<dyn Error>> {
         self.db.read_fn(|db| {
             db.get_tx_hash_by_block_number_and_index(block_number, tx_idx)?
-                .map_or(Ok(None), |tx_hash| db.get_tx_by_hash(tx_hash.0))
+                .map_or(Ok(None), |tx_hash| db.get_tx_by_hash(tx_hash.bytes))
         })
     }
 
@@ -319,7 +319,7 @@ impl BRC20ProgEngine {
     ) -> Result<Option<TxReceiptED>, Box<dyn Error>> {
         self.db.read_fn(|db| {
             db.get_tx_hash_by_inscription_id(inscription_id)?
-                .map_or(Ok(None), |tx_hash| db.get_tx_receipt(tx_hash.0))
+                .map_or(Ok(None), |tx_hash| db.get_tx_receipt(tx_hash.bytes))
         })
     }
 
@@ -419,32 +419,32 @@ impl BRC20ProgEngine {
             result_bytes: output.output().cloned(),
             logs: LogED {
                 logs: output.logs().to_vec(),
-                log_index: 0.into(),
+                log_index: 0u64.into(),
             },
             log_responses: LogResponse::new_vec(
                 &LogED {
                     logs: output.logs().to_vec(),
-                    log_index: 0.into(),
+                    log_index: 0u64.into(),
                 },
-                0.into(),
-                B256ED::from_b256(txhash),
-                B256ED::from_b256(txhash),
+                0u64.into(),
+                txhash.into(),
+                txhash.into(),
                 block_number.into(),
             ),
             gas_used: output.gas_used().into(),
-            from: AddressED(tx_info.from),
-            to: tx_info.to.map(AddressED),
-            contract_address: get_contract_address(&output).map(AddressED),
+            from: tx_info.from.into(),
+            to: tx_info.to.map(Into::<AddressED>::into),
+            contract_address: get_contract_address(&output).map(|x| x.into()),
             logs_bloom: B2048ED::decode(logs_bloom(output.logs()).to_vec())
                 .map_err(|_| "Error while decoding logs bloom")?,
-            hash: B256ED::from_b256(txhash),
+            hash: txhash.into(),
             block_number: block_number.into(),
             block_timestamp: timestamp.into(),
-            transaction_hash: B256ED::from_b256(txhash),
-            transaction_index: 0.into(),
+            transaction_hash: txhash.into(),
+            transaction_index: 0u64.into(),
             cumulative_gas_used: output.gas_used().into(),
             nonce: nonce.into(),
-            effective_gas_price: 0.into(),
+            effective_gas_price: 0u64.into(),
             transaction_type: 0,
         })
     }
@@ -458,7 +458,7 @@ impl BRC20ProgEngine {
             .db
             .read()
             .get_account_memory(contract, location)?
-            .map(|x| x.0)
+            .map(|x| x.uint)
             .unwrap_or(U256::ZERO))
     }
 
@@ -475,7 +475,7 @@ impl BRC20ProgEngine {
                 let tx_ids = block.transactions.unwrap_or(vec![]);
                 let mut txes = Vec::new();
                 for tx_id in tx_ids {
-                    let Some(tx) = db.get_tx_by_hash(tx_id.0)? else {
+                    let Some(tx) = db.get_tx_by_hash(tx_id.bytes)? else {
                         continue;
                     };
                     txes.insert(txes.len(), tx);
@@ -506,7 +506,7 @@ impl BRC20ProgEngine {
     ) -> Result<Option<BytecodeED>, Box<dyn Error>> {
         self.db.read_fn(|db| {
             db.get_account_info(addr)?
-                .map_or(Ok(None), |acct| db.get_code(acct.0.code_hash))
+                .map_or(Ok(None), |acct| db.get_code(acct.code_hash.bytes))
         })
     }
 
@@ -579,7 +579,7 @@ impl BRC20ProgEngine {
             .db
             .read()
             .get_account_info(addr)?
-            .map(|x| x.0.nonce)
+            .map(|x| x.nonce.into())
             .unwrap_or(0))
     }
 }
@@ -618,13 +618,13 @@ mod tests {
         let block = engine.get_block_by_number(0, true).unwrap();
         assert!(block.is_some());
         let block = block.unwrap();
-        assert_eq!(block.number, 0.into());
-        assert_eq!(block.hash.0, genesis_hash);
+        assert_eq!(block.number, 0u64.into());
+        assert_eq!(block.hash.bytes, genesis_hash);
         assert_eq!(block.timestamp, genesis_timestamp.into());
 
         let full_transactions = block.full_transactions.unwrap();
         assert_eq!(full_transactions.len(), 1);
-        assert_eq!(full_transactions[0].from.0, *INDEXER_ADDRESS);
+        assert_eq!(full_transactions[0].from.address, *INDEXER_ADDRESS);
         assert_eq!(full_transactions[0].to, None);
     }
 
@@ -695,7 +695,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert_eq!(contract_address, deployed_contract.0);
+        assert_eq!(contract_address, deployed_contract.address);
     }
 
     #[test]
@@ -726,7 +726,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(result.from.0, from_address);
+        assert_eq!(result.from.address, from_address);
     }
 
     #[test]
@@ -884,7 +884,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .from
-                .0,
+                .address,
             account_1
         );
         assert_eq!(
@@ -893,7 +893,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .from
-                .0,
+                .address,
             account_2
         );
     }
@@ -945,7 +945,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .from
-                .0,
+                .address,
             account_1
         );
         assert_eq!(
@@ -954,7 +954,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .from
-                .0,
+                .address,
             account_2
         );
     }
@@ -983,7 +983,7 @@ mod tests {
             )
             .unwrap()
             .transaction_hash
-            .0;
+            .bytes;
 
         assert_eq!(
             engine
@@ -991,7 +991,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .from
-                .0,
+                .address,
             account_1
         );
     }
@@ -1025,7 +1025,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert_eq!(receipt.hash.0, result.hash.0);
+        assert_eq!(receipt.hash.bytes, result.hash.bytes);
     }
 
     #[test]
@@ -1052,7 +1052,7 @@ mod tests {
             )
             .unwrap()
             .transaction_hash
-            .0;
+            .bytes;
 
         assert_eq!(
             engine
@@ -1060,7 +1060,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .from
-                .0,
+                .address,
             account_1
         );
     }

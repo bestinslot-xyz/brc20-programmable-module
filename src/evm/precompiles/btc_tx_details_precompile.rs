@@ -17,7 +17,7 @@ static GAS_PER_RPC_CALL: u64 = 100000;
     # Errors - Returns an error if the transaction details are not found
 */
 sol! {
-    function getTxDetails(bytes32) returns (uint256 block_height, bytes32[] vin_txids, uint256[] vin_vouts , bytes[] vin_scriptPubKeys, uint256[] vin_values, bytes[] vout_scriptPubKeys, uint256[] vout_values);
+    function getTxDetails(bytes32 txid) returns (uint256 block_height, bytes32[] vin_txids, uint256[] vin_vouts , bytes[] vin_scriptPubKeys, uint256[] vin_values, bytes[] vout_scriptPubKeys, uint256[] vout_values);
 }
 
 pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
@@ -35,7 +35,7 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
         return precompile_error(interpreter_result);
     };
 
-    let Ok(raw_tx_info) = get_raw_transaction(&txid.0) else {
+    let Ok(raw_tx_info) = get_raw_transaction(&txid.txid) else {
         // Failed to get transaction details
         return precompile_error(interpreter_result);
     };

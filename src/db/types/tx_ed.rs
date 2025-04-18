@@ -46,13 +46,7 @@ impl Encode for TxED {
         bytes.extend_from_slice(&self.block_number.encode());
         bytes.extend_from_slice(&self.transaction_index.encode());
         bytes.extend_from_slice(&self.from.encode());
-        bytes.extend_from_slice(
-            &self
-                .to
-                .as_ref()
-                .unwrap_or(&AddressED(Address::ZERO))
-                .encode(),
-        );
+        bytes.extend_from_slice(&self.to.as_ref().unwrap_or(&Address::ZERO.into()).encode());
         bytes.extend_from_slice(&self.value.encode());
         bytes.extend_from_slice(&self.gas.encode());
         bytes.extend_from_slice(&self.gas_price.encode());
@@ -91,11 +85,7 @@ impl Decode for TxED {
         i += 20;
         let to = AddressED::decode(bytes[i..i + 20].to_vec())?;
         i += 20;
-        let to = if to.0 == Address::ZERO {
-            None
-        } else {
-            Some(to)
-        };
+        let to = if to.is_zero() { None } else { Some(to) };
         let value = U64ED::decode(bytes[i..i + 8].try_into()?)?;
         i += 8;
         let gas = U64ED::decode(bytes[i..i + 8].try_into()?)?;
@@ -140,22 +130,21 @@ impl Decode for TxED {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::types::BEncodeDecode;
 
     #[test]
     fn encode_decode() {
         let tx = TxED {
-            hash: BEncodeDecode([1u8; 32].into()),
-            nonce: 1.into(),
-            block_hash: BEncodeDecode([2u8; 32].into()),
-            block_number: 2.into(),
-            transaction_index: 3.into(),
-            from: AddressED([3u8; 20].into()),
-            to: Some(AddressED([4u8; 20].into())),
-            value: 4.into(),
-            gas: 5.into(),
-            gas_price: 6.into(),
-            input: BytesED(vec![7, 8, 9].into()),
+            hash: [1u8; 32].into(),
+            nonce: 1u64.into(),
+            block_hash: [2u8; 32].into(),
+            block_number: 2u64.into(),
+            transaction_index: 3u64.into(),
+            from: [3u8; 20].into(),
+            to: Some([4u8; 20].into()),
+            value: 4u64.into(),
+            gas: 5u64.into(),
+            gas_price: 6u64.into(),
+            input: vec![7, 8, 9].into(),
             v: 0,
             r: 0,
             s: 0,
@@ -171,17 +160,17 @@ mod tests {
     #[test]
     fn serialize() {
         let tx = TxED {
-            hash: BEncodeDecode([1u8; 32].into()),
-            nonce: 1.into(),
-            block_hash: BEncodeDecode([2u8; 32].into()),
-            block_number: 2.into(),
-            transaction_index: 3.into(),
-            from: AddressED([3u8; 20].into()),
-            to: Some(AddressED([4u8; 20].into())),
-            value: 4.into(),
-            gas: 5.into(),
-            gas_price: 6.into(),
-            input: BytesED(vec![7, 8, 9].into()),
+            hash: [1u8; 32].into(),
+            nonce: 1u64.into(),
+            block_hash: [2u8; 32].into(),
+            block_number: 2u64.into(),
+            transaction_index: 3u64.into(),
+            from: [3u8; 20].into(),
+            to: Some([4u8; 20].into()),
+            value: 4u64.into(),
+            gas: 5u64.into(),
+            gas_price: 6u64.into(),
+            input: vec![7, 8, 9].into(),
             v: 0,
             r: 0,
             s: 0,
