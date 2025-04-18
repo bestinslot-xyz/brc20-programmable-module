@@ -151,15 +151,15 @@ mod tests {
         let mut db = BlockDatabase::<U256ED>::new(tempdir.path(), "test").unwrap();
 
         let block_number = 1;
-        let value = U256ED::from_u256(U256::from(100));
+        let value = U256::from(100).into();
         db.set(block_number, value);
 
         let block_number = 2;
-        let value = U256ED::from_u256(U256::from(200));
+        let value = U256::from(200).into();
         db.set(block_number, value);
 
         let block_number = 3;
-        let value = U256ED::from_u256(U256::from(300));
+        let value = U256::from(300).into();
         db.set(block_number, value);
 
         assert_eq!(db.last_key().unwrap().unwrap(), 3);
@@ -167,30 +167,15 @@ mod tests {
         db.commit().unwrap();
         db.clear_cache();
 
-        assert_eq!(
-            db.get(1).unwrap().unwrap(),
-            U256ED::from_u256(U256::from(100))
-        );
-        assert_eq!(
-            db.get(2).unwrap().unwrap(),
-            U256ED::from_u256(U256::from(200))
-        );
-        assert_eq!(
-            db.get(3).unwrap().unwrap(),
-            U256ED::from_u256(U256::from(300))
-        );
+        assert_eq!(db.get(1).unwrap().unwrap(), U256::from(100).into());
+        assert_eq!(db.get(2).unwrap().unwrap(), U256::from(200).into());
+        assert_eq!(db.get(3).unwrap().unwrap(), U256::from(300).into());
         assert_eq!(db.last_key().unwrap().unwrap(), 3);
 
         db.reorg(2).unwrap();
 
-        assert_eq!(
-            db.get(1).unwrap().unwrap(),
-            U256ED::from_u256(U256::from(100))
-        );
-        assert_eq!(
-            db.get(2).unwrap().unwrap(),
-            U256ED::from_u256(U256::from(200))
-        );
+        assert_eq!(db.get(1).unwrap().unwrap(), U256::from(100).into());
+        assert_eq!(db.get(2).unwrap().unwrap(), U256::from(200).into());
         assert_eq!(db.get(3).unwrap().is_none(), true);
 
         assert_eq!(db.last_key().unwrap().unwrap(), 2);

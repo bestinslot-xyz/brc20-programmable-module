@@ -23,18 +23,18 @@ pub struct TraceED {
     pub error: Option<String>,
 }
 
-impl TraceED {
-    pub fn new(call: &CallFrame) -> Self {
+impl From<&CallFrame> for TraceED {
+    fn from(call: &CallFrame) -> Self {
         Self {
             tx_type: call.typ.clone(),
-            from: AddressED(call.from),
-            to: call.to.map(AddressED),
-            calls: call.calls.iter().map(TraceED::new).collect(),
-            gas: U256ED::from_u256(call.gas),
-            gas_used: U256ED::from_u256(call.gas_used),
-            input: BytesED(call.input.clone()),
-            output: BytesED(call.output.clone().unwrap_or(Bytes::new())),
-            value: U256ED::from_u256(call.value.unwrap_or(U256::ZERO)),
+            from: call.from.into(),
+            to: call.to.map(Into::<AddressED>::into),
+            calls: call.calls.iter().map(Into::<TraceED>::into).collect(),
+            gas: call.gas.into(),
+            gas_used: call.gas_used.into(),
+            input: call.input.clone().into(),
+            output: call.output.clone().unwrap_or(Bytes::new()).into(),
+            value: call.value.unwrap_or(U256::ZERO).into(),
             error: call.error.clone(),
         }
     }

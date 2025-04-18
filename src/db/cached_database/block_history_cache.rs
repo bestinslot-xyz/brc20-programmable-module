@@ -172,27 +172,23 @@ mod tests {
     fn test_block_cache() {
         let mut cache = BlockHistoryCacheData::<U256ED>::new(None);
         let block_number = 1;
-        let value = U256::from(100);
-        let value_ed = U256ED::from_u256(value);
+        let value_ed: U256ED = U256::from(100).into();
 
         cache.set(block_number, value_ed.clone());
-        assert_eq!(cache.latest().unwrap().0, value_ed.0);
+        assert_eq!(cache.latest().unwrap(), value_ed);
 
-        let value2 = U256::from(200);
-        let value_ed2 = U256ED::from_u256(value2);
+        let value_ed2: U256ED = U256::from(200).into();
         cache.set(block_number, value_ed2.clone());
-        assert_eq!(cache.latest().unwrap().0, value_ed2.0);
+        assert_eq!(cache.latest().unwrap(), value_ed2);
 
         let block_number2 = 2;
-        let value3 = U256::from(300);
-        let value_ed3 = U256ED::from_u256(value3);
+        let value_ed3: U256ED = U256::from(300).into();
         cache.set(block_number2, value_ed3.clone());
-        assert_eq!(cache.latest().unwrap().0, value_ed3.0);
+        assert_eq!(cache.latest().unwrap(), value_ed3);
 
-        let value4 = U256::from(400);
-        let value_ed4 = U256ED::from_u256(value4);
+        let value_ed4: U256ED = U256::from(400).into();
         cache.set(block_number2, value_ed4.clone());
-        assert_eq!(cache.latest().unwrap().0, value_ed4.0);
+        assert_eq!(cache.latest().unwrap(), value_ed4);
     }
 
     #[test]
@@ -201,8 +197,7 @@ mod tests {
 
         for i in 0..MAX_HISTORY_SIZE + 2 {
             let value = U256::from(100 * i);
-            let value_ed = U256ED::from_u256(value);
-            cache.set(i, value_ed.clone());
+            cache.set(i, value.into());
         }
 
         assert_eq!(cache.cache.len(), (MAX_HISTORY_SIZE + 1) as usize);
@@ -220,13 +215,12 @@ mod tests {
         let mut cache = BlockHistoryCacheData::<U256ED>::new(None);
         let block_number = 1;
         let value = U256::from(100);
-        let value_ed = U256ED::from_u256(value);
 
-        cache.set(block_number, value_ed.clone());
+        cache.set(block_number, value.into());
         let encoded = cache.encode();
         let decoded = BlockHistoryCacheData::<U256ED>::decode(encoded).unwrap();
 
-        assert_eq!(decoded.latest().unwrap().0, value_ed.0);
+        assert_eq!(decoded.latest().unwrap().uint, value);
     }
 
     #[test]
@@ -235,19 +229,17 @@ mod tests {
 
         let block_number = 1;
         let value = U256::from(100);
-        let value_ed = U256ED::from_u256(value);
-        cache.set(block_number, value_ed.clone());
-        assert_eq!(cache.latest().unwrap().0, value_ed.0);
+        cache.set(block_number, value.into());
+        assert_eq!(cache.latest().unwrap(), value.into());
 
         let block_number2 = 2;
         let value2 = U256::from(200);
-        let value_ed2 = U256ED::from_u256(value2);
-        cache.set(block_number2, value_ed2.clone());
-        assert_eq!(cache.latest().unwrap().0, value_ed2.0);
+        cache.set(block_number2, value2.into());
+        assert_eq!(cache.latest().unwrap(), value2.into());
 
         cache.reorg(1);
 
-        assert_eq!(cache.latest().unwrap().0, value_ed.0);
+        assert_eq!(cache.latest().unwrap(), value.into());
     }
 
     #[test]
@@ -256,14 +248,13 @@ mod tests {
 
         for i in 1..=11 {
             let value = U256::from(100 * i);
-            let value_ed = U256ED::from_u256(value);
-            cache.set(i, value_ed.clone());
-            assert_eq!(cache.latest().unwrap().0, value_ed.0);
+            cache.set(i, value.into());
+            assert_eq!(cache.latest().unwrap(), value.into());
         }
 
         cache.reorg(5);
 
-        assert_eq!(cache.latest().unwrap().0, U256::from(500));
+        assert_eq!(cache.latest().unwrap(), U256::from(500).into());
     }
 
     #[test]
@@ -272,9 +263,8 @@ mod tests {
 
         for i in 1..=11 {
             let value = U256::from(100 * i);
-            let value_ed = U256ED::from_u256(value);
-            cache.set(i, value_ed.clone());
-            assert_eq!(cache.latest().unwrap().0, value_ed.0);
+            cache.set(i, value.into());
+            assert_eq!(cache.latest().unwrap(), value.into());
         }
 
         cache.reorg(0);
@@ -287,14 +277,13 @@ mod tests {
         let mut cache = BlockHistoryCacheData::<U256ED>::new(None);
 
         let value = U256::from(100);
-        let value_ed = U256ED::from_u256(value);
-        cache.set(0, value_ed.clone());
-        assert_eq!(cache.latest().unwrap().0, value_ed.0);
+        cache.set(0, value.into());
+        assert_eq!(cache.latest().unwrap(), value.into());
 
-        cache.set(1, value_ed.clone());
-        assert_eq!(cache.latest().unwrap().0, value_ed.0);
+        cache.set(1, value.into());
+        assert_eq!(cache.latest().unwrap(), value.into());
 
-        cache.set(2, value_ed.clone());
+        cache.set(2, value.into());
 
         assert_eq!(cache.cache.len(), 1);
     }
