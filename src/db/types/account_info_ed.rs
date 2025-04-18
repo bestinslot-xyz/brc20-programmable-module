@@ -4,7 +4,7 @@ use revm_state::AccountInfo;
 
 use crate::db::types::{Decode, Encode, B256ED, U256ED, U64ED};
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct AccountInfoED {
     pub balance: U256ED,
     pub nonce: U64ED,
