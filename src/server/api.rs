@@ -6,7 +6,8 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::Deserialize;
 
-use crate::db::types::{BlockResponseED, BytecodeED, LogResponse, TraceED, TxED, TxReceiptED};
+use crate::config::BRC20_PROG_CONFIG;
+use crate::db::types::{BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED};
 
 lazy_static::lazy_static! {
     pub static ref CHAIN_ID: u64 = 0x4252433230;
@@ -28,7 +29,7 @@ pub trait Brc20ProgApi {
     /// Returns current brc20_prog_version
     #[method(name = "brc20_version")]
     async fn version(&self) -> RpcResult<String> {
-        Ok(env!("CARGO_PKG_VERSION").to_string())
+        Ok(BRC20_PROG_CONFIG.pkg_version.clone())
     }
 
     /// Mines blocks for the given block count at the timestamp
@@ -179,7 +180,7 @@ pub trait Brc20ProgApi {
 
     /// Gets logs for the given filter
     #[method(name = "eth_getLogs")]
-    async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogResponse>>;
+    async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogED>>;
 
     /// Calls a contract with the given parameters
     #[method(name = "eth_call")]

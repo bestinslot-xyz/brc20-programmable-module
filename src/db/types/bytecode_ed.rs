@@ -21,20 +21,23 @@ impl Serialize for BytecodeED {
 }
 
 impl Encode for BytecodeED {
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.bytecode.original_byte_slice());
-        bytes
+    fn encode(&self, buffer: &mut Vec<u8>) {
+        self.bytecode.original_byte_slice().to_vec().encode(buffer);
     }
 }
 
 impl Decode for BytecodeED {
-    fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn Error>>
+    fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>>
     where
         Self: Sized,
     {
-        Ok(Self {
-            bytecode: Bytecode::new_raw(bytes.into()),
+        Vec::<u8>::decode(bytes, offset).map(|(bytes, offset)| {
+            (
+                BytecodeED {
+                    bytecode: Bytecode::new_raw(bytes.into()),
+                },
+                offset,
+            )
         })
     }
 }
@@ -52,16 +55,16 @@ mod tests {
     #[test]
     fn test_bytecode_ed() {
         let bytecode_ed: BytecodeED = Bytecode::new_raw("Hello world".into()).into();
-        let bytes = bytecode_ed.encode();
-        let decoded = BytecodeED::decode(bytes).unwrap();
+        let bytes = bytecode_ed.encode_vec();
+        let decoded = BytecodeED::decode_vec(&bytes).unwrap();
         assert_eq!(bytecode_ed, decoded);
     }
 
     #[test]
     fn test_bytecode_ed_empty() {
         let bytecode_ed: BytecodeED = Bytecode::new_raw("".into()).into();
-        let bytes = bytecode_ed.encode();
-        let decoded = BytecodeED::decode(bytes).unwrap();
+        let bytes = bytecode_ed.encode_vec();
+        let decoded = BytecodeED::decode_vec(&bytes).unwrap();
         assert_eq!(bytecode_ed, decoded);
     }
 

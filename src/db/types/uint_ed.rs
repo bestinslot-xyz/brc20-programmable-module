@@ -90,34 +90,29 @@ impl<const BITS: usize, const LIMBS: usize> Serialize for UintED<BITS, LIMBS> {
 }
 
 impl<const BITS: usize, const LIMBS: usize> Encode for UintED<BITS, LIMBS> {
-    fn encode(&self) -> Vec<u8> {
-        let mut limbs = self.uint.as_limbs().to_vec();
-        limbs.reverse();
-        let bytes = limbs
-            .iter()
-            .flat_map(|limb| limb.to_be_bytes().to_vec())
-            .collect::<Vec<u8>>();
-        bytes
+    fn encode(&self, buffer: &mut Vec<u8>) {
+        for limb in self.uint.as_limbs().iter().rev() {
+            limb.encode(buffer);
+        }
     }
 }
 
 impl<const BITS: usize, const LIMBS: usize> Decode for UintED<BITS, LIMBS> {
-    fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn Error>>
+    fn decode(bytes: &[u8], mut offset: usize) -> Result<(Self, usize), Box<dyn Error>>
     where
         Self: Sized,
     {
         let mut limbs = [0u64; LIMBS];
-        for (i, limb) in limbs.iter_mut().enumerate() {
-            let start = (LIMBS - 1 - i) * 8;
-            let end = start + 8;
-            let bytes = &bytes[start..end];
-            *limb = u64::from_be_bytes([
-                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-            ]);
+        for i in 0..LIMBS {
+            (limbs[i], offset) = Decode::decode(bytes, offset)?;
         }
-        Ok(Self {
-            uint: Uint::from_limbs(limbs),
-        })
+        limbs.reverse();
+        Ok((
+            Self {
+                uint: Uint::from_limbs(limbs),
+            },
+            offset,
+        ))
     }
 }
 
@@ -136,24 +131,24 @@ mod tests {
     #[test]
     fn test_u64_ed() {
         let u64_ed: U64ED = 100u64.into();
-        let bytes = u64_ed.encode();
-        let decoded = U64ED::decode(bytes).unwrap();
+        let bytes = u64_ed.encode_vec();
+        let decoded = U64ED::decode_vec(&bytes).unwrap();
         assert_eq!(u64_ed, decoded);
     }
 
     #[test]
     fn test_u256_ed() {
         let u256_ed: U256ED = U256::from(100u64).into();
-        let bytes = u256_ed.encode();
-        let decoded = U256ED::decode(bytes).unwrap();
+        let bytes = u256_ed.encode_vec();
+        let decoded = U256ED::decode_vec(&bytes).unwrap();
         assert_eq!(u256_ed, decoded);
     }
 
     #[test]
     fn test_u512_ed() {
         let u512_ed: U512ED = U512::from(100u64).into();
-        let bytes = u512_ed.encode();
-        let decoded = U512ED::decode(bytes).unwrap();
+        let bytes = u512_ed.encode_vec();
+        let decoded = U512ED::decode_vec(&bytes).unwrap();
         assert_eq!(u512_ed, decoded);
     }
 
@@ -161,8 +156,8 @@ mod tests {
     fn test_u512_ed_from_addr() {
         let u256 = U256::from(1u64);
         let u512_ed = U512ED::from_addr_u256([100u8; 20].into(), u256).unwrap();
-        let bytes = u512_ed.encode();
-        let decoded = U512ED::decode(bytes).unwrap();
+        let bytes = u512_ed.encode_vec();
+        let decoded = U512ED::decode_vec(&bytes).unwrap();
         assert_eq!(u512_ed, decoded);
     }
 
@@ -173,8 +168,8 @@ mod tests {
             .unwrap();
         let u256 = U256::from(1u64);
         let u512_ed = U512ED::from_addr_u256(address, u256).unwrap();
-        let bytes = u512_ed.encode();
-        let decoded = U512ED::decode(bytes).unwrap();
+        let bytes = u512_ed.encode_vec();
+        let decoded = U512ED::decode_vec(&bytes).unwrap();
         assert_eq!(u512_ed, decoded);
     }
 

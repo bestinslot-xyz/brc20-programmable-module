@@ -44,23 +44,17 @@ impl<const N: usize> Serialize for FixedBytesED<N> {
 }
 
 impl<const N: usize> Encode for FixedBytesED<N> {
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(self.bytes.as_slice());
-        bytes
+    fn encode(&self, buffer: &mut Vec<u8>) {
+        buffer.extend_from_slice(self.bytes.as_slice());
     }
 }
 
 impl<const N: usize> Decode for FixedBytesED<N> {
-    fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn Error>>
+    fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>>
     where
         Self: Sized,
     {
-        let mut slice = [0u8; N];
-        slice.copy_from_slice(&bytes);
-        Ok(Self {
-            bytes: slice.into(),
-        })
+        <[u8; N]>::decode(bytes, offset).map(|(bytes, offset)| (bytes.into(), offset))
     }
 }
 
@@ -71,8 +65,8 @@ mod tests {
     #[test]
     fn test_b256_ed() {
         let b256_ed: B256ED = [0u8; 32].into();
-        let bytes = b256_ed.encode();
-        let decoded = B256ED::decode(bytes).unwrap();
+        let bytes = b256_ed.encode_vec();
+        let decoded = B256ED::decode_vec(&bytes).unwrap();
         assert_eq!(b256_ed, decoded);
     }
 

@@ -34,20 +34,23 @@ impl Serialize for BytesED {
 }
 
 impl Encode for BytesED {
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.bytes.iter().as_slice());
-        bytes
+    fn encode(&self, buffer: &mut Vec<u8>) {
+        self.bytes.to_vec().encode(buffer);
     }
 }
 
 impl Decode for BytesED {
-    fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn Error>>
+    fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>>
     where
         Self: Sized,
     {
-        Ok(Self {
-            bytes: Bytes::from(bytes),
+        Vec::<u8>::decode(bytes, offset).map(|(bytes, offset)| {
+            (
+                BytesED {
+                    bytes: bytes.into(),
+                },
+                offset,
+            )
         })
     }
 }
@@ -59,24 +62,24 @@ mod tests {
     #[test]
     fn test_bytes_ed() {
         let bytes_ed: BytesED = vec![1, 2, 3, 4, 5].into();
-        let encoded = bytes_ed.encode();
-        let decoded = BytesED::decode(encoded).unwrap();
+        let encoded = bytes_ed.encode_vec();
+        let decoded = BytesED::decode_vec(&encoded).unwrap();
         assert_eq!(bytes_ed, decoded);
     }
 
     #[test]
     fn test_bytes_ed_empty() {
         let bytes_ed: BytesED = vec![].into();
-        let encoded = bytes_ed.encode();
-        let decoded = BytesED::decode(encoded).unwrap();
+        let encoded = bytes_ed.encode_vec();
+        let decoded = BytesED::decode_vec(&encoded).unwrap();
         assert_eq!(bytes_ed, decoded);
     }
 
     #[test]
     fn test_bytes_ed_large() {
         let bytes_ed: BytesED = vec![1; 1000].into();
-        let encoded = bytes_ed.encode();
-        let decoded = BytesED::decode(encoded).unwrap();
+        let encoded = bytes_ed.encode_vec();
+        let decoded = BytesED::decode_vec(&encoded).unwrap();
         assert_eq!(bytes_ed, decoded);
     }
 }

@@ -4,7 +4,7 @@ use std::fmt::Display;
 use std::path::Path;
 
 use alloy_primitives::map::foldhash::fast::RandomState;
-use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, B256, U128, U256, U64};
+use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, Log, B256, U128, U256, U64};
 use alloy_rpc_types_trace::geth::CallFrame;
 use revm::context::result::ExecutionResult;
 use revm::context::DBErrorMarker;
@@ -13,11 +13,11 @@ use revm_state::{Account, AccountInfo, Bytecode};
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 
-use super::types::TraceED;
-use crate::db::cached_database::{BlockCachedDatabase, BlockDatabase, BlockHistoryCacheData};
+use crate::db::cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
+use crate::db::database::BlockDatabase;
 use crate::db::types::{
-    AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogResponse, TxED, TxReceiptED, B256ED,
-    U128ED, U256ED, U512ED, U64ED,
+    AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED,
+    B256ED, U128ED, U256ED, U512ED, U64ED,
 };
 use crate::server::api::CHAIN_ID;
 
@@ -207,7 +207,7 @@ impl DB {
         block_number_to: Option<u64>,
         contract_address: Option<Address>,
         topics: Vec<B256>,
-    ) -> Result<Vec<LogResponse>, Box<dyn Error>> {
+    ) -> Result<Vec<LogED>, Box<dyn Error>> {
         let latest_block_number = self.get_latest_block_height()?;
         let block_number_from = block_number_from.unwrap_or(latest_block_number);
         let block_number_to = block_number_to.unwrap_or(block_number_from);
@@ -245,35 +245,22 @@ impl DB {
                 continue;
             }
 
-            let mut current_index: u64 = tx_receipt.logs.log_index.into();
-            for log in tx_receipt.logs.logs {
+            for log in tx_receipt.logs {
                 let mut matched = true;
-                if topics.len() != 0 && log.topics().len() != topics.len() {
-                    current_index += 1;
+                if topics.len() != 0 && log.topics.len() != topics.len() {
                     continue;
                 }
 
                 for (i, topic) in topics.iter().enumerate() {
-                    if log.topics()[i] != *topic {
+                    if log.topics[i].bytes != *topic {
                         matched = false;
                         break;
                     }
                 }
 
                 if matched {
-                    logs.push(LogResponse {
-                        address: log.address.into(),
-                        topics: log.topics().iter().map(|x| (*x).into()).collect(),
-                        data: log.data.data.into(),
-                        transaction_index: tx_receipt.transaction_index.clone(),
-                        transaction_hash: tx_receipt.transaction_hash.clone(),
-                        block_hash: tx_receipt.hash.clone(),
-                        block_number: tx_receipt.block_number.clone(),
-                        log_index: current_index.into(),
-                    });
+                    logs.push(log);
                 }
-
-                current_index += 1;
             }
         }
 
@@ -544,8 +531,15 @@ impl DB {
         for tx_pair in tx_ids {
             let tx_id = tx_pair.1.into();
             if let Some(tx_receipt) = self.get_tx_receipt(tx_id)? {
-                for log in tx_receipt.logs.logs {
-                    bloom.accrue_log(&log);
+                for log in tx_receipt.logs {
+                    bloom.accrue_log(
+                        &Log::new(
+                            log.address.address,
+                            log.topics.iter().map(|x| x.bytes).collect(),
+                            log.data.bytes,
+                        )
+                        .unwrap_or(Log::empty()),
+                    );
                 }
             }
             transactions.push(tx_id.into());
@@ -561,7 +555,7 @@ impl DB {
             block_number.into(),
             block_timestamp.as_limbs()[0].into(),
             mine_timestamp.into(),
-            transactions,
+            Some(transactions),
             tx_merkle.root().unwrap_or([0; 32]).into(),
             0u64.into(),
             parent_hash.into(),

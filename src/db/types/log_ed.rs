@@ -1,18 +1,12 @@
 use std::error::Error;
 
-use alloy_primitives::{Address, Log};
+use alloy_primitives::Log;
 use serde::Serialize;
 
 use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED, U64ED};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LogED {
-    pub logs: Vec<Log>,
-    pub log_index: U64ED,
-}
-
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
-pub struct LogResponse {
+pub struct LogED {
     pub address: AddressED,
     pub topics: Vec<B256ED>,
     pub data: BytesED,
@@ -28,18 +22,18 @@ pub struct LogResponse {
     pub log_index: U64ED,
 }
 
-impl LogResponse {
+impl LogED {
     pub fn new_vec(
-        log: &LogED,
+        logs: &Vec<Log>,
+        mut log_index: u64,
         transaction_index: U64ED,
         transaction_hash: B256ED,
         block_hash: B256ED,
         block_number: U64ED,
-    ) -> Vec<LogResponse> {
-        let mut log_index: u64 = log.log_index.into();
+    ) -> Vec<LogED> {
         let mut log_responses = Vec::new();
-        for log in &log.logs {
-            log_responses.push(LogResponse {
+        for log in logs {
+            log_responses.push(LogED {
                 address: log.address.into(),
                 topics: log.topics().iter().map(|topic| (*topic).into()).collect(),
                 data: log.data.data.clone().into(),
@@ -56,56 +50,42 @@ impl LogResponse {
 }
 
 impl Encode for LogED {
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&(self.log_index.encode()));
-        bytes.extend_from_slice(&(self.logs.len() as u32).to_be_bytes());
-        for log in self.logs.iter() {
-            bytes.extend_from_slice(&log.address.0.to_vec());
-            bytes.extend_from_slice(&(log.topics().len() as u32).to_be_bytes());
-            for topic in log.topics().iter() {
-                bytes.extend_from_slice(&topic.0.to_vec());
-            }
-            bytes.extend_from_slice(&(log.data.data.len() as u32).to_be_bytes());
-            bytes.extend_from_slice(&log.data.data);
-        }
-        bytes
+    fn encode(&self, buffer: &mut Vec<u8>) {
+        self.address.encode(buffer);
+        self.topics.encode(buffer);
+        self.data.encode(buffer);
+        self.transaction_index.encode(buffer);
+        self.transaction_hash.encode(buffer);
+        self.block_hash.encode(buffer);
+        self.block_number.encode(buffer);
+        self.log_index.encode(buffer);
     }
 }
 
 impl Decode for LogED {
-    fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn Error>>
-    where
-        Self: Sized,
-    {
-        let mut logs = Vec::new();
-        let mut i = 0;
-        let log_index = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let logs_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?) as usize;
-        i += 4;
-        for _ in 0..logs_len {
-            let address = Address::from_slice(&bytes[i..i + 20]);
-            i += 20;
+    fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>> {
+        let (address, offset) = Decode::decode(bytes, offset)?;
+        let (topics, offset) = Decode::decode(bytes, offset)?;
+        let (data, offset) = Decode::decode(bytes, offset)?;
+        let (transaction_index, offset) = Decode::decode(bytes, offset)?;
+        let (transaction_hash, offset) = Decode::decode(bytes, offset)?;
+        let (block_hash, offset) = Decode::decode(bytes, offset)?;
+        let (block_number, offset) = Decode::decode(bytes, offset)?;
+        let (log_index, offset) = Decode::decode(bytes, offset)?;
 
-            let topics_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?);
-            i += 4;
-
-            let mut topics = Vec::new();
-            for _ in 0..topics_len {
-                let topic = B256ED::decode(bytes[i..i + 32].try_into()?)?;
-                topics.push(topic.into());
-                i += 32;
-            }
-
-            let data_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?) as usize;
-            i += 4;
-
-            let data = bytes[i..i + data_len].to_vec().try_into()?;
-            i += data_len;
-            logs.push(Log::new_unchecked(address, topics, data));
-        }
-        Ok(LogED { logs, log_index })
+        Ok((
+            LogED {
+                address,
+                topics,
+                data,
+                transaction_index,
+                transaction_hash,
+                block_hash,
+                block_number,
+                log_index,
+            },
+            offset,
+        ))
     }
 }
 
@@ -121,36 +101,59 @@ mod tests {
             [3u8; 32].to_vec().into(),
         )
         .unwrap();
-        let log_ed = LogED {
-            logs: vec![log],
-            log_index: 0u64.into(),
-        };
-        let bytes = log_ed.encode();
-        assert_eq!(bytes.len(), 104);
-        let decoded = LogED::decode(bytes).unwrap();
-        assert_eq!(log_ed.logs, decoded.logs);
-        assert_eq!(log_ed.log_index, decoded.log_index);
+        let transaction_index = 1u32;
+        let transaction_hash: B256ED = [4u8; 32].into();
+        let block_hash: B256ED = [5u8; 32].into();
+        let block_number = 2u32;
+
+        let log_response = LogED::new_vec(
+            &vec![log],
+            0u64.into(),
+            transaction_index.into(),
+            transaction_hash.clone(),
+            block_hash.clone(),
+            block_number.into(),
+        );
+
+        assert_eq!(log_response.len(), 1);
+        assert_eq!(log_response[0].transaction_index, transaction_index.into());
+        assert_eq!(log_response[0].transaction_hash, transaction_hash);
+        assert_eq!(log_response[0].block_hash, block_hash);
+        assert_eq!(log_response[0].block_number, block_number.into());
+        assert_eq!(log_response[0].log_index, 0u64.into());
+        assert_eq!(log_response[0].address, [1u8; 20].into());
+        assert_eq!(log_response[0].topics, vec![[2u8; 32].into()]);
+        assert_eq!(log_response[0].data, [3u8; 32].to_vec().into());
+
+        let bytes = log_response[0].encode_vec();
+        let decoded = LogED::decode_vec(&bytes).unwrap();
+        assert_eq!(log_response[0], decoded);
+        assert_eq!(log_response[0].address, decoded.address);
+        assert_eq!(log_response[0].topics, decoded.topics);
+        assert_eq!(log_response[0].data, decoded.data);
+        assert_eq!(log_response[0].transaction_index, decoded.transaction_index);
+        assert_eq!(log_response[0].transaction_hash, decoded.transaction_hash);
+        assert_eq!(log_response[0].block_hash, decoded.block_hash);
+        assert_eq!(log_response[0].block_number, decoded.block_number);
+        assert_eq!(log_response[0].log_index, decoded.log_index);
     }
 
     #[test]
-    fn test_log_response() {
+    fn test_log_ed_serialize() {
         let log = Log::new(
             [1u8; 20].into(),
             vec![[2u8; 32].into()],
             [3u8; 32].to_vec().into(),
         )
         .unwrap();
-        let log_ed = LogED {
-            logs: vec![log],
-            log_index: 0u64.into(),
-        };
         let transaction_index = 1u32;
         let transaction_hash: B256ED = [4u8; 32].into();
         let block_hash: B256ED = [5u8; 32].into();
         let block_number = 2u32;
 
-        let log_responses = LogResponse::new_vec(
-            &log_ed,
+        let log_responses = LogED::new_vec(
+            &vec![log],
+            0u64.into(),
             transaction_index.into(),
             transaction_hash.clone(),
             block_hash.clone(),
@@ -166,17 +169,14 @@ mod tests {
 
     #[test]
     fn test_log_response_empty() {
-        let log = LogED {
-            logs: vec![],
-            log_index: 0u64.into(),
-        };
         let transaction_index = 1u32;
         let transaction_hash: B256ED = [4u8; 32].into();
         let block_hash: B256ED = [5u8; 32].into();
         let block_number = 2u32;
 
-        let log_responses = LogResponse::new_vec(
-            &log,
+        let log_responses = LogED::new_vec(
+            &vec![],
+            0u64.into(),
             transaction_index.into(),
             transaction_hash.clone(),
             block_hash.clone(),
@@ -200,17 +200,14 @@ mod tests {
             [6u8; 32].to_vec().into(),
         )
         .unwrap();
-        let log_ed = LogED {
-            logs: vec![log1, log2],
-            log_index: 0u64.into(),
-        };
         let transaction_index = 1u32;
         let transaction_hash: B256ED = [7u8; 32].into();
         let block_hash: B256ED = [8u8; 32].into();
         let block_number = 2u32;
 
-        let log_responses = LogResponse::new_vec(
-            &log_ed,
+        let log_responses = LogED::new_vec(
+            &vec![log1, log2],
+            0u64.into(),
             transaction_index.into(),
             transaction_hash.clone(),
             block_hash.clone(),

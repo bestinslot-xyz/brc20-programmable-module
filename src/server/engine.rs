@@ -9,9 +9,9 @@ use revm::inspector::InspectorEvmTr;
 use revm::{ExecuteCommitEvm, ExecuteEvm, InspectCommitEvm};
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
+use crate::config::BRC20_PROG_CONFIG;
 use crate::db::types::{
-    AddressED, BlockResponseED, BytecodeED, Decode, LogED, LogResponse, TraceED, TxED, TxReceiptED,
-    B2048ED,
+    AddressED, BlockResponseED, BytecodeED, Decode, LogED, TraceED, TxED, TxReceiptED, B2048ED,
 };
 use crate::db::{DB, MAX_HISTORY_SIZE};
 use crate::evm::get_evm;
@@ -20,9 +20,7 @@ use crate::evm::utils::{get_contract_address, get_gas_limit, get_result_reason, 
 use crate::server::shared_data::SharedData;
 use crate::server::types::{get_tx_hash, LastBlockInfo, TxInfo};
 
-lazy_static::lazy_static! {
-    static ref EVM_RECORD_TRACES: bool = std::env::var("EVM_RECORD_TRACES").map(|x| x == "true").unwrap_or(false);
-}
+lazy_static::lazy_static! {}
 
 pub struct BRC20ProgEngine {
     pub db: SharedData<DB>,
@@ -191,7 +189,7 @@ impl BRC20ProgEngine {
                 tx.gas_limit = gas_limit;
             });
 
-            let output = if *EVM_RECORD_TRACES {
+            let output = if (*BRC20_PROG_CONFIG).evm_record_traces {
                 evm.inspect_replay_commit()?
             } else {
                 evm.replay_commit()?
@@ -199,7 +197,7 @@ impl BRC20ProgEngine {
 
             core::mem::swap(&mut *db, &mut evm.ctx().db());
 
-            if *EVM_RECORD_TRACES {
+            if (*BRC20_PROG_CONFIG).evm_record_traces {
                 db.set_tx_trace(
                     tx_hash,
                     &evm.inspector().geth_builder().geth_call_traces(
@@ -336,7 +334,7 @@ impl BRC20ProgEngine {
         block_number_to: Option<u64>,
         address: Option<Address>,
         topics: Option<Vec<B256>>,
-    ) -> Result<Vec<LogResponse>, Box<dyn Error>> {
+    ) -> Result<Vec<LogED>, Box<dyn Error>> {
         self.db.read().get_logs(
             block_number_from,
             block_number_to,
@@ -416,16 +414,10 @@ impl BRC20ProgEngine {
             status: output.is_success() as u8,
             transaction_result: get_result_type(&output),
             reason: get_result_reason(&output),
-            result_bytes: output.output().cloned(),
-            logs: LogED {
-                logs: output.logs().to_vec(),
-                log_index: 0u64.into(),
-            },
-            log_responses: LogResponse::new_vec(
-                &LogED {
-                    logs: output.logs().to_vec(),
-                    log_index: 0u64.into(),
-                },
+            result_bytes: output.output().cloned().map(|x| x.into()),
+            logs: LogED::new_vec(
+                &output.logs().to_vec(),
+                0u64.into(),
                 0u64.into(),
                 txhash.into(),
                 txhash.into(),
@@ -435,7 +427,7 @@ impl BRC20ProgEngine {
             from: tx_info.from.into(),
             to: tx_info.to.map(Into::<AddressED>::into),
             contract_address: get_contract_address(&output).map(|x| x.into()),
-            logs_bloom: B2048ED::decode(logs_bloom(output.logs()).to_vec())
+            logs_bloom: B2048ED::decode_vec(&logs_bloom(output.logs()).to_vec())
                 .map_err(|_| "Error while decoding logs bloom")?,
             hash: txhash.into(),
             block_number: block_number.into(),

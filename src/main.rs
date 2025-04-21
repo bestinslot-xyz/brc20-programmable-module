@@ -2,20 +2,14 @@ use std::error::Error;
 use std::path::Path;
 
 mod brc20_controller;
+mod config;
 mod db;
 mod evm;
 mod server;
 
+use config::{validate_config, BRC20_PROG_CONFIG};
 use db::DB;
-use evm::precompiles::check_bitcoin_rpc_status;
 use server::{start_rpc_server, BRC20ProgEngine};
-
-lazy_static::lazy_static! {
-    static ref BRC20_PROG_RPC_SERVER_ENABLE_AUTH: bool = std::env::var("BRC20_PROG_RPC_SERVER_ENABLE_AUTH").map(|x| x == "true").unwrap_or(false);
-    static ref BRC20_PROG_RPC_SERVER_USER: Option<String> = std::env::var("BRC20_PROG_RPC_SERVER_USER").ok();
-    static ref BRC20_PROG_RPC_SERVER_PASSWORD: Option<String> = std::env::var("BRC20_PROG_RPC_SERVER_PASSWORD").ok();
-    static ref BRC20_PROG_RPC_SERVER_URL: String = std::env::var("BRC20_PROG_RPC_SERVER_URL").unwrap_or("127.0.0.1:18545".to_string());
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -25,7 +19,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .finish(),
     )?;
 
-    let engine = BRC20ProgEngine::new(DB::new(&Path::new("target").join("db"))?);
+    println!("BRC20 Prog v{}", BRC20_PROG_CONFIG.pkg_version);
+    validate_config()?;
+
+    let engine = BRC20ProgEngine::new(DB::new(&Path::new(&*(BRC20_PROG_CONFIG).db_path))?);
     println!("--- Database ---");
     println!("Latest block number: {}", engine.get_latest_block_height()?);
     println!(
@@ -36,28 +33,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .unwrap_or("None".to_string())
     );
     println!("");
-    println!("--- Services ---");
-    println!(
-        "Bitcoin RPC status: {}",
-        if check_bitcoin_rpc_status() {
-            "OK"
-        } else {
-            "Error"
-        }
-    );
-    println!("");
     println!("--- Server ---");
     println!(
         "Authentication enabled: {}",
-        *BRC20_PROG_RPC_SERVER_ENABLE_AUTH
+        (*BRC20_PROG_CONFIG).brc20_prog_rpc_server_enable_auth
     );
-    println!("Started JSON-RPC server on {}", *BRC20_PROG_RPC_SERVER_URL);
+    println!(
+        "Started JSON-RPC server on {}",
+        (*BRC20_PROG_CONFIG).brc20_prog_rpc_server_url
+    );
     let handle = start_rpc_server(
         engine,
-        BRC20_PROG_RPC_SERVER_URL.to_string(),
-        *BRC20_PROG_RPC_SERVER_ENABLE_AUTH,
-        BRC20_PROG_RPC_SERVER_USER.as_ref(),
-        BRC20_PROG_RPC_SERVER_PASSWORD.as_ref(),
+        (*BRC20_PROG_CONFIG).brc20_prog_rpc_server_url.to_string(),
+        (*BRC20_PROG_CONFIG).brc20_prog_rpc_server_enable_auth,
+        (*BRC20_PROG_CONFIG).brc20_prog_rpc_server_user.as_ref(),
+        (*BRC20_PROG_CONFIG).brc20_prog_rpc_server_password.as_ref(),
     )
     .await?;
 

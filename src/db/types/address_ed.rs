@@ -10,12 +10,6 @@ pub struct AddressED {
     pub address: Address,
 }
 
-impl AddressED {
-    pub fn is_zero(&self) -> bool {
-        self.address.is_zero()
-    }
-}
-
 impl From<[u8; 20]> for AddressED {
     fn from(address: [u8; 20]) -> Self {
         Self {
@@ -41,23 +35,19 @@ impl Serialize for AddressED {
 }
 
 impl Encode for AddressED {
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.address.to_vec());
-        bytes
+    fn encode(&self, buffer: &mut Vec<u8>) {
+        // Encode as FixedBytes<20>, i.e. [u8; 20]
+        self.address.0.encode(buffer);
     }
 }
 
 impl Decode for AddressED {
-    fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn Error>>
+    fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>>
     where
         Self: Sized,
     {
-        let mut bytes_array = [0u8; 20];
-        bytes_array.copy_from_slice(&bytes);
-        Ok(Self {
-            address: Address::from(bytes_array),
-        })
+        <[u8; 20]>::decode(bytes, offset)
+            .map(|(bytes, offset)| (Address::from_slice(&bytes).into(), offset))
     }
 }
 
@@ -71,8 +61,8 @@ mod tests {
             .parse()
             .unwrap();
         let address_ed: AddressED = address.into();
-        let bytes = address_ed.encode();
-        let decoded = AddressED::decode(bytes).unwrap();
+        let bytes = address_ed.encode_vec();
+        let decoded = AddressED::decode_vec(&bytes).unwrap();
         assert_eq!(address_ed, decoded);
     }
 
@@ -80,8 +70,8 @@ mod tests {
     fn test_address_ed_empty() {
         let address: Address = Address::ZERO;
         let address_ed: AddressED = address.into();
-        let bytes = address_ed.encode();
-        let decoded = AddressED::decode(bytes).unwrap();
+        let bytes = address_ed.encode_vec();
+        let decoded = AddressED::decode_vec(&bytes).unwrap();
         assert_eq!(address_ed, decoded);
     }
 
