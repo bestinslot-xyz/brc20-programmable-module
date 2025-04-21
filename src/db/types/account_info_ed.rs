@@ -33,28 +33,29 @@ impl Into<AccountInfo> for AccountInfoED {
 }
 
 impl Encode for AccountInfoED {
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.balance.encode());
-        bytes.extend_from_slice(&self.nonce.encode());
-        bytes.extend_from_slice(&self.code_hash.encode());
-        bytes
+    fn encode(&self, buffer: &mut Vec<u8>) {
+        self.balance.encode(buffer);
+        self.nonce.encode(buffer);
+        self.code_hash.encode(buffer);
     }
 }
 
 impl Decode for AccountInfoED {
-    fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn Error>>
+    fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>>
     where
         Self: Sized,
     {
-        let balance = U256ED::decode(bytes[0..32].try_into()?).unwrap();
-        let nonce = U64ED::decode(bytes[32..40].try_into()?).unwrap();
-        let code_hash = B256ED::decode(bytes[40..72].try_into()?).unwrap();
-        Ok(AccountInfoED {
-            balance,
-            nonce,
-            code_hash,
-        })
+        let (balance, offset) = Decode::decode(bytes, offset)?;
+        let (nonce, offset) = Decode::decode(bytes, offset)?;
+        let (code_hash, offset) = Decode::decode(bytes, offset)?;
+        Ok((
+            AccountInfoED {
+                balance,
+                nonce,
+                code_hash,
+            },
+            offset,
+        ))
     }
 }
 
@@ -73,8 +74,8 @@ mod tests {
             code: None,
         }
         .into();
-        let bytes = account_info.encode();
-        let decoded = AccountInfoED::decode(bytes).unwrap();
+        let bytes = account_info.encode_vec();
+        let decoded = AccountInfoED::decode_vec(&bytes).unwrap();
         assert_eq!(account_info.balance, decoded.balance);
         assert_eq!(account_info.nonce, decoded.nonce);
         assert_eq!(account_info.code_hash, decoded.code_hash);

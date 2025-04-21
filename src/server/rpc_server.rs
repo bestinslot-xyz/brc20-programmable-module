@@ -13,7 +13,7 @@ use tracing::{event, instrument, Level};
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
 };
-use crate::db::types::{BlockResponseED, BytecodeED, LogResponse, TraceED, TxED, TxReceiptED};
+use crate::db::types::{BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED};
 use crate::evm::utils::get_evm_address;
 use crate::server::api::{
     AddressWrapper, B256Wrapper, Brc20ProgApiServer, BytesWrapper, EthCall, GetLogsFilter,
@@ -138,7 +138,7 @@ impl Brc20ProgApiServer for RpcServer {
             .map(|receipt| {
                 format!(
                     "0x{:x}",
-                    decode_brc20_balance_result(receipt.result_bytes.as_ref())
+                    decode_brc20_balance_result(receipt.result_bytes.map(|x| x.bytes).as_ref())
                 )
             })
             .map_err(wrap_rpc_error)
@@ -386,7 +386,7 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogResponse>> {
+    async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogED>> {
         event!(Level::INFO, "Getting logs");
         let from_block = filter
             .from_block
@@ -425,7 +425,11 @@ impl Brc20ProgApiServer for RpcServer {
         let Ok(receipt) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
         };
-        let data_string = receipt.result_bytes.unwrap_or(Bytes::new()).to_string();
+        let data_string = receipt
+            .result_bytes
+            .map(|x| x.bytes)
+            .unwrap_or(Bytes::new())
+            .to_string();
         if receipt.status == 0 {
             return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
         }
@@ -450,7 +454,11 @@ impl Brc20ProgApiServer for RpcServer {
         let Ok(receipt) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
         };
-        let data_string = receipt.result_bytes.unwrap_or(Bytes::new()).to_string();
+        let data_string = receipt
+            .result_bytes
+            .map(|x| x.bytes)
+            .unwrap_or(Bytes::new())
+            .to_string();
         if receipt.status == 0 {
             return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
         }

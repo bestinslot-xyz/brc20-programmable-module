@@ -71,8 +71,8 @@ where
         if let Some(cache) = self.cache.get(key) {
             return Ok(cache.latest());
         }
-        if let Some(value) = self.db.get(key.encode())? {
-            let value = V::decode(value.to_vec())?;
+        if let Some(value) = self.db.get(&key.encode_vec())? {
+            let value = V::decode_vec(&value.to_vec())?;
             return Ok(Some(value));
         }
         return Ok(None);
@@ -89,11 +89,11 @@ where
     /// Returns: Vec<(K, V)> - the list of key-value pairs
     pub fn get_range(&self, start_key: &K, end_key: &K) -> Result<Vec<(K, V)>, Box<dyn Error>> {
         let mut kv_pairs = Vec::new();
-        let start_key_bytes = start_key.encode();
-        let end_key_bytes = end_key.encode();
+        let start_key_bytes = start_key.encode_vec();
+        let end_key_bytes = end_key.encode_vec();
 
         for key in self.cache.keys() {
-            let key_bytes = key.encode();
+            let key_bytes = key.encode_vec();
             if *key_bytes < *start_key_bytes {
                 continue;
             }
@@ -115,8 +115,8 @@ where
             if *key >= *end_key_bytes {
                 break;
             }
-            let key = K::decode(key.to_vec())?;
-            let value = V::decode(value.to_vec())?;
+            let key = K::decode_vec(&key.to_vec())?;
+            let value = V::decode_vec(&value.to_vec())?;
             kv_pairs.push((key, value));
         }
 
@@ -144,8 +144,8 @@ where
     /// block_number: U256 - the block number to commit at
     pub fn commit(&mut self, block_number: u64) -> Result<(), Box<dyn Error>> {
         for (key, cache) in self.cache.iter() {
-            let key_bytes = key.encode();
-            let cache_bytes = cache.encode();
+            let key_bytes = key.encode_vec();
+            let cache_bytes = cache.encode_vec();
             if cache.is_old(block_number) {
                 self.cache_db.delete(&key_bytes)?;
             } else {
@@ -153,7 +153,7 @@ where
             }
 
             if let Some(value) = cache.latest() {
-                self.db.put(&key_bytes, &value.encode())?;
+                self.db.put(&key_bytes, &value.encode_vec())?;
             } else {
                 self.db.delete(&key_bytes)?;
             }
@@ -183,7 +183,7 @@ where
         let mut keys = HashSet::new();
         {
             for kv_pair in self.cache_db.full_iterator(IteratorMode::Start) {
-                keys.insert(K::decode(kv_pair?.0.to_vec())?);
+                keys.insert(K::decode_vec(&kv_pair?.0.to_vec())?);
             }
             for key in self.cache.keys() {
                 keys.insert(key.clone());
@@ -209,8 +209,8 @@ where
     fn retrieve_cache(&mut self, key: &K) -> Result<&mut C, Box<dyn Error>> {
         if self.cache.contains_key(key) {
             // Do nothing, the cache is already in memory
-        } else if let Some(cache_bytes) = self.cache_db.get(key.encode())? {
-            let cache = C::decode(cache_bytes.to_vec())?;
+        } else if let Some(cache_bytes) = self.cache_db.get(&key.encode_vec())? {
+            let cache = C::decode_vec(&cache_bytes.to_vec())?;
             self.cache.insert(key.clone(), cache);
         } else {
             self.cache.insert(key.clone(), C::new(None));
@@ -296,19 +296,19 @@ mod tests {
 
         let real_db = db.db;
 
-        let account_info = real_db.get(address_ed.encode()).unwrap();
+        let account_info = real_db.get(address_ed.encode_vec()).unwrap();
 
-        let account_info = AccountInfoED::decode(account_info.unwrap().to_vec()).unwrap();
+        let account_info = AccountInfoED::decode_vec(&account_info.unwrap().to_vec()).unwrap();
         assert_eq!(account_info.balance, U256::from(100).into());
         assert_eq!(account_info.nonce, 1u64.into());
         assert_eq!(account_info.code_hash, B256::from([1; 32]).into());
 
         let cache_db = db.cache_db;
 
-        let cache = cache_db.get(address_ed.encode()).unwrap();
+        let cache = cache_db.get(address_ed.encode_vec()).unwrap();
 
         let cache =
-            BlockHistoryCacheData::<AccountInfoED>::decode(cache.unwrap().to_vec()).unwrap();
+            BlockHistoryCacheData::<AccountInfoED>::decode_vec(&cache.unwrap().to_vec()).unwrap();
         assert_eq!(cache.latest().unwrap().balance, U256::from(100).into());
         assert_eq!(cache.latest().unwrap().nonce, 1u64.into());
         assert_eq!(

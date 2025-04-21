@@ -58,11 +58,11 @@ where
             return Ok(Some(value.clone()));
         }
 
-        let Some(value_bytes) = self.db.get(U64ED::from(key).encode())? else {
+        let Some(value_bytes) = self.db.get(&key.encode_vec())? else {
             return Ok(None);
         };
 
-        let value = V::decode(value_bytes)?;
+        let value = V::decode_vec(&value_bytes)?;
         Ok(Some(value))
     }
 
@@ -82,8 +82,7 @@ where
     /// It does not clear the cache
     pub fn commit(&mut self) -> Result<(), Box<dyn Error>> {
         for (key, value) in self.cache.iter() {
-            let value_bytes = value.encode();
-            self.db.put(U64ED::from(*key).encode(), &value_bytes)?;
+            self.db.put(&key.encode_vec(), &value.encode_vec())?;
         }
         self.db.flush()?;
         Ok(())
@@ -107,7 +106,7 @@ where
     /// Returns: Option<u64> - the last key in the database
     pub fn last_key(&self) -> Result<Option<u64>, Box<dyn Error>> {
         let db_last_key = match self.db.full_iterator(IteratorMode::End).take(1).last() {
-            Some(Ok((key, _))) => Some(U64ED::decode(key.to_vec())?.into()),
+            Some(Ok((key, _))) => Some(U64ED::decode_vec(&key.to_vec())?.into()),
             _ => None,
         };
 
@@ -127,7 +126,7 @@ where
         let last_block = self.last_key()?;
         if let Some(end) = last_block {
             while end >= current {
-                self.db.delete(U64ED::from(current).encode())?;
+                self.db.delete(&U64ED::from(current).encode_vec())?;
                 self.cache.remove(&current);
                 current += 1;
             }

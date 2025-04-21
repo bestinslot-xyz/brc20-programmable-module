@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use alloy_primitives::{Bytes, U256};
 use alloy_rpc_types_trace::geth::CallFrame;
 use serde::Serialize;
@@ -41,104 +43,47 @@ impl From<&CallFrame> for TraceED {
 }
 
 impl Encode for TraceED {
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        let type_bytes = self.tx_type.as_bytes();
-        bytes.extend_from_slice(&(type_bytes.len() as u32).to_be_bytes());
-        bytes.extend_from_slice(&type_bytes);
-        bytes.extend_from_slice(&self.from.encode());
-        if let Some(to) = &self.to {
-            bytes.extend_from_slice(&to.encode());
-        } else {
-            bytes.extend_from_slice(&[0; 20]);
-        }
-        bytes.extend_from_slice(&(self.calls.len() as u64).to_be_bytes());
-        for call in &self.calls {
-            let call_bytes = call.encode();
-            bytes.extend_from_slice(&(call_bytes.len() as u32).to_be_bytes());
-            bytes.extend_from_slice(&call_bytes);
-        }
-        bytes.extend_from_slice(&self.gas.encode());
-        bytes.extend_from_slice(&self.gas_used.encode());
-
-        let input_bytes = &self.input.encode();
-        bytes.extend_from_slice(&(input_bytes.len() as u32).to_be_bytes());
-        bytes.extend_from_slice(&self.input.encode());
-
-        let output_bytes = &self.output.encode();
-        bytes.extend_from_slice(&(output_bytes.len() as u32).to_be_bytes());
-        bytes.extend_from_slice(&self.output.encode());
-
-        bytes.extend_from_slice(&self.value.encode());
-        if let Some(error) = &self.error {
-            let error_bytes = error.as_bytes();
-            bytes.extend_from_slice(&(error_bytes.len() as u32).to_be_bytes());
-            bytes.extend_from_slice(&error.as_bytes());
-        } else {
-            bytes.extend_from_slice(&[0; 4]);
-        }
-        bytes
+    fn encode(&self, buffer: &mut Vec<u8>) {
+        self.tx_type.encode(buffer);
+        self.from.encode(buffer);
+        self.to.encode(buffer);
+        self.calls.encode(buffer);
+        self.gas.encode(buffer);
+        self.gas_used.encode(buffer);
+        self.input.encode(buffer);
+        self.output.encode(buffer);
+        self.value.encode(buffer);
+        self.error.encode(buffer);
     }
 }
 
 impl Decode for TraceED {
-    fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut i = 0;
-        let type_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?);
-        i += 4;
-        let tx_type = String::from_utf8(bytes[i..i + type_len as usize].to_vec())?;
-        i += type_len as usize;
-        let from = AddressED::decode(bytes[i..i + 20].to_vec())?;
-        i += 20;
-        let to = AddressED::decode(bytes[i..i + 20].to_vec()).ok();
-        i += 20;
-        let calls_count = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
-        i += 8;
-        let mut calls = Vec::new();
-        for _ in 0..calls_count {
-            let call_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?);
-            i += 4;
-            calls.push(TraceED::decode(bytes[i..i + call_len as usize].to_vec())?);
-            i += call_len as usize;
-        }
-        let gas = U256ED::decode(bytes[i..i + 32].to_vec())?;
-        i += 32;
-        let gas_used = U256ED::decode(bytes[i..i + 32].to_vec())?;
-        i += 32;
+    fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>> {
+        let (tx_type, offset) = Decode::decode(bytes, offset)?;
+        let (from, offset) = Decode::decode(bytes, offset)?;
+        let (to, offset) = Decode::decode(bytes, offset)?;
+        let (calls, offset) = Decode::decode(bytes, offset)?;
+        let (gas, offset) = Decode::decode(bytes, offset)?;
+        let (gas_used, offset) = Decode::decode(bytes, offset)?;
+        let (input, offset) = Decode::decode(bytes, offset)?;
+        let (output, offset) = Decode::decode(bytes, offset)?;
+        let (value, offset) = Decode::decode(bytes, offset)?;
+        let (error, offset) = Decode::decode(bytes, offset)?;
 
-        let input_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?);
-        i += 4;
-        let input = BytesED::decode(bytes[i..i + input_len as usize].to_vec())?;
-        i += input_len as usize;
-
-        let output_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?);
-        i += 4;
-        let output = BytesED::decode(bytes[i..i + output_len as usize].to_vec())?;
-        i += output_len as usize;
-
-        let value = U256ED::decode(bytes[i..i + 32].to_vec())?;
-        i += 32;
-
-        let error_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?);
-        i += 4;
-        let error = if error_len > 0 {
-            Some(String::from_utf8(
-                bytes[i..i + error_len as usize].to_vec(),
-            )?)
-        } else {
-            None
-        };
-        Ok(TraceED {
-            tx_type,
-            from,
-            to,
-            calls,
-            gas,
-            gas_used,
-            input,
-            output,
-            value,
-            error,
-        })
+        Ok((
+            TraceED {
+                tx_type,
+                from,
+                to,
+                calls,
+                gas,
+                gas_used,
+                input,
+                output,
+                value,
+                error,
+            },
+            offset,
+        ))
     }
 }

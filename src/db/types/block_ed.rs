@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use serde::Serialize;
 
 use crate::db::types::{
@@ -90,7 +92,7 @@ impl BlockResponseED {
         number: U64ED,
         timestamp: U64ED,
         mine_timestamp: U128ED,
-        transactions: Vec<B256ED>,
+        transactions: Option<Vec<B256ED>>,
         transactions_root: B256ED,
         total_difficulty: U64ED,
         parent_hash: B256ED,
@@ -107,7 +109,7 @@ impl BlockResponseED {
             number,
             timestamp,
             mine_timestamp,
-            transactions: Some(transactions),
+            transactions: transactions,
             full_transactions: None,
             transactions_root,
             size,
@@ -131,90 +133,62 @@ impl BlockResponseED {
 }
 
 impl Encode for BlockResponseED {
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.difficulty.encode());
-        bytes.extend_from_slice(&self.gas_limit.encode());
-        bytes.extend_from_slice(&self.gas_used.encode());
-        bytes.extend_from_slice(&self.hash.encode());
-        bytes.extend_from_slice(&self.logs_bloom.encode());
-        bytes.extend_from_slice(&self.nonce.encode());
-        bytes.extend_from_slice(&self.number.encode());
-        bytes.extend_from_slice(&self.timestamp.encode());
-        bytes.extend_from_slice(&self.mine_timestamp.encode());
-        let transactions = self.transactions.clone().unwrap_or(vec![]);
-        let transactions_count = transactions.len() as u32;
-        bytes.extend_from_slice(&transactions_count.to_be_bytes());
-        for tx in &transactions {
-            bytes.extend_from_slice(&tx.encode());
-        }
-        bytes.extend_from_slice(&self.transactions_root.encode());
-        bytes.extend_from_slice(&self.total_difficulty.encode());
-        bytes.extend_from_slice(&self.parent_hash.encode());
-        bytes.extend_from_slice(&self.receipts_root.encode());
-        bytes.extend_from_slice(&self.size.encode());
-        bytes
+    fn encode(&self, buffer: &mut Vec<u8>) {
+        self.difficulty.encode(buffer);
+        self.gas_limit.encode(buffer);
+        self.gas_used.encode(buffer);
+        self.hash.encode(buffer);
+        self.logs_bloom.encode(buffer);
+        self.nonce.encode(buffer);
+        self.number.encode(buffer);
+        self.timestamp.encode(buffer);
+        self.mine_timestamp.encode(buffer);
+        self.transactions.encode(buffer);
+        self.transactions_root.encode(buffer);
+        self.total_difficulty.encode(buffer);
+        self.parent_hash.encode(buffer);
+        self.receipts_root.encode(buffer);
+        self.size.encode(buffer);
     }
 }
 
 impl Decode for BlockResponseED {
-    fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn std::error::Error>>
-    where
-        Self: Sized,
-    {
-        let mut i = 0;
-        let difficulty = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let gas_limit = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let gas_used = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let hash = B256ED::decode(bytes[i..i + 32].to_vec())?;
-        i += 32;
-        let logs_bloom = B2048ED::decode(bytes[i..i + 256].to_vec())?;
-        i += 256;
-        let nonce = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let number = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let timestamp = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let mine_timestamp = U128ED::decode(bytes[i..i + 16].to_vec())?;
-        i += 16;
-        let transactions_count = u32::from_be_bytes(bytes[i..i + 4].try_into()?);
-        i += 4;
-        let mut transactions = Vec::new();
-        for _ in 0..transactions_count {
-            let tx = B256ED::decode(bytes[i..i + 32].to_vec())?;
-            transactions.push(tx);
-            i += 32;
-        }
-        let transactions_root = B256ED::decode(bytes[i..i + 32].to_vec())?;
-        i += 32;
-        let total_difficulty = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let parent_hash = B256ED::decode(bytes[i..i + 32].to_vec())?;
-        i += 32;
-        let receipts_root = B256ED::decode(bytes[i..i + 32].to_vec())?;
-        i += 32;
-        let size = U64ED::decode(bytes[i..i + 8].try_into()?)?;
+    fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>> {
+        let (difficulty, offset) = Decode::decode(bytes, offset)?;
+        let (gas_limit, offset) = Decode::decode(bytes, offset)?;
+        let (gas_used, offset) = Decode::decode(bytes, offset)?;
+        let (hash, offset) = Decode::decode(bytes, offset)?;
+        let (logs_bloom, offset) = Decode::decode(bytes, offset)?;
+        let (nonce, offset) = Decode::decode(bytes, offset)?;
+        let (number, offset) = Decode::decode(bytes, offset)?;
+        let (timestamp, offset) = Decode::decode(bytes, offset)?;
+        let (mine_timestamp, offset) = Decode::decode(bytes, offset)?;
+        let (transactions, offset) = Decode::decode(bytes, offset)?;
+        let (transactions_root, offset) = Decode::decode(bytes, offset)?;
+        let (total_difficulty, offset) = Decode::decode(bytes, offset)?;
+        let (parent_hash, offset) = Decode::decode(bytes, offset)?;
+        let (receipts_root, offset) = Decode::decode(bytes, offset)?;
+        let (size, offset) = Decode::decode(bytes, offset)?;
 
-        Ok(BlockResponseED::new(
-            difficulty,
-            gas_limit,
-            gas_used,
-            hash,
-            logs_bloom,
-            nonce,
-            number,
-            timestamp,
-            mine_timestamp,
-            transactions,
-            transactions_root,
-            total_difficulty,
-            parent_hash,
-            receipts_root,
-            size,
+        Ok((
+            BlockResponseED::new(
+                difficulty,
+                gas_limit,
+                gas_used,
+                hash,
+                logs_bloom,
+                nonce,
+                number,
+                timestamp,
+                mine_timestamp,
+                transactions,
+                transactions_root,
+                total_difficulty,
+                parent_hash,
+                receipts_root,
+                size,
+            ),
+            offset,
         ))
     }
 }
@@ -235,7 +209,7 @@ mod tests {
             7u64.into(),
             8u64.into(),
             9u64.into(),
-            vec![[10u8; 32].into(), [11u8; 32].into()],
+            Some(vec![[10u8; 32].into(), [11u8; 32].into()]),
             [12u8; 32].into(),
             13u64.into(),
             [14u8; 32].into(),
@@ -243,8 +217,8 @@ mod tests {
             16u64.into(),
         );
 
-        let encoded = block.encode();
-        let decoded = BlockResponseED::decode(encoded).unwrap();
+        let encoded = block.encode_vec();
+        let decoded = BlockResponseED::decode_vec(&encoded).unwrap();
 
         assert_eq!(block, decoded);
     }
@@ -261,7 +235,7 @@ mod tests {
             7u64.into(),
             8u64.into(),
             9u64.into(),
-            vec![[10u8; 32].into(), [11u8; 32].into()],
+            Some(vec![[10u8; 32].into(), [11u8; 32].into()]),
             [12u8; 32].into(),
             13u64.into(),
             [14u8; 32].into(),

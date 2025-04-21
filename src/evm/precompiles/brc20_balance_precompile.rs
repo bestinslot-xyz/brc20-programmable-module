@@ -5,12 +5,11 @@ use alloy_sol_types::{sol, SolCall};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use ureq::Agent;
 
+use crate::config::BRC20_PROG_CONFIG;
 use crate::evm::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 
 lazy_static::lazy_static! {
     static ref BRC20_CLIENT: Agent = Agent::new_with_defaults();
-    static ref BRC20_PROG_BALANCE_SERVER_URL: String = std::env::var("BRC20_PROG_BALANCE_SERVER_URL")
-            .unwrap_or("http://localhost:18546".to_string());
 }
 
 sol! {
@@ -43,7 +42,7 @@ pub fn brc20_balance_precompile(call: &PrecompileCall) -> InterpreterResult {
 
 pub fn get_brc20_balance(ticker: &Bytes, pkscript: &Bytes) -> Result<u128, Box<dyn Error>> {
     BRC20_CLIENT
-        .get(BRC20_PROG_BALANCE_SERVER_URL.as_str())
+        .get((*BRC20_PROG_CONFIG).brc20_balance_server_url.as_str())
         .query("ticker", hex::encode(ticker))
         .query("pkscript", hex::encode(pkscript))
         .call()?

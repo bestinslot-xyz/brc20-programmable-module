@@ -8,24 +8,18 @@ use bitcoin::{BlockHash, KnownHrp, Network, Txid};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use bitcoincore_rpc_json::{GetBlockResult, GetRawTransactionResult};
 
+use crate::config::BRC20_PROG_CONFIG;
+
 lazy_static::lazy_static! {
     static ref BTC_CLIENT: Client = {
         let auth = Auth::UserPass(
-            BITCOIN_RPC_USER.to_string(),
-            BITCOIN_RPC_PASSWORD.to_string(),
+            BRC20_PROG_CONFIG.bitcoin_rpc_user.clone(),
+            BRC20_PROG_CONFIG.bitcoin_rpc_password.clone(),
         );
-        Client::new(&*BITCOIN_RPC_URL, auth).expect("Failed to create Bitcoin RPC client")
+        Client::new(&BRC20_PROG_CONFIG.bitcoin_rpc_url, auth).expect("Failed to create Bitcoin RPC client")
     };
-    static ref BITCOIN_RPC_URL: String = std::env::var("BITCOIN_RPC_URL")
-            .unwrap_or("http://localhost:38332".to_string());
-    static ref BITCOIN_RPC_USER: String = std::env::var("BITCOIN_RPC_USER")
-            .unwrap_or("user".to_string());
-    static ref BITCOIN_RPC_PASSWORD: String = std::env::var("BITCOIN_RPC_PASSWORD")
-            .unwrap_or("password".to_string());
-    static ref BITCOIN_NETWORK_STRING: String = std::env::var("BITCOIN_NETWORK")
-            .unwrap_or("signet".to_string());
     pub static ref BITCOIN_NETWORK : Network = {
-        match BITCOIN_NETWORK_STRING.as_str() {
+        match BRC20_PROG_CONFIG.bitcoin_network.as_str() {
             "mainnet" => Network::Bitcoin,
             "signet" => Network::Signet,
             "testnet" => Network::Testnet,

@@ -1,4 +1,5 @@
-use alloy_primitives::Address;
+use std::error::Error;
+
 use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex};
 
@@ -38,92 +39,59 @@ pub struct TxED {
 }
 
 impl Encode for TxED {
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.hash.encode());
-        bytes.extend_from_slice(&self.nonce.encode());
-        bytes.extend_from_slice(&self.block_hash.encode());
-        bytes.extend_from_slice(&self.block_number.encode());
-        bytes.extend_from_slice(&self.transaction_index.encode());
-        bytes.extend_from_slice(&self.from.encode());
-        bytes.extend_from_slice(&self.to.as_ref().unwrap_or(&Address::ZERO.into()).encode());
-        bytes.extend_from_slice(&self.value.encode());
-        bytes.extend_from_slice(&self.gas.encode());
-        bytes.extend_from_slice(&self.gas_price.encode());
-
-        let input_bytes = &self.input.encode();
-        bytes.extend_from_slice(&(input_bytes.len() as u32).to_be_bytes());
-        bytes.extend_from_slice(&input_bytes);
-
-        let inscription_bytes = self
-            .inscription_id
-            .as_ref()
-            .map(|id| id.as_bytes())
-            .unwrap_or(&[]);
-
-        bytes.extend_from_slice(&(inscription_bytes.len() as u32).to_be_bytes());
-        bytes.extend_from_slice(&inscription_bytes);
-
-        bytes
+    fn encode(&self, buffer: &mut Vec<u8>) {
+        self.hash.encode(buffer);
+        self.nonce.encode(buffer);
+        self.block_hash.encode(buffer);
+        self.block_number.encode(buffer);
+        self.transaction_index.encode(buffer);
+        self.from.encode(buffer);
+        self.to.encode(buffer);
+        self.value.encode(buffer);
+        self.gas.encode(buffer);
+        self.gas_price.encode(buffer);
+        self.input.encode(buffer);
+        self.inscription_id.encode(buffer);
     }
 }
 
 impl Decode for TxED {
-    fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut i = 0;
-        let hash = B256ED::decode(bytes[i..i + 32].to_vec())?;
-        i += 32;
-        let nonce = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let block_hash = B256ED::decode(bytes[i..i + 32].to_vec())?;
-        i += 32;
-        let block_number = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let transaction_index = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let from = AddressED::decode(bytes[i..i + 20].to_vec())?;
-        i += 20;
-        let to = AddressED::decode(bytes[i..i + 20].to_vec())?;
-        i += 20;
-        let to = if to.is_zero() { None } else { Some(to) };
-        let value = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let gas = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let gas_price = U64ED::decode(bytes[i..i + 8].try_into()?)?;
-        i += 8;
-        let input_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?);
-        i += 4;
-        let input = BytesED::decode(bytes[i..i + input_len as usize].to_vec())?;
-        i += input_len as usize;
-        let inscription_len = u32::from_be_bytes(bytes[i..i + 4].try_into()?);
-        i += 4;
-        let inscription_id = if inscription_len > 0 {
-            Some(String::from_utf8(
-                bytes[i..i + inscription_len as usize].to_vec(),
-            )?)
-        } else {
-            None
-        };
-        Ok(TxED {
-            hash,
-            nonce,
-            block_hash,
-            block_number,
-            transaction_index,
-            from,
-            to,
-            value,
-            gas,
-            gas_price,
-            input,
-            v: 0,
-            r: 0,
-            s: 0,
-            chain_id: (*CHAIN_ID).into(),
-            tx_type: 0,
-            inscription_id,
-        })
+    fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>> {
+        let (hash, offset) = Decode::decode(bytes, offset)?;
+        let (nonce, offset) = Decode::decode(bytes, offset)?;
+        let (block_hash, offset) = Decode::decode(bytes, offset)?;
+        let (block_number, offset) = Decode::decode(bytes, offset)?;
+        let (transaction_index, offset) = Decode::decode(bytes, offset)?;
+        let (from, offset) = Decode::decode(bytes, offset)?;
+        let (to, offset) = Decode::decode(bytes, offset)?;
+        let (value, offset) = Decode::decode(bytes, offset)?;
+        let (gas, offset) = Decode::decode(bytes, offset)?;
+        let (gas_price, offset) = Decode::decode(bytes, offset)?;
+        let (input, offset) = Decode::decode(bytes, offset)?;
+        let (inscription_id, offset) = Decode::decode(bytes, offset)?;
+
+        Ok((
+            TxED {
+                hash,
+                nonce,
+                block_hash,
+                block_number,
+                transaction_index,
+                from,
+                to,
+                value,
+                gas,
+                gas_price,
+                input,
+                v: 0,
+                r: 0,
+                s: 0,
+                chain_id: (*CHAIN_ID).into(),
+                tx_type: 0,
+                inscription_id,
+            },
+            offset,
+        ))
     }
 }
 
@@ -152,8 +120,8 @@ mod tests {
             tx_type: 0,
             inscription_id: Some("inscription_id".to_string()),
         };
-        let encoded = tx.encode();
-        let decoded = TxED::decode(encoded).unwrap();
+        let encoded = tx.encode_vec();
+        let decoded = TxED::decode_vec(&encoded).unwrap();
         assert_eq!(tx, decoded);
     }
 

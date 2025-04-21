@@ -116,23 +116,12 @@ impl<V> Encode for BlockHistoryCacheData<V>
 where
     V: Encode + Decode + Clone + Eq,
 {
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        for (block_number, value) in self.cache.iter() {
-            bytes.extend_from_slice(&block_number.to_be_bytes());
-            match value {
-                Some(value) => {
-                    let value_bytes = value.encode();
-                    let size = value_bytes.len() as u32;
-                    bytes.extend_from_slice(&size.to_be_bytes());
-                    bytes.extend_from_slice(&value_bytes);
-                }
-                None => {
-                    bytes.extend_from_slice(&0u32.to_be_bytes());
-                }
-            }
+    fn encode(&self, buffer: &mut Vec<u8>) {
+        (self.cache.len() as u32).encode(buffer);
+        for (block_number, value) in &self.cache {
+            block_number.encode(buffer);
+            value.encode(buffer);
         }
-        bytes
     }
 }
 
@@ -140,23 +129,17 @@ impl<V> Decode for BlockHistoryCacheData<V>
 where
     V: Encode + Decode + Clone + Eq,
 {
-    fn decode(bytes: Vec<u8>) -> Result<Self, Box<dyn Error>> {
+    fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>> {
         let mut cache: BTreeMap<u64, Option<V>> = BTreeMap::new();
-        let mut i = 0;
-        while i < bytes.len() {
-            let block_number = u64::from_be_bytes(bytes[i..i + 8].try_into()?);
-            i += 8;
-            let size = u32::from_be_bytes(bytes[i..i + 4].try_into()?) as usize;
-            i += 4;
-            if size == 0 {
-                cache.insert(block_number, None);
-                continue;
-            }
-            let value = V::decode((&bytes[i..i + size]).to_vec())?;
-            cache.insert(block_number, Some(value));
-            i += size;
+        let (len, mut offset) = u32::decode(bytes, offset)?;
+        for _ in 0..len {
+            let (block_number, offset_temp) = Decode::decode(bytes, offset)?;
+            offset = offset_temp;
+            let (value, offset_temp) = Decode::decode(bytes, offset)?;
+            offset = offset_temp;
+            cache.insert(block_number, value);
         }
-        Ok(Self { cache })
+        Ok((Self { cache }, offset))
     }
 }
 
@@ -217,8 +200,8 @@ mod tests {
         let value = U256::from(100);
 
         cache.set(block_number, value.into());
-        let encoded = cache.encode();
-        let decoded = BlockHistoryCacheData::<U256ED>::decode(encoded).unwrap();
+        let encoded = cache.encode_vec();
+        let decoded = BlockHistoryCacheData::<U256ED>::decode_vec(&encoded).unwrap();
 
         assert_eq!(decoded.latest().unwrap().uint, value);
     }
