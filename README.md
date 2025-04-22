@@ -378,7 +378,7 @@ BRC2.0 has a set of precompiles that make it easier to work with bitcoin transac
 > [!WARNING]
 > `BTC_Transaction` and `BTC_LastSatLoc` precompiles use Bitcoin JSON-RPC calls to calculate results, so an RPC server needs to be specified in the environment variables.
 > 
-> Associated environment variables are `BITCOIN_RPC_URL`, `BITCOIN_RPC_USER`, `BITCOIN_RPC_PASSWORD` and `BITCOIN_NETWORK`. See [env.sample](env.sample) for a sample environment.
+> Associated environment variables are `BITCOIN_RPC_URL`, `BITCOIN_RPC_USER`, `BITCOIN_RPC_PASSWORD` and `BITCOIN_RPC_NETWORK`. See [env.sample](env.sample) for a sample environment.
 
 #### Transaction details
 

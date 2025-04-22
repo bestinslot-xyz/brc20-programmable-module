@@ -17,9 +17,9 @@ use crate::db::types::{BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxRece
 use crate::evm::utils::get_evm_address;
 use crate::server::api::{
     AddressWrapper, B256Wrapper, Brc20ProgApiServer, BytesWrapper, EthCall, GetLogsFilter,
-    U256Wrapper, INVALID_ADDRESS,
+    U256Wrapper, INDEXER_METHODS, INVALID_ADDRESS,
 };
-use crate::server::auth::{HttpNonBlockingAuth, RpcAuthAllowEth};
+use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::engine::BRC20ProgEngine;
 use crate::server::error::{
     wrap_hex_error, wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
@@ -586,7 +586,7 @@ pub async fn start_rpc_server(
             }));
     let rpc_middleware = RpcServiceBuilder::new()
         .rpc_logger(1024)
-        .layer_fn(|service| RpcAuthAllowEth::new(service));
+        .layer_fn(|service| RpcAuthMiddleware::new(service, &*INDEXER_METHODS));
     let module = RpcServer { engine }.into_rpc();
 
     let handle = Server::builder()
