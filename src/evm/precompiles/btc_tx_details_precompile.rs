@@ -124,7 +124,7 @@ mod tests {
     use alloy_primitives::hex::FromHex;
 
     use super::*;
-    use crate::evm::precompiles::btc_utils::skip_btc_tests;
+    use crate::evm::precompiles::btc_utils::validate_bitcoin_rpc_status;
 
     #[test]
     fn test_get_tx_details_encode_params_single_vin_vout() {
@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn test_get_tx_details_signet() {
-        if skip_btc_tests() {
+        if validate_bitcoin_rpc_status().is_err() {
             return;
         }
 
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_get_tx_details_signet_future_transaction() {
-        if skip_btc_tests() {
+        if validate_bitcoin_rpc_status().is_err() {
             return;
         }
 

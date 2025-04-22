@@ -42,11 +42,7 @@ impl ConfigDatabase {
                 }
             }
             None => {
-                return Err(format!(
-                    "Config for {} not found: expected {}",
-                    key, value
-                )
-                .into());
+                return Err(format!("Config for {} not found: expected {}", key, value).into());
             }
         };
         Ok(())

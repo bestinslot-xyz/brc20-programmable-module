@@ -40,33 +40,34 @@ lazy_static::lazy_static! {
     };
 }
 
-#[cfg(test)]
-pub fn skip_btc_tests() -> bool {
-    if !check_bitcoin_rpc_status() {
-        if std::env::var("BITCOIN_RPC_URL").is_err() {
-            println!("Please set the BITCOIN_RPC_URL environment variable");
-            return true;
-        }
-        if std::env::var("BITCOIN_RPC_USER").is_err() {
-            println!("Please set the BITCOIN_RPC_USER environment variable");
-            return true;
-        }
-        if std::env::var("BITCOIN_RPC_PASSWORD").is_err() {
-            println!("Please set the BITCOIN_RPC_PASSWORD environment variable");
-            return true;
-        }
-        if std::env::var("BITCOIN_NETWORK").is_err() {
-            println!("Please set the BITCOIN_NETWORK environment variable");
-            return true;
-        }
-        println!("Bitcoin RPC is unreachable.");
-        return true;
+pub fn validate_bitcoin_rpc_status() -> Result<(), Box<dyn Error>> {
+    if std::env::var("BITCOIN_RPC_URL").is_err() {
+        return Err("Please set the BITCOIN_RPC_URL environment variable".into());
     }
-    false
-}
+    if std::env::var("BITCOIN_RPC_USER").is_err() {
+        return Err("Please set the BITCOIN_RPC_USER environment variable".into());
+    }
+    if std::env::var("BITCOIN_RPC_PASSWORD").is_err() {
+        return Err("Please set the BITCOIN_RPC_PASSWORD environment variable".into());
+    }
+    if std::env::var("BITCOIN_NETWORK").is_err() {
+        return Err("Please set the BITCOIN_NETWORK environment variable".into());
+    }
 
-pub fn check_bitcoin_rpc_status() -> bool {
-    return !BTC_CLIENT.get_blockchain_info().is_err();
+    let info = BTC_CLIENT.get_blockchain_info();
+    let Ok(info) = info else {
+        return Err("Bitcoin RPC unreachable.".into());
+    };
+
+    if info.chain != *BITCOIN_NETWORK {
+        return Err(format!(
+            "Bitcoin RPC network mismatch. Expected: {:?}, got: {:?}",
+            *BITCOIN_NETWORK, info.chain
+        )
+        .into());
+    }
+
+    Ok(())
 }
 
 pub fn get_raw_transaction(txid: &B256) -> Result<GetRawTransactionResult, Box<dyn Error>> {
@@ -120,7 +121,7 @@ mod tests {
 
     #[test]
     fn test_get_raw_transaction() {
-        if skip_btc_tests() {
+        if validate_bitcoin_rpc_status().is_err() {
             return;
         }
 
