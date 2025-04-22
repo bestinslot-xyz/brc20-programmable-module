@@ -12,7 +12,7 @@ bip322 = "0.0.9"
 bitcoin = "0.32.5"
 bitcoincore-rpc = "0.19.0"
 bitcoincore-rpc-json = "0.19.0"
-dotenv = "0.15.0"
+dotenvy = "0.15.0"
 hex = "0.4.3"
 hyper = "1.6.0"
 jsonrpsee = { version = "0.24.9", features = [ "server", "macros", "jsonrpsee-core", "jsonrpsee-types" ] }
@@ -23,7 +23,7 @@ revm-state = "3.0.0"
 rlimit = "0.10.2"
 rocksdb = "0.23.0"
 rs_merkle = "1.4.2"
-rust-embed = "8.7.0"
+rust-embed = { version = "8.7.0", features = ["include-exclude"] }
 serde = { version = "1.0.217", features = ["derive"] }
 serde-hex = "0.1.0"
 serde_json = "1.0.138"

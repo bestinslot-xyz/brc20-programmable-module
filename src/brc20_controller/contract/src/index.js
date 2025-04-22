@@ -48,15 +48,15 @@ async function main() {
     let contract_factory = new ethers.ContractFactory(abi, bytecode, null)
     let deploy_tx = await contract_factory.getDeployTransaction()
 
-    fs.mkdirSync('output', { recursive: true });
+    fs.mkdirSync('../output', { recursive: true });
 
     let metadata = JSON.parse(contract["metadata"])
     delete metadata.output
 
-    fs.writeFileSync('../BRC20_Controller.json', JSON.stringify(metadata, null, 4), function (_) { });
-    fs.writeFileSync('../BRC20_Controller.abi', JSON.stringify(abi, null, 4), function (_) { });
-    fs.writeFileSync('../BRC20_Controller.bin', bytecode, function (_) { });
-    fs.writeFileSync('../BRC20_Controller_deploy.bytecode', deploy_tx.data, function (_) { });
+    fs.writeFileSync('../output/BRC20_Controller.json', JSON.stringify(metadata, null, 4), function (_) { });
+    fs.writeFileSync('../output/BRC20_Controller.abi', JSON.stringify(abi, null, 4), function (_) { });
+    fs.writeFileSync('../output/BRC20_Controller.bin', bytecode, function (_) { });
+    fs.writeFileSync('../output/BRC20_Controller_deploy.bytecode', deploy_tx.data, function (_) { });
 }
 
 main()
