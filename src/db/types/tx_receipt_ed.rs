@@ -5,8 +5,7 @@ use revm::context::result::ExecutionResult;
 use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex};
 
-use super::{BytesED, U64ED};
-use crate::db::types::{AddressED, Decode, Encode, LogED, B2048ED, B256ED};
+use crate::db::types::{AddressED, BytesED, Decode, Encode, LogED, B2048ED, B256ED, U64ED};
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct TxReceiptED {

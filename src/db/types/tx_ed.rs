@@ -3,8 +3,7 @@ use std::error::Error;
 use serde::Serialize;
 use serde_hex::{CompactPfx, SerHex};
 
-use super::U64ED;
-use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED};
+use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED, U64ED};
 use crate::server::api::CHAIN_ID;
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]

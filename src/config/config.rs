@@ -2,7 +2,7 @@ use std::error::Error;
 use std::path::Path;
 
 use crate::config::database::ConfigDatabase;
-use crate::evm::precompiles::check_bitcoin_rpc_status;
+use crate::evm::precompiles::validate_bitcoin_rpc_status;
 
 lazy_static::lazy_static! {
     static ref DB_VERSION: u32 = 1;
@@ -102,31 +102,13 @@ pub fn validate_config() -> Result<(), Box<dyn Error>> {
         return Err("BRC20 balance server URL is empty".into());
     }
 
-    if BITCOIN_RPC_URL.is_empty() {
-        return Err("Bitcoin RPC URL is empty".into());
-    }
-
-    if BITCOIN_RPC_USER.is_empty() {
-        return Err("Bitcoin RPC user is empty".into());
-    }
-
-    if BITCOIN_RPC_PASSWORD.is_empty() {
-        return Err("Bitcoin RPC password is empty".into());
-    }
-
-    if BITCOIN_NETWORK.is_empty() {
-        return Err("Bitcoin network is empty".into());
-    }
-
     if !BRC20_PROG_BALANCE_SERVER_URL.starts_with("http://")
         && !BRC20_PROG_BALANCE_SERVER_URL.starts_with("https://")
     {
         return Err("BRC20 balance server URL must start with http:// or https://".into());
     }
 
-    if !check_bitcoin_rpc_status() {
-        return Err("Bitcoin RPC is unreachable".into());
-    }
+    validate_bitcoin_rpc_status()?;
 
     Ok(())
 }

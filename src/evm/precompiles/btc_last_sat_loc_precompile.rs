@@ -165,11 +165,11 @@ mod tests {
     use alloy_primitives::hex::FromHex;
 
     use super::*;
-    use crate::evm::precompiles::skip_btc_tests;
+    use crate::evm::precompiles::validate_bitcoin_rpc_status;
 
     #[test]
     fn test_get_last_sat_location_encode_params_single_vin_vout() {
-        if skip_btc_tests() {
+        if validate_bitcoin_rpc_status().is_err() {
             return;
         }
         // https://mempool.space/signet/tx/d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn test_get_last_sat_location_multiple_vin_vout() {
-        if skip_btc_tests() {
+        if validate_bitcoin_rpc_status().is_err() {
             return;
         }
         // https://mempool.space/signet/tx/4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926
@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn test_coinbase_tx() {
-        if skip_btc_tests() {
+        if validate_bitcoin_rpc_status().is_err() {
             return;
         }
         // https://mempool.space/signet/tx/3f6201e955c191e714dcf92240a9dd0eea7c65465f60e4d31f5b6e9fd2003409
