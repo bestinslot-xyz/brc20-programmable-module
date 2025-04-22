@@ -49,6 +49,7 @@ pub struct Brc20ProgConfig {
 
 impl Brc20ProgConfig {
     fn new() -> Self {
+        dotenv::dotenv().ok();
         Self {
             brc20_prog_rpc_server_url: BRC20_PROG_RPC_SERVER_URL.to_string(),
             brc20_prog_rpc_server_enable_auth: *BRC20_PROG_RPC_SERVER_ENABLE_AUTH,
