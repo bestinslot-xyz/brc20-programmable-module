@@ -13,7 +13,7 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Embed)]
-#[folder = "src/brc20_controller/contract/"]
+#[folder = "src/brc20_controller/contract/output"]
 struct ContractAssets;
 
 sol! {
