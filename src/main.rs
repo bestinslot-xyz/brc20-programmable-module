@@ -13,6 +13,8 @@ use server::{start_rpc_server, BRC20ProgEngine};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    dotenv::dotenv()?;
+
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
             .with_max_level(tracing::Level::INFO)
