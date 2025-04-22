@@ -15,6 +15,20 @@ lazy_static::lazy_static! {
     pub static ref INDEXER_ADDRESS: Address = "0x0000000000000000000000000000000000003Ca6".parse().expect("Failed to parse indexer address");
     pub static ref INDEXER_ADDRESS_STRING: String = INDEXER_ADDRESS.to_string();
     pub static ref INVALID_ADDRESS: Address = "0x000000000000000000000000000000000000dead".parse().expect("Failed to parse invalid address");
+
+    // BRC20 Methods intended for the indexers, so they require auth
+    pub static ref INDEXER_METHODS: Vec<String> = vec![
+        "brc20_mine".to_string(),
+        "brc20_deploy".to_string(),
+        "brc20_call".to_string(),
+        "brc20_deposit".to_string(),
+        "brc20_withdraw".to_string(),
+        "brc20_initialise".to_string(),
+        "brc20_finaliseBlock".to_string(),
+        "brc20_reorg".to_string(),
+        "brc20_commitToDatabase".to_string(),
+        "brc20_clearCaches".to_string(),
+    ];
 }
 
 #[rpc(server)]

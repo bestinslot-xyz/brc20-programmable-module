@@ -1,3 +1,6 @@
+use std::collections::HashSet;
+use std::error::Error;
+
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use jsonrpsee::server::middleware::rpc::layer::ResponseFuture;
@@ -21,7 +24,7 @@ impl Default for Authorized {
 /// If the request contains the correct Basic Auth header, it adds an `Authorized`
 /// extension to the request.
 ///
-/// It never rejects requests, it just adds the `Authorized` extension if the header is present.
+/// It never rejects requests, it just adds the `Authorized` extension if the header is present and correct.
 #[derive(Clone)]
 pub struct HttpNonBlockingAuth {
     header: Option<String>,
@@ -70,28 +73,34 @@ impl<B> ValidateRequest<B> for HttpNonBlockingAuth {
     }
 }
 
-/// A middleware that allows all requests to the `eth_*` methods.
-/// It checks if the request is authorized.
-/// If the request is not authorized and the method does not start with `eth_`,
-/// it returns an error.
-pub struct RpcAuthAllowEth<S> {
+/// A middleware that denies requests to methods in the denylist unless they are authorised.
+/// It checks if the request has the `Authorized` extension.
+/// If the request is not authorized and the method is in the denylist, it returns an error.
+/// Otherwise, it calls the inner service.
+/// It is used to protect sensitive methods from unauthorized access.
+/// It is used in conjunction with the `HttpNonBlockingAuth` middleware.
+pub struct RpcAuthMiddleware<S> {
     service: S,
+    denylist: HashSet<String>,
 }
 
-impl<S> RpcAuthAllowEth<S> {
-    pub fn new(service: S) -> Self {
-        Self { service }
+impl<S> RpcAuthMiddleware<S> {
+    pub fn new<I: IntoIterator<Item = String> + Clone>(service: S, denylist: &I) -> Self {
+        Self {
+            service,
+            denylist: denylist.clone().into_iter().collect(),
+        }
     }
 
-    fn validate(&self, authorized: bool, method: &str) -> Result<(), ()> {
-        if !authorized && method.starts_with("brc20_") {
-            return Err(());
+    fn validate(&self, authorized: bool, method: &str) -> Result<(), Box<dyn Error>> {
+        if !authorized && self.denylist.contains(method) {
+            return Err(format!("Unauthorized access to method {}", method).into());
         }
         Ok(())
     }
 }
 
-impl<'a, S> RpcServiceT<'a> for RpcAuthAllowEth<S>
+impl<'a, S> RpcServiceT<'a> for RpcAuthMiddleware<S>
 where
     S: RpcServiceT<'a> + Send + Sync,
 {
@@ -139,7 +148,7 @@ mod tests {
     #[tokio::test]
     async fn test_rpc_auth_unauthorized_eth_success() {
         let mut auth = HttpNonBlockingAuth::new(&"user".to_string(), &"password".to_string());
-        let validator = RpcAuthAllowEth::new(MockRpcService);
+        let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
         let mut request = hyper::Request::builder()
             .header("Authorization", "Basic asdfgh==")
             .body(HttpBody::empty())
@@ -158,7 +167,7 @@ mod tests {
     #[tokio::test]
     async fn test_rpc_auth_authorized_eth_success() {
         let mut auth = HttpNonBlockingAuth::new(&"user".to_string(), &"password".to_string());
-        let validator = RpcAuthAllowEth::new(MockRpcService);
+        let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
         let mut request = hyper::Request::builder()
             .header("Authorization", "Basic dXNlcjpwYXNzd29yZA==")
             .body(HttpBody::empty())
@@ -178,7 +187,7 @@ mod tests {
     #[tokio::test]
     async fn test_rpc_auth_authorized_brc20_success() {
         let mut auth = HttpNonBlockingAuth::new(&"user".to_string(), &"password".to_string());
-        let validator = RpcAuthAllowEth::new(MockRpcService);
+        let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
         let mut request = hyper::Request::builder()
             .header("Authorization", "Basic dXNlcjpwYXNzd29yZA==")
             .body(HttpBody::empty())
@@ -198,7 +207,7 @@ mod tests {
     #[tokio::test]
     async fn test_rpc_auth_wrong_credentials_brc20_error() {
         let mut auth = HttpNonBlockingAuth::new(&"user".to_string(), &"password".to_string());
-        let validator = RpcAuthAllowEth::new(MockRpcService);
+        let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
         let mut request = hyper::Request::builder()
             .header("Authorization", "Basic asdfgh==")
             .body(HttpBody::empty())
@@ -217,7 +226,7 @@ mod tests {
     #[tokio::test]
     async fn test_rpc_auth_no_header_brc20_error() {
         let mut auth = HttpNonBlockingAuth::new(&"user".to_string(), &"password".to_string());
-        let validator = RpcAuthAllowEth::new(MockRpcService);
+        let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
         let mut request = hyper::Request::builder().body(HttpBody::empty()).unwrap();
 
         assert!(auth.validate(&mut request).is_ok());
@@ -233,7 +242,7 @@ mod tests {
     #[tokio::test]
     async fn test_rpc_auth_no_header_eth_success() {
         let mut auth = HttpNonBlockingAuth::new(&"user".to_string(), &"password".to_string());
-        let validator = RpcAuthAllowEth::new(MockRpcService);
+        let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
         let mut request = hyper::Request::builder().body(HttpBody::empty()).unwrap();
 
         assert!(auth.validate(&mut request).is_ok());

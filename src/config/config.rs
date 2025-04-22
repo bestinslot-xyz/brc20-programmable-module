@@ -2,7 +2,6 @@ use std::error::Error;
 use std::path::Path;
 
 use crate::config::database::ConfigDatabase;
-use crate::evm::precompiles::validate_bitcoin_rpc_status;
 
 lazy_static::lazy_static! {
     static ref DB_VERSION: u32 = 1;
@@ -20,7 +19,7 @@ lazy_static::lazy_static! {
     static ref BITCOIN_RPC_URL: String = std::env::var("BITCOIN_RPC_URL").unwrap_or("http://localhost:38332".to_string());
     static ref BITCOIN_RPC_USER: String = std::env::var("BITCOIN_RPC_USER").unwrap_or("user".to_string());
     static ref BITCOIN_RPC_PASSWORD: String = std::env::var("BITCOIN_RPC_PASSWORD").unwrap_or("password".to_string());
-    static ref BITCOIN_NETWORK: String = std::env::var("BITCOIN_NETWORK").unwrap_or("signet".to_string());
+    static ref BITCOIN_RPC_NETWORK: String = std::env::var("BITCOIN_RPC_NETWORK").unwrap_or("signet".to_string());
     static ref CARGO_PKG_VERSION: String = {
         let version = env!("CARGO_PKG_VERSION");
         if version.is_empty() {
@@ -43,7 +42,7 @@ pub struct Brc20ProgConfig {
     pub bitcoin_rpc_url: String,
     pub bitcoin_rpc_user: String,
     pub bitcoin_rpc_password: String,
-    pub bitcoin_network: String,
+    pub bitcoin_rpc_network: String,
     pub pkg_version: String,
     pub db_path: String,
 }
@@ -60,7 +59,7 @@ impl Brc20ProgConfig {
             bitcoin_rpc_url: BITCOIN_RPC_URL.to_string(),
             bitcoin_rpc_user: BITCOIN_RPC_USER.to_string(),
             bitcoin_rpc_password: BITCOIN_RPC_PASSWORD.to_string(),
-            bitcoin_network: BITCOIN_NETWORK.to_string(),
+            bitcoin_rpc_network: BITCOIN_RPC_NETWORK.to_string(),
             pkg_version: CARGO_PKG_VERSION.to_string(),
             db_path: DB_PATH.to_string(),
         }
@@ -72,14 +71,17 @@ pub fn validate_config_database() -> Result<(), Box<dyn Error>> {
     let mut config_database = ConfigDatabase::new(&Path::new(&*DB_PATH), "config")?;
     if fresh_run {
         config_database.set("db_version".to_string(), DB_VERSION.to_string())?;
-        config_database.set("bitcoin_network".to_string(), BITCOIN_NETWORK.to_string())?;
+        config_database.set(
+            "bitcoin_network".to_string(),
+            BITCOIN_RPC_NETWORK.to_string(),
+        )?;
         config_database.set(
             "evm_record_traces".to_string(),
             EVM_RECORD_TRACES.to_string(),
         )?;
     } else {
         config_database.validate("db_version", &DB_VERSION.to_string())?;
-        config_database.validate("bitcoin_network", &BITCOIN_NETWORK.to_string())?;
+        config_database.validate("bitcoin_network", &BITCOIN_RPC_NETWORK.to_string())?;
         config_database.validate("evm_record_traces", &EVM_RECORD_TRACES.to_string())?;
     }
     Ok(())
@@ -107,8 +109,6 @@ pub fn validate_config() -> Result<(), Box<dyn Error>> {
     {
         return Err("BRC20 balance server URL must start with http:// or https://".into());
     }
-
-    validate_bitcoin_rpc_status()?;
 
     Ok(())
 }

@@ -19,7 +19,7 @@ lazy_static::lazy_static! {
         Client::new(&BRC20_PROG_CONFIG.bitcoin_rpc_url, auth).expect("Failed to create Bitcoin RPC client")
     };
     pub static ref BITCOIN_NETWORK : Network = {
-        match BRC20_PROG_CONFIG.bitcoin_network.as_str() {
+        match BRC20_PROG_CONFIG.bitcoin_rpc_network.as_str() {
             "mainnet" => Network::Bitcoin,
             "signet" => Network::Signet,
             "testnet" => Network::Testnet,
@@ -50,11 +50,12 @@ pub fn validate_bitcoin_rpc_status() -> Result<(), Box<dyn Error>> {
     if std::env::var("BITCOIN_RPC_PASSWORD").is_err() {
         return Err("Please set the BITCOIN_RPC_PASSWORD environment variable".into());
     }
-    if std::env::var("BITCOIN_NETWORK").is_err() {
-        return Err("Please set the BITCOIN_NETWORK environment variable".into());
+    if std::env::var("BITCOIN_RPC_NETWORK").is_err() {
+        return Err("Please set the BITCOIN_RPC_NETWORK environment variable".into());
     }
 
     let info = BTC_CLIENT.get_blockchain_info();
+
     let Ok(info) = info else {
         return Err("Bitcoin RPC unreachable.".into());
     };

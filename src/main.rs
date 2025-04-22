@@ -9,6 +9,7 @@ mod server;
 
 use config::{validate_config, BRC20_PROG_CONFIG};
 use db::DB;
+use evm::precompiles::validate_bitcoin_rpc_status;
 use server::{start_rpc_server, BRC20ProgEngine};
 
 #[tokio::main]
@@ -24,6 +25,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("BRC20 Prog v{}", BRC20_PROG_CONFIG.pkg_version);
     validate_config()?;
 
+    println!("-- Bitcoin RPC --");
+    match validate_bitcoin_rpc_status() {
+        Ok(_) => println!("Bitcoin RPC status: OK"),
+        Err(e) => {
+            println!("Bitcoin RPC status: ERROR");
+            println!("Error: {}", e);
+        }
+    }
+    println!("");
     let engine = BRC20ProgEngine::new(DB::new(&Path::new(&*(BRC20_PROG_CONFIG).db_path))?);
     println!("--- Database ---");
     println!("Latest block number: {}", engine.get_latest_block_height()?);
