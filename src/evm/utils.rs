@@ -1,16 +1,10 @@
-use std::cmp::max;
-
 use alloy_primitives::{keccak256, Address, Bytes};
 use revm::context::result::{ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason};
 
-static GAS_PER_BYTE: u64 = 12000; // 12M gas per byte
-static MINIMUM_GAS_LIMIT: u64 = 384000; // GAS_PER_BYTE * 32
+static GAS_PER_BYTE: u64 = 12000; // 12K gas per byte
 
 pub fn get_gas_limit(inscription_byte_len: u64) -> u64 {
-    max(
-        inscription_byte_len.saturating_mul(GAS_PER_BYTE),
-        MINIMUM_GAS_LIMIT,
-    )
+    inscription_byte_len.saturating_mul(GAS_PER_BYTE)
 }
 
 pub fn get_evm_address(pkscript_bytes: &Bytes) -> Address {
