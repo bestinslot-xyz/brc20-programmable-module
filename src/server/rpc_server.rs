@@ -193,8 +193,15 @@ impl Brc20ProgApiServer for RpcServer {
     ) -> RpcResult<TxReceiptED> {
         event!(Level::INFO, "Deploying contract");
 
+        let block_height = self
+            .engine
+            .get_next_block_height()
+            .map_err(wrap_rpc_error)?;
+
         let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
-        let to = if data.value().is_some() {
+
+        let data = data.value_inscription(block_height);
+        let to = if data.is_some() {
             None
         } else {
             Some(*INVALID_ADDRESS) // If data is not valid, send transaction to 0xdead
@@ -206,12 +213,10 @@ impl Brc20ProgApiServer for RpcServer {
                 &TxInfo {
                     from: get_evm_address(&from_pkscript),
                     to,
-                    data: data.value().unwrap_or_default().clone(),
+                    data: data.unwrap_or_default().clone(),
                 },
                 tx_idx,
-                self.engine
-                    .get_next_block_height()
-                    .map_err(wrap_rpc_error)?,
+                block_height,
                 hash.value(),
                 inscription_id,
                 inscription_byte_len,
@@ -236,7 +241,14 @@ impl Brc20ProgApiServer for RpcServer {
 
         let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
 
-        let derived_contract_address = if !data.value().is_some() {
+        let block_height = self
+            .engine
+            .get_next_block_height()
+            .map_err(wrap_rpc_error)?;
+
+        let data = data.value_inscription(block_height);
+
+        let derived_contract_address = if !data.is_some() {
             *INVALID_ADDRESS
         } else if let Some(contract_inscription_id) = contract_inscription_id {
             self.engine
@@ -255,12 +267,10 @@ impl Brc20ProgApiServer for RpcServer {
                 &TxInfo {
                     from: get_evm_address(&from_pkscript),
                     to: derived_contract_address.into(),
-                    data: data.value().unwrap_or_default().clone(),
+                    data: data.unwrap_or_default().clone(),
                 },
                 tx_idx,
-                self.engine
-                    .get_next_block_height()
-                    .map_err(wrap_rpc_error)?,
+                block_height,
                 hash.value(),
                 inscription_id,
                 inscription_byte_len,
@@ -420,7 +430,7 @@ impl Brc20ProgApiServer for RpcServer {
                 .map(|x| x.value())
                 .unwrap_or(*INVALID_ADDRESS),
             to: call.to.as_ref().map(|x| x.value()),
-            data: data.value().unwrap_or_default().clone(),
+            data: data.value_eth().unwrap_or_default().clone(),
         });
         let Ok(receipt) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
@@ -449,7 +459,7 @@ impl Brc20ProgApiServer for RpcServer {
                 .map(|x| x.value())
                 .unwrap_or(*INVALID_ADDRESS),
             to: call.to.as_ref().map(|x| x.value()),
-            data: data.value().unwrap_or_default().clone(),
+            data: data.value_eth().unwrap_or_default().clone(),
         });
         let Ok(receipt) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));

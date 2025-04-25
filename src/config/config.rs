@@ -9,6 +9,12 @@ lazy_static::lazy_static! {
 
     static ref PROTOCOL_VERSION: u32 = 1;
 
+    static ref COMPRESSION_ACTIVATION_HEIGHT: u64 = match BITCOIN_RPC_NETWORK.as_str() {
+        "mainnet" => u64::MAX,
+        "signet" => u64::MAX,
+        _ => 0,
+    };
+
     static ref BRC20_PROG_RPC_SERVER_ENABLE_AUTH: bool = std::env::var("BRC20_PROG_RPC_SERVER_ENABLE_AUTH").map(|x| x == "true").unwrap_or(false);
     static ref BRC20_PROG_RPC_SERVER_USER: Option<String> = std::env::var("BRC20_PROG_RPC_SERVER_USER").ok();
     static ref BRC20_PROG_RPC_SERVER_PASSWORD: Option<String> = std::env::var("BRC20_PROG_RPC_SERVER_PASSWORD").ok();
@@ -47,6 +53,7 @@ pub struct Brc20ProgConfig {
     pub bitcoin_rpc_network: String,
     pub pkg_version: String,
     pub db_path: String,
+    pub compression_activation_height: u64,
 }
 
 impl Brc20ProgConfig {
@@ -65,6 +72,7 @@ impl Brc20ProgConfig {
             bitcoin_rpc_network: BITCOIN_RPC_NETWORK.to_string(),
             pkg_version: CARGO_PKG_VERSION.to_string(),
             db_path: DB_PATH.to_string(),
+            compression_activation_height: *COMPRESSION_ACTIVATION_HEIGHT,
         }
     }
 }
@@ -74,10 +82,7 @@ pub fn validate_config_database() -> Result<(), Box<dyn Error>> {
     let mut config_database = ConfigDatabase::new(&Path::new(&*DB_PATH), "config")?;
     if fresh_run {
         config_database.set("db_version".to_string(), DB_VERSION.to_string())?;
-        config_database.set(
-            "protocol_version".to_string(),
-            PROTOCOL_VERSION.to_string(),
-        )?;
+        config_database.set("protocol_version".to_string(), PROTOCOL_VERSION.to_string())?;
         config_database.set(
             "bitcoin_network".to_string(),
             BITCOIN_RPC_NETWORK.to_string(),

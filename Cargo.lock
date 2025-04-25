@@ -980,6 +980,7 @@ dependencies = [
  "hyper",
  "jsonrpsee",
  "lazy_static",
+ "nada",
  "revm",
  "revm-inspectors",
  "revm-state",
@@ -2315,6 +2316,12 @@ dependencies = [
  "wasi 0.11.0+wasi-snapshot-preview1",
  "windows-sys 0.52.0",
 ]
+
+[[package]]
+name = "nada"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "033acd9b810e9ef1eaf3f5a278848ad8887850cffc6ba330d4372e13e8332abe"
 
 [[package]]
 name = "nodrop"

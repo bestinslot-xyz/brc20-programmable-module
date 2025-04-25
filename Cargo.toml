@@ -17,6 +17,7 @@ hex = "0.4.3"
 hyper = "1.6.0"
 jsonrpsee = { version = "0.24.9", features = [ "server", "macros", "jsonrpsee-core", "jsonrpsee-types" ] }
 lazy_static = "1.5.0"
+nada = "0.2.1"
 revm = { version = "22.0.1", default-features = false }
 revm-inspectors = "0.19.1"
 revm-state = "3.0.0"
