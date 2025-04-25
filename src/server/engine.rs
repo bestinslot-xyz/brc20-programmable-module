@@ -677,7 +677,7 @@ mod tests {
                 1,
                 B256::ZERO,
                 Some(inscription_id.clone()),
-                Some(0),
+                Some(1000),
             )
             .unwrap()
             .contract_address
@@ -715,7 +715,7 @@ mod tests {
                 block_number,
                 block_hash,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap();
 
@@ -743,7 +743,7 @@ mod tests {
                 0,
                 B256::ZERO,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap();
 
@@ -759,7 +759,7 @@ mod tests {
                 0,
                 B256::ZERO,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap();
 
@@ -807,7 +807,7 @@ mod tests {
                 0,
                 hash,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap();
 
@@ -823,7 +823,7 @@ mod tests {
                 0,
                 hash,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap();
         engine.finalise_block(1622547800, 0, hash, 2).unwrap();
@@ -851,7 +851,7 @@ mod tests {
                 0,
                 hash,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap();
 
@@ -867,7 +867,7 @@ mod tests {
                 0,
                 hash,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap();
         engine.finalise_block(1622547800, 0, hash, 2).unwrap();
@@ -912,7 +912,7 @@ mod tests {
                 0,
                 hash,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap();
 
@@ -928,7 +928,7 @@ mod tests {
                 0,
                 hash,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap();
         engine.finalise_block(1622547800, 0, hash, 2).unwrap();
@@ -972,7 +972,7 @@ mod tests {
                 0,
                 hash,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap()
             .transaction_hash
@@ -1009,7 +1009,7 @@ mod tests {
                 0,
                 B256::ZERO,
                 Some(inscription_id.clone()),
-                Some(0),
+                Some(1000),
             )
             .unwrap();
 
@@ -1041,7 +1041,7 @@ mod tests {
                 0,
                 hash,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap()
             .transaction_hash
@@ -1078,7 +1078,7 @@ mod tests {
                 0,
                 B256::ZERO,
                 None,
-                Some(0),
+                Some(10000),
             )
             .unwrap();
 
@@ -1111,7 +1111,7 @@ mod tests {
                 block_number,
                 block_hash,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap();
 
@@ -1131,7 +1131,7 @@ mod tests {
                 block_number,
                 block_hash,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap();
 
@@ -1162,7 +1162,7 @@ mod tests {
                 0,
                 B256::ZERO,
                 None,
-                Some(0),
+                Some(1000),
             )
             .unwrap();
 
