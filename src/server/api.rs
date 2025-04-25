@@ -2,6 +2,8 @@ use std::str::FromStr;
 
 use alloy_primitives::hex::FromHex;
 use alloy_primitives::{Address, Bytes, FixedBytes, B256, U256};
+use base64::prelude::BASE64_STANDARD_NO_PAD;
+use base64::Engine;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::Deserialize;
@@ -440,19 +442,25 @@ impl<'de> Deserialize<'de> for AddressWrapper {
 }
 
 #[derive(Debug)]
-pub struct BytesWrapper(Option<Bytes>);
+pub struct BytesWrapper(Option<String>);
 
 impl BytesWrapper {
-    pub fn new(bytes: Bytes) -> Self {
-        Self(Some(bytes))
+    pub fn new(inner: String) -> Self {
+        Self(Some(inner))
     }
 
     pub fn empty() -> Self {
         Self(None)
     }
 
-    pub fn value(&self) -> Option<&Bytes> {
-        self.0.as_ref()
+    pub fn value_inscription(&self, block_height: u64) -> Option<Bytes> {
+        self.0
+            .as_ref()
+            .and_then(|s| decode_bytes_from_inscription_data(s, block_height))
+    }
+
+    pub fn value_eth(&self) -> Option<Bytes> {
+        self.0.as_ref().and_then(|s| Bytes::from_hex(s).ok())
     }
 }
 
@@ -464,11 +472,100 @@ impl<'de> Deserialize<'de> for BytesWrapper {
         let Ok(s) = String::deserialize(deserializer) else {
             return Ok(BytesWrapper::empty());
         };
-        match Bytes::from_hex(&s) {
-            Ok(bytes) => Ok(BytesWrapper::new(bytes)),
-            Err(_) => {
-                return Ok(BytesWrapper::empty());
+        Ok(BytesWrapper::new(s))
+    }
+}
+
+pub fn decode_bytes_from_inscription_data(
+    inscription_data: &String,
+    block_height: u64,
+) -> Option<Bytes> {
+    // Starting from compression_activation_height, we can use base64 encoding and compression
+    if block_height < (*BRC20_PROG_CONFIG).compression_activation_height {
+        Bytes::from_hex(inscription_data).ok()
+    } else {
+        let base64_decoded = BASE64_STANDARD_NO_PAD.decode(inscription_data).ok()?;
+        // Use first byte to determine compression method
+        // 0x00 = uncompressed
+        // 0x01 = nada
+        match base64_decoded[0] {
+            0x00 => {
+                // Uncompressed
+                Some(Bytes::from(base64_decoded[1..].to_vec()))
+            }
+            0x01 => {
+                // Nada
+                nada::decode(base64_decoded[1..].iter().cloned())
+                    .ok()
+                    .map(Bytes::from)
+            }
+            _ => {
+                // Unknown compression method
+                None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::BRC20_PROG_CONFIG;
+
+    #[test]
+    fn test_decode_bytes_from_inscription_data_old() {
+        let inscription_data = "0xdeadbeef".to_string();
+        let block_height = 123456;
+        let result = decode_bytes_from_inscription_data(&inscription_data, block_height);
+        assert_eq!(result, Some(Bytes::from(vec![0xde, 0xad, 0xbe, 0xef])));
+    }
+
+    #[test]
+    fn test_decode_bytes_from_inscription_data_uncompressed() {
+        // 0x00 to indicate uncompressed
+        let data = vec![0x00, 0xde, 0xad, 0xbe, 0xef, 0xff];
+        let base64_encoded = BASE64_STANDARD_NO_PAD.encode(data);
+        let block_height = BRC20_PROG_CONFIG.compression_activation_height;
+        let result = decode_bytes_from_inscription_data(&base64_encoded, block_height);
+        assert_eq!(
+            result,
+            Some(Bytes::from(vec![0xde, 0xad, 0xbe, 0xef, 0xff]))
+        );
+    }
+
+    #[test]
+    fn test_decode_bytes_from_inscription_data_nada() {
+        let data = vec![
+            0xde, 0xad, 0xbe, 0xef, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff,
+        ];
+        let mut nada_encoded = nada::encode(data.clone());
+        // Prepend 0x01 to indicate nada compression
+        nada_encoded.insert(0, 0x01);
+        assert_eq!(
+            nada_encoded,
+            vec![0x01, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x00, 0xff, 0x01, 0xff, 0x04, 0xff, 0x02]
+        );
+
+        let base64_encoded = BASE64_STANDARD_NO_PAD.encode(nada_encoded);
+        let block_height = BRC20_PROG_CONFIG.compression_activation_height;
+        let result = decode_bytes_from_inscription_data(&base64_encoded, block_height);
+        assert_eq!(result, Some(Bytes::from(data)));
+    }
+
+    #[test]
+    fn test_invalid_first_byte() {
+        let data = vec![0x02, 0xde, 0xad, 0xbe, 0xef];
+        let base64_encoded = BASE64_STANDARD_NO_PAD.encode(data);
+        let block_height = BRC20_PROG_CONFIG.compression_activation_height;
+        let result = decode_bytes_from_inscription_data(&base64_encoded, block_height);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_invalid_base64() {
+        let invalid_base64 = "invalid_base64";
+        let block_height = BRC20_PROG_CONFIG.compression_activation_height;
+        let result = decode_bytes_from_inscription_data(&invalid_base64.to_string(), block_height);
+        assert_eq!(result, None);
     }
 }
