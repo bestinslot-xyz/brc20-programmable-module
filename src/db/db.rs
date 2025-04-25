@@ -12,6 +12,7 @@ use revm::{Database as DatabaseTrait, DatabaseCommit};
 use revm_state::{Account, AccountInfo, Bytecode};
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
+use serde_either::SingleOrVec;
 
 use crate::db::cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 use crate::db::database::BlockDatabase;
@@ -206,7 +207,7 @@ impl DB {
         block_number_from: Option<u64>,
         block_number_to: Option<u64>,
         contract_address: Option<Address>,
-        topics: Vec<B256>,
+        topics: Option<Vec<SingleOrVec<Option<B256>>>>,
     ) -> Result<Vec<LogED>, Box<dyn Error>> {
         let latest_block_number = self.get_latest_block_height()?;
         let block_number_from = block_number_from.unwrap_or(latest_block_number);
@@ -238,23 +239,44 @@ impl DB {
                 continue;
             };
 
-            if contract_address.is_some()
-                && tx_receipt.contract_address.map(|x| x.address) != contract_address
-                && tx_receipt.to.map(|x| x.address) != contract_address
-            {
-                continue;
-            }
-
             for log in tx_receipt.logs {
-                let mut matched = true;
-                if topics.len() != 0 && log.topics.len() != topics.len() {
-                    continue;
+                if let Some(ref address) = contract_address {
+                    if log.address.address != *address {
+                        continue;
+                    }
                 }
 
-                for (i, topic) in topics.iter().enumerate() {
-                    if log.topics[i].bytes != *topic {
-                        matched = false;
-                        break;
+                let mut matched = true;
+                if let Some(ref topics) = topics {
+                    for idx in 0..topics.len() {
+                        match topics[idx] {
+                            SingleOrVec::Single(ref topic) => {
+                                if let Some(ref topic) = topic {
+                                    if log.topics.len() <= idx || log.topics[idx].bytes != *topic {
+                                        matched = false;
+                                        break;
+                                    }
+                                }
+                            }
+                            SingleOrVec::Vec(ref topics) => {
+                                if log.topics.len() <= idx {
+                                    matched = false;
+                                    break;
+                                }
+                                if !topics.iter().any(|x| {
+                                    if let Some(ref topic) = x {
+                                        log.topics[idx].bytes == *topic
+                                    } else {
+                                        // We ignore the None case in OR condition, it's an invalid case
+                                        // and we don't want to match all
+                                        false
+                                    }
+                                }) {
+                                    matched = false;
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -948,6 +970,7 @@ impl DatabaseCommit for DB {
 /// Tests for all set and get methods
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::LogData;
     use revm::context::result::{Output, SuccessReason};
     use tempfile::TempDir;
 
@@ -1153,5 +1176,121 @@ mod tests {
             )
             .unwrap()
         );
+    }
+
+    #[test]
+    fn test_get_logs() {
+        let path = TempDir::new().unwrap().into_path();
+
+        let block_number = 1;
+        let block_hash = [1u8; 32].into();
+        let block_timestamp = 11;
+        let contract_address = [3u8; 20].into();
+        let from = [4u8; 20].into();
+        let to = [5u8; 20].into();
+        let tx_hash = [6u8; 32].into();
+        let tx_idx = 7;
+        let output = ExecutionResult::Success {
+            reason: SuccessReason::Return,
+            gas_used: 10,
+            gas_refunded: 0,
+            logs: vec![
+                Log::<LogData>::new(
+                    contract_address,
+                    vec![[7u8; 32].into(), [8u8; 32].into(), [9u8; 32].into()],
+                    vec![10u8; 32].into(),
+                )
+                .unwrap(),
+                Log::<LogData>::new(
+                    contract_address,
+                    vec![[10u8; 32].into(), [8u8; 32].into(), [11u8; 32].into()],
+                    vec![11u8; 32].into(),
+                )
+                .unwrap(),
+            ],
+            output: Output::Call(vec![11u8; 32].into()),
+        };
+        let cumulative_gas_used = 8;
+        let nonce = 9;
+        let start_log_index = 10;
+        let data = vec![0u8; 32];
+
+        {
+            let mut db = DB::new(&path).unwrap();
+
+            db.set_tx_receipt(
+                "type",
+                "reason",
+                Some(&vec![11u8; 32].into()),
+                block_hash,
+                block_number,
+                block_timestamp,
+                Some(contract_address),
+                from,
+                Some(to),
+                &data.into(),
+                tx_hash,
+                tx_idx,
+                &output,
+                cumulative_gas_used,
+                nonce,
+                start_log_index,
+                Some("inscription_id".to_string()),
+                10000,
+            )
+            .unwrap();
+            db.set_block_hash(block_number, block_hash).unwrap();
+
+            db.commit_changes().unwrap();
+        }
+
+        let db = DB::new(&path).unwrap();
+
+        let logs = db
+            .get_logs(
+                Some(block_number),
+                Some(block_number),
+                Some(contract_address),
+                Some(vec![
+                    SingleOrVec::Vec(vec![Some([7u8; 32].into()), Some([10u8; 32].into())]),
+                    SingleOrVec::Single(Some([8u8; 32].into())),
+                ]),
+            )
+            .unwrap();
+
+        assert_eq!(logs.len(), 2);
+        assert_eq!(logs[0].address.address, contract_address);
+        assert_eq!(logs[0].topics.len(), 3);
+        assert_eq!(logs[0].topics[0].bytes.0, [7u8; 32]);
+        assert_eq!(logs[0].topics[1].bytes.0, [8u8; 32]);
+        assert_eq!(logs[0].topics[2].bytes.0, [9u8; 32]);
+        assert_eq!(logs[0].data.bytes.to_vec(), [10u8; 32].to_vec());
+        assert_eq!(logs[1].address.address, contract_address);
+        assert_eq!(logs[1].topics.len(), 3);
+        assert_eq!(logs[1].topics[0].bytes.0, [10u8; 32]);
+        assert_eq!(logs[1].topics[1].bytes.0, [8u8; 32]);
+        assert_eq!(logs[1].topics[2].bytes.0, [11u8; 32]);
+        assert_eq!(logs[1].data.bytes.to_vec(), [11u8; 32].to_vec());
+
+        let logs = db
+            .get_logs(
+                Some(block_number),
+                Some(block_number),
+                Some(contract_address),
+                Some(vec![
+                    SingleOrVec::Single(None),
+                    SingleOrVec::Single(None),
+                    SingleOrVec::Single(Some([11u8; 32].into())),
+                ]),
+            )
+            .unwrap();
+
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].address.address, contract_address);
+        assert_eq!(logs[0].topics.len(), 3);
+        assert_eq!(logs[0].topics[0].bytes.0, [10u8; 32]);
+        assert_eq!(logs[0].topics[1].bytes.0, [8u8; 32]);
+        assert_eq!(logs[0].topics[2].bytes.0, [11u8; 32]);
+        assert_eq!(logs[0].data.bytes.to_vec(), [11u8; 32].to_vec());
     }
 }

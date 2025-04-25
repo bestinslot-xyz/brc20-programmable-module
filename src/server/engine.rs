@@ -7,6 +7,7 @@ use revm::context::{ContextTr, TransactTo};
 use revm::handler::EvmTr;
 use revm::inspector::InspectorEvmTr;
 use revm::{ExecuteCommitEvm, ExecuteEvm, InspectCommitEvm};
+use serde_either::SingleOrVec;
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
 use crate::config::BRC20_PROG_CONFIG;
@@ -333,13 +334,13 @@ impl BRC20ProgEngine {
         block_number_from: Option<u64>,
         block_number_to: Option<u64>,
         address: Option<Address>,
-        topics: Option<Vec<B256>>,
+        topics: Option<Vec<SingleOrVec<Option<B256>>>>,
     ) -> Result<Vec<LogED>, Box<dyn Error>> {
         self.db.read().get_logs(
             block_number_from,
             block_number_to,
             address,
-            topics.unwrap_or(Vec::new()),
+            topics,
         )
     }
 
