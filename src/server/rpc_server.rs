@@ -727,7 +727,7 @@ mod tests {
                 B256Wrapper::new(B256::from_slice(&[1; 32])),
                 0,
                 None,
-                None,
+                Some(1000),
             )
             .await;
 
