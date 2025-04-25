@@ -88,8 +88,6 @@ btc_pkscript = "7465737420706b736372697074"
 timestamp = int(time.time())
 block_hash = "0x" + "0" * 64
 
-client.clear_caches()
-
 # deploy first
 contract_address = client.deploy(
     from_pkscript=btc_pkscript,
