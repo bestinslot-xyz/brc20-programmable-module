@@ -7,6 +7,8 @@ lazy_static::lazy_static! {
     static ref DB_VERSION: u32 = 1;
     static ref DB_PATH: String = std::env::var("BRC20_PROG_DB_PATH").unwrap_or("target/db".to_string());
 
+    static ref PROTOCOL_VERSION: u32 = 1;
+
     static ref BRC20_PROG_RPC_SERVER_ENABLE_AUTH: bool = std::env::var("BRC20_PROG_RPC_SERVER_ENABLE_AUTH").map(|x| x == "true").unwrap_or(false);
     static ref BRC20_PROG_RPC_SERVER_USER: Option<String> = std::env::var("BRC20_PROG_RPC_SERVER_USER").ok();
     static ref BRC20_PROG_RPC_SERVER_PASSWORD: Option<String> = std::env::var("BRC20_PROG_RPC_SERVER_PASSWORD").ok();
@@ -73,6 +75,10 @@ pub fn validate_config_database() -> Result<(), Box<dyn Error>> {
     if fresh_run {
         config_database.set("db_version".to_string(), DB_VERSION.to_string())?;
         config_database.set(
+            "protocol_version".to_string(),
+            PROTOCOL_VERSION.to_string(),
+        )?;
+        config_database.set(
             "bitcoin_network".to_string(),
             BITCOIN_RPC_NETWORK.to_string(),
         )?;
@@ -82,6 +88,7 @@ pub fn validate_config_database() -> Result<(), Box<dyn Error>> {
         )?;
     } else {
         config_database.validate("db_version", &DB_VERSION.to_string())?;
+        config_database.validate("protocol_version", &PROTOCOL_VERSION.to_string())?;
         config_database.validate("bitcoin_network", &BITCOIN_RPC_NETWORK.to_string())?;
         config_database.validate("evm_record_traces", &EVM_RECORD_TRACES.to_string())?;
     }
