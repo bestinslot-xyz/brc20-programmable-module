@@ -3,8 +3,9 @@ use std::net::SocketAddr;
 
 use alloy_primitives::Bytes;
 use hyper::Method;
+use jsonrpsee::core::middleware::RpcServiceBuilder;
 use jsonrpsee::core::{async_trait, RpcResult};
-use jsonrpsee::server::{RpcServiceBuilder, Server, ServerHandle};
+use jsonrpsee::server::{Server, ServerHandle};
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
