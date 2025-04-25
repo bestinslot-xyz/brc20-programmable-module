@@ -7,6 +7,7 @@ use base64::Engine;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::Deserialize;
+use serde_either::SingleOrVec;
 
 use crate::config::BRC20_PROG_CONFIG;
 use crate::db::types::{BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED};
@@ -357,14 +358,32 @@ impl EthCall {
     }
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct GetLogsFilter {
     #[serde(rename = "fromBlock")]
     pub from_block: Option<String>,
     #[serde(rename = "toBlock")]
     pub to_block: Option<String>,
     pub address: Option<AddressWrapper>,
-    pub topics: Option<Vec<B256Wrapper>>,
+    pub topics: Option<Vec<SingleOrVec<Option<B256Wrapper>>>>,
+}
+
+impl GetLogsFilter {
+    pub fn topics_as_b256(&self) -> Option<Vec<SingleOrVec<Option<B256>>>> {
+        self.topics.as_ref().map(|topics| {
+            topics
+                .iter()
+                .map(|topic| match topic {
+                    SingleOrVec::Single(t) => SingleOrVec::Single(t.clone().map(|t| t.value())),
+                    SingleOrVec::Vec(ts) => SingleOrVec::Vec(
+                        ts.iter()
+                            .map(|t| t.clone().map(|t| t.value()))
+                            .collect::<Vec<Option<B256>>>(),
+                    ),
+                })
+                .collect()
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -392,7 +411,7 @@ impl<'de> Deserialize<'de> for U256Wrapper {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct B256Wrapper(B256);
 
 impl B256Wrapper {
@@ -417,7 +436,7 @@ impl<'de> Deserialize<'de> for B256Wrapper {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AddressWrapper(Address);
 
 impl AddressWrapper {

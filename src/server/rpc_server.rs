@@ -401,19 +401,19 @@ impl Brc20ProgApiServer for RpcServer {
         event!(Level::INFO, "Getting logs");
         let from_block = filter
             .from_block
+            .clone()
             .and_then(|from| self.parse_block_number(&from).ok());
         let to_block = filter
             .to_block
+            .clone()
             .and_then(|to| self.parse_block_number(&to).ok());
         Ok(self
             .engine
             .get_logs(
                 from_block,
                 to_block,
-                filter.address.map(|x| x.value()),
-                filter
-                    .topics
-                    .map(|vec| vec.into_iter().map(|topic| topic.value()).collect()),
+                filter.address.clone().map(|x| x.value()),
+                filter.topics_as_b256(),
             )
             .map_err(wrap_rpc_error)?)
     }
