@@ -1,11 +1,11 @@
 use std::collections::HashSet;
-use std::error::Error;
+use std::future::Future;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use jsonrpsee::server::middleware::rpc::layer::ResponseFuture;
+use jsonrpsee::core::middleware::{Batch, BatchEntry, BatchEntryErr, Notification, ResponseFuture};
 use jsonrpsee::server::middleware::rpc::RpcServiceT;
-use jsonrpsee::types::{ErrorObject, Request};
+use jsonrpsee::types::{ErrorObject, Id, Request};
 use jsonrpsee::MethodResponse;
 use tower_http::validate_request::ValidateRequest;
 
@@ -79,6 +79,7 @@ impl<B> ValidateRequest<B> for HttpNonBlockingAuth {
 /// Otherwise, it calls the inner service.
 /// It is used to protect sensitive methods from unauthorized access.
 /// It is used in conjunction with the `HttpNonBlockingAuth` middleware.
+#[derive(Clone)]
 pub struct RpcAuthMiddleware<S> {
     service: S,
     denylist: HashSet<String>,
@@ -92,56 +93,129 @@ impl<S> RpcAuthMiddleware<S> {
         }
     }
 
-    fn validate(&self, authorized: bool, method: &str) -> Result<(), Box<dyn Error>> {
-        if !authorized && self.denylist.contains(method) {
-            return Err(format!("Unauthorized access to method {}", method).into());
-        }
-        Ok(())
+    fn validate_call(&self, request: &Request<'_>) -> bool {
+        request.extensions().get::<Authorized>().is_some()
+            || !self.denylist.contains(request.method_name())
+    }
+
+    fn validate_notification(&self, notification: &Notification<'_>) -> bool {
+        notification.extensions().get::<Authorized>().is_some()
+            || !self.denylist.contains(notification.method_name())
     }
 }
 
-impl<'a, S> RpcServiceT<'a> for RpcAuthMiddleware<S>
+impl<S> RpcServiceT for RpcAuthMiddleware<S>
 where
-    S: RpcServiceT<'a> + Send + Sync,
+    S: RpcServiceT<
+        MethodResponse = MethodResponse,
+        BatchResponse = MethodResponse,
+        NotificationResponse = MethodResponse,
+    >,
 {
-    type Future = ResponseFuture<S::Future>;
+    type MethodResponse = S::MethodResponse;
+    type NotificationResponse = S::NotificationResponse;
+    type BatchResponse = S::BatchResponse;
 
-    fn call(&self, req: Request<'a>) -> Self::Future {
-        if self
-            .validate(
-                req.extensions().get::<Authorized>().is_some(),
-                req.method_name(),
-            )
-            .is_err()
-        {
-            return ResponseFuture::ready(MethodResponse::error(
+    fn call<'a>(&self, req: Request<'a>) -> impl Future<Output = Self::MethodResponse> + Send + 'a {
+        if !self.validate_call(&req) {
+            ResponseFuture::ready(MethodResponse::error(
                 req.id(),
                 ErrorObject::borrowed(401, "Unauthorized", None),
-            ));
+            ))
+        } else {
+            ResponseFuture::future(self.service.call(req))
         }
+    }
 
-        ResponseFuture::future(self.service.call(req))
+    fn notification<'a>(
+        &self,
+        notification: Notification<'a>,
+    ) -> impl Future<Output = Self::NotificationResponse> + Send + 'a {
+        if !self.validate_notification(&notification) {
+            // Notifications are not expected to return a response
+            ResponseFuture::ready(MethodResponse::notification())
+        } else {
+            ResponseFuture::future(self.service.notification(notification))
+        }
+    }
+
+    fn batch<'a>(
+        &self,
+        mut batch: Batch<'a>,
+    ) -> impl Future<Output = Self::BatchResponse> + Send + 'a {
+        for entry in batch.iter_mut() {
+            match entry {
+                Ok(BatchEntry::Call(req)) => {
+                    if !self.validate_call(&req) {
+                        *entry = Err(BatchEntryErr::new(
+                            req.id(),
+                            ErrorObject::borrowed(401, "Unauthorized", None),
+                        ));
+                    }
+                }
+                Ok(BatchEntry::Notification(notification)) => {
+                    if !self.validate_notification(&notification) {
+                        *entry = Err(BatchEntryErr::new(
+                            Id::Number(0),
+                            ErrorObject::borrowed(401, "Unauthorized", None),
+                        ));
+                    }
+                }
+                Err(_) => {
+                    // Ignore errors
+                }
+            }
+        }
+        self.service.batch(batch)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::future::Future;
+    use std::usize;
+
+    use jsonrpsee::core::middleware::{Batch, Notification};
     use jsonrpsee::server::HttpBody;
     use jsonrpsee::types::Id;
+    use jsonrpsee::ResponsePayload;
 
     use super::*;
 
-    struct MockRpcService;
+    pub struct MockRpcService;
 
-    impl RpcServiceT<'_> for MockRpcService {
-        type Future = std::future::Ready<MethodResponse>;
+    impl RpcServiceT for MockRpcService {
+        type MethodResponse = MethodResponse;
+        type NotificationResponse = MethodResponse;
+        type BatchResponse = MethodResponse;
 
-        fn call(&self, _: Request<'_>) -> Self::Future {
+        fn call<'a>(
+            &self,
+            req: Request<'a>,
+        ) -> impl Future<Output = Self::MethodResponse> + Send + 'a {
             std::future::ready(MethodResponse::response(
-                Id::Number(1),
-                jsonrpsee::ResponsePayload::success("success"),
+                req.id(),
+                ResponsePayload::success(true),
                 usize::MAX,
             ))
+        }
+
+        fn batch<'a>(
+            &self,
+            _: Batch<'a>,
+        ) -> impl Future<Output = Self::MethodResponse> + Send + 'a {
+            std::future::ready(MethodResponse::response(
+                Id::Number(1),
+                ResponsePayload::success(true),
+                usize::MAX,
+            ))
+        }
+
+        fn notification<'a>(
+            &self,
+            _: Notification<'a>,
+        ) -> impl Future<Output = Self::NotificationResponse> + Send + 'a {
+            std::future::ready(MethodResponse::notification())
         }
     }
 
@@ -157,10 +231,11 @@ mod tests {
         assert!(auth.validate(&mut request).is_ok());
 
         let mut rpc_request =
-            jsonrpsee::types::Request::new("eth_blockNumber".into(), None, Id::Number(1));
+            jsonrpsee::types::Request::owned("eth_blockNumber".into(), None, Id::Number(1));
 
         rpc_request.extensions = request.extensions().clone();
 
+        println!("request: {:?}", validator.call(rpc_request.clone()).await);
         assert!(validator.call(rpc_request).await.is_success());
     }
 
@@ -177,7 +252,7 @@ mod tests {
         assert!(request.extensions().get::<Authorized>().is_some());
 
         let mut rpc_request =
-            jsonrpsee::types::Request::new("eth_blockNumber".into(), None, Id::Number(1));
+            jsonrpsee::types::Request::owned("eth_blockNumber".into(), None, Id::Number(1));
 
         rpc_request.extensions = request.extensions().clone();
 
@@ -197,7 +272,7 @@ mod tests {
         assert!(request.extensions().get::<Authorized>().is_some());
 
         let mut rpc_request =
-            jsonrpsee::types::Request::new("brc20_hello".into(), None, Id::Number(1));
+            jsonrpsee::types::Request::owned("brc20_hello".into(), None, Id::Number(1));
 
         rpc_request.extensions = request.extensions().clone();
 
@@ -216,7 +291,7 @@ mod tests {
         assert!(auth.validate(&mut request).is_ok());
 
         let mut rpc_request =
-            jsonrpsee::types::Request::new("brc20_hello".into(), None, Id::Number(1));
+            jsonrpsee::types::Request::owned("brc20_hello".into(), None, Id::Number(1));
 
         rpc_request.extensions = request.extensions().clone();
 
@@ -232,7 +307,7 @@ mod tests {
         assert!(auth.validate(&mut request).is_ok());
 
         let mut rpc_request =
-            jsonrpsee::types::Request::new("brc20_hello".into(), None, Id::Number(1));
+            jsonrpsee::types::Request::owned("brc20_hello".into(), None, Id::Number(1));
 
         rpc_request.extensions = request.extensions().clone();
 
@@ -247,7 +322,8 @@ mod tests {
 
         assert!(auth.validate(&mut request).is_ok());
 
-        let mut rpc_request = jsonrpsee::types::Request::new("eth_yo".into(), None, Id::Number(1));
+        let mut rpc_request =
+            jsonrpsee::types::Request::owned("eth_yo".into(), None, Id::Number(1));
 
         rpc_request.extensions = request.extensions().clone();
 
@@ -262,7 +338,7 @@ mod tests {
         assert!(auth.validate(&mut request).is_ok());
 
         let mut rpc_request =
-            jsonrpsee::types::Request::new("brc20_hello".into(), None, Id::Number(1));
+            jsonrpsee::types::Request::owned("brc20_hello".into(), None, Id::Number(1));
 
         rpc_request.extensions = request.extensions().clone();
 
