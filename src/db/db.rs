@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::error::Error;
+use std::f32::consts::E;
 use std::fmt::Display;
 use std::path::Path;
 
@@ -219,7 +220,9 @@ impl DB {
         // TODO: This is a temporary solution, we can potentially avoid using a mutex for reads
         // TODO: Also, test this, maybe it's not that slow?
         if block_number_to - block_number_from > 5 {
-            return Ok(Vec::new());
+            return Err(
+                "Block range is too large, please limit it to 5 blocks".into(),
+            );
         }
 
         let mut logs = Vec::new();
