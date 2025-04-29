@@ -220,9 +220,7 @@ impl DB {
         // TODO: This is a temporary solution, we can potentially avoid using a mutex for reads
         // TODO: Also, test this, maybe it's not that slow?
         if block_number_to - block_number_from > 5 {
-            return Err(
-                "Block range is too large, please limit it to 5 blocks".into(),
-            );
+            return Err("Block range is too large, please limit it to 5 blocks".into());
         }
 
         let mut logs = Vec::new();
