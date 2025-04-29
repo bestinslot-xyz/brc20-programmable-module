@@ -5,6 +5,8 @@ use std::time::Duration;
 
 use alloy_primitives::B256;
 use bitcoin::{BlockHash, KnownHrp, Network, Txid};
+use bitcoincore_rpc::jsonrpc::Error::Rpc;
+use bitcoincore_rpc::Error::JsonRpc;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use bitcoincore_rpc_json::{GetBlockResult, GetRawTransactionResult};
 
@@ -84,11 +86,20 @@ fn get_raw_transaction_with_retry(
     match BTC_CLIENT.get_raw_transaction_info(&txid, None) {
         Ok(response) => return Ok(response),
         Err(error) => {
+            // Error code -5 is "RPC_INVALID_ADDRESS_OR_KEY", which means the txid is not found
+            if let JsonRpc(Rpc(ref rpc_error)) = error {
+                if rpc_error.code == -5 {
+                    // Transaction not found, return error
+                    return Err(format!("Tx not found. Txid: {:?}", txid).into());
+                }
+            }
+            // Other error, retry
             if retries_left > 0 {
                 sleep(Duration::from_secs(1));
                 return get_raw_transaction_with_retry(txid, retries_left - 1);
+            } else {
+                panic!("Bitcoin RPC unreachable. Response: {:?}", error);
             }
-            panic!("Bitcoin RPC unreachable. Response: {:?}", error);
         }
     };
 }
