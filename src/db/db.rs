@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::error::Error;
-use std::f32::consts::E;
 use std::fmt::Display;
 use std::path::Path;
 
