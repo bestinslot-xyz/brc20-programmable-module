@@ -336,12 +336,9 @@ impl BRC20ProgEngine {
         address: Option<Address>,
         topics: Option<Vec<SingleOrVec<Option<B256>>>>,
     ) -> Result<Vec<LogED>, Box<dyn Error>> {
-        self.db.read().get_logs(
-            block_number_from,
-            block_number_to,
-            address,
-            topics,
-        )
+        self.db
+            .read()
+            .get_logs(block_number_from, block_number_to, address, topics)
     }
 
     pub fn finalise_block(
