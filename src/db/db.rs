@@ -5,7 +5,6 @@ use std::path::Path;
 
 use alloy_primitives::map::foldhash::fast::RandomState;
 use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, Log, B256, U128, U256, U64};
-use alloy_rpc_types_trace::geth::CallFrame;
 use revm::context::result::ExecutionResult;
 use revm::context::DBErrorMarker;
 use revm::{Database as DatabaseTrait, DatabaseCommit};
@@ -52,6 +51,10 @@ pub struct DB {
     db_inscription_id_to_tx_hash:
         Option<BlockCachedDatabase<String, B256ED, BlockHistoryCacheData<B256ED>>>,
 
+    /// Contract address to inscription ID
+    db_contract_address_to_inscription_id:
+        Option<BlockCachedDatabase<AddressED, String, BlockHistoryCacheData<String>>>,
+
     /// Block hash to block number
     db_block_hash_to_number:
         Option<BlockCachedDatabase<B256ED, U64ED, BlockHistoryCacheData<U64ED>>>,
@@ -86,6 +89,7 @@ impl Default for DB {
             db_tx: None,
             db_tx_trace: None,
             db_inscription_id_to_tx_hash: None,
+            db_contract_address_to_inscription_id: None,
             db_block_number_to_block: None,
             db_block_number_to_hash: None,
             db_block_hash_to_number: None,
@@ -113,6 +117,10 @@ impl DB {
             db_inscription_id_to_tx_hash: Some(BlockCachedDatabase::new(
                 &base_path,
                 "inscription_id_to_tx_hash",
+            )?),
+            db_contract_address_to_inscription_id: Some(BlockCachedDatabase::new(
+                &base_path,
+                "contract_address_to_inscription_id",
             )?),
             db_tx: Some(BlockCachedDatabase::new(&base_path, "tx")?),
             db_tx_trace: Some(BlockCachedDatabase::new(&base_path, "tx_trace")?),
@@ -324,6 +332,29 @@ impl DB {
             .latest(&inscription_id)
     }
 
+    pub fn get_inscription_id_by_contract_address(
+        &self,
+        contract_address: Address,
+    ) -> Result<Option<String>, Box<dyn Error>> {
+        self.db_contract_address_to_inscription_id
+            .as_ref()
+            .ok_or("DB Error")?
+            .latest(&contract_address.into())
+    }
+
+    pub fn set_contract_address_to_inscription_id(
+        &mut self,
+        contract_address: Address,
+        inscription_id: String,
+    ) -> Result<(), Box<dyn Error>> {
+        let block_number = self.get_latest_block_height()?;
+        Ok(self
+            .db_contract_address_to_inscription_id
+            .as_mut()
+            .ok_or("DB Error")?
+            .set(block_number, &contract_address.into(), inscription_id)?)
+    }
+
     pub fn set_tx_hash_by_inscription_id(
         &mut self,
         inscription_id: String,
@@ -395,11 +426,11 @@ impl DB {
             .latest(&tx_hash.into())
     }
 
-    pub fn set_tx_trace(&mut self, tx_hash: B256, call: &CallFrame) -> Result<(), Box<dyn Error>> {
+    pub fn set_tx_trace(&mut self, tx_hash: B256, trace: TraceED) -> Result<(), Box<dyn Error>> {
         self.db_tx_trace
             .as_mut()
             .ok_or("DB Error")?
-            .set(0, &tx_hash.into(), call.into())
+            .set(0, &tx_hash.into(), trace)
     }
 
     pub fn set_tx_receipt(
@@ -736,6 +767,10 @@ impl DB {
             .as_mut()
             .ok_or("DB Error")?
             .commit(latest_block_number)?;
+        self.db_contract_address_to_inscription_id
+            .as_mut()
+            .ok_or("DB Error")?
+            .commit(latest_block_number)?;
         self.db_tx
             .as_mut()
             .ok_or("DB Error")?
@@ -785,6 +820,10 @@ impl DB {
             .ok_or("DB Error")?
             .clear_cache();
         self.db_inscription_id_to_tx_hash
+            .as_mut()
+            .ok_or("DB Error")?
+            .clear_cache();
+        self.db_contract_address_to_inscription_id
             .as_mut()
             .ok_or("DB Error")?
             .clear_cache();
@@ -842,6 +881,10 @@ impl DB {
             .ok_or("DB Error")?
             .reorg(latest_valid_block_number)?;
         self.db_inscription_id_to_tx_hash
+            .as_mut()
+            .ok_or("DB Error")?
+            .reorg(latest_valid_block_number)?;
+        self.db_contract_address_to_inscription_id
             .as_mut()
             .ok_or("DB Error")?
             .reorg(latest_valid_block_number)?;

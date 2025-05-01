@@ -25,13 +25,27 @@ pub struct TraceED {
     pub error: Option<String>,
 }
 
-impl From<&CallFrame> for TraceED {
-    fn from(call: &CallFrame) -> Self {
+impl TraceED {
+    pub fn get_created_contracts(&self, output: &mut Vec<AddressED>) {
+        if self.tx_type.to_lowercase() == "create" {
+            if let Some(to) = &self.to {
+                output.push(to.clone());
+            }
+        } else {
+            for call in &self.calls {
+                call.get_created_contracts(output);
+            }
+        }
+    }
+}
+
+impl From<CallFrame> for TraceED {
+    fn from(call: CallFrame) -> Self {
         Self {
             tx_type: call.typ.clone(),
             from: call.from.into(),
             to: call.to.map(Into::<AddressED>::into),
-            calls: call.calls.iter().map(Into::<TraceED>::into).collect(),
+            calls: call.calls.iter().map(|x| x.clone().into()).collect(),
             gas: call.gas.into(),
             gas_used: call.gas_used.into(),
             input: call.input.clone().into(),
@@ -85,5 +99,104 @@ impl Decode for TraceED {
             },
             offset,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::types::Decode;
+
+    #[test]
+    fn test_trace_ed() {
+        let trace = TraceED {
+            tx_type: "call".to_string(),
+            from: [0; 20].into(),
+            to: Some([1; 20].into()),
+            calls: vec![TraceED {
+                tx_type: "call".to_string(),
+                from: [2; 20].into(),
+                to: Some([3; 20].into()),
+                calls: vec![],
+                gas: U256::from(21000).into(),
+                gas_used: U256::from(21000).into(),
+                input: vec![0x60, 0x00].into(),
+                output: vec![0x00].into(),
+                value: U256::from(0).into(),
+                error: None,
+            }],
+            gas: U256::from(21000).into(),
+            gas_used: U256::from(21001).into(),
+            input: vec![0x60, 0x00].into(),
+            output: vec![0x00].into(),
+            value: U256::from(0).into(),
+            error: None,
+        };
+
+        let mut buffer = Vec::new();
+        trace.encode(&mut buffer);
+
+        let (decoded_trace, _) = TraceED::decode(&buffer, 0).unwrap();
+
+        assert_eq!(trace, decoded_trace);
+    }
+
+    #[test]
+    fn test_get_created_contracts() {
+        let trace = TraceED {
+            tx_type: "call".to_string(),
+            from: [0; 20].into(),
+            to: Some([1; 20].into()),
+            calls: vec![
+                TraceED {
+                    tx_type: "create".to_string(),
+                    from: [2; 20].into(),
+                    to: Some([3; 20].into()),
+                    calls: vec![],
+                    gas: U256::from(21000).into(),
+                    gas_used: U256::from(21000).into(),
+                    input: vec![0x60, 0x00].into(),
+                    output: vec![0x00].into(),
+                    value: U256::from(0).into(),
+                    error: None,
+                },
+                TraceED {
+                    tx_type: "call".to_string(),
+                    from: [4; 20].into(),
+                    to: Some([5; 20].into()),
+                    calls: vec![TraceED {
+                        tx_type: "create".to_string(),
+                        from: [6; 20].into(),
+                        to: Some([7; 20].into()),
+                        calls: vec![],
+                        gas: U256::from(21000).into(),
+                        gas_used: U256::from(21000).into(),
+                        input: vec![0x60, 0x00].into(),
+                        output: vec![0x00].into(),
+                        value: U256::from(0).into(),
+                        error: None,
+                    }],
+                    gas: U256::from(21000).into(),
+                    gas_used: U256::from(21000).into(),
+                    input: vec![0x60, 0x00].into(),
+                    output: vec![0x00].into(),
+                    value: U256::from(0).into(),
+                    error: None,
+                },
+            ],
+            gas: U256::from(21000).into(),
+            gas_used: U256::from(21000).into(),
+            input: vec![0x60, 0x00].into(),
+            output: vec![0x00].into(),
+            value: U256::from(0).into(),
+            error: None,
+        };
+
+        let mut created_contracts = Vec::new();
+        trace.get_created_contracts(&mut created_contracts);
+
+        assert_eq!(created_contracts.len(), 2);
+        assert_eq!(created_contracts[0], [3; 20].into());
+        assert_eq!(created_contracts[1], [7; 20].into());
     }
 }

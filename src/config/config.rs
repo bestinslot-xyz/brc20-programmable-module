@@ -4,7 +4,7 @@ use std::path::Path;
 use crate::config::database::ConfigDatabase;
 
 lazy_static::lazy_static! {
-    static ref DB_VERSION: u32 = 1;
+    static ref DB_VERSION: u32 = 2;
     static ref DB_PATH: String = std::env::var("BRC20_PROG_DB_PATH").unwrap_or("target/db".to_string());
 
     static ref PROTOCOL_VERSION: u32 = 1;

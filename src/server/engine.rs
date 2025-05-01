@@ -6,7 +6,7 @@ use alloy_rpc_types_trace::geth::CallConfig;
 use revm::context::{ContextTr, TransactTo};
 use revm::handler::EvmTr;
 use revm::inspector::InspectorEvmTr;
-use revm::{ExecuteCommitEvm, ExecuteEvm, InspectCommitEvm};
+use revm::{ExecuteEvm, InspectCommitEvm};
 use serde_either::SingleOrVec;
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
@@ -21,11 +21,9 @@ use crate::evm::utils::{get_contract_address, get_gas_limit, get_result_reason, 
 use crate::server::shared_data::SharedData;
 use crate::server::types::{get_tx_hash, LastBlockInfo, TxInfo};
 
-lazy_static::lazy_static! {}
-
 pub struct BRC20ProgEngine {
-    pub db: SharedData<DB>,
-    pub last_block_info: SharedData<LastBlockInfo>,
+    db: SharedData<DB>,
+    last_block_info: SharedData<LastBlockInfo>,
 }
 
 impl BRC20ProgEngine {
@@ -190,26 +188,9 @@ impl BRC20ProgEngine {
                 tx.gas_limit = gas_limit;
             });
 
-            let output = if (*BRC20_PROG_CONFIG).evm_record_traces {
-                evm.inspect_replay_commit()?
-            } else {
-                evm.replay_commit()?
-            };
+            let output = evm.inspect_replay_commit()?;
 
             core::mem::swap(&mut *db, &mut evm.ctx().db());
-
-            if (*BRC20_PROG_CONFIG).evm_record_traces {
-                db.set_tx_trace(
-                    tx_hash,
-                    &evm.inspector().geth_builder().geth_call_traces(
-                        CallConfig {
-                            only_top_call: Some(false),
-                            with_log: Some(true),
-                        },
-                        output.gas_used(),
-                    ),
-                )?;
-            }
 
             let cumulative_gas_used = self
                 .last_block_info
@@ -217,6 +198,33 @@ impl BRC20ProgEngine {
                 .gas_used
                 .checked_add(output.gas_used())
                 .unwrap_or(self.last_block_info.read().gas_used);
+
+            let traces: TraceED = evm
+                .inspector()
+                .geth_builder()
+                .geth_call_traces(
+                    CallConfig {
+                        only_top_call: Some(false),
+                        with_log: Some(true),
+                    },
+                    output.gas_used(),
+                )
+                .into();
+
+            if let Some(inscription_id) = inscription_id.clone() {
+                let mut created_contracts = Vec::new();
+                traces.get_created_contracts(&mut created_contracts);
+                for created_contract in created_contracts {
+                    db.set_contract_address_to_inscription_id(
+                        created_contract.address,
+                        inscription_id.clone(),
+                    )?;
+                }
+            }
+
+            if (*BRC20_PROG_CONFIG).evm_record_traces {
+                db.set_tx_trace(tx_hash, traces)?;
+            }
 
             db.set_tx_receipt(
                 &get_result_type(&output),
@@ -251,6 +259,15 @@ impl BRC20ProgEngine {
             db.get_tx_receipt(tx_hash)?
                 .ok_or("Failed to set tx receipt".into())
         })
+    }
+
+    pub fn get_inscription_id_by_contract_address(
+        &self,
+        contract_address: Address,
+    ) -> Result<Option<String>, Box<dyn Error>> {
+        self.db
+            .read()
+            .get_inscription_id_by_contract_address(contract_address)
     }
 
     pub fn get_trace(&self, tx_hash: B256) -> Result<Option<TraceED>, Box<dyn Error>> {

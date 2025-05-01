@@ -18,6 +18,7 @@ lazy_static::lazy_static! {
     pub static ref INDEXER_ADDRESS: Address = "0x0000000000000000000000000000000000003Ca6".parse().expect("Failed to parse indexer address");
     pub static ref INDEXER_ADDRESS_STRING: String = INDEXER_ADDRESS.to_string();
     pub static ref INVALID_ADDRESS: Address = "0x000000000000000000000000000000000000dead".parse().expect("Failed to parse invalid address");
+    pub static ref CALLDATA_LIMIT: usize = 1024 * 1024; // 1MB
 
     // BRC20 Methods intended for the indexers, so they require auth
     pub static ref INDEXER_METHODS: Vec<String> = vec![
@@ -130,6 +131,13 @@ pub trait Brc20ProgApi {
     async fn get_inscription_id_by_tx_hash(
         &self,
         transaction: B256Wrapper,
+    ) -> RpcResult<Option<String>>;
+
+    /// Retrieves inscription id by contract address
+    #[method(name = "brc20_getInscriptionIdByContractAddress")]
+    async fn get_inscription_id_by_contract_address(
+        &self,
+        contract_address: AddressWrapper,
     ) -> RpcResult<Option<String>>;
 
     /// Finalises the block with the given parameters
@@ -510,11 +518,15 @@ pub fn decode_bytes_from_inscription_data(
         match base64_decoded[0] {
             0x00 => {
                 // Uncompressed
-                Some(Bytes::from(base64_decoded[1..].to_vec()))
+                if base64_decoded.len() > *CALLDATA_LIMIT {
+                    None
+                } else {
+                    Some(Bytes::from(base64_decoded[1..].to_vec()))
+                }
             }
             0x01 => {
                 // Nada
-                nada::decode(base64_decoded[1..].iter().cloned())
+                nada::decode_with_limit(base64_decoded[1..].iter().cloned(), *CALLDATA_LIMIT)
                     .ok()
                     .map(Bytes::from)
             }
