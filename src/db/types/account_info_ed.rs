@@ -1,10 +1,11 @@
 use std::error::Error;
 
 use revm_state::AccountInfo;
+use serde::{Deserialize, Serialize};
 
 use crate::db::types::{Decode, Encode, B256ED, U256ED, U64ED};
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Debug)]
 pub struct AccountInfoED {
     pub balance: U256ED,
     pub nonce: U64ED,
@@ -79,5 +80,17 @@ mod tests {
         assert_eq!(account_info.balance, decoded.balance);
         assert_eq!(account_info.nonce, decoded.nonce);
         assert_eq!(account_info.code_hash, decoded.code_hash);
+    }
+
+    #[test]
+    fn test_account_info_ed_serde() {
+        let account_info = AccountInfoED {
+            balance: U256::from(100).into(),
+            nonce: 1u64.into(),
+            code_hash: [1; 32].into(),
+        };
+        let serialized = serde_json::to_string(&account_info).unwrap();
+        let deserialized: AccountInfoED = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(account_info, deserialized);
     }
 }

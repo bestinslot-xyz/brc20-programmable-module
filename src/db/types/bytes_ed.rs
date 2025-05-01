@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use alloy_primitives::Bytes;
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::db::types::{Decode, Encode};
 
@@ -24,10 +24,22 @@ impl From<Vec<u8>> for BytesED {
     }
 }
 
+impl<'de> Deserialize<'de> for BytesED {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let hex_string: String = String::deserialize(deserializer)?;
+        Ok(BytesED {
+            bytes: hex_string.parse().map_err(serde::de::Error::custom)?,
+        })
+    }
+}
+
 impl Serialize for BytesED {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         serializer.serialize_str(&format!("{:x}", self.bytes))
     }

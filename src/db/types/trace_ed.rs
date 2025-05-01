@@ -2,18 +2,18 @@ use std::error::Error;
 
 use alloy_primitives::{Bytes, U256};
 use alloy_rpc_types_trace::geth::CallFrame;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::db::types::{AddressED, BytesED, Decode, Encode, U256ED};
 
-#[derive(Serialize, Clone, PartialEq, Eq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct TraceED {
     #[serde(rename = "type")]
     pub tx_type: String,
     pub from: AddressED,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<AddressED>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty", default = "Vec::new")]
     pub calls: Vec<TraceED>,
     pub gas: U256ED,
     #[serde(rename = "gasUsed")]
@@ -26,16 +26,13 @@ pub struct TraceED {
 }
 
 impl TraceED {
-    pub fn get_created_contracts(&self, output: &mut Vec<AddressED>) {
+    pub fn get_created_contract(&self) -> Option<AddressED> {
         if self.tx_type.to_lowercase() == "create" {
             if let Some(to) = &self.to {
-                output.push(to.clone());
-            }
-        } else {
-            for call in &self.calls {
-                call.get_created_contracts(output);
+                return Some(to.clone());
             }
         }
+        return None;
     }
 }
 
@@ -142,9 +139,41 @@ mod tests {
     }
 
     #[test]
-    fn test_get_created_contracts() {
+    fn test_trace_ed_serde() {
         let trace = TraceED {
             tx_type: "call".to_string(),
+            from: [0; 20].into(),
+            to: Some([1; 20].into()),
+            calls: vec![TraceED {
+                tx_type: "call".to_string(),
+                from: [2; 20].into(),
+                to: Some([3; 20].into()),
+                calls: vec![],
+                gas: U256::from(21000).into(),
+                gas_used: U256::from(21000).into(),
+                input: vec![0x60, 0x00].into(),
+                output: vec![0x00].into(),
+                value: U256::from(0).into(),
+                error: None,
+            }],
+            gas: U256::from(21000).into(),
+            gas_used: U256::from(21001).into(),
+            input: vec![0x60, 0x00].into(),
+            output: vec![0x00].into(),
+            value: U256::from(0).into(),
+            error: None,
+        };
+
+        let serialized = serde_json::to_string(&trace).unwrap();
+        let deserialized: TraceED = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(trace, deserialized);
+    }
+
+    #[test]
+    fn test_get_created_contract() {
+        let trace = TraceED {
+            tx_type: "create".to_string(),
             from: [0; 20].into(),
             to: Some([1; 20].into()),
             calls: vec![
@@ -192,11 +221,6 @@ mod tests {
             error: None,
         };
 
-        let mut created_contracts = Vec::new();
-        trace.get_created_contracts(&mut created_contracts);
-
-        assert_eq!(created_contracts.len(), 2);
-        assert_eq!(created_contracts[0], [3; 20].into());
-        assert_eq!(created_contracts[1], [7; 20].into());
+        assert_eq!(trace.get_created_contract(), Some([1; 20].into()));
     }
 }

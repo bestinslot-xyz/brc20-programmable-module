@@ -1,12 +1,13 @@
 use std::error::Error;
 
-use serde::Serialize;
+use either::Either::{self, Left, Right};
+use serde::{Deserialize, Serialize};
 
 use crate::db::types::{
     uint_full_hex, AddressED, Decode, Encode, TxED, B2048ED, B256ED, U128ED, U64ED,
 };
 
-#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct BlockResponseED {
     pub difficulty: U64ED,
     #[serde(rename = "gasLimit")]
@@ -23,11 +24,15 @@ pub struct BlockResponseED {
     #[serde(rename = "mineTimestamp")]
     pub mine_timestamp: U128ED,
 
-    #[serde(rename = "transactions", skip_serializing_if = "Option::is_none")]
-    pub transactions: Option<Vec<B256ED>>,
-
-    #[serde(rename = "transactions", skip_serializing_if = "Option::is_none")]
-    pub full_transactions: Option<Vec<TxED>>,
+    // This can be a list of hashes or a list of transactions
+    // Database will always store hashes, but we need to support both
+    // for the API
+    #[serde(
+        rename = "transactions",
+        serialize_with = "tx_serialize",
+        deserialize_with = "tx_deserialize"
+    )]
+    pub transactions: Either<Vec<B256ED>, Vec<TxED>>,
 
     // Always empty values
     #[serde(rename = "baseFeePerGas")]
@@ -81,6 +86,36 @@ pub struct BlockResponseED {
     pub blob_gas_used: U64ED,
 }
 
+fn tx_serialize<S>(tx: &Either<Vec<B256ED>, Vec<TxED>>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match tx {
+        Left(hashes) => hashes.serialize(serializer),
+        Right(txs) => txs.serialize(serializer),
+    }
+}
+
+fn tx_deserialize<'de, D>(deserializer: D) -> Result<Either<Vec<B256ED>, Vec<TxED>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let values = serde_json::Value::deserialize(deserializer)?;
+    if !values.is_array() {
+        return Err(serde::de::Error::custom("Expected an array"));
+    } else {
+        if !values.get(0).is_some_and(|v| v.is_string()) {
+            let transactions: Vec<TxED> =
+                serde_json::from_value(values).map_err(serde::de::Error::custom)?;
+            return Ok(Right(transactions));
+        } else {
+            let hashes: Vec<B256ED> =
+                serde_json::from_value(values).map_err(serde::de::Error::custom)?;
+            return Ok(Left(hashes));
+        }
+    }
+}
+
 impl BlockResponseED {
     pub fn new(
         difficulty: U64ED,
@@ -92,7 +127,7 @@ impl BlockResponseED {
         number: U64ED,
         timestamp: U64ED,
         mine_timestamp: U128ED,
-        transactions: Option<Vec<B256ED>>,
+        transactions: Vec<B256ED>,
         transactions_root: B256ED,
         total_difficulty: U64ED,
         parent_hash: B256ED,
@@ -109,8 +144,7 @@ impl BlockResponseED {
             number,
             timestamp,
             mine_timestamp,
-            transactions: transactions,
-            full_transactions: None,
+            transactions: Either::Left(transactions),
             transactions_root,
             size,
             parent_hash,
@@ -143,7 +177,11 @@ impl Encode for BlockResponseED {
         self.number.encode(buffer);
         self.timestamp.encode(buffer);
         self.mine_timestamp.encode(buffer);
-        self.transactions.encode(buffer);
+        let Left(transactions) = &self.transactions else {
+            // This should never happen, and it would be an implementation error, just in case
+            panic!("transactions should be a list of hashes");
+        };
+        transactions.encode(buffer);
         self.transactions_root.encode(buffer);
         self.total_difficulty.encode(buffer);
         self.parent_hash.encode(buffer);
@@ -209,7 +247,7 @@ mod tests {
             7u64.into(),
             8u64.into(),
             9u64.into(),
-            Some(vec![[10u8; 32].into(), [11u8; 32].into()]),
+            vec![[10u8; 32].into(), [11u8; 32].into()],
             [12u8; 32].into(),
             13u64.into(),
             [14u8; 32].into(),
@@ -235,7 +273,7 @@ mod tests {
             7u64.into(),
             8u64.into(),
             9u64.into(),
-            Some(vec![[10u8; 32].into(), [11u8; 32].into()]),
+            vec![[10u8; 32].into(), [11u8; 32].into()],
             [12u8; 32].into(),
             13u64.into(),
             [14u8; 32].into(),
@@ -245,5 +283,48 @@ mod tests {
 
         let serialized = serde_json::to_string(&block).unwrap();
         assert_eq!(serialized, "{\"difficulty\":\"0x1\",\"gasLimit\":\"0x2\",\"gasUsed\":\"0x3\",\"hash\":\"0x0404040404040404040404040404040404040404040404040404040404040404\",\"logsBloom\":\"0x05050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505\",\"nonce\":\"0x0000000000000006\",\"number\":\"0x7\",\"timestamp\":\"0x8\",\"mineTimestamp\":\"0x9\",\"transactions\":[\"0x0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a\",\"0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b\"],\"baseFeePerGas\":\"0x0\",\"transactionsRoot\":\"0x0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c\",\"uncles\":[],\"withdrawals\":[],\"withdrawalsRoot\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"totalDifficulty\":\"0xd\",\"parentBeaconBlockRoot\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"parentHash\":\"0x0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e\",\"receiptsRoot\":\"0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f\",\"sha3Uncles\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"size\":\"0x10\",\"stateRoot\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"miner\":\"0x0000000000000000000000000000000000000000\",\"mixHash\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"excessBlobGas\":\"0x0\",\"extraData\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"blobGasUsed\":\"0x0\"}");
+
+        let deserialized: BlockResponseED = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(block, deserialized);
+    }
+
+    #[test]
+    fn test_block_response_serde_full_txes() {
+        let mut block = BlockResponseED::new(
+            1u64.into(),
+            2u64.into(),
+            3u64.into(),
+            [4u8; 32].into(),
+            [5u8; 256].into(),
+            6u64.into(),
+            7u64.into(),
+            8u64.into(),
+            9u64.into(),
+            vec![],
+            [12u8; 32].into(),
+            13u64.into(),
+            [14u8; 32].into(),
+            [15u8; 32].into(),
+            16u64.into(),
+        );
+
+        block.transactions = Either::Right(vec![TxED::new(
+            [17u8; 32].into(),
+            18u64.into(),
+            [19u8; 32].into(),
+            20u64.into(),
+            21u64.into(),
+            [22u8; 20].into(),
+            Some([23u8; 20].into()),
+            24u64.into(),
+            vec![25u8].into(),
+            None,
+        )]);
+
+        let serialized = serde_json::to_string(&block).unwrap();
+        assert_eq!(serialized, "{\"difficulty\":\"0x1\",\"gasLimit\":\"0x2\",\"gasUsed\":\"0x3\",\"hash\":\"0x0404040404040404040404040404040404040404040404040404040404040404\",\"logsBloom\":\"0x05050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505\",\"nonce\":\"0x0000000000000006\",\"number\":\"0x7\",\"timestamp\":\"0x8\",\"mineTimestamp\":\"0x9\",\"transactions\":[{\"hash\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"nonce\":\"0x12\",\"blockHash\":\"0x1313131313131313131313131313131313131313131313131313131313131313\",\"blockNumber\":\"0x14\",\"transactionIndex\":\"0x15\",\"from\":\"0x1616161616161616161616161616161616161616\",\"to\":\"0x1717171717171717171717171717171717171717\",\"value\":\"0x0\",\"gas\":\"0x18\",\"gasPrice\":\"0x0\",\"input\":\"0x19\",\"v\":\"0x0\",\"r\":\"0x0\",\"s\":\"0x0\",\"chainId\":\"0x4252433230\",\"type\":0}],\"baseFeePerGas\":\"0x0\",\"transactionsRoot\":\"0x0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c\",\"uncles\":[],\"withdrawals\":[],\"withdrawalsRoot\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"totalDifficulty\":\"0xd\",\"parentBeaconBlockRoot\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"parentHash\":\"0x0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e\",\"receiptsRoot\":\"0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f\",\"sha3Uncles\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"size\":\"0x10\",\"stateRoot\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"miner\":\"0x0000000000000000000000000000000000000000\",\"mixHash\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"excessBlobGas\":\"0x0\",\"extraData\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"blobGasUsed\":\"0x0\"}");
+
+        let deserialized: BlockResponseED = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(block, deserialized);
     }
 }

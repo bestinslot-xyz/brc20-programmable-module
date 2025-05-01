@@ -3,6 +3,7 @@ use std::time::{Instant, UNIX_EPOCH};
 
 use alloy_primitives::{logs_bloom, Address, B256, U256};
 use alloy_rpc_types_trace::geth::CallConfig;
+use either::Either::Right;
 use revm::context::{ContextTr, TransactTo};
 use revm::handler::EvmTr;
 use revm::inspector::InspectorEvmTr;
@@ -212,9 +213,8 @@ impl BRC20ProgEngine {
                 .into();
 
             if let Some(inscription_id) = inscription_id.clone() {
-                let mut created_contracts = Vec::new();
-                traces.get_created_contracts(&mut created_contracts);
-                for created_contract in created_contracts {
+                // If this is a contract creation with inscription id, store it
+                if let Some(created_contract) = traces.get_created_contract() {
                     db.set_contract_address_to_inscription_id(
                         created_contract.address,
                         inscription_id.clone(),
@@ -426,7 +426,7 @@ impl BRC20ProgEngine {
         })?;
 
         Ok(TxReceiptED {
-            status: output.is_success() as u8,
+            status: (output.is_success() as u8).into(),
             transaction_result: get_result_type(&output),
             reason: get_result_reason(&output),
             result_bytes: output.output().cloned().map(|x| x.into()),
@@ -452,7 +452,7 @@ impl BRC20ProgEngine {
             cumulative_gas_used: output.gas_used().into(),
             nonce: nonce.into(),
             effective_gas_price: 0u64.into(),
-            transaction_type: 0,
+            transaction_type: 0u8.into(),
         })
     }
 
@@ -479,7 +479,7 @@ impl BRC20ProgEngine {
                 if !is_full {
                     return Ok(Some(block));
                 }
-                let tx_ids = block.transactions.unwrap_or(vec![]);
+                let tx_ids = block.transactions.left().unwrap_or(vec![]);
                 let mut txes = Vec::new();
                 for tx_id in tx_ids {
                     let Some(tx) = db.get_tx_by_hash(tx_id.bytes)? else {
@@ -487,8 +487,7 @@ impl BRC20ProgEngine {
                     };
                     txes.insert(txes.len(), tx);
                 }
-                block.full_transactions = Some(txes);
-                block.transactions = None;
+                block.transactions = Right(txes);
                 Ok(Some(block))
             })
         })
@@ -629,7 +628,7 @@ mod tests {
         assert_eq!(block.hash.bytes, genesis_hash);
         assert_eq!(block.timestamp, genesis_timestamp.into());
 
-        let full_transactions = block.full_transactions.unwrap();
+        let full_transactions = block.transactions.right().unwrap();
         assert_eq!(full_transactions.len(), 1);
         assert_eq!(full_transactions[0].from.address, *INDEXER_ADDRESS);
         assert_eq!(full_transactions[0].to, None);

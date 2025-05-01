@@ -1,11 +1,11 @@
 use std::error::Error;
 
 use alloy_primitives::Log;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED, U64ED};
 
-#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct LogED {
     pub address: AddressED,
     pub topics: Vec<B256ED>,
@@ -215,5 +215,39 @@ mod tests {
         );
 
         assert_eq!(log_responses.len(), 2);
+    }
+
+    #[test]
+    fn test_log_response_serde() {
+        let log1 = Log::new(
+            [1u8; 20].into(),
+            vec![[2u8; 32].into()],
+            [3u8; 32].to_vec().into(),
+        )
+        .unwrap();
+        let log2 = Log::new(
+            [4u8; 20].into(),
+            vec![[5u8; 32].into()],
+            [6u8; 32].to_vec().into(),
+        )
+        .unwrap();
+        let transaction_index = 1u32;
+        let transaction_hash: B256ED = [7u8; 32].into();
+        let block_hash: B256ED = [8u8; 32].into();
+        let block_number = 2u32;
+
+        let log_responses = LogED::new_vec(
+            &vec![log1, log2],
+            0u64.into(),
+            transaction_index.into(),
+            transaction_hash.clone(),
+            block_hash.clone(),
+            block_number.into(),
+        );
+
+        let serialized = serde_json::to_string(&log_responses).unwrap();
+        let deserialized: Vec<LogED> =
+            serde_json::from_str(&serialized).unwrap();
+        assert_eq!(log_responses, deserialized);
     }
 }

@@ -13,9 +13,10 @@ bitcoin = "0.32.5"
 bitcoincore-rpc = "0.19.0"
 bitcoincore-rpc-json = "0.19.0"
 dotenvy = "0.15.0"
+either = { version = "1.15.0" }
 hex = "0.4.3"
 hyper = "1.6.0"
-jsonrpsee = { version = "0.25.1", features = [ "server", "macros", "jsonrpsee-core", "jsonrpsee-types" ] }
+jsonrpsee = { version = "0.25.1", features = [ "server", "client", "macros", "jsonrpsee-core", "jsonrpsee-types" ] }
 lazy_static = "1.5.0"
 nada = "0.2.2"
 revm = { version = "22.0.1", default-features = false }
@@ -26,7 +27,6 @@ rocksdb = "0.23.0"
 rs_merkle = "1.4.2"
 rust-embed = "8.7.0"
 serde = { version = "1.0.217", features = ["derive"] }
-serde-hex = "0.1.0"
 serde_either = "0.2.1"
 serde_json = "1.0.138"
 tokio = "1.44.2"

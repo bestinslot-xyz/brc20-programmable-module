@@ -6,7 +6,7 @@ use base64::prelude::BASE64_STANDARD_NO_PAD;
 use base64::Engine;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_either::SingleOrVec;
 
 use crate::config::BRC20_PROG_CONFIG;
@@ -35,7 +35,7 @@ lazy_static::lazy_static! {
     ];
 }
 
-#[rpc(server)]
+#[rpc(server, client)]
 pub trait Brc20ProgApi {
     ///
     ///
@@ -346,7 +346,7 @@ pub trait Brc20ProgApi {
     }
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct EthCall {
     pub from: Option<AddressWrapper>,
     pub to: Option<AddressWrapper>,
@@ -366,7 +366,7 @@ impl EthCall {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GetLogsFilter {
     #[serde(rename = "fromBlock")]
     pub from_block: Option<String>,
@@ -403,10 +403,19 @@ impl U256Wrapper {
     }
 }
 
+impl Serialize for U256Wrapper {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
 impl<'de> Deserialize<'de> for U256Wrapper {
     fn deserialize<D>(deserializer: D) -> Result<U256Wrapper, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         if s.starts_with("0x") {
@@ -433,10 +442,19 @@ impl B256Wrapper {
     }
 }
 
+impl Serialize for B256Wrapper {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
 impl<'de> Deserialize<'de> for B256Wrapper {
     fn deserialize<D>(deserializer: D) -> Result<B256Wrapper, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         let b256 = FixedBytes::from_hex(&s).map_err(serde::de::Error::custom)?;
@@ -453,10 +471,19 @@ impl AddressWrapper {
     }
 }
 
+impl Serialize for AddressWrapper {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
 impl<'de> Deserialize<'de> for AddressWrapper {
     fn deserialize<D>(deserializer: D) -> Result<AddressWrapper, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         let Ok(s) = String::deserialize(deserializer) else {
             return Ok(AddressWrapper(*INVALID_ADDRESS));
@@ -491,10 +518,23 @@ impl BytesWrapper {
     }
 }
 
+impl Serialize for BytesWrapper {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if let Some(inner) = &self.0 {
+            serializer.serialize_str(inner)
+        } else {
+            serializer.serialize_none()
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for BytesWrapper {
     fn deserialize<D>(deserializer: D) -> Result<BytesWrapper, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         let Ok(s) = String::deserialize(deserializer) else {
             return Ok(BytesWrapper::empty());

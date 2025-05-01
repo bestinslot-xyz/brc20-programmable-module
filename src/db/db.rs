@@ -19,7 +19,6 @@ use crate::db::types::{
     AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED,
     B256ED, U128ED, U256ED, U512ED, U64ED,
 };
-use crate::server::api::CHAIN_ID;
 
 pub struct DB {
     /// Account address to memory location
@@ -474,25 +473,18 @@ impl DB {
             result,
         )?;
 
-        let tx = TxED {
-            hash: tx_hash.into(),
-            nonce: nonce.into(),
-            block_hash: block_hash.into(),
-            block_number: block_number.into(),
-            transaction_index: tx_idx.into(),
-            from: from.into(),
-            to: to.map(Into::<AddressED>::into),
-            value: 0u64.into(),
-            gas: gas_limit.into(),
-            gas_price: 0u64.into(),
-            input: data.clone().into(),
-            v: 0,
-            r: 0,
-            s: 0,
-            chain_id: (*CHAIN_ID).into(),
-            tx_type: 0,
-            inscription_id: inscription_id.clone(),
-        };
+        let tx = TxED::new(
+            tx_hash.into(),
+            nonce.into(),
+            block_hash.into(),
+            block_number.into(),
+            tx_idx.into(),
+            from.into(),
+            to.map(Into::<AddressED>::into),
+            gas_limit.into(),
+            data.clone().into(),
+            inscription_id.clone(),
+        );
 
         self.db_tx
             .as_mut()
@@ -608,7 +600,7 @@ impl DB {
             block_number.into(),
             block_timestamp.as_limbs()[0].into(),
             mine_timestamp.into(),
-            Some(transactions),
+            transactions,
             tx_merkle.root().unwrap_or([0; 32]).into(),
             0u64.into(),
             parent_hash.into(),

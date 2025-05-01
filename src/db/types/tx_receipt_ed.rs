@@ -2,15 +2,14 @@ use std::error::Error;
 
 use alloy_primitives::{logs_bloom, Address, Bytes, B256};
 use revm::context::result::ExecutionResult;
-use serde::Serialize;
-use serde_hex::{CompactPfx, SerHex};
+use serde::{Deserialize, Serialize};
 
+use super::U8ED;
 use crate::db::types::{AddressED, BytesED, Decode, Encode, LogED, B2048ED, B256ED, U64ED};
 
-#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct TxReceiptED {
-    #[serde(serialize_with = "one_or_zero")]
-    pub status: u8,
+    pub status: U8ED,
     #[serde(rename = "txResult")]
     pub transaction_result: String,
     #[serde(rename = "reason")]
@@ -38,32 +37,11 @@ pub struct TxReceiptED {
     pub cumulative_gas_used: U64ED,
     #[serde(rename = "effectiveGasPrice")]
     pub effective_gas_price: U64ED,
-    #[serde(rename = "type", with = "SerHex::<CompactPfx>")]
-    pub transaction_type: u8,
+    #[serde(rename = "type")]
+    pub transaction_type: U8ED,
     pub nonce: U64ED,
-    #[serde(rename = "output", serialize_with = "bytes")]
+    #[serde(rename = "output")]
     pub result_bytes: Option<BytesED>,
-}
-
-fn bytes<S>(bytes: &Option<BytesED>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    match bytes {
-        Some(bytes) => serializer.serialize_str(&format!("0x{}", hex::encode(&bytes.bytes))),
-        None => serializer.serialize_str("0x"),
-    }
-}
-
-fn one_or_zero<S>(status: &u8, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if *status == 1 {
-        serializer.serialize_str("0x1")
-    } else {
-        serializer.serialize_str("0x0")
-    }
 }
 
 impl TxReceiptED {
@@ -85,7 +63,7 @@ impl TxReceiptED {
         output_bytes: Option<&Bytes>,
     ) -> Result<Self, Box<dyn Error>> {
         Ok(TxReceiptED {
-            status: output.is_success() as u8,
+            status: (output.is_success() as u8).into(),
             transaction_result: r#type,
             reason,
             logs: LogED::new_vec(
@@ -110,7 +88,7 @@ impl TxReceiptED {
             nonce,
             result_bytes: output_bytes.map(|bytes| bytes.clone().into()),
             effective_gas_price: 0u64.into(),
-            transaction_type: 0,
+            transaction_type: 0u8.into(),
         })
     }
 }
@@ -174,7 +152,7 @@ impl Decode for TxReceiptED {
                 transaction_index,
                 cumulative_gas_used,
                 effective_gas_price: 0u64.into(),
-                transaction_type: 0,
+                transaction_type: 0u8.into(),
                 nonce,
                 result_bytes,
             },
@@ -200,7 +178,7 @@ mod tests {
             log_index: 9u64.into(),
         };
         let tx_receipt_ed = TxReceiptED {
-            status: 4,
+            status: 4u8.into(),
             transaction_result: "type".to_string(),
             reason: "reason".to_string(),
             logs: vec![logs],
@@ -218,10 +196,48 @@ mod tests {
             nonce: 15u64.into(),
             result_bytes: None,
             effective_gas_price: 0u64.into(),
-            transaction_type: 0,
+            transaction_type: 0u8.into(),
         };
         let bytes = tx_receipt_ed.encode_vec();
         let decoded = TxReceiptED::decode_vec(&bytes).unwrap();
         assert_eq!(tx_receipt_ed, decoded);
+    }
+
+    #[test]
+    fn test_tx_receipt_ed_serde() {
+        let logs = LogED {
+            address: [1u8; 20].into(),
+            topics: vec![[2u8; 32].into(), [3u8; 32].into()],
+            data: BytesED::from([4u8; 32].to_vec()),
+            transaction_index: 5u64.into(),
+            transaction_hash: [6u8; 32].into(),
+            block_hash: [7u8; 32].into(),
+            block_number: 8u64.into(),
+            log_index: 9u64.into(),
+        };
+        let tx_receipt_ed = TxReceiptED {
+            status: 4u8.into(),
+            transaction_result: "type".to_string(),
+            reason: "reason".to_string(),
+            logs: vec![logs],
+            gas_used: 5u64.into(),
+            from: [6u8; 20].into(),
+            to: Some([7u8; 20].into()),
+            contract_address: Some([8u8; 20].into()),
+            logs_bloom: [9u8; 256].into(),
+            hash: [10u8; 32].into(),
+            block_number: 11u64.into(),
+            block_timestamp: 12u64.into(),
+            transaction_hash: [12u8; 32].into(),
+            transaction_index: 13u64.into(),
+            cumulative_gas_used: 14u64.into(),
+            nonce: 15u64.into(),
+            result_bytes: None,
+            effective_gas_price: 0u64.into(),
+            transaction_type: 0u8.into(),
+        };
+        let serialized = serde_json::to_string(&tx_receipt_ed).unwrap();
+        let deserialized: TxReceiptED = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(tx_receipt_ed, deserialized);
     }
 }

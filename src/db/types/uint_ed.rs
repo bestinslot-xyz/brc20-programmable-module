@@ -2,7 +2,7 @@ use std::error::Error;
 use std::fmt;
 
 use alloy_primitives::{Address, Uint, U256};
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::db::types::{Decode, Encode};
 
@@ -11,6 +11,7 @@ pub struct UintED<const BITS: usize, const LIMBS: usize> {
     pub uint: Uint<BITS, LIMBS>,
 }
 
+pub type U8ED = UintED<8, 1>;
 pub type U64ED = UintED<64, 1>;
 pub type U128ED = UintED<128, 2>;
 pub type U512ED = UintED<512, 8>;
@@ -40,6 +41,14 @@ impl<const BITS: usize, const LIMBS: usize> From<u128> for UintED<BITS, LIMBS> {
 
 impl<const BITS: usize, const LIMBS: usize> From<u32> for UintED<BITS, LIMBS> {
     fn from(value: u32) -> Self {
+        Self {
+            uint: Uint::from(value),
+        }
+    }
+}
+
+impl<const BITS: usize, const LIMBS: usize> From<u8> for UintED<BITS, LIMBS> {
+    fn from(value: u8) -> Self {
         Self {
             uint: Uint::from(value),
         }
@@ -82,10 +91,34 @@ pub fn uint_full_hex<const BITS: usize, const LIMBS: usize, S: Serializer>(
 impl<const BITS: usize, const LIMBS: usize> Serialize for UintED<BITS, LIMBS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         let hex_string = format!("0x{:x}", self.uint);
         serializer.serialize_str(&hex_string)
+    }
+}
+
+impl<'de, const BITS: usize, const LIMBS: usize> Deserialize<'de> for UintED<BITS, LIMBS> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let hex_string = String::deserialize(deserializer)?;
+        let mut hex_string = hex_string.trim_start_matches("0x").to_string();
+        if hex_string.len() % 2 != 0 {
+            hex_string = format!("0{}", hex_string);
+        }
+        let bytes = hex::decode(hex_string.clone()).map_err(serde::de::Error::custom)?;
+        let uint = Uint::<BITS, LIMBS>::try_from_be_slice(bytes.as_slice());
+        match uint {
+            Some(uint) => Ok(Self { uint }),
+            None => {
+                return Err(serde::de::Error::custom(format!(
+                    "Failed to decode integer from hex string: {}",
+                    hex_string
+                )))
+            }
+        }
     }
 }
 
@@ -185,5 +218,24 @@ mod tests {
         let u256_ed: U256ED = U256::from(100u64).into();
         let serialized = serde_json::to_string(&u256_ed).unwrap();
         assert_eq!(serialized, "\"0x64\"");
+
+        let deserialized: U256ED = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(u256_ed, deserialized);
+    }
+
+    #[test]
+    fn test_u512_ed_deserialize() {
+        let deserialized: U512ED = serde_json::from_str("\"0x000064\"").unwrap();
+        assert_eq!(deserialized.uint.as_limbs()[0], 100u64);
+    }
+
+    #[test]
+    fn test_u512_ed_serialize() {
+        let u512_ed: U512ED = U512::from(100u64).into();
+        let serialized = serde_json::to_string(&u512_ed).unwrap();
+        assert_eq!(serialized, "\"0x64\"");
+
+        let deserialized: U512ED = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(u512_ed, deserialized);
     }
 }

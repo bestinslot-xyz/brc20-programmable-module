@@ -1,9 +1,12 @@
 use std::error::Error;
 
 use alloy_primitives::Address;
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::db::types::{Decode, Encode};
+use crate::{
+    db::types::{Decode, Encode},
+    server::api::INVALID_ADDRESS,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AddressED {
@@ -24,10 +27,22 @@ impl From<Address> for AddressED {
     }
 }
 
+impl<'de> Deserialize<'de> for AddressED {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let hex_string: String = String::deserialize(deserializer)?;
+        Ok(AddressED {
+            address: hex_string.parse().unwrap_or(*INVALID_ADDRESS),
+        })
+    }
+}
+
 impl Serialize for AddressED {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         let hex_string = format!("0x{:x}", self.address);
         serializer.serialize_str(&hex_string)
@@ -83,5 +98,15 @@ mod tests {
         let address_ed: AddressED = address.into();
         let serialized = serde_json::to_string(&address_ed).unwrap();
         assert_eq!(serialized, "\"0x1234567890123456789012345678901234567890\"");
+    }
+
+    #[test]
+    fn test_address_ed_deserialize() {
+        let serialized = "\"0x1234567890123456789012345678901234567890\"";
+        let address_ed: AddressED = serde_json::from_str(serialized).unwrap();
+        assert_eq!(
+            address_ed.address.to_string(),
+            "0x1234567890123456789012345678901234567890"
+        );
     }
 }
