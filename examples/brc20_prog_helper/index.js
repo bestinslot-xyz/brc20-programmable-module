@@ -24,6 +24,9 @@ async function main() {
             'BRC20_Prog.sol': { content: BRC20Prog_sol },
         },
         settings: {
+            metadata: {
+              useLiteralContent: true
+            },
             evmVersion: "cancun",
             outputSelection: {
                 '*': {
@@ -43,6 +46,10 @@ async function main() {
 
     fs.mkdirSync('output', { recursive: true });
 
+    let metadata = JSON.parse(contract["metadata"])
+    delete metadata.output
+
+    fs.writeFileSync('output/BRC20_Prog.json', JSON.stringify(metadata, null, 4), function (_) { });
     fs.writeFileSync('output/BRC20_Prog.abi', JSON.stringify(abi, null, 4), function (_) { });
     fs.writeFileSync('output/BRC20_Prog.bytecode', bytecode, function (_) { });
 

@@ -11,6 +11,9 @@ async function main() {
             'Simple.sol': { content: Simple_sol },
         },
         settings: {
+            metadata: {
+              useLiteralContent: true
+            },
             evmVersion: "cancun",
             outputSelection: {
                 '*': {
@@ -31,6 +34,10 @@ async function main() {
 
     fs.mkdirSync('output', { recursive: true });
 
+    let metadata = JSON.parse(contract["metadata"])
+    delete metadata.output
+
+    fs.writeFileSync('output/Simple.json', JSON.stringify(metadata, null, 4), function (_) { });
     fs.writeFile('output/Simple.abi', JSON.stringify(abi, null, 4), function (_) { });
     fs.writeFile('output/Simple.bytecode', bytecode, function (_) { });
 
