@@ -2,8 +2,7 @@ use std::error::Error;
 
 use serde::{Deserialize, Serialize, Serializer};
 
-use super::U8ED;
-use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED, U64ED};
+use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED, U8ED, U64ED};
 use crate::server::api::CHAIN_ID;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
