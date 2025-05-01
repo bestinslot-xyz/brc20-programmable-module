@@ -169,6 +169,16 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_rpc_error)
     }
 
+    async fn get_inscription_id_by_contract_address(
+        &self,
+        contract_address: AddressWrapper,
+    ) -> RpcResult<Option<String>> {
+        event!(Level::INFO, "Getting inscription id by contract address");
+        self.engine
+            .get_inscription_id_by_contract_address(contract_address.value())
+            .map_err(wrap_rpc_error)
+    }
+
     #[instrument(skip(self))]
     async fn get_inscription_id_by_tx_hash(
         &self,

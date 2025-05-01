@@ -1,11 +1,11 @@
 [package]
 name = "brc20_prog"
-version = "0.2.1"
+version = "0.3.1"
 edition = "2021"
 
 [dependencies]
-alloy-primitives = "1.0.0"
-alloy-rpc-types-trace = "0.15.6"
+alloy-primitives = "1.1.0"
+alloy-rpc-types-trace = "0.15.7"
 alloy-sol-types = "1.0.0"
 base64 = "0.22.1"
 bip322 = "0.0.9"
@@ -17,9 +17,9 @@ hex = "0.4.3"
 hyper = "1.6.0"
 jsonrpsee = { version = "0.25.1", features = [ "server", "macros", "jsonrpsee-core", "jsonrpsee-types" ] }
 lazy_static = "1.5.0"
-nada = "0.2.1"
+nada = "0.2.2"
 revm = { version = "22.0.1", default-features = false }
-revm-inspectors = "0.20.0"
+revm-inspectors = "0.20.1"
 revm-state = "3.0.0"
 rlimit = "0.10.2"
 rocksdb = "0.23.0"
