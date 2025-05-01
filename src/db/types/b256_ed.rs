@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use alloy_primitives::FixedBytes;
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::db::types::{Decode, Encode};
 
@@ -36,10 +36,22 @@ impl<const N: usize> From<FixedBytesED<N>> for FixedBytes<N> {
 impl<const N: usize> Serialize for FixedBytesED<N> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         let hex_string = format!("0x{:x}", self.bytes);
         serializer.serialize_str(&hex_string)
+    }
+}
+
+impl<'de, const N: usize> Deserialize<'de> for FixedBytesED<N> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let hex_string: String = String::deserialize(deserializer)?;
+        Ok(FixedBytesED {
+            bytes: hex_string.parse().map_err(serde::de::Error::custom)?,
+        })
     }
 }
 
@@ -78,5 +90,12 @@ mod tests {
             serialized,
             "\"0x0101010101010101010101010101010101010101010101010101010101010101\""
         );
+    }
+
+    #[test]
+    fn test_b256_ed_deserialize() {
+        let serialized = "\"0x0101010101010101010101010101010101010101010101010101010101010101\"";
+        let deserialized: B256ED = serde_json::from_str(serialized).unwrap();
+        assert_eq!(deserialized.bytes, [1u8; 32]);
     }
 }

@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use revm_state::Bytecode;
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::db::types::{Decode, Encode};
 
@@ -10,10 +10,22 @@ pub struct BytecodeED {
     pub bytecode: Bytecode,
 }
 
+impl<'de> Deserialize<'de> for BytecodeED {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let hex_string: String = String::deserialize(deserializer)?;
+        Ok(BytecodeED {
+            bytecode: Bytecode::new_raw(hex_string.parse().map_err(serde::de::Error::custom)?),
+        })
+    }
+}
+
 impl Serialize for BytecodeED {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         let hex_string = format!("{:x}", self.bytecode.original_bytes());
         serializer.serialize_str(&hex_string)

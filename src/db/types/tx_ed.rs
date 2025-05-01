@@ -1,12 +1,12 @@
 use std::error::Error;
 
-use serde::Serialize;
-use serde_hex::{CompactPfx, SerHex};
+use serde::{Deserialize, Serialize, Serializer};
 
+use super::U8ED;
 use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED, U64ED};
 use crate::server::api::CHAIN_ID;
 
-#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct TxED {
     pub hash: B256ED,
     pub nonce: U64ED,
@@ -23,18 +23,69 @@ pub struct TxED {
     #[serde(rename = "gasPrice")]
     pub gas_price: U64ED,
     pub input: BytesED,
-    #[serde(with = "SerHex::<CompactPfx>")]
-    pub v: u8,
-    #[serde(with = "SerHex::<CompactPfx>")]
-    pub r: u8,
-    #[serde(with = "SerHex::<CompactPfx>")]
-    pub s: u8,
+    pub v: U8ED,
+    pub r: U8ED,
+    pub s: U8ED,
     #[serde(rename = "chainId")]
     pub chain_id: U64ED,
-    #[serde(rename = "type")]
-    pub tx_type: u8,
-    #[serde(skip_serializing)]
+    #[serde(
+        rename = "type",
+        serialize_with = "no_hex",
+        deserialize_with = "no_hex_deserialize"
+    )]
+    pub tx_type: U8ED,
+    #[serde(skip_serializing, skip_deserializing)]
     pub inscription_id: Option<String>,
+}
+
+fn no_hex<S>(value: &U8ED, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_u64(value.uint.as_limbs()[0])
+}
+
+fn no_hex_deserialize<'de, D>(deserializer: D) -> Result<U8ED, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = u8::deserialize(deserializer)?;
+    Ok(U8ED::from(value))
+}
+
+impl TxED {
+    pub fn new(
+        hash: B256ED,
+        nonce: U64ED,
+        block_hash: B256ED,
+        block_number: U64ED,
+        transaction_index: U64ED,
+        from: AddressED,
+        to: Option<AddressED>,
+        gas: U64ED,
+        input: BytesED,
+        inscription_id: Option<String>,
+    ) -> Self {
+        TxED {
+            hash,
+            nonce,
+            block_hash,
+            block_number,
+            transaction_index,
+            from,
+            to,
+            value: 0u64.into(),
+            gas,
+            gas_price: 0u64.into(),
+            input,
+            v: 0u8.into(),
+            r: 0u8.into(),
+            s: 0u8.into(),
+            chain_id: (*CHAIN_ID).into(),
+            tx_type: 0u8.into(),
+            inscription_id,
+        }
+    }
 }
 
 impl Encode for TxED {
@@ -82,11 +133,11 @@ impl Decode for TxED {
                 gas,
                 gas_price,
                 input,
-                v: 0,
-                r: 0,
-                s: 0,
+                v: 0u8.into(),
+                r: 0u8.into(),
+                s: 0u8.into(),
                 chain_id: (*CHAIN_ID).into(),
-                tx_type: 0,
+                tx_type: 0u8.into(),
                 inscription_id,
             },
             offset,
@@ -112,11 +163,11 @@ mod tests {
             gas: 5u64.into(),
             gas_price: 6u64.into(),
             input: vec![7, 8, 9].into(),
-            v: 0,
-            r: 0,
-            s: 0,
+            v: 0u8.into(),
+            r: 0u8.into(),
+            s: 0u8.into(),
             chain_id: (*CHAIN_ID).into(),
-            tx_type: 0,
+            tx_type: 0u8.into(),
             inscription_id: Some("inscription_id".to_string()),
         };
         let encoded = tx.encode_vec();
@@ -138,17 +189,51 @@ mod tests {
             gas: 5u64.into(),
             gas_price: 6u64.into(),
             input: vec![7, 8, 9].into(),
-            v: 0,
-            r: 0,
-            s: 0,
+            v: 0u8.into(),
+            r: 0u8.into(),
+            s: 0u8.into(),
             chain_id: (*CHAIN_ID).into(),
-            tx_type: 0,
+            tx_type: 0u8.into(),
+            inscription_id: None,
+        };
+        let serialized = serde_json::to_string(&tx).unwrap();
+        assert_eq!(
+            serialized,
+            "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\",\"v\":\"0x0\",\"r\":\"0x0\",\"s\":\"0x0\",\"chainId\":\"0x4252433230\",\"type\":0}"
+        );
+
+        let deserialized: TxED = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(tx, deserialized);
+    }
+
+    #[test]
+    fn deserialize_no_inscription_id() {
+        let tx = TxED {
+            hash: [1u8; 32].into(),
+            nonce: 1u64.into(),
+            block_hash: [2u8; 32].into(),
+            block_number: 2u64.into(),
+            transaction_index: 3u64.into(),
+            from: [3u8; 20].into(),
+            to: Some([4u8; 20].into()),
+            value: 4u64.into(),
+            gas: 5u64.into(),
+            gas_price: 6u64.into(),
+            input: vec![7, 8, 9].into(),
+            v: 0u8.into(),
+            r: 0u8.into(),
+            s: 0u8.into(),
+            chain_id: (*CHAIN_ID).into(),
+            tx_type: 0u8.into(),
             inscription_id: Some("inscription_id".to_string()),
         };
         let serialized = serde_json::to_string(&tx).unwrap();
         assert_eq!(
             serialized,
             "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\",\"v\":\"0x0\",\"r\":\"0x0\",\"s\":\"0x0\",\"chainId\":\"0x4252433230\",\"type\":0}"
-        )
+        );
+
+        let deserialized: TxED = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.inscription_id, None);
     }
 }

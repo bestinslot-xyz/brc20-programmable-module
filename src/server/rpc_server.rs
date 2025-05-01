@@ -451,7 +451,7 @@ impl Brc20ProgApiServer for RpcServer {
             .map(|x| x.bytes)
             .unwrap_or(Bytes::new())
             .to_string();
-        if receipt.status == 0 {
+        if receipt.status.uint.is_zero() {
             return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
         }
         Ok(data_string)
@@ -480,7 +480,7 @@ impl Brc20ProgApiServer for RpcServer {
             .map(|x| x.bytes)
             .unwrap_or(Bytes::new())
             .to_string();
-        if receipt.status == 0 {
+        if receipt.status.uint.is_zero() {
             return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
         }
         let gas_used: u64 = receipt.gas_used.into();
