@@ -111,7 +111,7 @@ for i in range(len(tx_data_precompiles)):
             block_hash=block_hash,
             inscription_id=None,
         )
-        if result["status"] != "0x1" or (tx_data_precompiles[i][3] and result["resultBytes"] != tx_data_precompiles[i][3]):
+        if result["status"] != "0x1" or (tx_data_precompiles[i][3] and result["output"] != tx_data_precompiles[i][3]):
             print("Direct call for " + tx_data_precompiles[i][0] + " failed")
             failed_tests.append("Direct - " + tx_data_precompiles[i][0])
             input("Press Enter to continue...")
@@ -124,7 +124,7 @@ for i in range(len(tx_data_precompiles)):
         timestamp=timestamp,
         block_hash=block_hash,
     )
-    if result["status"] != "0x1" or (tx_data_precompiles[i][3] and result["resultBytes"] != tx_data_precompiles[i][3]):
+    if result["status"] != "0x1" or (tx_data_precompiles[i][3] and result["output"] != tx_data_precompiles[i][3]):
         print("Proxy call for " + tx_data_precompiles[i][0] + " failed")
         failed_tests.append("Proxy - " + tx_data_precompiles[i][0])
         input("Press Enter to continue...")

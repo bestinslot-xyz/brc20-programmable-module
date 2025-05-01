@@ -114,7 +114,7 @@ for i in range(call_cnt):
     )
     if (
         result["status"] != "0x1"
-        or result["resultBytes"] != tx_data_precompiles[precompile_to_test][3]
+        or result["output"] != tx_data_precompiles[precompile_to_test][3]
     ):
         print("Call " + str(i) + " failed with result: " + str(result))
         sys.exit(1)

@@ -41,7 +41,7 @@ pub struct TxReceiptED {
     #[serde(rename = "type", with = "SerHex::<CompactPfx>")]
     pub transaction_type: u8,
     pub nonce: U64ED,
-    #[serde(rename = "resultBytes", serialize_with = "bytes")]
+    #[serde(rename = "output", serialize_with = "bytes")]
     pub result_bytes: Option<BytesED>,
 }
 
