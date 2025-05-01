@@ -133,7 +133,7 @@ class BRC20ProgClient:
         if not brc20_prog_enabled:
             return
         self.verify_block_hash_and_timestamp(block_hash, timestamp)
-        print("Adding transaction to BRC20PROG")
+        print("Deploying contract in BRC20PROG")
 
         tx_result = jsonrpc_call(
             "brc20_deploy",
@@ -171,7 +171,7 @@ class BRC20ProgClient:
         if not brc20_prog_enabled:
             return
         self.verify_block_hash_and_timestamp(block_hash, timestamp)
-        print("Adding transaction to BRC20PROG")
+        print("Calling contract in BRC20PROG")
 
         tx_result = jsonrpc_call(
             "brc20_call",
@@ -228,14 +228,14 @@ class BRC20ProgClient:
 
         self.reset_current_block()
 
-    def get_block_hash(self, block_height: int):
+    def get_block(self, block_height: int):
         if not brc20_prog_enabled:
             return ""
-        result = jsonrpc_call("eth_getBlockByNumber", {"block": str(block_height), "is_full": False})
+        result = jsonrpc_call("eth_getBlockByNumber", {"block": str(block_height), "is_full": True})
         if "error" in result:
             return None
 
-        return result["result"]["hash"]
+        return result["result"]
 
     def get_block_height(self):
         if not brc20_prog_enabled:

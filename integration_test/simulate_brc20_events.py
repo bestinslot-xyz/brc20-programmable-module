@@ -1,26 +1,18 @@
 import psycopg2, requests, time
 from Crypto.Hash import keccak
+from brc20_prog.brc20_prog_client import BRC20ProgClient
 
 session = requests.Session()
 
+brc20prog_client = BRC20ProgClient()
 conn = psycopg2.connect(
-    host="127.0.0.1", 
-    database="postgres", 
-    user="postgres", 
-    password="password"
+    host="127.0.0.1", database="postgres", user="postgres", password="password"
 )
 conn.autocommit = True
 cur = conn.cursor()
 
-
-def get_evm_height():
-    url = "http://localhost:8000/current_block_height"
-    response = session.get(url)
-    return response.json()["result"]
-
-
 initial_block_height = 779830
-current_block_height = get_evm_height() + 1
+current_block_height = brc20prog_client.get_block_height() + 1
 cur.execute("SELECT max(block_height) from brc20_block_hashes;")
 max_block_height = cur.fetchone()[0]
 
@@ -28,10 +20,7 @@ contract_deploy_tx = {
     "inscription": {
         "inscription_id": "0000000000000000000000000000000000000000000000000000000000000000i0",
         "op": "deploy",
-        "d": "0x"
-        + open("contracts/brc20_deployer/BRC20_Deployer.bin")
-        .read()
-        .strip(),
+        "d": "0x" + open("contracts/brc20_deployer/BRC20_Deployer.bin").read().strip(),
     },
     "btc_pkscript": "512037679ea62eab55ebfd442c53c4ad46b6b75e45d8a8fa9cb31a87d0df268b029a",
 }
@@ -39,16 +28,17 @@ contract_deploy_tx = {
 
 def get_addr_data(btc_pkscript):
     k = keccak.new(digest_bits=256)
-    k.update(btc_pkscript.encode('ASCII'))
+    k.update(btc_pkscript.encode("ASCII"))
     return k.hexdigest()[-40:].zfill(64)
+
 
 def get_block_ts(hash):
     err_cnt = 0
     while True:
         try:
-            r = requests.get('https://mempool.space/api/block/' + hash)
+            r = requests.get("https://mempool.space/api/block/" + hash)
             j = r.json()
-            return j['timestamp']
+            return j["timestamp"]
         except:
             err_cnt += 1
             if err_cnt == 5:
@@ -56,16 +46,13 @@ def get_block_ts(hash):
                 return None
             time.sleep(1.0)
 
+
 handled_block_cnt = 0
 while current_block_height <= max_block_height:
     if handled_block_cnt % 1000 == 0:
         print("Committing to db...")
         st_tm = time.time()
-        url = "http://localhost:8000/commit_changes_to_db"
-        response = session.get(url)
-        if response.status_code != 200:
-            print("Error committing to db")
-            exit(1)
+        brc20prog_client.commit_to_database()
         print("Committed to db in " + str(time.time() - st_tm) + " seconds")
     block_txes = []
     if current_block_height == initial_block_height:
@@ -76,10 +63,10 @@ while current_block_height <= max_block_height:
         (current_block_height,),
     )
     btc_hash = "0x" + cur.fetchone()[0]
-    #block_ts = get_block_ts(btc_hash[2:])
-    #if block_ts is None:
+    # block_ts = get_block_ts(btc_hash[2:])
+    # if block_ts is None:
     #    exit(5)
-    btc_ts = 0 #int(block_ts)
+    btc_ts = 0  # int(block_ts)
     cur.execute(
         "SELECT event_type, event, inscription_id from brc20_events where block_height = %s order by id asc;",
         (current_block_height,),
@@ -90,7 +77,7 @@ while current_block_height <= max_block_height:
         inscription_id = event[2]
         event_tx = {
             "inscription": {
-                "inscription_len": 1000, ## dummy value
+                "inscription_len": 1000,  ## dummy value
                 "inscription_id": inscription_id,
                 "op": "call",
                 "c": "0x11bc79b28ab26101d4cb2cbdd4d5c2ceeea49efb",
@@ -136,7 +123,9 @@ while current_block_height <= max_block_height:
             data += tick_hex.ljust(64, "0")
 
             event_tx["inscription"]["d"] = data
-            event_tx["inscription"]["inscription_id"] += '0' ## since event type 3 also uses the same inscr_id, add another 0 to differentiate
+            event_tx["inscription"][
+                "inscription_id"
+            ] += "0"  ## since event type 3 also uses the same inscr_id, add another 0 to differentiate
             event_tx["btc_pkscript"] = event[1]["source_pkScript"]
         elif event[0] == 3:
             data = "0x3b63e221"
@@ -156,18 +145,40 @@ while current_block_height <= max_block_height:
             event_tx["btc_pkscript"] = event[1]["source_pkScript"]
         block_txes.append(event_tx)
     st_tm = time.time()
-    url = "http://localhost:8000/mine_block"
-    to_send = {"ts": btc_ts, "hash": btc_hash, "txes": block_txes}
-    response = session.post(url, json=to_send).json()
-    if response["error"] is not None:
-        print(response["error"])
-        exit(1)
-    for i in range(len(response["result"]["responses"])):
-        resp = response["result"]["responses"][i]
-        if "error" in resp:
-            print(resp)
-            print(block_txes[i])
-            exit(1)
+    for tx in block_txes:
+        if tx["inscription"]["op"] == "call":
+            result = brc20prog_client.call(
+                from_pkscript=tx["btc_pkscript"],
+                contract_address=tx["inscription"]["c"],
+                contract_inscription_id=None,
+                data=tx["inscription"]["d"],
+                timestamp=btc_ts,
+                block_hash=btc_hash,
+                inscription_id=tx["inscription"]["inscription_id"],
+                inscription_len=tx["inscription"]["inscription_len"],
+            )
+            if result["status"] != "0x1":
+                print("Call failed with result: " + result)
+                print("Error in block " + str(current_block_height))
+                print("Error in transaction " + str(tx))
+                exit(1)
+        if tx["inscription"]["op"] == "deploy":
+            contract_address = brc20prog_client.deploy(
+                from_pkscript=tx["btc_pkscript"],
+                data=tx["inscription"]["d"],
+                timestamp=btc_ts,
+                block_hash=btc_hash,
+                inscription_id=tx["inscription"]["inscription_id"],
+            )
+            if contract_address is None:
+                print("Failed to deploy contract")
+                print("Error in block " + str(current_block_height))
+                print("Error in transaction " + str(tx))
+                exit(1)
+    brc20prog_client.finalise_block(
+        block_hash=btc_hash,
+        timestamp=btc_ts,
+    )
     print(
         "Block "
         + str(current_block_height)
@@ -183,8 +194,4 @@ while current_block_height <= max_block_height:
     handled_block_cnt += 1
 
 print("Committing to db...")
-url = "http://localhost:8000/commit_changes_to_db"
-response = session.get(url)
-if response.status_code != 200:
-    print("Error committing to db")
-    exit(1)
+brc20prog_client.commit_to_database()

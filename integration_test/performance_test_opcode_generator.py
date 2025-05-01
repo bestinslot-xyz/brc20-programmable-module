@@ -1,3 +1,7 @@
+from brc20_prog.brc20_prog_client import BRC20ProgClient
+
+brc20_prog_client = BRC20ProgClient()
+
 stack_limit = 1023
 
 
@@ -570,7 +574,6 @@ codes, params_list = get_all_bench_codes()
 import time
 import requests
 
-url_mine = "http://localhost:8000/mine_block"
 data_deploy = {
     "ts": 5,
     "hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -594,9 +597,6 @@ data_call = {
     ],
 }
 
-url_current_block_height = "http://localhost:8000/current_block_height"
-url_get_block_info = "http://localhost:8000/get_block_info?block_height="
-
 
 def convert_hex_or_decimal_to_float(s):
     if s.startswith("0x"):
@@ -614,29 +614,39 @@ for i in range(len(codes)):
     params = params_list[i]
     print("deploying: ", get(params[0]), params[1])
     data_deploy["txes"][0]["inscription"]["d"] = code
-    response = requests.post(
-        url_mine, json=data_deploy, headers={"Content-Type": "application/json"}
+    contract_address = brc20_prog_client.deploy(
+        from_pkscript=data_deploy["txes"][0]["btc_pkscript"],
+        data=data_deploy["txes"][0]["inscription"]["d"],
+        timestamp=data_deploy["ts"],
+        block_hash=data_deploy["hash"],
+        inscription_id=None,
     )
-    js = response.json()
-    contractAddress = js["result"]["responses"][0]["receipt"]["contractAddress"]
-    print("contractAddress: ", contractAddress)
-    data_call["txes"][0]["inscription"]["c"] = contractAddress
-    response = requests.post(
-        url_mine, json=data_call, headers={"Content-Type": "application/json"}
+    brc20_prog_client.finalise_block(
+        block_hash=data_deploy["hash"], timestamp=data_deploy["ts"]
     )
-    js = response.json()
-    if js["result"]["responses"][0]["receipt"]["txResult"] != "Success":
-        print("failed: ", params)
-        print("result: " + js["result"]["responses"][0]["receipt"]["txResult"])
-        print("reason: " + js["result"]["responses"][0]["receipt"]["reason"])
+    print("contractAddress: ", contract_address)
+    data_call["txes"][0]["inscription"]["c"] = contract_address
+    result = brc20_prog_client.call(
+        from_pkscript=data_call["txes"][0]["btc_pkscript"],
+        contract_address=contract_address,
+        contract_inscription_id=None,
+        data=data_call["txes"][0]["inscription"]["d"],
+        timestamp=data_call["ts"],
+        block_hash=data_call["hash"],
+        inscription_id=None,
+        inscription_byte_len=1_000_000,
+    )
+    brc20_prog_client.finalise_block(
+        block_hash=data_call["hash"], timestamp=data_call["ts"]
+    )
+    if result["status"] != "0x1":
+        print("Transaction failed")
+        print(result)
         exit(1)
-    response = requests.get(url_current_block_height)
-    js = response.json()
-    blockHeight = js["result"]
-    response = requests.get(url_get_block_info + str(blockHeight))
-    js = response.json()
-    gasUsed = convert_hex_or_decimal_to_float(js["result"]["gasUsed"])
-    mineTm = convert_hex_or_decimal_to_float(js["result"]["mineTimestamp"])
+    block_height = brc20_prog_client.get_block_height()
+    block = brc20_prog_client.get_block(block_height)
+    gasUsed = convert_hex_or_decimal_to_float(block["gasUsed"])
+    mineTm = convert_hex_or_decimal_to_float(block["mineTimestamp"])
     ratio = mineTm / gasUsed
     total_gas_used += gasUsed
     total_mine_tm += mineTm
