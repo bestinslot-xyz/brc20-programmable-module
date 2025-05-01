@@ -4,8 +4,7 @@ use alloy_primitives::{logs_bloom, Address, Bytes, B256};
 use revm::context::result::ExecutionResult;
 use serde::{Deserialize, Serialize};
 
-use super::U8ED;
-use crate::db::types::{AddressED, BytesED, Decode, Encode, LogED, B2048ED, B256ED, U64ED};
+use crate::db::types::{AddressED, BytesED, Decode, Encode, LogED, B2048ED, B256ED, U8ED, U64ED};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct TxReceiptED {
