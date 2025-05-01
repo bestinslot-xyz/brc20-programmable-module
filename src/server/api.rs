@@ -1,7 +1,5 @@
-use std::str::FromStr;
-
 use alloy_primitives::hex::FromHex;
-use alloy_primitives::{Address, Bytes, FixedBytes, B256, U256};
+use alloy_primitives::{Address, Bytes, B256};
 use base64::prelude::BASE64_STANDARD_NO_PAD;
 use base64::Engine;
 use jsonrpsee::core::RpcResult;
@@ -10,7 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_either::SingleOrVec;
 
 use crate::config::BRC20_PROG_CONFIG;
-use crate::db::types::{BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED};
+use crate::db::types::{AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED};
 
 lazy_static::lazy_static! {
     pub static ref CHAIN_ID: u64 = 0x4252433230;
@@ -58,9 +56,9 @@ pub trait Brc20ProgApi {
     async fn deploy_contract(
         &self,
         from_pkscript: String,
-        data: BytesWrapper,
+        data: EncodedBytesWrapper,
         timestamp: u64,
-        hash: B256Wrapper,
+        hash: B256ED,
         tx_idx: u64,
         inscription_id: Option<String>,
         inscription_byte_len: Option<u64>,
@@ -70,11 +68,11 @@ pub trait Brc20ProgApi {
     async fn call_contract(
         &self,
         from_pkscript: String,
-        contract_address: Option<AddressWrapper>,
+        contract_address: Option<AddressED>,
         contract_inscription_id: Option<String>,
-        data: BytesWrapper,
+        data: EncodedBytesWrapper,
         timestamp: u64,
-        hash: B256Wrapper,
+        hash: B256ED,
         tx_idx: u64,
         inscription_id: Option<String>,
         inscription_byte_len: Option<u64>,
@@ -86,9 +84,9 @@ pub trait Brc20ProgApi {
         &self,
         to_pkscript: String,
         ticker: String,
-        amount: U256Wrapper,
+        amount: U256ED,
         timestamp: u64,
-        hash: B256Wrapper,
+        hash: B256ED,
         tx_idx: u64,
         inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED>;
@@ -99,9 +97,9 @@ pub trait Brc20ProgApi {
         &self,
         from_pkscript: String,
         ticker: String,
-        amount: U256Wrapper,
+        amount: U256ED,
         timestamp: u64,
-        hash: B256Wrapper,
+        hash: B256ED,
         tx_idx: u64,
         inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED>;
@@ -114,7 +112,7 @@ pub trait Brc20ProgApi {
     #[method(name = "brc20_initialise")]
     async fn initialise(
         &self,
-        genesis_hash: B256Wrapper,
+        genesis_hash: B256ED,
         genesis_timestamp: u64,
         genesis_height: u64,
     ) -> RpcResult<()>;
@@ -130,14 +128,14 @@ pub trait Brc20ProgApi {
     #[method(name = "brc20_getInscriptionIdByTxHash")]
     async fn get_inscription_id_by_tx_hash(
         &self,
-        transaction: B256Wrapper,
+        transaction: B256ED,
     ) -> RpcResult<Option<String>>;
 
     /// Retrieves inscription id by contract address
     #[method(name = "brc20_getInscriptionIdByContractAddress")]
     async fn get_inscription_id_by_contract_address(
         &self,
-        contract_address: AddressWrapper,
+        contract_address: AddressED,
     ) -> RpcResult<Option<String>>;
 
     /// Finalises the block with the given parameters
@@ -145,7 +143,7 @@ pub trait Brc20ProgApi {
     async fn finalise_block(
         &self,
         timestamp: u64,
-        hash: B256Wrapper,
+        hash: B256ED,
         block_tx_count: u64,
     ) -> RpcResult<()>;
 
@@ -183,7 +181,7 @@ pub trait Brc20ProgApi {
     #[method(name = "eth_getBlockByHash")]
     async fn get_block_by_hash(
         &self,
-        block: B256Wrapper,
+        block: B256ED,
         is_full: Option<bool>,
     ) -> RpcResult<BlockResponseED>;
 
@@ -191,7 +189,7 @@ pub trait Brc20ProgApi {
     #[method(name = "eth_getTransactionCount")]
     async fn get_transaction_count(
         &self,
-        account: AddressWrapper,
+        account: AddressED,
         block: String,
     ) -> RpcResult<String>;
 
@@ -201,7 +199,7 @@ pub trait Brc20ProgApi {
 
     /// Returns the transaction count by block hash
     #[method(name = "eth_getBlockTransactionCountByHash")]
-    async fn get_block_transaction_count_by_hash(&self, block: B256Wrapper) -> RpcResult<String>;
+    async fn get_block_transaction_count_by_hash(&self, block: B256ED) -> RpcResult<String>;
 
     /// Gets logs for the given filter
     #[method(name = "eth_getLogs")]
@@ -219,29 +217,29 @@ pub trait Brc20ProgApi {
     #[method(name = "eth_getStorageAt")]
     async fn get_storage_at(
         &self,
-        contract: AddressWrapper,
-        location: U256Wrapper,
+        contract: AddressED,
+        location: U256ED,
     ) -> RpcResult<String>;
 
     /// Returns the bytecode of the contract at the given address
     #[method(name = "eth_getCode")]
-    async fn get_code(&self, contract: AddressWrapper) -> RpcResult<BytecodeED>;
+    async fn get_code(&self, contract: AddressED) -> RpcResult<BytecodeED>;
 
     /// Returns the transaction receipt for the given transaction hash
     #[method(name = "eth_getTransactionReceipt")]
     async fn get_transaction_receipt(
         &self,
-        transaction: B256Wrapper,
+        transaction: B256ED,
     ) -> RpcResult<Option<TxReceiptED>>;
 
     /// Returns the trace for the given transaction hash
     #[method(name = "debug_traceTransaction")]
-    async fn debug_trace_transaction(&self, transaction: B256Wrapper)
+    async fn debug_trace_transaction(&self, transaction: B256ED)
         -> RpcResult<Option<TraceED>>;
 
     /// Returns the transaction by hash
     #[method(name = "eth_getTransactionByHash")]
-    async fn get_transaction_by_hash(&self, transaction: B256Wrapper) -> RpcResult<Option<TxED>>;
+    async fn get_transaction_by_hash(&self, transaction: B256ED) -> RpcResult<Option<TxED>>;
 
     /// Returns the transaction by block number and index
     #[method(name = "eth_getTransactionByBlockNumberAndIndex")]
@@ -255,7 +253,7 @@ pub trait Brc20ProgApi {
     #[method(name = "eth_getTransactionByBlockHashAndIndex")]
     async fn get_transaction_by_block_hash_and_index(
         &self,
-        hash: B256Wrapper,
+        hash: B256ED,
         index: Option<u64>,
     ) -> RpcResult<Option<TxED>>;
 
@@ -285,7 +283,7 @@ pub trait Brc20ProgApi {
 
     /// Returns the balance of the account at the given address (0 in BRC20)
     #[method(name = "eth_getBalance")]
-    async fn get_balance(&self, _address: AddressWrapper, _block: String) -> RpcResult<String> {
+    async fn get_balance(&self, _address: AddressED, _block: String) -> RpcResult<String> {
         Ok("0x0".to_string())
     }
 
@@ -297,7 +295,7 @@ pub trait Brc20ProgApi {
 
     /// Returns the uncle count of the block at the given block hash (0 in BRC20)
     #[method(name = "eth_getUncleCountByBlockHash")]
-    async fn get_uncle_count_by_block_hash(&self, _hash: B256Wrapper) -> RpcResult<String> {
+    async fn get_uncle_count_by_block_hash(&self, _hash: B256ED) -> RpcResult<String> {
         Ok("0x0".to_string())
     }
 
@@ -315,7 +313,7 @@ pub trait Brc20ProgApi {
     #[method(name = "eth_getUncleByBlockHashAndIndex")]
     async fn get_uncle_by_block_hash_and_index(
         &self,
-        _hash: B256Wrapper,
+        _hash: B256ED,
         _index: u64,
     ) -> RpcResult<Option<String>> {
         Ok(None)
@@ -348,14 +346,14 @@ pub trait Brc20ProgApi {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EthCall {
-    pub from: Option<AddressWrapper>,
-    pub to: Option<AddressWrapper>,
-    pub data: Option<BytesWrapper>,
-    pub input: Option<BytesWrapper>,
+    pub from: Option<AddressED>,
+    pub to: Option<AddressED>,
+    pub data: Option<EncodedBytesWrapper>,
+    pub input: Option<EncodedBytesWrapper>,
 }
 
 impl EthCall {
-    pub fn data_or_input(&self) -> Option<&BytesWrapper> {
+    pub fn data_or_input(&self) -> Option<&EncodedBytesWrapper> {
         if let Some(data) = &self.data {
             Some(data)
         } else if let Some(input) = &self.input {
@@ -372,8 +370,8 @@ pub struct GetLogsFilter {
     pub from_block: Option<String>,
     #[serde(rename = "toBlock")]
     pub to_block: Option<String>,
-    pub address: Option<AddressWrapper>,
-    pub topics: Option<Vec<SingleOrVec<Option<B256Wrapper>>>>,
+    pub address: Option<AddressED>,
+    pub topics: Option<Vec<SingleOrVec<Option<B256ED>>>>,
 }
 
 impl GetLogsFilter {
@@ -382,10 +380,10 @@ impl GetLogsFilter {
             topics
                 .iter()
                 .map(|topic| match topic {
-                    SingleOrVec::Single(t) => SingleOrVec::Single(t.clone().map(|t| t.value())),
+                    SingleOrVec::Single(t) => SingleOrVec::Single(t.clone().map(|t| t.bytes)),
                     SingleOrVec::Vec(ts) => SingleOrVec::Vec(
                         ts.iter()
-                            .map(|t| t.clone().map(|t| t.value()))
+                            .map(|t| t.clone().map(|t| t.bytes))
                             .collect::<Vec<Option<B256>>>(),
                     ),
                 })
@@ -395,110 +393,9 @@ impl GetLogsFilter {
 }
 
 #[derive(Debug)]
-pub struct U256Wrapper(U256);
+pub struct EncodedBytesWrapper(Option<String>);
 
-impl U256Wrapper {
-    pub fn value(&self) -> U256 {
-        self.0
-    }
-}
-
-impl Serialize for U256Wrapper {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.0.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for U256Wrapper {
-    fn deserialize<D>(deserializer: D) -> Result<U256Wrapper, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        if s.starts_with("0x") {
-            let u256 = U256::from_str_radix(&s[2..], 16).map_err(serde::de::Error::custom)?;
-            Ok(U256Wrapper(u256))
-        } else {
-            let u256 = U256::from_str_radix(&s, 10).map_err(serde::de::Error::custom)?;
-            Ok(U256Wrapper(u256))
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct B256Wrapper(B256);
-
-impl B256Wrapper {
-    #[cfg(test)]
-    pub fn new(b256: B256) -> Self {
-        Self(b256)
-    }
-
-    pub fn value(&self) -> B256 {
-        self.0
-    }
-}
-
-impl Serialize for B256Wrapper {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.0.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for B256Wrapper {
-    fn deserialize<D>(deserializer: D) -> Result<B256Wrapper, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        let b256 = FixedBytes::from_hex(&s).map_err(serde::de::Error::custom)?;
-        Ok(B256Wrapper(b256))
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AddressWrapper(Address);
-
-impl AddressWrapper {
-    pub fn value(&self) -> Address {
-        self.0
-    }
-}
-
-impl Serialize for AddressWrapper {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.0.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for AddressWrapper {
-    fn deserialize<D>(deserializer: D) -> Result<AddressWrapper, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let Ok(s) = String::deserialize(deserializer) else {
-            return Ok(AddressWrapper(*INVALID_ADDRESS));
-        };
-        match Address::from_str(&s) {
-            Ok(address) => Ok(AddressWrapper(address)),
-            Err(_) => Ok(AddressWrapper(*INVALID_ADDRESS)),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct BytesWrapper(Option<String>);
-
-impl BytesWrapper {
+impl EncodedBytesWrapper {
     pub fn new(inner: String) -> Self {
         Self(Some(inner))
     }
@@ -518,7 +415,7 @@ impl BytesWrapper {
     }
 }
 
-impl Serialize for BytesWrapper {
+impl Serialize for EncodedBytesWrapper {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -531,15 +428,15 @@ impl Serialize for BytesWrapper {
     }
 }
 
-impl<'de> Deserialize<'de> for BytesWrapper {
-    fn deserialize<D>(deserializer: D) -> Result<BytesWrapper, D::Error>
+impl<'de> Deserialize<'de> for EncodedBytesWrapper {
+    fn deserialize<D>(deserializer: D) -> Result<EncodedBytesWrapper, D::Error>
     where
         D: Deserializer<'de>,
     {
         let Ok(s) = String::deserialize(deserializer) else {
-            return Ok(BytesWrapper::empty());
+            return Ok(EncodedBytesWrapper::empty());
         };
-        Ok(BytesWrapper::new(s))
+        Ok(EncodedBytesWrapper::new(s))
     }
 }
 

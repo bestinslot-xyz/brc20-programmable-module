@@ -14,11 +14,13 @@ use tracing::{event, instrument, Level};
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
 };
-use crate::db::types::{BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED};
+use crate::db::types::{
+    AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
+};
 use crate::evm::utils::get_evm_address;
 use crate::server::api::{
-    AddressWrapper, B256Wrapper, Brc20ProgApiServer, BytesWrapper, EthCall, GetLogsFilter,
-    U256Wrapper, INDEXER_METHODS, INVALID_ADDRESS,
+    Brc20ProgApiServer, EncodedBytesWrapper, EthCall, GetLogsFilter, INDEXER_METHODS,
+    INVALID_ADDRESS,
 };
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::engine::BRC20ProgEngine;
@@ -62,9 +64,9 @@ impl Brc20ProgApiServer for RpcServer {
         &self,
         to_pkscript: String,
         ticker: String,
-        amount: U256Wrapper,
+        amount: U256ED,
         timestamp: u64,
-        hash: B256Wrapper,
+        hash: B256ED,
         tx_idx: u64,
         inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED> {
@@ -78,13 +80,13 @@ impl Brc20ProgApiServer for RpcServer {
                 &load_brc20_mint_tx(
                     ticker_as_bytes(&ticker),
                     get_evm_address(&to_pkscript),
-                    amount.value(),
+                    amount.uint,
                 ),
                 tx_idx,
                 self.engine
                     .get_next_block_height()
                     .map_err(wrap_rpc_error)?,
-                hash.value(),
+                hash.bytes,
                 inscription_id,
                 Some(u64::MAX),
             )
@@ -96,9 +98,9 @@ impl Brc20ProgApiServer for RpcServer {
         &self,
         from_pkscript: String,
         ticker: String,
-        amount: U256Wrapper,
+        amount: U256ED,
         timestamp: u64,
-        hash: B256Wrapper,
+        hash: B256ED,
         tx_idx: u64,
         inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED> {
@@ -112,13 +114,13 @@ impl Brc20ProgApiServer for RpcServer {
                 &load_brc20_burn_tx(
                     ticker_as_bytes(&ticker),
                     get_evm_address(&from_pkscript),
-                    amount.value(),
+                    amount.uint,
                 ),
                 tx_idx,
                 self.engine
                     .get_next_block_height()
                     .map_err(wrap_rpc_error)?,
-                hash.value(),
+                hash.bytes,
                 inscription_id,
                 Some(u64::MAX),
             )
@@ -148,13 +150,13 @@ impl Brc20ProgApiServer for RpcServer {
     #[instrument(skip(self))]
     async fn initialise(
         &self,
-        genesis_hash: B256Wrapper,
+        genesis_hash: B256ED,
         genesis_timestamp: u64,
         genesis_height: u64,
     ) -> RpcResult<()> {
         event!(Level::INFO, "Initialising server");
         self.engine
-            .initialise(genesis_hash.value(), genesis_timestamp, genesis_height)
+            .initialise(genesis_hash.bytes, genesis_timestamp, genesis_height)
             .map_err(wrap_rpc_error)
     }
 
@@ -171,22 +173,22 @@ impl Brc20ProgApiServer for RpcServer {
 
     async fn get_inscription_id_by_contract_address(
         &self,
-        contract_address: AddressWrapper,
+        contract_address: AddressED,
     ) -> RpcResult<Option<String>> {
         event!(Level::INFO, "Getting inscription id by contract address");
         self.engine
-            .get_inscription_id_by_contract_address(contract_address.value())
+            .get_inscription_id_by_contract_address(contract_address.address)
             .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
     async fn get_inscription_id_by_tx_hash(
         &self,
-        transaction: B256Wrapper,
+        transaction: B256ED,
     ) -> RpcResult<Option<String>> {
         event!(Level::INFO, "Getting inscription id by transaction hash");
         self.engine
-            .get_transaction_by_hash(transaction.value())
+            .get_transaction_by_hash(transaction.bytes)
             .map(|tx| tx.and_then(|tx| tx.inscription_id))
             .map_err(wrap_rpc_error)
     }
@@ -195,9 +197,9 @@ impl Brc20ProgApiServer for RpcServer {
     async fn deploy_contract(
         &self,
         from_pkscript: String,
-        data: BytesWrapper,
+        data: EncodedBytesWrapper,
         timestamp: u64,
-        hash: B256Wrapper,
+        hash: B256ED,
         tx_idx: u64,
         inscription_id: Option<String>,
         inscription_byte_len: Option<u64>,
@@ -228,7 +230,7 @@ impl Brc20ProgApiServer for RpcServer {
                 },
                 tx_idx,
                 block_height,
-                hash.value(),
+                hash.bytes,
                 inscription_id,
                 inscription_byte_len,
             )
@@ -239,11 +241,11 @@ impl Brc20ProgApiServer for RpcServer {
     async fn call_contract(
         &self,
         from_pkscript: String,
-        contract_address: Option<AddressWrapper>,
+        contract_address: Option<AddressED>,
         contract_inscription_id: Option<String>,
-        data: BytesWrapper,
+        data: EncodedBytesWrapper,
         timestamp: u64,
-        hash: B256Wrapper,
+        hash: B256ED,
         tx_idx: u64,
         inscription_id: Option<String>,
         inscription_byte_len: Option<u64>,
@@ -268,7 +270,7 @@ impl Brc20ProgApiServer for RpcServer {
                 .unwrap_or(*INVALID_ADDRESS)
         } else {
             contract_address
-                .map(|x| x.value())
+                .map(|x| x.address)
                 .unwrap_or(*INVALID_ADDRESS)
         };
 
@@ -282,7 +284,7 @@ impl Brc20ProgApiServer for RpcServer {
                 },
                 tx_idx,
                 block_height,
-                hash.value(),
+                hash.bytes,
                 inscription_id,
                 inscription_byte_len,
             )
@@ -294,7 +296,7 @@ impl Brc20ProgApiServer for RpcServer {
     async fn finalise_block(
         &self,
         timestamp: u64,
-        hash: B256Wrapper,
+        hash: B256ED,
         block_tx_count: u64,
     ) -> RpcResult<()> {
         let block_height = self
@@ -303,7 +305,7 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_rpc_error)?;
         event!(Level::INFO, "Finalising block {}", block_height);
         self.engine
-            .finalise_block(timestamp, block_height, hash.value(), block_tx_count)
+            .finalise_block(timestamp, block_height, hash.bytes, block_tx_count)
             .map_err(wrap_rpc_error)
     }
 
@@ -358,13 +360,13 @@ impl Brc20ProgApiServer for RpcServer {
     #[instrument(skip(self))]
     async fn get_block_by_hash(
         &self,
-        block: B256Wrapper,
+        block: B256ED,
         is_full: Option<bool>,
     ) -> RpcResult<BlockResponseED> {
         event!(Level::INFO, "Getting block by number");
         if let Some(block) = self
             .engine
-            .get_block_by_hash(block.value(), is_full.unwrap_or(false))
+            .get_block_by_hash(block.bytes, is_full.unwrap_or(false))
             .map_err(wrap_rpc_error)?
         {
             Ok(block)
@@ -374,15 +376,11 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn get_transaction_count(
-        &self,
-        account: AddressWrapper,
-        block: String,
-    ) -> RpcResult<String> {
+    async fn get_transaction_count(&self, account: AddressED, block: String) -> RpcResult<String> {
         event!(Level::INFO, "Getting transaction count");
         let block_number = self.parse_block_number(&block).map_err(wrap_rpc_error)?;
         self.engine
-            .get_transaction_count(account.value(), block_number)
+            .get_transaction_count(account.address, block_number)
             .map(|count| format!("0x{:x}", count))
             .map_err(wrap_rpc_error)
     }
@@ -398,10 +396,10 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn get_block_transaction_count_by_hash(&self, block: B256Wrapper) -> RpcResult<String> {
+    async fn get_block_transaction_count_by_hash(&self, block: B256ED) -> RpcResult<String> {
         event!(Level::INFO, "Getting block transaction count");
         self.engine
-            .get_block_transaction_count_by_hash(block.value())
+            .get_block_transaction_count_by_hash(block.bytes)
             .map(|count| format!("0x{:x}", count))
             .map_err(wrap_rpc_error)
     }
@@ -422,7 +420,7 @@ impl Brc20ProgApiServer for RpcServer {
             .get_logs(
                 from_block,
                 to_block,
-                filter.address.clone().map(|x| x.value()),
+                filter.address.clone().map(|x| x.address),
                 filter.topics_as_b256(),
             )
             .map_err(wrap_rpc_error)?)
@@ -438,9 +436,9 @@ impl Brc20ProgApiServer for RpcServer {
             from: call
                 .from
                 .as_ref()
-                .map(|x| x.value())
+                .map(|x| x.address)
                 .unwrap_or(*INVALID_ADDRESS),
-            to: call.to.as_ref().map(|x| x.value()),
+            to: call.to.as_ref().map(|x| x.address),
             data: data.value_eth().unwrap_or_default().clone(),
         });
         let Ok(receipt) = receipt else {
@@ -467,9 +465,9 @@ impl Brc20ProgApiServer for RpcServer {
             from: call
                 .from
                 .as_ref()
-                .map(|x| x.value())
+                .map(|x| x.address)
                 .unwrap_or(*INVALID_ADDRESS),
-            to: call.to.as_ref().map(|x| x.value()),
+            to: call.to.as_ref().map(|x| x.address),
             data: data.value_eth().unwrap_or_default().clone(),
         });
         let Ok(receipt) = receipt else {
@@ -488,26 +486,22 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn get_storage_at(
-        &self,
-        contract: AddressWrapper,
-        location: U256Wrapper,
-    ) -> RpcResult<String> {
+    async fn get_storage_at(&self, contract: AddressED, location: U256ED) -> RpcResult<String> {
         event!(Level::INFO, "Getting storage value");
         Ok(format!(
             "0x{:x}",
             self.engine
-                .get_storage_at(contract.value(), location.value())
+                .get_storage_at(contract.address, location.uint)
                 .map_err(wrap_rpc_error)?
         ))
     }
 
     #[instrument(skip(self))]
-    async fn get_code(&self, contract: AddressWrapper) -> RpcResult<BytecodeED> {
+    async fn get_code(&self, contract: AddressED) -> RpcResult<BytecodeED> {
         event!(Level::INFO, "Getting contract code");
         if let Some(bytecode) = self
             .engine
-            .get_contract_bytecode(contract.value())
+            .get_contract_bytecode(contract.address)
             .map_err(wrap_rpc_error)?
         {
             Ok(bytecode)
@@ -517,32 +511,26 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self))]
-    async fn get_transaction_receipt(
-        &self,
-        transaction: B256Wrapper,
-    ) -> RpcResult<Option<TxReceiptED>> {
+    async fn get_transaction_receipt(&self, transaction: B256ED) -> RpcResult<Option<TxReceiptED>> {
         event!(Level::INFO, "Getting transaction receipt");
         self.engine
-            .get_transaction_receipt(transaction.value())
+            .get_transaction_receipt(transaction.bytes)
             .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
-    async fn debug_trace_transaction(
-        &self,
-        transaction: B256Wrapper,
-    ) -> RpcResult<Option<TraceED>> {
+    async fn debug_trace_transaction(&self, transaction: B256ED) -> RpcResult<Option<TraceED>> {
         event!(Level::INFO, "Retrieving transaction trace");
         self.engine
-            .get_trace(transaction.value())
+            .get_trace(transaction.bytes)
             .map_err(wrap_rpc_error)
     }
 
     #[instrument(skip(self))]
-    async fn get_transaction_by_hash(&self, transaction: B256Wrapper) -> RpcResult<Option<TxED>> {
+    async fn get_transaction_by_hash(&self, transaction: B256ED) -> RpcResult<Option<TxED>> {
         event!(Level::INFO, "Getting transaction by hash");
         self.engine
-            .get_transaction_by_hash(transaction.value())
+            .get_transaction_by_hash(transaction.bytes)
             .map_err(wrap_rpc_error)
     }
 
@@ -561,12 +549,12 @@ impl Brc20ProgApiServer for RpcServer {
     #[instrument(skip(self))]
     async fn get_transaction_by_block_hash_and_index(
         &self,
-        block_hash: B256Wrapper,
+        block_hash: B256ED,
         tx_idx: Option<u64>,
     ) -> RpcResult<Option<TxED>> {
         event!(Level::INFO, "Getting transaction by block hash and index");
         self.engine
-            .get_transaction_by_block_hash_and_index(block_hash.value(), tx_idx.unwrap_or(0))
+            .get_transaction_by_block_hash_and_index(block_hash.bytes, tx_idx.unwrap_or(0))
             .map_err(wrap_rpc_error)
     }
 }
@@ -658,9 +646,7 @@ mod tests {
     async fn test_parse_block_number() {
         let server = create_test_server();
 
-        let _ = server
-            .initialise(B256Wrapper::new(B256::from_slice(&[1; 32])), 20, 0)
-            .await;
+        let _ = server.initialise([1; 32].into(), 20, 0).await;
 
         assert_eq!(server.parse_block_number("latest").unwrap(), 0);
         assert_eq!(server.parse_block_number("safe").unwrap(), 0);
@@ -681,9 +667,7 @@ mod tests {
     #[tokio::test]
     async fn test_initialise() {
         let server = create_test_server();
-        let _ = server
-            .initialise(B256Wrapper::new(B256::from_slice(&[1; 32])), 20, 0)
-            .await;
+        let _ = server.initialise([1; 32].into(), 20, 0).await;
 
         assert_eq!(server.engine.get_latest_block_height().unwrap(), 0);
         assert_eq!(server.engine.get_next_block_height().unwrap(), 1);
@@ -711,9 +695,7 @@ mod tests {
     #[tokio::test]
     async fn test_mine() {
         let server = create_test_server();
-        let _ = server
-            .initialise(B256Wrapper::new(B256::from_slice(&[1; 32])), 20, 0)
-            .await;
+        let _ = server.initialise([1; 32].into(), 20, 0).await;
 
         assert_eq!(server.engine.get_latest_block_height().unwrap(), 0);
         assert_eq!(server.engine.get_next_block_height().unwrap(), 1);
@@ -732,9 +714,9 @@ mod tests {
                 "deadbeef".to_string(),
                 None,
                 None,
-                BytesWrapper::empty(),
+                EncodedBytesWrapper::empty(),
                 20,
-                B256Wrapper::new(B256::from_slice(&[1; 32])),
+                [1; 32].into(),
                 0,
                 None,
                 Some(1000),
