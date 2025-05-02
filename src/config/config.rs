@@ -37,6 +37,9 @@ lazy_static::lazy_static! {
         }
     };
 
+    pub static ref BLOCK_SIZE: u64 = 4 * 1024 * 1024; // 4MB
+    pub static ref GAS_PER_BYTE: u64 = 12000; // 12K gas per byte
+
     pub static ref BRC20_PROG_CONFIG: Brc20ProgConfig = Brc20ProgConfig::new();
 }
 
