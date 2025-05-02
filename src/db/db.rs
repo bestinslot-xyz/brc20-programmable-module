@@ -13,6 +13,7 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use serde_either::SingleOrVec;
 
+use crate::config::{BLOCK_SIZE, GAS_PER_BYTE};
 use crate::db::cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 use crate::db::database::BlockDatabase;
 use crate::db::types::{
@@ -592,7 +593,7 @@ impl DB {
 
         let block_response = BlockResponseED::new(
             0u64.into(),
-            36000000u64.into(),
+            (*BLOCK_SIZE * *GAS_PER_BYTE).into(),
             gas_used.as_limbs()[0].into(),
             block_hash.into(),
             FixedBytes(bloom.as_slice().try_into()?).into(),
