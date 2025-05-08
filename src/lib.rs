@@ -11,6 +11,33 @@
 //! the database, and starts the JSON-RPC server.
 //!
 //! The client is used to send requests to the server and receive responses.
+//! 
+//! Client provides methods for interacting with the BRC20 programmable module.
+//!
+//! It includes methods for deploying contracts, calling contracts, depositing and
+//! withdrawing tokens.
+//!
+//! It also includes methods for interacting with the underlying EVM, such as
+//! getting block information, transaction information, and logs.
+//!
+//! Refer to [README](https://github.com/bestinslot-xyz/brc20-programmable-module/blob/main/README.md)
+//! for more details on JSON-RPC methods and their usage.
+//!
+//! # Example
+//!
+//! ```
+//! use std::error::Error;
+//!
+//! use brc20_prog::Brc20ProgApiClient;
+//! use jsonrpsee::http_client::HttpClientBuilder;
+//!
+//! async fn print_block_number() -> Result<(), Box<dyn Error>> {
+//!     let client = HttpClientBuilder::default().build("https://url:port")?;
+//!     println!("eth_blockNumber: {}", client.block_number().await?);
+//!     Ok(())
+//! }
+//! ```
+//!
 
 pub(crate) mod brc20_controller;
 pub(crate) mod db;
