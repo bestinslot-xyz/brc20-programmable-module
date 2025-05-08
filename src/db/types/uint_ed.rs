@@ -7,51 +7,60 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::db::types::{Decode, Encode};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Hash, Debug)]
+/// Represents an unsigned integer with a fixed number of bits and limbs.
+///
+/// Wrapper around `Uint` to provide serialization and deserialization
+/// functionality for unsigned integers in a fixed-size format.
 pub struct UintED<const BITS: usize, const LIMBS: usize> {
+    /// The Uint value.
     pub uint: Uint<BITS, LIMBS>,
 }
 
+/// Type alias for a 8-bit unsigned integer with 1 limb
 pub type U8ED = UintED<8, 1>;
+/// Type alias for a 64-bit unsigned integer with 1 limb
 pub type U64ED = UintED<64, 1>;
+/// Type alias for a 128-bit unsigned integer with 2 limbs
 pub type U128ED = UintED<128, 2>;
+/// Type alias for a 512-bit unsigned integer with 4 limbs
 pub type U512ED = UintED<512, 8>;
+/// Type alias for a 256-bit unsigned integer with 4 limbs
 pub type U256ED = UintED<256, 4>;
 
-impl<const BITS: usize, const LIMBS: usize> From<Uint<BITS, LIMBS>> for UintED<BITS, LIMBS> {
-    fn from(uint: Uint<BITS, LIMBS>) -> Self {
+impl<const BITS: usize, const LIMBS: usize> UintED<BITS, LIMBS> {
+    /// Creates a new `UintED` instance from a `Uint<BITS, LIMBS>` instance.
+    pub fn new(uint: Uint<BITS, LIMBS>) -> Self {
         Self { uint }
     }
 }
 
-impl<const BITS: usize, const LIMBS: usize> From<u64> for UintED<BITS, LIMBS> {
-    fn from(value: u64) -> Self {
-        Self {
-            uint: Uint::from(value),
-        }
+impl<const BITS: usize, const LIMBS: usize> From<Uint<BITS, LIMBS>> for UintED<BITS, LIMBS> {
+    fn from(uint: Uint<BITS, LIMBS>) -> Self {
+        UintED::new(uint)
     }
 }
 
 impl<const BITS: usize, const LIMBS: usize> From<u128> for UintED<BITS, LIMBS> {
     fn from(value: u128) -> Self {
-        Self {
-            uint: Uint::from(value),
-        }
+        UintED::new(Uint::from(value))
+    }
+}
+
+impl<const BITS: usize, const LIMBS: usize> From<u64> for UintED<BITS, LIMBS> {
+    fn from(value: u64) -> Self {
+        UintED::new(Uint::from(value))
     }
 }
 
 impl<const BITS: usize, const LIMBS: usize> From<u32> for UintED<BITS, LIMBS> {
     fn from(value: u32) -> Self {
-        Self {
-            uint: Uint::from(value),
-        }
+        UintED::new(Uint::from(value))
     }
 }
 
 impl<const BITS: usize, const LIMBS: usize> From<u8> for UintED<BITS, LIMBS> {
     fn from(value: u8) -> Self {
-        Self {
-            uint: Uint::from(value),
-        }
+        UintED::new(Uint::from(value))
     }
 }
 
@@ -62,11 +71,11 @@ impl Into<u64> for U64ED {
 }
 
 impl U512ED {
-    pub fn from_addr_u256(a: Address, b: U256) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn from_addr_u256(address: Address, mem_loc: U256) -> Result<Self, Box<dyn Error>> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&a.0.to_vec());
+        bytes.extend_from_slice(&address.0.to_vec());
         bytes.extend_from_slice(&[0u8; 12]);
-        bytes.extend_from_slice(&b.to_be_bytes::<32>().to_vec());
+        bytes.extend_from_slice(&mem_loc.to_be_bytes::<32>().to_vec());
         Ok(Self {
             uint: Uint::from_be_bytes::<64>(bytes.as_slice().try_into()?),
         })
@@ -108,15 +117,14 @@ impl<'de, const BITS: usize, const LIMBS: usize> Deserialize<'de> for UintED<BIT
         if hex_string.len() % 2 != 0 {
             hex_string = format!("0{}", hex_string);
         }
-        let bytes = hex::decode(hex_string.clone()).map_err(serde::de::Error::custom)?;
+        let bytes = hex::decode(hex_string).map_err(serde::de::Error::custom)?;
         let uint = Uint::<BITS, LIMBS>::try_from_be_slice(bytes.as_slice());
         match uint {
             Some(uint) => Ok(Self { uint }),
             None => {
-                return Err(serde::de::Error::custom(format!(
-                    "Failed to decode integer from hex string: {}",
-                    hex_string
-                )))
+                return Err(serde::de::Error::custom(
+                    "Failed to decode integer from hex string",
+                ))
             }
         }
     }

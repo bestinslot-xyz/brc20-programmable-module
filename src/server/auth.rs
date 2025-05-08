@@ -235,7 +235,6 @@ mod tests {
 
         rpc_request.extensions = request.extensions().clone();
 
-        println!("request: {:?}", validator.call(rpc_request.clone()).await);
         assert!(validator.call(rpc_request).await.is_success());
     }
 

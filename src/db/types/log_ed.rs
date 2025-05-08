@@ -6,26 +6,35 @@ use serde::{Deserialize, Serialize};
 use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED, U64ED};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+/// Represents a log entry from the EVM.
 pub struct LogED {
+    /// The address of the contract that generated the log
     pub address: AddressED,
+    /// The topics associated with the log
     pub topics: Vec<B256ED>,
+    /// The data associated with the log
     pub data: BytesED,
     #[serde(rename = "transactionIndex")]
+    /// The index of the transaction that generated the log
     pub transaction_index: U64ED,
     #[serde(rename = "transactionHash")]
+    /// The hash of the transaction that generated the log
     pub transaction_hash: B256ED,
     #[serde(rename = "blockHash")]
+    /// The hash of the block that contains the transaction
     pub block_hash: B256ED,
     #[serde(rename = "blockNumber")]
+    /// The number of the block that contains the transaction
     pub block_number: U64ED,
     #[serde(rename = "logIndex")]
+    /// The index of the log entry in the block
     pub log_index: U64ED,
 }
 
 impl LogED {
-    pub fn new_vec(
+    pub(crate) fn new_vec(
         logs: &Vec<Log>,
-        mut log_index: u64,
+        mut start_log_index: u64,
         transaction_index: U64ED,
         transaction_hash: B256ED,
         block_hash: B256ED,
@@ -37,13 +46,13 @@ impl LogED {
                 address: log.address.into(),
                 topics: log.topics().iter().map(|topic| (*topic).into()).collect(),
                 data: log.data.data.clone().into(),
-                transaction_index: transaction_index.clone(),
-                transaction_hash: transaction_hash.clone(),
-                block_hash: block_hash.clone(),
-                block_number: block_number.clone(),
-                log_index: log_index.into(),
+                transaction_index,
+                transaction_hash,
+                block_hash,
+                block_number,
+                log_index: start_log_index.into(),
             });
-            log_index += 1;
+            start_log_index += 1;
         }
         log_responses
     }
@@ -246,8 +255,7 @@ mod tests {
         );
 
         let serialized = serde_json::to_string(&log_responses).unwrap();
-        let deserialized: Vec<LogED> =
-            serde_json::from_str(&serialized).unwrap();
+        let deserialized: Vec<LogED> = serde_json::from_str(&serialized).unwrap();
         assert_eq!(log_responses, deserialized);
     }
 }

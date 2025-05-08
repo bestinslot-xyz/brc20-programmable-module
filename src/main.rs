@@ -1,66 +1,79 @@
 use std::error::Error;
-use std::path::Path;
+use std::process::exit;
 
-mod brc20_controller;
-mod config;
-mod db;
-mod evm;
-mod server;
+use brc20_prog::Brc20ProgConfig;
+use tracing::error;
 
-use config::{validate_config, BRC20_PROG_CONFIG};
-use db::DB;
-use evm::precompiles::validate_bitcoin_rpc_status;
-use server::{start_rpc_server, BRC20ProgEngine};
+pub struct Args {
+    pub log_level: tracing::Level, // passed with -l or --log-level
+    pub log_file: Option<String>,  // passed with -f or --log-file
+}
+
+/// Parses the command line arguments and returns an Args struct
+/// containing the log level and log file.
+/// -f and -l are used to set the log file and log level respectively.
+fn parse_args() -> Args {
+    let args = std::env::args().collect::<Vec<_>>();
+    let mut log_level = tracing::Level::WARN;
+    let mut log_file = None;
+
+    for i in 1..args.len() {
+        match args[i].as_str() {
+            "-l" | "--log-level" => {
+                if i + 1 < args.len() {
+                    log_level = args[i + 1].parse().unwrap_or(tracing::Level::WARN);
+                }
+            }
+            "-f" | "--log-file" => {
+                if i + 1 < args.len() {
+                    log_file = Some(args[i + 1].clone());
+                }
+            }
+            "-h" | "--help" => {
+                println!("Usage: brc20_prog [OPTIONS]");
+                println!("Options:");
+                println!("  -l, --log-level <level>   Set the log level (default: WARN)");
+                println!("  -f, --log-file <file>     Set the log file");
+                println!("  -h, --help                Show this help message");
+                std::process::exit(0);
+            }
+            _ => {}
+        }
+    }
+    Args {
+        log_level,
+        log_file,
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(tracing::Level::INFO)
-            .finish(),
-    )?;
-
-    println!("BRC20 Prog v{}", BRC20_PROG_CONFIG.pkg_version);
-    validate_config()?;
-
-    println!("-- Bitcoin RPC --");
-    match validate_bitcoin_rpc_status() {
-        Ok(_) => println!("Bitcoin RPC status: OK"),
-        Err(e) => {
-            println!("Bitcoin RPC status: ERROR");
-            println!("Error: {}", e);
-        }
+    dotenvy::dotenv().ok();
+    let args = parse_args();
+    if let Some(log_file) = args.log_file {
+        tracing_subscriber::fmt()
+            .with_ansi(false)
+            .with_max_level(args.log_level)
+            .with_writer(std::fs::File::create(log_file)?)
+            .init();
+    } else {
+        tracing_subscriber::fmt()
+            .with_max_level(args.log_level)
+            .init();
     }
-    println!("");
-    let engine = BRC20ProgEngine::new(DB::new(&Path::new(&*(BRC20_PROG_CONFIG).db_path))?);
-    println!("--- Database ---");
-    println!("Latest block number: {}", engine.get_latest_block_height()?);
-    println!(
-        "Genesis block hash: {}",
-        engine
-            .get_block_by_number(0, false)?
-            .map(|block| block.hash.bytes.to_string())
-            .unwrap_or("None".to_string())
-    );
-    println!("");
-    println!("--- Server ---");
-    println!(
-        "Authentication enabled: {}",
-        (*BRC20_PROG_CONFIG).brc20_prog_rpc_server_enable_auth
-    );
+
+    println!("BRC20 Prog v{}", env!("CARGO_PKG_VERSION"));
+
+    let server = brc20_prog::start(Brc20ProgConfig::from_env().into()).await;
+    let Ok(server_handle) = server else {
+        error!("Error starting server: {}", server.unwrap_err());
+        exit(1);
+    };
+
     println!(
         "Started JSON-RPC server on {}",
-        (*BRC20_PROG_CONFIG).brc20_prog_rpc_server_url
+        std::env::var("BRC20_PROG_RPC_SERVER_URL").unwrap_or("None".to_string())
     );
-    let handle = start_rpc_server(
-        engine,
-        (*BRC20_PROG_CONFIG).brc20_prog_rpc_server_url.to_string(),
-        (*BRC20_PROG_CONFIG).brc20_prog_rpc_server_enable_auth,
-        (*BRC20_PROG_CONFIG).brc20_prog_rpc_server_user.as_ref(),
-        (*BRC20_PROG_CONFIG).brc20_prog_rpc_server_password.as_ref(),
-    )
-    .await?;
-
-    handle.stopped().await;
+    server_handle.stopped().await;
     Ok(())
 }

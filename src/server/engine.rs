@@ -11,7 +11,6 @@ use revm::{ExecuteEvm, InspectCommitEvm};
 use serde_either::SingleOrVec;
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
-use crate::config::BRC20_PROG_CONFIG;
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, Decode, LogED, TraceED, TxED, TxReceiptED, B2048ED,
 };
@@ -19,8 +18,9 @@ use crate::db::{DB, MAX_HISTORY_SIZE};
 use crate::evm::get_evm;
 use crate::evm::precompiles::get_brc20_balance;
 use crate::evm::utils::{get_contract_address, get_gas_limit, get_result_reason, get_result_type};
-use crate::server::shared_data::SharedData;
+use crate::global::CONFIG;
 use crate::server::types::{get_tx_hash, LastBlockInfo, TxInfo};
+use crate::shared_data::SharedData;
 
 pub struct BRC20ProgEngine {
     db: SharedData<DB>,
@@ -222,7 +222,7 @@ impl BRC20ProgEngine {
                 }
             }
 
-            if (*BRC20_PROG_CONFIG).evm_record_traces {
+            if CONFIG.read().evm_record_traces {
                 db.set_tx_trace(tx_hash, traces)?;
             }
 
@@ -440,11 +440,11 @@ impl BRC20ProgEngine {
             ),
             gas_used: output.gas_used().into(),
             from: tx_info.from.into(),
-            to: tx_info.to.map(Into::<AddressED>::into),
+            to: tx_info.to.map(AddressED::new),
             contract_address: get_contract_address(&output).map(|x| x.into()),
             logs_bloom: B2048ED::decode_vec(&logs_bloom(output.logs()).to_vec())
                 .map_err(|_| "Error while decoding logs bloom")?,
-            hash: txhash.into(),
+            block_hash: txhash.into(),
             block_number: block_number.into(),
             block_timestamp: timestamp.into(),
             transaction_hash: txhash.into(),
@@ -1031,7 +1031,10 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert_eq!(receipt.hash.bytes, result.hash.bytes);
+        assert_eq!(
+            receipt.transaction_hash.bytes,
+            result.transaction_hash.bytes
+        );
     }
 
     #[test]

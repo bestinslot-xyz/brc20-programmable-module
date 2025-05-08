@@ -3,14 +3,24 @@ use std::error::Error;
 use alloy_primitives::Address;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{
-    db::types::{Decode, Encode},
-    server::api::INVALID_ADDRESS,
-};
+use crate::db::types::{Decode, Encode};
+use crate::server::api::INVALID_ADDRESS;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Represents a fixed-size byte array of length 20, which is used to represent EVM addresses.
+///
+/// Wrapper around `Address` to provide serialization and deserialization
+/// functionality for EVM addresses in a fixed-size format.
 pub struct AddressED {
+    /// The address value.
     pub address: Address,
+}
+
+impl AddressED {
+    /// Creates a new `AddressED` instance from the given address.
+    pub fn new(address: Address) -> Self {
+        Self { address }
+    }
 }
 
 impl From<[u8; 20]> for AddressED {
@@ -23,7 +33,7 @@ impl From<[u8; 20]> for AddressED {
 
 impl From<Address> for AddressED {
     fn from(address: Address) -> Self {
-        Self { address }
+        AddressED::new(address)
     }
 }
 

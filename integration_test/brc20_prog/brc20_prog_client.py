@@ -43,7 +43,6 @@ class BRC20ProgClient:
     ):
         if not brc20_prog_enabled:
             return
-        print("Initialising BRC20PROG")
 
         result = jsonrpc_call(
             "brc20_initialise",
@@ -70,8 +69,6 @@ class BRC20ProgClient:
         if not brc20_prog_enabled:
             return False
         self.verify_block_hash_and_timestamp(block_hash, timestamp)
-
-        print("Depositing to BRC20PROG")
 
         result = jsonrpc_call(
             "brc20_deposit",
@@ -102,7 +99,6 @@ class BRC20ProgClient:
         if not brc20_prog_enabled:
             return False
         self.verify_block_hash_and_timestamp(block_hash, timestamp)
-        print("Withdrawing from BRC20PROG")
 
         result = jsonrpc_call(
             "brc20_withdraw",
@@ -133,7 +129,6 @@ class BRC20ProgClient:
         if not brc20_prog_enabled:
             return
         self.verify_block_hash_and_timestamp(block_hash, timestamp)
-        print("Deploying contract in BRC20PROG")
 
         tx_result = jsonrpc_call(
             "brc20_deploy",
@@ -171,7 +166,6 @@ class BRC20ProgClient:
         if not brc20_prog_enabled:
             return
         self.verify_block_hash_and_timestamp(block_hash, timestamp)
-        print("Calling contract in BRC20PROG")
 
         tx_result = jsonrpc_call(
             "brc20_call",
@@ -212,7 +206,6 @@ class BRC20ProgClient:
         if not brc20_prog_enabled:
             return
         self.verify_block_hash_and_timestamp(block_hash, timestamp)
-        print("Finalising block on BRC20PROG")
 
         result = jsonrpc_call(
             "brc20_finaliseBlock",

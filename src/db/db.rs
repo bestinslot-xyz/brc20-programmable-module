@@ -13,13 +13,13 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use serde_either::SingleOrVec;
 
-use crate::config::{BLOCK_SIZE, GAS_PER_BYTE};
 use crate::db::cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 use crate::db::database::BlockDatabase;
 use crate::db::types::{
     AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED,
     B256ED, U128ED, U256ED, U512ED, U64ED,
 };
+use crate::global::{BLOCK_SIZE, GAS_PER_BYTE};
 
 pub struct DB {
     /// Account address to memory location
@@ -457,13 +457,13 @@ impl DB {
         self.require_block_does_not_exist(block_hash, block_number)?;
 
         let tx_receipt = TxReceiptED::new(
-            block_hash,
+            block_hash.into(),
             block_number.into(),
             block_timestamp.into(),
-            contract_address,
-            from,
-            to,
-            tx_hash,
+            contract_address.map(AddressED::new),
+            from.into(),
+            to.map(AddressED::new),
+            tx_hash.into(),
             tx_idx.into(),
             output,
             cumulative_gas_used.into(),
@@ -471,7 +471,7 @@ impl DB {
             start_log_index.into(),
             result_type.to_string(),
             reason.to_string(),
-            result,
+            result.map(|x| x.clone().into()),
         )?;
 
         let tx = TxED::new(
@@ -481,7 +481,7 @@ impl DB {
             block_number.into(),
             tx_idx.into(),
             from.into(),
-            to.map(Into::<AddressED>::into),
+            to.map(AddressED::new),
             gas_limit.into(),
             data.clone().into(),
             inscription_id.clone(),
@@ -1011,6 +1011,7 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
+    use crate::db::types::BytesED;
 
     #[test]
     fn test_db() {
@@ -1194,13 +1195,13 @@ mod tests {
         assert_eq!(
             db.get_tx_receipt(tx_hash).unwrap().unwrap(),
             TxReceiptED::new(
-                block_hash,
+                block_hash.into(),
                 block_number.into(),
                 block_timestamp.into(),
-                Some(contract_address),
-                from,
-                Some(to),
-                tx_hash,
+                Some(contract_address.into()),
+                from.into(),
+                Some(to.into()),
+                tx_hash.into(),
                 tx_idx.into(),
                 &output,
                 cumulative_gas_used.into(),
@@ -1208,7 +1209,7 @@ mod tests {
                 start_log_index.into(),
                 "type".to_string(),
                 "reason".to_string(),
-                Some(&vec![11u8; 32].into()),
+                Some(BytesED::new(vec![11u8; 32].into())),
             )
             .unwrap()
         );

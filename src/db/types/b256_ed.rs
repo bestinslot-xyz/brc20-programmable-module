@@ -5,13 +5,26 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::db::types::{Decode, Encode};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Represents a fixed-size byte array of length N
+///
+/// Wrapper around `FixedBytes<N>` to provide serialization and deserialization
 pub struct FixedBytesED<const N: usize> {
+    /// The fixed-size byte array
     pub bytes: FixedBytes<N>,
 }
 
+/// Type alias for a 32-byte fixed-size byte array
 pub type B256ED = FixedBytesED<32>;
+/// Type alias for a 256-byte fixed-size byte array
 pub type B2048ED = FixedBytesED<256>;
+
+impl<const N: usize> FixedBytesED<N> {
+    /// Creates a new `FixedBytesED` instance from a `FixedBytes<N>` instance.
+    pub fn new(bytes: FixedBytes<N>) -> Self {
+        Self { bytes }
+    }
+}
 
 impl<const N: usize> From<FixedBytes<N>> for FixedBytesED<N> {
     fn from(bytes: FixedBytes<N>) -> Self {

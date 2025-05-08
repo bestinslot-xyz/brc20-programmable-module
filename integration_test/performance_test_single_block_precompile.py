@@ -88,6 +88,13 @@ btc_pkscript = "7465737420706b736372697074"
 timestamp = int(time.time())
 block_hash = "0x" + "0" * 64
 
+client.clear_caches()
+
+# Set the block height to 300000 for testing
+current_block_height = client.get_block_height()
+if current_block_height < 300000:
+    client.mine_blocks(300000 - current_block_height)
+
 # deploy first
 contract_address = client.deploy(
     from_pkscript=btc_pkscript,
@@ -103,7 +110,6 @@ if contract_address is None:
 print("Deployed contract with address: " + contract_address)
 
 for i in range(call_cnt):
-    print("Executing call " + str(i))
     result = client.call(
         from_pkscript=btc_pkscript,
         contract_address=contract_address,

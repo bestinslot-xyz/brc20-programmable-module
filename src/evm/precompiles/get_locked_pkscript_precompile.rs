@@ -7,7 +7,7 @@ use bitcoin::{opcodes, secp256k1, ScriptBuf};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
 use crate::evm::precompiles::{
-    precompile_error, precompile_output, use_gas, PrecompileCall, BITCOIN_NETWORK,
+    get_bitcoin_hrp, precompile_error, precompile_output, use_gas, PrecompileCall,
 };
 
 sol! {
@@ -67,7 +67,7 @@ fn get_p2tr_lock_addr(pkscript: &Bytes, lock_block_count: u64) -> Result<Bytes, 
         )
         .map_err(|_| "Failed to finalize taproot")?;
 
-    let address = bitcoin::Address::p2tr_tweaked(lock_script.output_key(), *BITCOIN_NETWORK);
+    let address = bitcoin::Address::p2tr_tweaked(lock_script.output_key(), get_bitcoin_hrp());
 
     Ok(Bytes::from(address.script_pubkey().into_bytes()))
 }

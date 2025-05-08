@@ -6,8 +6,16 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::db::types::{Decode, Encode};
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+/// Represents a deployed bytecode in the EVM.
 pub struct BytecodeED {
+    /// The bytecode of the contract.
     pub bytecode: Bytecode,
+}
+
+impl BytecodeED {
+    pub(crate) fn new(bytecode: Bytecode) -> Self {
+        Self { bytecode }
+    }
 }
 
 impl<'de> Deserialize<'de> for BytecodeED {
@@ -56,7 +64,7 @@ impl Decode for BytecodeED {
 
 impl From<Bytecode> for BytecodeED {
     fn from(bytecode: Bytecode) -> Self {
-        Self { bytecode }
+        BytecodeED::new(bytecode)
     }
 }
 

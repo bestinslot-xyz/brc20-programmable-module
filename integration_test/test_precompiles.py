@@ -80,6 +80,11 @@ timestamp = int(time.time())
 
 client.clear_caches()
 
+# Set the block height to 300000 for testing
+current_block_height = client.get_block_height()
+if current_block_height < 300000:
+    client.mine_blocks(300000 - current_block_height)
+
 # deploy first
 contract_address = client.deploy(
     from_pkscript=btc_pkscript,

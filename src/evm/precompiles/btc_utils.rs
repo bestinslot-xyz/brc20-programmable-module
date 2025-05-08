@@ -10,62 +10,107 @@ use bitcoincore_rpc::Error::JsonRpc;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use bitcoincore_rpc_json::{GetBlockResult, GetRawTransactionResult};
 
-use crate::config::BRC20_PROG_CONFIG;
+use crate::global::CONFIG;
+use crate::shared_data::SharedData;
 
 lazy_static::lazy_static! {
-    static ref BTC_CLIENT: Client = {
+    static ref BITCOIN_RPC_URL: SharedData<String> = SharedData::new(Default::default());
+    static ref BITCOIN_RPC_USER: SharedData<String> = SharedData::new(Default::default());
+    static ref BITCOIN_RPC_PASSWORD: SharedData<String> = SharedData::new(Default::default());
+    static ref BTC_CLIENT: SharedData<Client> = {
         let auth = Auth::UserPass(
-            BRC20_PROG_CONFIG.bitcoin_rpc_user.clone(),
-            BRC20_PROG_CONFIG.bitcoin_rpc_password.clone(),
+            CONFIG.read().bitcoin_rpc_user.clone(),
+            CONFIG.read().bitcoin_rpc_password.clone(),
         );
-        Client::new(&BRC20_PROG_CONFIG.bitcoin_rpc_url, auth).expect("Failed to create Bitcoin RPC client")
-    };
-    pub static ref BITCOIN_NETWORK : Network = {
-        match BRC20_PROG_CONFIG.bitcoin_rpc_network.as_str() {
-            "mainnet" => Network::Bitcoin,
-            "signet" => Network::Signet,
-            "testnet" => Network::Testnet,
-            "testnet4" => Network::Testnet4,
-            "regtest" => Network::Regtest,
-            _ => Network::Testnet4,
-        }
-    };
-    pub static ref BITCOIN_HRP: KnownHrp = {
-        match *BITCOIN_NETWORK {
-            Network::Bitcoin => KnownHrp::Mainnet,
-            Network::Testnet => KnownHrp::Testnets,
-            Network::Testnet4 => KnownHrp::Testnets,
-            Network::Signet => KnownHrp::Testnets,
-            Network::Regtest => KnownHrp::Regtest,
-            _ => KnownHrp::Testnets,
-        }
+        SharedData::new(Client::new(&CONFIG.read().bitcoin_rpc_url, auth).expect("Failed to create Bitcoin RPC client"))
     };
 }
 
+pub fn update_bitcoin_client() {
+    // if config has changed, create a new client
+    if !BITCOIN_RPC_URL.read().eq(&CONFIG.read().bitcoin_rpc_url)
+        || !BITCOIN_RPC_USER.read().eq(&CONFIG.read().bitcoin_rpc_user)
+        || !BITCOIN_RPC_PASSWORD
+            .read()
+            .eq(&CONFIG.read().bitcoin_rpc_password)
+    {
+        BITCOIN_RPC_URL.write_fn_unchecked(|url| {
+            *url = CONFIG.read().bitcoin_rpc_url.clone();
+        });
+        BITCOIN_RPC_USER.write_fn_unchecked(|user| {
+            *user = CONFIG.read().bitcoin_rpc_user.clone();
+        });
+        BITCOIN_RPC_PASSWORD.write_fn_unchecked(|password| {
+            *password = CONFIG.read().bitcoin_rpc_password.clone();
+        });
+        let auth = Auth::UserPass(
+            CONFIG.read().bitcoin_rpc_user.clone(),
+            CONFIG.read().bitcoin_rpc_password.clone(),
+        );
+        BTC_CLIENT.write_fn_unchecked(|client| {
+            *client = Client::new(&CONFIG.read().bitcoin_rpc_url, auth)
+                .expect("Failed to create Bitcoin RPC client");
+        });
+    }
+}
+
+pub fn get_bitcoin_network() -> Network {
+    match CONFIG.read().bitcoin_rpc_network.as_str() {
+        "mainnet" => Network::Bitcoin,
+        "signet" => Network::Signet,
+        "testnet" => Network::Testnet,
+        "testnet4" => Network::Testnet4,
+        "regtest" => Network::Regtest,
+        _ => Network::Testnet4,
+    }
+}
+
+pub fn get_bitcoin_hrp() -> KnownHrp {
+    match get_bitcoin_network() {
+        Network::Bitcoin => KnownHrp::Mainnet,
+        Network::Testnet => KnownHrp::Testnets,
+        Network::Testnet4 => KnownHrp::Testnets,
+        Network::Signet => KnownHrp::Testnets,
+        Network::Regtest => KnownHrp::Regtest,
+        _ => KnownHrp::Testnets,
+    }
+}
+
 pub fn validate_bitcoin_rpc_status() -> Result<(), Box<dyn Error>> {
-    if std::env::var("BITCOIN_RPC_URL").is_err() {
-        return Err("Please set the BITCOIN_RPC_URL environment variable".into());
+    if CONFIG.read().bitcoin_rpc_url.is_empty() {
+        return Err("Please configure BITCOIN_RPC_URL".into());
     }
-    if std::env::var("BITCOIN_RPC_USER").is_err() {
-        return Err("Please set the BITCOIN_RPC_USER environment variable".into());
+    if CONFIG.read().bitcoin_rpc_user.is_empty() {
+        return Err("Please configure BITCOIN_RPC_USER".into());
     }
-    if std::env::var("BITCOIN_RPC_PASSWORD").is_err() {
-        return Err("Please set the BITCOIN_RPC_PASSWORD environment variable".into());
+    if CONFIG.read().bitcoin_rpc_password.is_empty() {
+        return Err("Please configure BITCOIN_RPC_PASSWORD".into());
     }
-    if std::env::var("BITCOIN_RPC_NETWORK").is_err() {
-        return Err("Please set the BITCOIN_RPC_NETWORK environment variable".into());
+    if CONFIG.read().bitcoin_rpc_network.is_empty() {
+        return Err("Please configure BITCOIN_RPC_NETWORK".into());
     }
 
-    let info = BTC_CLIENT.get_blockchain_info();
+    // Update the client if the config has changed
+    update_bitcoin_client();
+    let info = BTC_CLIENT.read().get_blockchain_info();
 
     let Ok(info) = info else {
         return Err("Bitcoin RPC unreachable.".into());
     };
 
-    if info.chain != *BITCOIN_NETWORK {
+    let config_network = match CONFIG.read().bitcoin_rpc_network.as_str() {
+        "mainnet" => Network::Bitcoin,
+        "signet" => Network::Signet,
+        "testnet" => Network::Testnet,
+        "testnet4" => Network::Testnet4,
+        "regtest" => Network::Regtest,
+        _ => Network::Testnet4,
+    };
+
+    if info.chain != config_network {
         return Err(format!(
             "Bitcoin RPC network mismatch. Expected: {:?}, got: {:?}",
-            *BITCOIN_NETWORK, info.chain
+            config_network, info.chain
         )
         .into());
     }
@@ -83,7 +128,7 @@ fn get_raw_transaction_with_retry(
     txid: &Txid,
     retries_left: u32,
 ) -> Result<GetRawTransactionResult, Box<dyn Error>> {
-    match BTC_CLIENT.get_raw_transaction_info(&txid, None) {
+    match BTC_CLIENT.read().get_raw_transaction_info(&txid, None) {
         Ok(response) => return Ok(response),
         Err(error) => {
             // Error code -5 is "RPC_INVALID_ADDRESS_OR_KEY", which means the txid is not found
@@ -112,7 +157,7 @@ fn get_block_info_with_retry(
     block_hash: &BlockHash,
     retries_left: u32,
 ) -> Result<GetBlockResult, Box<dyn Error>> {
-    match BTC_CLIENT.get_block_info(&block_hash) {
+    match BTC_CLIENT.read().get_block_info(&block_hash) {
         Ok(response) => return Ok(response),
         Err(error) => {
             if retries_left > 0 {
