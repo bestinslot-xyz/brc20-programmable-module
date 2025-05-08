@@ -2,22 +2,17 @@
 //! This crate provides a BRC20 programmable module implementation.
 //!
 //! It has a JSON-RPC server that runs the BRC20 programmable module, and a client
-//! that allows users to send requests to the server.
+//! for interacting with the server. The server is built using the `jsonrpsee` crate.
 //!
 //! Types used in the BRC20 programmable module are defined in the `types` module.
 //!
-//! The server is started using the `start` function, which initializes the logging,
-//! validates the environment variables, checks the Bitcoin RPC status, initializes
-//! the database, and starts the JSON-RPC server.
+//! The server is started using the `start` function, and it allows configuring the server
+//! with a custom configuration. The server listens for incoming JSON-RPC requests and
+//! responds to them. The server supports the Ethereum JSON-RPC API, which allows users
+//! to interact with the BRC20 programmable module using standard Ethereum JSON-RPC methods.
 //!
-//! The client is used to send requests to the server and receive responses.
-//! 
-//! Client provides methods for interacting with the BRC20 programmable module.
-//!
-//! It includes methods for deploying contracts, calling contracts, depositing and
-//! withdrawing tokens.
-//!
-//! It also includes methods for interacting with the underlying EVM, such as
+//! The client includes methods for deploying contracts, calling contracts, depositing and
+//! withdrawing tokens, it also includes methods for interacting with the underlying EVM, such as
 //! getting block information, transaction information, and logs.
 //!
 //! Refer to [README](https://github.com/bestinslot-xyz/brc20-programmable-module/blob/main/README.md)
