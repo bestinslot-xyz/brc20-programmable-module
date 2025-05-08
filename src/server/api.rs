@@ -7,8 +7,10 @@ use jsonrpsee::proc_macros::rpc;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_either::SingleOrVec;
 
-use crate::config::BRC20_PROG_CONFIG;
-use crate::db::types::{AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED};
+use crate::db::types::{
+    AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
+};
+use crate::global::{CARGO_PKG_VERSION, COMPRESSION_ACTIVATION_HEIGHT};
 
 lazy_static::lazy_static! {
     pub static ref CHAIN_ID: u64 = 0x4252433230;
@@ -34,29 +36,52 @@ lazy_static::lazy_static! {
 }
 
 #[rpc(server, client)]
+/// BRC20 Programmable Module API
+/// This API provides methods for interacting with the BRC20 programmable module.
+///
+/// It includes methods for deploying contracts, calling contracts, depositing and withdrawing tokens,
+/// and retrieving transaction receipts.
+///
+/// It also includes methods for interacting with the Ethereum-compatible blockchain,
+/// such as getting block information, transaction information, and logs.
+///
+/// Refer to readme for more details on JSON-RPC methods and their usage.
+///
+/// # Example
+///
+/// ```
+/// use std::error::Error;
+///
+/// use brc20_prog::Brc20ProgApiClient;
+/// use jsonrpsee::http_client::HttpClientBuilder;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn Error>> {
+///     let client = HttpClientBuilder::default().build("https://url:port")?;
+///     println!("eth_blockNumber: {}", client.block_number().await?);
+///     Ok(())
+/// }
+/// ```
+///
 pub trait Brc20ProgApi {
-    ///
-    ///
     /// BRC20 Methods, these methods are intended for the indexers
-    /// TODO: Authentication!
-    ///
-    ///
 
-    /// Returns current brc20_prog_version
+    /// Returns current brc20_prog version
     #[method(name = "brc20_version")]
     async fn version(&self) -> RpcResult<String> {
-        Ok(BRC20_PROG_CONFIG.pkg_version.clone())
+        Ok(CARGO_PKG_VERSION.to_string())
     }
 
     /// Mines blocks for the given block count at the timestamp
     #[method(name = "brc20_mine")]
     async fn mine(&self, block_count: u64, timestamp: u64) -> RpcResult<()>;
 
+    /// Deploys a contract with the given parameters
     #[method(name = "brc20_deploy")]
     async fn deploy_contract(
         &self,
         from_pkscript: String,
-        data: EncodedBytesWrapper,
+        data: EncodedBytes,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
@@ -64,13 +89,14 @@ pub trait Brc20ProgApi {
         inscription_byte_len: Option<u64>,
     ) -> RpcResult<TxReceiptED>;
 
+    /// Calls a contract with the given parameters
     #[method(name = "brc20_call")]
     async fn call_contract(
         &self,
         from_pkscript: String,
         contract_address: Option<AddressED>,
         contract_inscription_id: Option<String>,
-        data: EncodedBytesWrapper,
+        data: EncodedBytes,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
@@ -126,10 +152,8 @@ pub trait Brc20ProgApi {
 
     /// Retrieves inscription id for given transaction hash
     #[method(name = "brc20_getInscriptionIdByTxHash")]
-    async fn get_inscription_id_by_tx_hash(
-        &self,
-        transaction: B256ED,
-    ) -> RpcResult<Option<String>>;
+    async fn get_inscription_id_by_tx_hash(&self, transaction: B256ED)
+        -> RpcResult<Option<String>>;
 
     /// Retrieves inscription id by contract address
     #[method(name = "brc20_getInscriptionIdByContractAddress")]
@@ -187,11 +211,7 @@ pub trait Brc20ProgApi {
 
     /// Returns the transaction count by address and block number
     #[method(name = "eth_getTransactionCount")]
-    async fn get_transaction_count(
-        &self,
-        account: AddressED,
-        block: String,
-    ) -> RpcResult<String>;
+    async fn get_transaction_count(&self, account: AddressED, block: String) -> RpcResult<String>;
 
     /// Returns the transaction count by block number
     #[method(name = "eth_getBlockTransactionCountByNumber")]
@@ -215,11 +235,7 @@ pub trait Brc20ProgApi {
 
     /// Get storage for the given contract and memory location
     #[method(name = "eth_getStorageAt")]
-    async fn get_storage_at(
-        &self,
-        contract: AddressED,
-        location: U256ED,
-    ) -> RpcResult<String>;
+    async fn get_storage_at(&self, contract: AddressED, location: U256ED) -> RpcResult<String>;
 
     /// Returns the bytecode of the contract at the given address
     #[method(name = "eth_getCode")]
@@ -227,15 +243,11 @@ pub trait Brc20ProgApi {
 
     /// Returns the transaction receipt for the given transaction hash
     #[method(name = "eth_getTransactionReceipt")]
-    async fn get_transaction_receipt(
-        &self,
-        transaction: B256ED,
-    ) -> RpcResult<Option<TxReceiptED>>;
+    async fn get_transaction_receipt(&self, transaction: B256ED) -> RpcResult<Option<TxReceiptED>>;
 
     /// Returns the trace for the given transaction hash
     #[method(name = "debug_traceTransaction")]
-    async fn debug_trace_transaction(&self, transaction: B256ED)
-        -> RpcResult<Option<TraceED>>;
+    async fn debug_trace_transaction(&self, transaction: B256ED) -> RpcResult<Option<TraceED>>;
 
     /// Returns the transaction by hash
     #[method(name = "eth_getTransactionByHash")]
@@ -345,15 +357,30 @@ pub trait Brc20ProgApi {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+/// Represents a call to a contract with optional parameters for from, to, data, and input.
 pub struct EthCall {
+    /// The address of the sender
     pub from: Option<AddressED>,
+    /// The address of the contract to call
     pub to: Option<AddressED>,
-    pub data: Option<EncodedBytesWrapper>,
-    pub input: Option<EncodedBytesWrapper>,
+    /// The data to send with the call
+    pub data: Option<EncodedBytes>,
+    /// The input data for the call (alternative to data, if both are present, data is used)
+    pub input: Option<EncodedBytes>,
 }
 
 impl EthCall {
-    pub fn data_or_input(&self) -> Option<&EncodedBytesWrapper> {
+    /// Creates a new EthCall with the given parameters
+    pub fn new(from: Option<AddressED>, to: Option<AddressED>, data: EncodedBytes) -> Self {
+        Self {
+            from,
+            to,
+            data: Some(data),
+            input: None,
+        }
+    }
+
+    pub(crate) fn data_or_input(&self) -> Option<&EncodedBytes> {
         if let Some(data) = &self.data {
             Some(data)
         } else if let Some(input) = &self.input {
@@ -365,17 +392,22 @@ impl EthCall {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+/// Represents a filter for retrieving logs from the blockchain.
 pub struct GetLogsFilter {
     #[serde(rename = "fromBlock")]
+    /// The block number to start searching from
     pub from_block: Option<String>,
     #[serde(rename = "toBlock")]
+    /// The block number to stop searching at
     pub to_block: Option<String>,
+    /// The address of the contract to filter logs from
     pub address: Option<AddressED>,
+    /// The topics to filter logs by
     pub topics: Option<Vec<SingleOrVec<Option<B256ED>>>>,
 }
 
 impl GetLogsFilter {
-    pub fn topics_as_b256(&self) -> Option<Vec<SingleOrVec<Option<B256>>>> {
+    pub(crate) fn topics_as_b256(&self) -> Option<Vec<SingleOrVec<Option<B256>>>> {
         self.topics.as_ref().map(|topics| {
             topics
                 .iter()
@@ -392,30 +424,44 @@ impl GetLogsFilter {
     }
 }
 
-#[derive(Debug)]
-pub struct EncodedBytesWrapper(Option<String>);
+#[derive(Debug, Clone)]
+//// A wrapper for encoded bytes that can be serialized and deserialized.
+/// This struct is used to handle the encoding and decoding of bytes in the BRC20 protocol.
+///
+/// It can be used to represent both the data and input fields in the EthCall struct.
+/// It can also handle the case where the data is not present (None).
+pub struct EncodedBytes(Option<String>);
 
-impl EncodedBytesWrapper {
+impl EncodedBytes {
+    /// Creates a new EncodedBytesWrapper with the given inner string.
     pub fn new(inner: String) -> Self {
         Self(Some(inner))
     }
 
+    /// Creates a new EncodedBytesWrapper from the given bytes.
+    /// The bytes are converted to a hex string with a 0x prefix.
+    /// This is used for encoding the data and input fields in the EthCall struct.
+    pub fn from_bytes(bytes: Bytes) -> Self {
+        Self(Some(format!("0x{}", hex::encode(bytes))))
+    }
+
+    /// Creates a new EncodedBytesWrapper with no inner string (None).
     pub fn empty() -> Self {
         Self(None)
     }
 
-    pub fn value_inscription(&self, block_height: u64) -> Option<Bytes> {
+    pub(crate) fn value_inscription(&self, block_height: u64) -> Option<Bytes> {
         self.0
             .as_ref()
             .and_then(|s| decode_bytes_from_inscription_data(s, block_height))
     }
 
-    pub fn value_eth(&self) -> Option<Bytes> {
+    pub(crate) fn value_eth(&self) -> Option<Bytes> {
         self.0.as_ref().and_then(|s| Bytes::from_hex(s).ok())
     }
 }
 
-impl Serialize for EncodedBytesWrapper {
+impl Serialize for EncodedBytes {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -428,15 +474,15 @@ impl Serialize for EncodedBytesWrapper {
     }
 }
 
-impl<'de> Deserialize<'de> for EncodedBytesWrapper {
-    fn deserialize<D>(deserializer: D) -> Result<EncodedBytesWrapper, D::Error>
+impl<'de> Deserialize<'de> for EncodedBytes {
+    fn deserialize<D>(deserializer: D) -> Result<EncodedBytes, D::Error>
     where
         D: Deserializer<'de>,
     {
         let Ok(s) = String::deserialize(deserializer) else {
-            return Ok(EncodedBytesWrapper::empty());
+            return Ok(EncodedBytes::empty());
         };
-        Ok(EncodedBytesWrapper::new(s))
+        Ok(EncodedBytes::new(s))
     }
 }
 
@@ -445,7 +491,7 @@ pub fn decode_bytes_from_inscription_data(
     block_height: u64,
 ) -> Option<Bytes> {
     // Starting from compression_activation_height, we can use base64 encoding and compression
-    if block_height < (*BRC20_PROG_CONFIG).compression_activation_height {
+    if block_height < *COMPRESSION_ACTIVATION_HEIGHT.read() {
         Bytes::from_hex(inscription_data).ok()
     } else {
         let base64_decoded = BASE64_STANDARD_NO_PAD.decode(inscription_data).ok()?;
@@ -478,7 +524,6 @@ pub fn decode_bytes_from_inscription_data(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::BRC20_PROG_CONFIG;
 
     #[test]
     fn test_decode_bytes_from_inscription_data_old() {
@@ -493,7 +538,7 @@ mod tests {
         // 0x00 to indicate uncompressed
         let data = vec![0x00, 0xde, 0xad, 0xbe, 0xef, 0xff];
         let base64_encoded = BASE64_STANDARD_NO_PAD.encode(data);
-        let block_height = BRC20_PROG_CONFIG.compression_activation_height;
+        let block_height = *COMPRESSION_ACTIVATION_HEIGHT.read();
         let result = decode_bytes_from_inscription_data(&base64_encoded, block_height);
         assert_eq!(
             result,
@@ -515,7 +560,7 @@ mod tests {
         );
 
         let base64_encoded = BASE64_STANDARD_NO_PAD.encode(nada_encoded);
-        let block_height = BRC20_PROG_CONFIG.compression_activation_height;
+        let block_height = *COMPRESSION_ACTIVATION_HEIGHT.read();
         let result = decode_bytes_from_inscription_data(&base64_encoded, block_height);
         assert_eq!(result, Some(Bytes::from(data)));
     }
@@ -524,7 +569,7 @@ mod tests {
     fn test_invalid_first_byte() {
         let data = vec![0x02, 0xde, 0xad, 0xbe, 0xef];
         let base64_encoded = BASE64_STANDARD_NO_PAD.encode(data);
-        let block_height = BRC20_PROG_CONFIG.compression_activation_height;
+        let block_height = *COMPRESSION_ACTIVATION_HEIGHT.read();
         let result = decode_bytes_from_inscription_data(&base64_encoded, block_height);
         assert_eq!(result, None);
     }
@@ -532,7 +577,7 @@ mod tests {
     #[test]
     fn test_invalid_base64() {
         let invalid_base64 = "invalid_base64";
-        let block_height = BRC20_PROG_CONFIG.compression_activation_height;
+        let block_height = *COMPRESSION_ACTIVATION_HEIGHT.read();
         let result = decode_bytes_from_inscription_data(&invalid_base64.to_string(), block_height);
         assert_eq!(result, None);
     }

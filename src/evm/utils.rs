@@ -1,7 +1,7 @@
 use alloy_primitives::{keccak256, Address, Bytes};
 use revm::context::result::{ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason};
 
-use crate::config::GAS_PER_BYTE;
+use crate::global::GAS_PER_BYTE;
 
 pub fn get_gas_limit(inscription_byte_len: u64) -> u64 {
     inscription_byte_len.saturating_mul(*GAS_PER_BYTE)

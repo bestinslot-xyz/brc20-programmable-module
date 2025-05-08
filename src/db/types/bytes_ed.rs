@@ -6,21 +6,27 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::db::types::{Decode, Encode};
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+/// Represents a variable-size byte array
 pub struct BytesED {
+    /// The byte array value
     pub bytes: Bytes,
+}
+
+impl BytesED {
+    pub(crate) fn new(bytes: Bytes) -> Self {
+        Self { bytes }
+    }
 }
 
 impl From<Bytes> for BytesED {
     fn from(bytes: Bytes) -> Self {
-        Self { bytes }
+        BytesED::new(bytes)
     }
 }
 
 impl From<Vec<u8>> for BytesED {
     fn from(value: Vec<u8>) -> Self {
-        Self {
-            bytes: Bytes::from(value),
-        }
+        BytesED::new(Bytes::from(value))
     }
 }
 

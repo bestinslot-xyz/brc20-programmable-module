@@ -2,38 +2,58 @@ use std::error::Error;
 
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED, U8ED, U64ED};
+use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED, U64ED, U8ED};
 use crate::server::api::CHAIN_ID;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+/// Represents a transaction entry from the EVM.
+///
+/// Refer to [Ethereum JSON-RPC documentation on eth_getTransactionByHash](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gettransactionbyhash) for details
 pub struct TxED {
+    /// The hash of the transaction
     pub hash: B256ED,
+    /// The nonce of the transaction
     pub nonce: U64ED,
     #[serde(rename = "blockHash")]
+    /// The hash of the block that contains the transaction
     pub block_hash: B256ED,
     #[serde(rename = "blockNumber")]
+    /// The number of the block that contains the transaction
     pub block_number: U64ED,
     #[serde(rename = "transactionIndex")]
+    /// The index of the transaction in the block
     pub transaction_index: U64ED,
+    /// The address of the sender
     pub from: AddressED,
+    /// The address of the recipient, empty if the transaction is a contract creation
     pub to: Option<AddressED>,
+    /// The value transferred in the transaction
     pub value: U64ED,
+    /// The gas limit for the transaction
     pub gas: U64ED,
     #[serde(rename = "gasPrice")]
+    /// The gas price for the transaction, 0 for BRC2.0
     pub gas_price: U64ED,
+    /// The input data for the transaction
     pub input: BytesED,
+    /// The v field of the transaction, 0 for BRC2.0
     pub v: U8ED,
+    /// The r field of the transaction, 0 for BRC2.0
     pub r: U8ED,
+    /// The s field of the transaction, 0 for BRC2.0
     pub s: U8ED,
     #[serde(rename = "chainId")]
+    /// The chain ID for the transaction
     pub chain_id: U64ED,
     #[serde(
         rename = "type",
         serialize_with = "no_hex",
         deserialize_with = "no_hex_deserialize"
     )]
+    /// The type of the transaction, always 0 for BRC2.0
     pub tx_type: U8ED,
     #[serde(skip_serializing, skip_deserializing)]
+    /// The inscription ID that generated this transaction, if applicable
     pub inscription_id: Option<String>,
 }
 
@@ -53,7 +73,7 @@ where
 }
 
 impl TxED {
-    pub fn new(
+    pub(crate) fn new(
         hash: B256ED,
         nonce: U64ED,
         block_hash: B256ED,

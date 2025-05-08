@@ -9,7 +9,7 @@ use jsonrpsee::server::{Server, ServerHandle};
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
-use tracing::{event, instrument, Level};
+use tracing::{info, instrument, warn};
 
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
@@ -19,8 +19,7 @@ use crate::db::types::{
 };
 use crate::evm::utils::get_evm_address;
 use crate::server::api::{
-    Brc20ProgApiServer, EncodedBytesWrapper, EthCall, GetLogsFilter, INDEXER_METHODS,
-    INVALID_ADDRESS,
+    Brc20ProgApiServer, EncodedBytes, EthCall, GetLogsFilter, INDEXER_METHODS, INVALID_ADDRESS,
 };
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::engine::BRC20ProgEngine;
@@ -28,6 +27,7 @@ use crate::server::error::{
     wrap_hex_error, wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
 };
 use crate::server::types::TxInfo;
+use crate::Brc20ProgConfig;
 
 pub struct RpcServer {
     engine: BRC20ProgEngine,
@@ -49,17 +49,21 @@ impl RpcServer {
     }
 }
 
+fn log_call() {
+    info!("rpc.request");
+}
+
 #[async_trait]
 impl Brc20ProgApiServer for RpcServer {
-    #[instrument(skip(self))]
+    #[instrument(name = "brc20_mine", skip(self), level = "error")]
     async fn mine(&self, block_count: u64, timestamp: u64) -> RpcResult<()> {
-        event!(Level::INFO, "Mining empty blocks");
+        log_call();
         self.engine
             .mine_blocks(block_count, timestamp)
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "brc20_deposit", skip(self), level = "error")]
     async fn deposit(
         &self,
         to_pkscript: String,
@@ -70,7 +74,7 @@ impl Brc20ProgApiServer for RpcServer {
         tx_idx: u64,
         inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED> {
-        event!(Level::INFO, "Depositing");
+        log_call();
 
         let to_pkscript = hex::decode(to_pkscript).map_err(wrap_hex_error)?.into();
 
@@ -93,7 +97,7 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "brc20_withdraw", skip(self), level = "error")]
     async fn withdraw(
         &self,
         from_pkscript: String,
@@ -104,7 +108,7 @@ impl Brc20ProgApiServer for RpcServer {
         tx_idx: u64,
         inscription_id: Option<String>,
     ) -> RpcResult<TxReceiptED> {
-        event!(Level::INFO, "Withdrawing");
+        log_call();
 
         let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
 
@@ -127,9 +131,9 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "brc20_balance", skip(self), level = "error")]
     async fn balance(&self, pkscript: String, ticker: String) -> RpcResult<String> {
-        event!(Level::INFO, "Checking balance");
+        log_call();
 
         let pkscript = hex::decode(pkscript).map_err(wrap_hex_error)?.into();
 
@@ -147,64 +151,73 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "brc20_initialise", skip(self), level = "error")]
     async fn initialise(
         &self,
         genesis_hash: B256ED,
         genesis_timestamp: u64,
         genesis_height: u64,
     ) -> RpcResult<()> {
-        event!(Level::INFO, "Initialising server");
+        log_call();
         self.engine
             .initialise(genesis_hash.bytes, genesis_timestamp, genesis_height)
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(
+        name = "brc20_getTxReceiptByInscriptionId",
+        skip(self),
+        level = "error"
+    )]
     async fn get_transaction_receipt_by_inscription_id(
         &self,
         inscription_id: String,
     ) -> RpcResult<Option<TxReceiptED>> {
-        event!(Level::INFO, "Getting transaction receipt by inscription id");
+        log_call();
         self.engine
             .get_transaction_receipt_by_inscription_id(inscription_id)
             .map_err(wrap_rpc_error)
     }
 
+    #[instrument(
+        name = "brc20_getInscriptionIdByContractAddress",
+        skip(self),
+        level = "error"
+    )]
     async fn get_inscription_id_by_contract_address(
         &self,
         contract_address: AddressED,
     ) -> RpcResult<Option<String>> {
-        event!(Level::INFO, "Getting inscription id by contract address");
+        log_call();
         self.engine
             .get_inscription_id_by_contract_address(contract_address.address)
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "brc20_getInscriptionIdByTxHash", skip(self), level = "error")]
     async fn get_inscription_id_by_tx_hash(
         &self,
         transaction: B256ED,
     ) -> RpcResult<Option<String>> {
-        event!(Level::INFO, "Getting inscription id by transaction hash");
+        log_call();
         self.engine
             .get_transaction_by_hash(transaction.bytes)
             .map(|tx| tx.and_then(|tx| tx.inscription_id))
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self, data))]
+    #[instrument(name = "brc20_deploy", skip(self, data), level = "error")]
     async fn deploy_contract(
         &self,
         from_pkscript: String,
-        data: EncodedBytesWrapper,
+        data: EncodedBytes,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
         inscription_id: Option<String>,
         inscription_byte_len: Option<u64>,
     ) -> RpcResult<TxReceiptED> {
-        event!(Level::INFO, "Deploying contract");
+        log_call();
 
         let block_height = self
             .engine
@@ -237,20 +250,20 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self, data))]
+    #[instrument(name = "brc20_call", skip(self, data), level = "error")]
     async fn call_contract(
         &self,
         from_pkscript: String,
         contract_address: Option<AddressED>,
         contract_inscription_id: Option<String>,
-        data: EncodedBytesWrapper,
+        data: EncodedBytes,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
         inscription_id: Option<String>,
         inscription_byte_len: Option<u64>,
     ) -> RpcResult<Option<TxReceiptED>> {
-        event!(Level::INFO, "Calling contract");
+        log_call();
 
         let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
 
@@ -292,44 +305,46 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "brc20_finaliseBlock", skip(self), level = "error")]
     async fn finalise_block(
         &self,
         timestamp: u64,
         hash: B256ED,
         block_tx_count: u64,
     ) -> RpcResult<()> {
+        log_call();
         let block_height = self
             .engine
             .get_next_block_height()
             .map_err(wrap_rpc_error)?;
-        event!(Level::INFO, "Finalising block {}", block_height);
         self.engine
             .finalise_block(timestamp, block_height, hash.bytes, block_tx_count)
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "brc20_reorg", skip(self), level = "error")]
     async fn reorg(&self, latest_valid_block_number: u64) -> RpcResult<()> {
-        event!(Level::WARN, "Reorg!");
+        warn!("Reorg!");
         self.engine
             .reorg(latest_valid_block_number)
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "brc20_commitToDatabase", skip(self), level = "error")]
     async fn commit_to_database(&self) -> RpcResult<()> {
-        event!(Level::INFO, "Committing to database");
+        log_call();
         self.engine.commit_to_db().map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "brc20_clearCaches", skip(self), level = "error")]
     async fn clear_caches(&self) -> RpcResult<()> {
-        event!(Level::INFO, "Clearing caches");
+        log_call();
         self.engine.clear_caches().map_err(wrap_rpc_error)
     }
 
+    #[instrument(name = "eth_blockNumber", skip(self), level = "error")]
     async fn block_number(&self) -> RpcResult<String> {
+        log_call();
         Ok(format!(
             "0x{:x}",
             self.engine
@@ -338,14 +353,14 @@ impl Brc20ProgApiServer for RpcServer {
         ))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "eth_getBlockByNumber", skip(self), level = "error")]
     async fn get_block_by_number(
         &self,
         block: String,
         is_full: Option<bool>,
     ) -> RpcResult<BlockResponseED> {
+        log_call();
         let block_number = self.parse_block_number(&block).map_err(wrap_rpc_error)?;
-        event!(Level::INFO, "Getting block by number: {}", block_number);
         if let Some(block) = self
             .engine
             .get_block_by_number(block_number, is_full.unwrap_or(false))
@@ -357,13 +372,13 @@ impl Brc20ProgApiServer for RpcServer {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "eth_getBlockByHash", skip(self), level = "error")]
     async fn get_block_by_hash(
         &self,
         block: B256ED,
         is_full: Option<bool>,
     ) -> RpcResult<BlockResponseED> {
-        event!(Level::INFO, "Getting block by number");
+        log_call();
         if let Some(block) = self
             .engine
             .get_block_by_hash(block.bytes, is_full.unwrap_or(false))
@@ -375,9 +390,9 @@ impl Brc20ProgApiServer for RpcServer {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "eth_getTransactionCount", skip(self), level = "error")]
     async fn get_transaction_count(&self, account: AddressED, block: String) -> RpcResult<String> {
-        event!(Level::INFO, "Getting transaction count");
+        log_call();
         let block_number = self.parse_block_number(&block).map_err(wrap_rpc_error)?;
         self.engine
             .get_transaction_count(account.address, block_number)
@@ -385,9 +400,13 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(
+        name = "eth_getBlockTransactionCountByNumber",
+        skip(self),
+        level = "error"
+    )]
     async fn get_block_transaction_count_by_number(&self, block: String) -> RpcResult<String> {
-        event!(Level::INFO, "Getting block transaction count");
+        log_call();
         let block_number = self.parse_block_number(&block).map_err(wrap_rpc_error)?;
         self.engine
             .get_block_transaction_count_by_number(block_number)
@@ -395,18 +414,22 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(
+        name = "eth_getBlockTransactionCountByHash",
+        skip(self),
+        level = "error"
+    )]
     async fn get_block_transaction_count_by_hash(&self, block: B256ED) -> RpcResult<String> {
-        event!(Level::INFO, "Getting block transaction count");
+        log_call();
         self.engine
             .get_block_transaction_count_by_hash(block.bytes)
             .map(|count| format!("0x{:x}", count))
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "eth_getLogs", skip(self), level = "error")]
     async fn get_logs(&self, filter: GetLogsFilter) -> RpcResult<Vec<LogED>> {
-        event!(Level::INFO, "Getting logs");
+        log_call();
         let from_block = filter
             .from_block
             .clone()
@@ -426,9 +449,9 @@ impl Brc20ProgApiServer for RpcServer {
             .map_err(wrap_rpc_error)?)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "eth_call", skip(self), level = "error")]
     async fn call(&self, call: EthCall, _: Option<String>) -> RpcResult<String> {
-        event!(Level::INFO, "Calling contract");
+        log_call();
         let Some(data) = call.data_or_input() else {
             return Err(wrap_rpc_error_string("No data or input provided"));
         };
@@ -455,9 +478,9 @@ impl Brc20ProgApiServer for RpcServer {
         Ok(data_string)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "eth_estimateGas", skip(self), level = "error")]
     async fn estimate_gas(&self, call: EthCall, _: Option<String>) -> RpcResult<String> {
-        event!(Level::INFO, "Estimating gas");
+        log_call();
         let Some(data) = call.data_or_input() else {
             return Err(wrap_rpc_error_string("No data or input provided"));
         };
@@ -485,9 +508,9 @@ impl Brc20ProgApiServer for RpcServer {
         Ok(format!("0x{:x}", gas_used))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "eth_getStorageAt", skip(self), level = "error")]
     async fn get_storage_at(&self, contract: AddressED, location: U256ED) -> RpcResult<String> {
-        event!(Level::INFO, "Getting storage value");
+        log_call();
         Ok(format!(
             "0x{:x}",
             self.engine
@@ -496,9 +519,9 @@ impl Brc20ProgApiServer for RpcServer {
         ))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "eth_getCode", skip(self), level = "error")]
     async fn get_code(&self, contract: AddressED) -> RpcResult<BytecodeED> {
-        event!(Level::INFO, "Getting contract code");
+        log_call();
         if let Some(bytecode) = self
             .engine
             .get_contract_bytecode(contract.address)
@@ -510,49 +533,57 @@ impl Brc20ProgApiServer for RpcServer {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "eth_getTransactionReceipt", skip(self), level = "error")]
     async fn get_transaction_receipt(&self, transaction: B256ED) -> RpcResult<Option<TxReceiptED>> {
-        event!(Level::INFO, "Getting transaction receipt");
+        log_call();
         self.engine
             .get_transaction_receipt(transaction.bytes)
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "debug_traceTransaction", skip(self), level = "error")]
     async fn debug_trace_transaction(&self, transaction: B256ED) -> RpcResult<Option<TraceED>> {
-        event!(Level::INFO, "Retrieving transaction trace");
+        log_call();
         self.engine
             .get_trace(transaction.bytes)
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(name = "eth_getTransactionByHash", skip(self), level = "error")]
     async fn get_transaction_by_hash(&self, transaction: B256ED) -> RpcResult<Option<TxED>> {
-        event!(Level::INFO, "Getting transaction by hash");
+        log_call();
         self.engine
             .get_transaction_by_hash(transaction.bytes)
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(
+        name = "eth_getTransactionByBlockNumberAndIndex",
+        skip(self),
+        level = "error"
+    )]
     async fn get_transaction_by_block_number_and_index(
         &self,
         block_number: u64,
         tx_idx: Option<u64>,
     ) -> RpcResult<Option<TxED>> {
-        event!(Level::INFO, "Getting transaction by block number and index");
+        log_call();
         self.engine
             .get_transaction_by_block_number_and_index(block_number, tx_idx.unwrap_or(0))
             .map_err(wrap_rpc_error)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(
+        name = "eth_getTransactionByBlockHashAndIndex",
+        skip(self),
+        level = "error"
+    )]
     async fn get_transaction_by_block_hash_and_index(
         &self,
         block_hash: B256ED,
         tx_idx: Option<u64>,
     ) -> RpcResult<Option<TxED>> {
-        event!(Level::INFO, "Getting transaction by block hash and index");
+        log_call();
         self.engine
             .get_transaction_by_block_hash_and_index(block_hash.bytes, tx_idx.unwrap_or(0))
             .map_err(wrap_rpc_error)
@@ -561,10 +592,7 @@ impl Brc20ProgApiServer for RpcServer {
 
 pub async fn start_rpc_server(
     engine: BRC20ProgEngine,
-    addr: String,
-    use_auth: bool,
-    rpc_username: Option<&String>,
-    rpc_password: Option<&String>,
+    config: Brc20ProgConfig,
 ) -> Result<ServerHandle, Box<dyn Error>> {
     let cors = CorsLayer::new()
         // Allow `POST` when accessing the resource
@@ -576,23 +604,25 @@ pub async fn start_rpc_server(
     let http_middleware =
         ServiceBuilder::new()
             .layer(cors)
-            .layer(ValidateRequestHeaderLayer::custom(if !use_auth {
-                HttpNonBlockingAuth::allow()
-            } else {
-                let Some(rpc_username) = rpc_username else {
-                    return Err(
+            .layer(ValidateRequestHeaderLayer::custom(
+                if !config.brc20_prog_rpc_server_enable_auth {
+                    HttpNonBlockingAuth::allow()
+                } else {
+                    let Some(rpc_username) = config.brc20_prog_rpc_server_user else {
+                        return Err(
                 "RPC username environment variable is required when authentication is enabled"
                     .into(),
             );
-                };
-                let Some(rpc_password) = rpc_password else {
-                    return Err(
+                    };
+                    let Some(rpc_password) = config.brc20_prog_rpc_server_password else {
+                        return Err(
                 "RPC password environment variable is required when authentication is enabled"
                     .into(),
             );
-                };
-                HttpNonBlockingAuth::new(rpc_username, rpc_password)
-            }));
+                    };
+                    HttpNonBlockingAuth::new(&rpc_username, &rpc_password)
+                },
+            ));
     let rpc_middleware = RpcServiceBuilder::new()
         .rpc_logger(1024)
         .layer_fn(|service| RpcAuthMiddleware::new(service, &*INDEXER_METHODS));
@@ -601,7 +631,7 @@ pub async fn start_rpc_server(
     let handle = Server::builder()
         .set_http_middleware(http_middleware)
         .set_rpc_middleware(rpc_middleware)
-        .build(addr.parse::<SocketAddr>()?)
+        .build(config.brc20_prog_rpc_server_url.parse::<SocketAddr>()?)
         .await?
         .start(module);
 
@@ -714,7 +744,7 @@ mod tests {
                 "deadbeef".to_string(),
                 None,
                 None,
-                EncodedBytesWrapper::empty(),
+                EncodedBytes::empty(),
                 20,
                 [1; 32].into(),
                 0,

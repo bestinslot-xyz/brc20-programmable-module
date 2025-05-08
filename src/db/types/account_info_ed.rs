@@ -12,13 +12,19 @@ pub struct AccountInfoED {
     pub code_hash: B256ED,
 }
 
+impl AccountInfoED {
+    pub(crate) fn new(account: AccountInfo) -> Self {
+        Self {
+            balance: account.balance.into(),
+            nonce: account.nonce.into(),
+            code_hash: account.code_hash.into(),
+        }
+    }
+}
+
 impl From<AccountInfo> for AccountInfoED {
     fn from(account_info: AccountInfo) -> Self {
-        AccountInfoED {
-            balance: account_info.balance.into(),
-            nonce: account_info.nonce.into(),
-            code_hash: account_info.code_hash.into(),
-        }
+        AccountInfoED::new(account_info)
     }
 }
 

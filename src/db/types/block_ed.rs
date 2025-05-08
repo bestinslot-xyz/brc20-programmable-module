@@ -8,81 +8,109 @@ use crate::db::types::{
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+/// Represents a block response from BRC2.0 with all the fields required by the API.
+///
+/// Refer to [Ethereum JSON-RPC documentation on eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbyhash) for details
 pub struct BlockResponseED {
+    /// The difficulty of the block
     pub difficulty: U64ED,
     #[serde(rename = "gasLimit")]
+    /// The gas limit of the block
     pub gas_limit: U64ED,
     #[serde(rename = "gasUsed")]
+    /// The gas used by the block
     pub gas_used: U64ED,
+    /// Block hash
     pub hash: B256ED,
     #[serde(rename = "logsBloom")]
+    /// The bloom filter for the logs in the block
     pub logs_bloom: B2048ED,
     #[serde(serialize_with = "uint_full_hex")]
+    /// The nonce of the block
     pub nonce: U64ED,
+    /// The block number
     pub number: U64ED,
+    /// The timestamp of the block
     pub timestamp: U64ED,
+    /// Specific to BRC2.0, time it took to index the block
     #[serde(rename = "mineTimestamp")]
     pub mine_timestamp: U128ED,
 
-    // This can be a list of hashes or a list of transactions
-    // Database will always store hashes, but we need to support both
-    // for the API
     #[serde(
         rename = "transactions",
         serialize_with = "tx_serialize",
         deserialize_with = "tx_deserialize"
     )]
+    /// The transactions in the block
+    ///
+    /// Can be a list of hashes or a list of transactions, depending on the call's is_full flag
     pub transactions: Either<Vec<B256ED>, Vec<TxED>>,
 
-    // Always empty values
     #[serde(rename = "baseFeePerGas")]
+    /// The base fee per gas for the block, 0 for BRC2.0
     pub base_fee_per_gas: U64ED,
 
     #[serde(rename = "transactionsRoot")]
+    /// The root hash of the transactions in the block
     pub transactions_root: B256ED,
 
     #[serde(rename = "uncles")]
+    /// The uncles of the block, empty for BRC2.0
     pub uncles: Vec<B256ED>,
 
+    /// The withdrawals of the block, empty for BRC2.0
     pub withdrawals: Vec<B256ED>,
 
     #[serde(rename = "withdrawalsRoot")]
+    /// The root hash of the withdrawals in the block, empty for BRC2.0
     pub withdrawals_root: B256ED,
 
     #[serde(rename = "totalDifficulty")]
+    /// The total difficulty of the block, 0 for BRC2.0
     pub total_difficulty: U64ED,
 
     #[serde(rename = "parentBeaconBlockRoot")]
+    /// The parent beacon block root, empty for BRC2.0
     pub parent_beacon_block_root: B256ED,
 
     #[serde(rename = "parentHash")]
+    /// The parent hash of the block
     pub parent_hash: B256ED,
 
     #[serde(rename = "receiptsRoot")]
+    /// The root hash of the receipts in the block
     pub receipts_root: B256ED,
 
     #[serde(rename = "sha3Uncles")]
+    /// The sha3 uncles of the block, empty for BRC2.0
     pub sha3_uncles: B256ED,
 
     #[serde(rename = "size")]
+    /// The size of the block, not recorded for BRC2.0
     pub size: U64ED,
 
     #[serde(rename = "stateRoot")]
+    /// The root hash of the state in the block, not recorded for BRC2.0
     pub state_root: B256ED,
 
     #[serde(rename = "miner")]
+    /// The miner of the block, not recorded for BRC2.0
     pub miner: AddressED,
 
     #[serde(rename = "mixHash")]
+    /// The mix hash of the block, not recorded for BRC2.0
     pub mix_hash: B256ED,
 
     #[serde(rename = "excessBlobGas")]
+    /// The excess blob gas of the block, not recorded for BRC2.0, as it does not support blob transactions
     pub excess_blob_gas: U64ED,
 
     #[serde(rename = "extraData")]
+    /// The extra data of the block, not recorded for BRC2.0
     pub extra_data: B256ED,
 
     #[serde(rename = "blobGasUsed")]
+    /// The blob gas used of the block, not recorded for BRC2.0, as it does not support blob transactions
     pub blob_gas_used: U64ED,
 }
 
@@ -117,7 +145,7 @@ where
 }
 
 impl BlockResponseED {
-    pub fn new(
+    pub(crate) fn new(
         difficulty: U64ED,
         gas_limit: U64ED,
         gas_used: U64ED,

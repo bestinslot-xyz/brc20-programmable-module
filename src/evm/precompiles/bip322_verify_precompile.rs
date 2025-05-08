@@ -6,7 +6,7 @@ use bitcoin::Witness;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
 use crate::evm::precompiles::{
-    precompile_error, precompile_output, use_gas, PrecompileCall, BITCOIN_NETWORK,
+    get_bitcoin_network, precompile_error, precompile_output, use_gas, PrecompileCall,
 };
 
 sol! {
@@ -32,7 +32,7 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
 
     let address = bitcoin::Address::from_script(
         &bitcoin::Script::from_bytes(pkscript.iter().as_slice()),
-        *BITCOIN_NETWORK,
+        get_bitcoin_network(),
     );
 
     let Ok(address) = address else {
