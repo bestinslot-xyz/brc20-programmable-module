@@ -18,6 +18,7 @@ fn get_free_port() -> u16 {
     port
 }
 
+#[allow(dead_code)]
 pub async fn spawn_test_server() -> (ServerHandle, HttpClient) {
     let db_path = TempDir::new().unwrap();
     let server_address = format!("127.0.0.1:{}", get_free_port());
@@ -38,16 +39,23 @@ pub async fn spawn_test_server() -> (ServerHandle, HttpClient) {
     )
 }
 
+#[allow(dead_code)]
 pub fn is_in_ci() -> bool {
     // Check if the environment variable "CI" is set to "true"
     std::env::var("CI").map_or(false, |val| val == "true")
 }
 
-pub fn load_file_as_bytes(filename: &str) -> Result<EncodedBytes, Box<dyn Error>> {
-    Ok(EncodedBytes::new(String::from_utf8(
+#[allow(dead_code)]
+pub fn load_file_as_string(filename: &str) -> Result<String, Box<dyn Error>> {
+    Ok(String::from_utf8(
         TxAssets::get(filename)
-            .expect("Failed to load contract binary")
+            .expect("Failed to load file")
             .data
             .to_vec(),
-    )?))
+    )?)
+}
+
+#[allow(dead_code)]
+pub fn load_file_as_bytes(filename: &str) -> Result<EncodedBytes, Box<dyn Error>> {
+    Ok(EncodedBytes::new(load_file_as_string(filename)?))
 }
