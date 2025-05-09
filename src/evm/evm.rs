@@ -9,7 +9,7 @@ use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 
 use crate::db::DB;
 use crate::evm::precompiles::BRC20Precompiles;
-use crate::server::api::CHAIN_ID;
+use crate::global::CHAIN_ID;
 
 const CURRENT_SPEC: SpecId = SpecId::CANCUN;
 

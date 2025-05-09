@@ -608,7 +608,7 @@ mod tests {
 
     use super::*;
     use crate::db::DB;
-    use crate::server::api::INDEXER_ADDRESS;
+    use crate::global::INDEXER_ADDRESS;
 
     #[test]
     fn test_initialise() {

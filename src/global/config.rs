@@ -2,6 +2,8 @@ use std::env;
 use std::error::Error;
 use std::path::Path;
 
+use alloy_primitives::Address;
+
 use crate::global::database::ConfigDatabase;
 use crate::shared_data::SharedData;
 
@@ -11,8 +13,6 @@ lazy_static::lazy_static! {
 
     static ref PROTOCOL_VERSION_KEY: String = "PROTOCOL_VERSION".to_string();
     static ref PROTOCOL_VERSION: u32 = 1;
-
-    pub static ref COMPRESSION_ACTIVATION_HEIGHT: SharedData<u64> = SharedData::new(u64::MAX);
 
     static ref DB_PATH_KEY: String = "BRC20_PROG_DB_PATH".to_string();
     static ref DB_PATH_DEFAULT: String = "target/db".to_string();
@@ -56,8 +56,18 @@ lazy_static::lazy_static! {
         }
     };
 
-    pub static ref BLOCK_SIZE: u64 = 4 * 1024 * 1024; // 4MB
+    pub static ref MAX_BLOCK_SIZE: u64 = 4 * 1024 * 1024; // 4MB
     pub static ref GAS_PER_BYTE: u64 = 12000; // 12K gas per byte
+
+    pub static ref CHAIN_ID: u64 = 0x4252433230;
+    pub static ref CHAIN_ID_STRING: String = CHAIN_ID.to_string();
+
+    pub static ref CALLDATA_LIMIT: usize = 1024 * 1024; // 1MB
+    pub static ref COMPRESSION_ACTIVATION_HEIGHT: SharedData<u64> = SharedData::new(u64::MAX);
+
+    pub static ref INDEXER_ADDRESS: Address = "0x0000000000000000000000000000000000003Ca6".parse().expect("Failed to parse indexer address");
+    pub static ref INDEXER_ADDRESS_STRING: String = INDEXER_ADDRESS.to_string();
+    pub static ref INVALID_ADDRESS: Address = "0x000000000000000000000000000000000000dead".parse().expect("Failed to parse invalid address");
 
     pub static ref CONFIG: SharedData<Brc20ProgConfig> = SharedData::new(Brc20ProgConfig::from_env());
 }

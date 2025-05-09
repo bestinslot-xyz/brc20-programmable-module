@@ -19,7 +19,7 @@ use crate::db::types::{
     AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED,
     B256ED, U128ED, U256ED, U512ED, U64ED,
 };
-use crate::global::{BLOCK_SIZE, GAS_PER_BYTE};
+use crate::global::{GAS_PER_BYTE, MAX_BLOCK_SIZE};
 
 pub struct DB {
     /// Account address to memory location
@@ -593,7 +593,7 @@ impl DB {
 
         let block_response = BlockResponseED::new(
             0u64.into(),
-            (*BLOCK_SIZE * *GAS_PER_BYTE).into(),
+            (*MAX_BLOCK_SIZE * *GAS_PER_BYTE).into(),
             gas_used.as_limbs()[0].into(),
             block_hash.into(),
             FixedBytes(bloom.as_slice().try_into()?).into(),

@@ -53,5 +53,5 @@ pub mod types {
         AddressED, BlockResponseED, BytecodeED, BytesED, FixedBytesED, LogED, TraceED, TxED,
         TxReceiptED, UintED, B2048ED, B256ED, U128ED, U256ED, U512ED, U64ED, U8ED,
     };
-    pub use crate::server::api::{EncodedBytes, EthCall, GetLogsFilter};
+    pub use crate::server::types::{EncodedBytes, EthCall, GetLogsFilter};
 }
