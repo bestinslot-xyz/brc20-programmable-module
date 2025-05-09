@@ -6,9 +6,8 @@ use bitcoin::taproot::TaprootBuilder;
 use bitcoin::{opcodes, secp256k1, ScriptBuf};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
-use crate::evm::precompiles::{
-    get_bitcoin_hrp, precompile_error, precompile_output, use_gas, PrecompileCall,
-};
+use crate::engine::precompiles::btc_utils::get_bitcoin_hrp;
+use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 
 sol! {
     function getLockedPkscript(bytes pkscript, uint256 lock_block_count) returns (bytes locked_pkscript);

@@ -13,6 +13,7 @@ pub struct BytesED {
 }
 
 impl BytesED {
+    // This is returned by the API, so doesn't need to be public
     pub(crate) fn new(bytes: Bytes) -> Self {
         Self { bytes }
     }

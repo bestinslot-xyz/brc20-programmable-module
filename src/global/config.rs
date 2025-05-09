@@ -5,7 +5,7 @@ use std::path::Path;
 use alloy_primitives::Address;
 
 use crate::global::database::ConfigDatabase;
-use crate::shared_data::SharedData;
+use crate::global::SharedData;
 
 lazy_static::lazy_static! {
     static ref DB_VERSION_KEY: String = "DB_VERSION".to_string();

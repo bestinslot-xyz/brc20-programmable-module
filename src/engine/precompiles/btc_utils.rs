@@ -10,8 +10,7 @@ use bitcoincore_rpc::Error::JsonRpc;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use bitcoincore_rpc_json::{GetBlockResult, GetRawTransactionResult};
 
-use crate::global::CONFIG;
-use crate::shared_data::SharedData;
+use crate::global::{SharedData, CONFIG};
 
 lazy_static::lazy_static! {
     static ref BITCOIN_RPC_URL: SharedData<String> = SharedData::new(Default::default());

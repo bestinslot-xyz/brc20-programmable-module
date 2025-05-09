@@ -13,6 +13,7 @@ pub struct BytecodeED {
 }
 
 impl BytecodeED {
+    // This is returned by the API, so doesn't need to be public
     pub(crate) fn new(bytecode: Bytecode) -> Self {
         Self { bytecode }
     }

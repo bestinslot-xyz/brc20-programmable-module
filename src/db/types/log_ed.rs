@@ -32,6 +32,7 @@ pub struct LogED {
 }
 
 impl LogED {
+    // This is returned by the API, so doesn't need to be public
     pub(crate) fn new_vec(
         logs: &Vec<Log>,
         mut start_log_index: u64,

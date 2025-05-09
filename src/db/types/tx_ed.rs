@@ -73,6 +73,7 @@ where
 }
 
 impl TxED {
+    // This is returned by the API, so doesn't need to be public
     pub(crate) fn new(
         hash: B256ED,
         nonce: U64ED,

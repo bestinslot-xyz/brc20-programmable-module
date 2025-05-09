@@ -42,7 +42,11 @@ ureq = "3.0.11"
 zstd-safe = "7.2.4"
 
 [dev-dependencies]
+insta = "1.43.1"
+public-api = "0.47.0"
 rand = "0.9.1"
+rustdoc-json = "0.9.5"
+rustup-toolchain = "0.1.10"
 tempfile = "3.19.1"
 
 [profile.release]

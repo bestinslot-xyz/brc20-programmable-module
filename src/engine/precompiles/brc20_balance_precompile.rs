@@ -5,7 +5,7 @@ use alloy_sol_types::{sol, SolCall};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use ureq::Agent;
 
-use crate::evm::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
+use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 use crate::global::CONFIG;
 
 lazy_static::lazy_static! {

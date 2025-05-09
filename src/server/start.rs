@@ -5,9 +5,9 @@ use jsonrpsee::server::ServerHandle;
 use tracing::{error, info, warn};
 
 use crate::db::DB;
-use crate::evm::precompiles::validate_bitcoin_rpc_status;
+use crate::engine::{validate_bitcoin_rpc_status, BRC20ProgEngine};
 use crate::global::{validate_config, Brc20ProgConfig, CONFIG};
-use crate::server::{start_rpc_server, BRC20ProgEngine};
+use crate::server::rpc_server::start_rpc_server;
 
 /// Starts the BRC20 programmable module server.
 ///

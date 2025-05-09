@@ -13,7 +13,7 @@ pub struct AccountInfoED {
 }
 
 impl AccountInfoED {
-    pub(crate) fn new(account: AccountInfo) -> Self {
+    fn new(account: AccountInfo) -> Self {
         Self {
             balance: account.balance.into(),
             nonce: account.nonce.into(),
