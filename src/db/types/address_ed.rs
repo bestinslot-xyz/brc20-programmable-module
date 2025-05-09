@@ -4,7 +4,7 @@ use alloy_primitives::Address;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::db::types::{Decode, Encode};
-use crate::server::api::INVALID_ADDRESS;
+use crate::global::INVALID_ADDRESS;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// Represents a fixed-size byte array of length 20, which is used to represent EVM addresses.

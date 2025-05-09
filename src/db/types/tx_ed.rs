@@ -3,7 +3,7 @@ use std::error::Error;
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED, U64ED, U8ED};
-use crate::server::api::CHAIN_ID;
+use crate::global::CHAIN_ID;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 /// Represents a transaction entry from the EVM.

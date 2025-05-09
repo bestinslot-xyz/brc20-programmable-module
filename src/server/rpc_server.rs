@@ -18,15 +18,14 @@ use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
 use crate::evm::utils::get_evm_address;
-use crate::server::api::{
-    Brc20ProgApiServer, EncodedBytes, EthCall, GetLogsFilter, INDEXER_METHODS, INVALID_ADDRESS,
-};
+use crate::global::INVALID_ADDRESS;
+use crate::server::api::{Brc20ProgApiServer, INDEXER_METHODS};
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::engine::BRC20ProgEngine;
 use crate::server::error::{
     wrap_hex_error, wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
 };
-use crate::server::types::TxInfo;
+use crate::server::types::{EncodedBytes, EthCall, GetLogsFilter, TxInfo};
 use crate::Brc20ProgConfig;
 
 pub struct RpcServer {
