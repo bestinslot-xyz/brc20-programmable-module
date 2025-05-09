@@ -68,6 +68,7 @@ pub struct TxReceiptED {
 }
 
 impl TxReceiptED {
+    // This is returned by the API, so doesn't need to be public
     pub(crate) fn new(
         block_hash: B256ED,
         block_number: U64ED,

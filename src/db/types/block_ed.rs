@@ -145,6 +145,7 @@ where
 }
 
 impl BlockResponseED {
+    // This is returned by the API, so doesn't need to be public
     pub(crate) fn new(
         difficulty: U64ED,
         gas_limit: U64ED,

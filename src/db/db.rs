@@ -21,6 +21,8 @@ use crate::db::types::{
 };
 use crate::global::{GAS_PER_BYTE, MAX_BLOCK_SIZE};
 
+const MAX_HISTORY_SIZE: u64 = 10;
+
 pub struct DB {
     /// Account address to memory location
     /// TODO: If the value is zero, consider deleting it from the database to save space
@@ -849,6 +851,10 @@ impl DB {
     }
 
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
+        if self.get_latest_block_height()? - latest_valid_block_number > MAX_HISTORY_SIZE {
+            return Err("Latest valid block number is too far behind current block height".into());
+        }
+
         self.db_account_memory
             .as_mut()
             .ok_or("DB Error")?

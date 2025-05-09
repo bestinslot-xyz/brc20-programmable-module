@@ -11,24 +11,23 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tracing::{info, instrument, warn};
 
+use crate::api::types::{EncodedBytes, EthCall, GetLogsFilter};
+use crate::api::{Brc20ProgApiServer, INDEXER_METHODS};
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
 };
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
-use crate::evm::utils::get_evm_address;
+use crate::engine::{get_evm_address, BRC20ProgEngine, TxInfo};
 use crate::global::INVALID_ADDRESS;
-use crate::server::api::{Brc20ProgApiServer, INDEXER_METHODS};
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
-use crate::server::engine::BRC20ProgEngine;
 use crate::server::error::{
     wrap_hex_error, wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
 };
-use crate::server::types::{EncodedBytes, EthCall, GetLogsFilter, TxInfo};
 use crate::Brc20ProgConfig;
 
-pub struct RpcServer {
+struct RpcServer {
     engine: BRC20ProgEngine,
 }
 
@@ -649,7 +648,7 @@ mod tests {
 
     use super::*;
     use crate::db::DB;
-    use crate::server::engine::BRC20ProgEngine;
+    use crate::engine::BRC20ProgEngine;
 
     fn create_test_server() -> RpcServer {
         let temp_dir = TempDir::new().unwrap();

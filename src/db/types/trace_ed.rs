@@ -42,6 +42,7 @@ pub struct TraceED {
 }
 
 impl TraceED {
+    // This is returned by the API, so doesn't need to be public
     pub(crate) fn new(call: CallFrame) -> Self {
         Self {
             tx_type: call.typ,

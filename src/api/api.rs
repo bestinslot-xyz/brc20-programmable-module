@@ -1,11 +1,11 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 
+use crate::api::types::{EncodedBytes, EthCall, GetLogsFilter};
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
 use crate::global::{CARGO_PKG_VERSION, CHAIN_ID_STRING, INDEXER_ADDRESS};
-use crate::server::types::{EncodedBytes, EthCall, GetLogsFilter};
 
 lazy_static::lazy_static! {
     // BRC20 Methods intended for the indexers, so they require auth

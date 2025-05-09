@@ -1,7 +1,5 @@
-use std::time::Instant;
-
 use alloy_primitives::hex::FromHex;
-use alloy_primitives::{keccak256, Address, Bytes, B256};
+use alloy_primitives::{Bytes, B256};
 use base64::prelude::BASE64_STANDARD_NO_PAD;
 use base64::Engine;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -9,49 +7,6 @@ use serde_either::SingleOrVec;
 
 use crate::global::{CALLDATA_LIMIT, COMPRESSION_ACTIVATION_HEIGHT};
 use crate::types::{AddressED, B256ED};
-
-/// This struct is used to store the unfinalised block information
-pub struct LastBlockInfo {
-    pub waiting_tx_count: u64,
-    pub timestamp: u64,
-    pub hash: B256,
-    pub gas_used: u64,
-    pub log_index: u64,
-    pub start_time: Option<Instant>,
-}
-
-impl LastBlockInfo {
-    pub fn new() -> Self {
-        LastBlockInfo {
-            waiting_tx_count: 0,
-            timestamp: 0,
-            hash: B256::ZERO,
-            gas_used: 0,
-            log_index: 0,
-            start_time: None,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct TxInfo {
-    pub from: Address,
-    pub to: Option<Address>,
-    pub data: Bytes,
-}
-
-pub fn get_tx_hash(txinfo: &TxInfo, nonce: &u64) -> B256 {
-    let mut data = Vec::new();
-    data.extend_from_slice(txinfo.from.as_slice());
-    data.extend_from_slice(&nonce.to_be_bytes());
-    if let Some(to) = txinfo.to {
-        data.extend_from_slice(to.as_slice());
-    } else {
-        data.extend_from_slice(&[0; 20]);
-    }
-    data.extend_from_slice(&txinfo.data);
-    keccak256(data)
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 /// Represents a call to a contract with optional parameters for from, to, data, and input.
@@ -77,6 +32,7 @@ impl EthCall {
         }
     }
 
+    // This is used by the server, so doesn't need to be public
     pub(crate) fn data_or_input(&self) -> Option<&EncodedBytes> {
         if let Some(data) = &self.data {
             Some(data)
@@ -104,6 +60,7 @@ pub struct GetLogsFilter {
 }
 
 impl GetLogsFilter {
+    // This is used by the server, so doesn't need to be public
     pub(crate) fn topics_as_b256(&self) -> Option<Vec<SingleOrVec<Option<B256>>>> {
         self.topics.as_ref().map(|topics| {
             topics
@@ -147,12 +104,14 @@ impl EncodedBytes {
         Self(None)
     }
 
+    // This is used by the server, so doesn't need to be public
     pub(crate) fn value_inscription(&self, block_height: u64) -> Option<Bytes> {
         self.0
             .as_ref()
             .and_then(|s| decode_bytes_from_inscription_data(s, block_height))
     }
 
+    // This is used by the server, so doesn't need to be public
     pub(crate) fn value_eth(&self) -> Option<Bytes> {
         self.0.as_ref().and_then(|s| Bytes::from_hex(s).ok())
     }
@@ -256,7 +215,10 @@ fn decode_zstd_into_bytes(data: &[u8]) -> Option<Bytes> {
 
 #[cfg(test)]
 mod tests {
+    use base64::prelude::BASE64_STANDARD_NO_PAD;
+
     use super::*;
+    use crate::global::COMPRESSION_ACTIVATION_HEIGHT;
 
     #[test]
     fn test_decode_bytes_from_inscription_data_old() {

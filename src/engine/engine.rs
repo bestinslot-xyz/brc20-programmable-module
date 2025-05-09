@@ -15,12 +15,13 @@ use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, Decode, LogED, TraceED, TxED, TxReceiptED, B2048ED,
 };
 use crate::db::{DB, MAX_HISTORY_SIZE};
-use crate::evm::get_evm;
-use crate::evm::precompiles::get_brc20_balance;
-use crate::evm::utils::{get_contract_address, get_gas_limit, get_result_reason, get_result_type};
-use crate::global::CONFIG;
-use crate::server::types::{get_tx_hash, LastBlockInfo, TxInfo};
-use crate::shared_data::SharedData;
+use crate::engine::evm::get_evm;
+use crate::engine::precompiles::get_brc20_balance;
+use crate::engine::utils::{
+    get_contract_address, get_gas_limit, get_result_reason, get_result_type, get_tx_hash,
+    LastBlockInfo, TxInfo,
+};
+use crate::global::{SharedData, CONFIG};
 
 pub struct BRC20ProgEngine {
     db: SharedData<DB>,

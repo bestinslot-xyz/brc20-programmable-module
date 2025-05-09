@@ -1,0 +1,252 @@
+---
+source: tests/public_api.rs
+expression: public_api
+---
+pub mod brc20_prog
+pub mod brc20_prog::types
+pub struct brc20_prog::types::AddressED
+pub brc20_prog::types::AddressED::address: alloy_primitives::bits::address::Address
+impl brc20_prog::types::AddressED
+pub fn brc20_prog::types::AddressED::new(address: alloy_primitives::bits::address::Address) -> Self
+impl core::convert::From<[u8; 20]> for brc20_prog::types::AddressED
+pub fn brc20_prog::types::AddressED::from(address: [u8; 20]) -> Self
+impl core::convert::From<alloy_primitives::bits::address::Address> for brc20_prog::types::AddressED
+pub fn brc20_prog::types::AddressED::from(address: alloy_primitives::bits::address::Address) -> Self
+impl serde::ser::Serialize for brc20_prog::types::AddressED
+pub fn brc20_prog::types::AddressED::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
+impl<'de> serde::de::Deserialize<'de> for brc20_prog::types::AddressED
+pub fn brc20_prog::types::AddressED::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
+pub struct brc20_prog::types::BlockResponseED
+pub brc20_prog::types::BlockResponseED::base_fee_per_gas: brc20_prog::types::U64ED
+pub brc20_prog::types::BlockResponseED::blob_gas_used: brc20_prog::types::U64ED
+pub brc20_prog::types::BlockResponseED::difficulty: brc20_prog::types::U64ED
+pub brc20_prog::types::BlockResponseED::excess_blob_gas: brc20_prog::types::U64ED
+pub brc20_prog::types::BlockResponseED::extra_data: brc20_prog::types::B256ED
+pub brc20_prog::types::BlockResponseED::gas_limit: brc20_prog::types::U64ED
+pub brc20_prog::types::BlockResponseED::gas_used: brc20_prog::types::U64ED
+pub brc20_prog::types::BlockResponseED::hash: brc20_prog::types::B256ED
+pub brc20_prog::types::BlockResponseED::logs_bloom: brc20_prog::types::B2048ED
+pub brc20_prog::types::BlockResponseED::mine_timestamp: brc20_prog::types::U128ED
+pub brc20_prog::types::BlockResponseED::miner: brc20_prog::types::AddressED
+pub brc20_prog::types::BlockResponseED::mix_hash: brc20_prog::types::B256ED
+pub brc20_prog::types::BlockResponseED::nonce: brc20_prog::types::U64ED
+pub brc20_prog::types::BlockResponseED::number: brc20_prog::types::U64ED
+pub brc20_prog::types::BlockResponseED::parent_beacon_block_root: brc20_prog::types::B256ED
+pub brc20_prog::types::BlockResponseED::parent_hash: brc20_prog::types::B256ED
+pub brc20_prog::types::BlockResponseED::receipts_root: brc20_prog::types::B256ED
+pub brc20_prog::types::BlockResponseED::sha3_uncles: brc20_prog::types::B256ED
+pub brc20_prog::types::BlockResponseED::size: brc20_prog::types::U64ED
+pub brc20_prog::types::BlockResponseED::state_root: brc20_prog::types::B256ED
+pub brc20_prog::types::BlockResponseED::timestamp: brc20_prog::types::U64ED
+pub brc20_prog::types::BlockResponseED::total_difficulty: brc20_prog::types::U64ED
+pub brc20_prog::types::BlockResponseED::transactions: either::Either<alloc::vec::Vec<brc20_prog::types::B256ED>, alloc::vec::Vec<brc20_prog::types::TxED>>
+pub brc20_prog::types::BlockResponseED::transactions_root: brc20_prog::types::B256ED
+pub brc20_prog::types::BlockResponseED::uncles: alloc::vec::Vec<brc20_prog::types::B256ED>
+pub brc20_prog::types::BlockResponseED::withdrawals: alloc::vec::Vec<brc20_prog::types::B256ED>
+pub brc20_prog::types::BlockResponseED::withdrawals_root: brc20_prog::types::B256ED
+pub struct brc20_prog::types::BytecodeED
+pub brc20_prog::types::BytecodeED::bytecode: revm_bytecode::bytecode::Bytecode
+impl core::convert::From<revm_bytecode::bytecode::Bytecode> for brc20_prog::types::BytecodeED
+pub fn brc20_prog::types::BytecodeED::from(bytecode: revm_bytecode::bytecode::Bytecode) -> Self
+impl serde::ser::Serialize for brc20_prog::types::BytecodeED
+pub fn brc20_prog::types::BytecodeED::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
+impl<'de> serde::de::Deserialize<'de> for brc20_prog::types::BytecodeED
+pub fn brc20_prog::types::BytecodeED::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
+pub struct brc20_prog::types::BytesED
+pub brc20_prog::types::BytesED::bytes: alloy_primitives::bytes_::Bytes
+impl core::convert::From<alloc::vec::Vec<u8>> for brc20_prog::types::BytesED
+pub fn brc20_prog::types::BytesED::from(value: alloc::vec::Vec<u8>) -> Self
+impl core::convert::From<alloy_primitives::bytes_::Bytes> for brc20_prog::types::BytesED
+pub fn brc20_prog::types::BytesED::from(bytes: alloy_primitives::bytes_::Bytes) -> Self
+impl serde::ser::Serialize for brc20_prog::types::BytesED
+pub fn brc20_prog::types::BytesED::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
+impl<'de> serde::de::Deserialize<'de> for brc20_prog::types::BytesED
+pub fn brc20_prog::types::BytesED::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
+pub struct brc20_prog::types::EncodedBytes(_)
+impl brc20_prog::types::EncodedBytes
+pub fn brc20_prog::types::EncodedBytes::empty() -> Self
+pub fn brc20_prog::types::EncodedBytes::from_bytes(bytes: alloy_primitives::bytes_::Bytes) -> Self
+pub fn brc20_prog::types::EncodedBytes::new(inner: alloc::string::String) -> Self
+impl serde::ser::Serialize for brc20_prog::types::EncodedBytes
+pub fn brc20_prog::types::EncodedBytes::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
+impl<'de> serde::de::Deserialize<'de> for brc20_prog::types::EncodedBytes
+pub fn brc20_prog::types::EncodedBytes::deserialize<D>(deserializer: D) -> core::result::Result<brc20_prog::types::EncodedBytes, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
+pub struct brc20_prog::types::EthCall
+pub brc20_prog::types::EthCall::data: core::option::Option<brc20_prog::types::EncodedBytes>
+pub brc20_prog::types::EthCall::from: core::option::Option<brc20_prog::types::AddressED>
+pub brc20_prog::types::EthCall::input: core::option::Option<brc20_prog::types::EncodedBytes>
+pub brc20_prog::types::EthCall::to: core::option::Option<brc20_prog::types::AddressED>
+impl brc20_prog::types::EthCall
+pub fn brc20_prog::types::EthCall::new(from: core::option::Option<brc20_prog::types::AddressED>, to: core::option::Option<brc20_prog::types::AddressED>, data: brc20_prog::types::EncodedBytes) -> Self
+pub struct brc20_prog::types::FixedBytesED<const N: usize>
+pub brc20_prog::types::FixedBytesED::bytes: alloy_primitives::bits::fixed::FixedBytes<N>
+impl<const N: usize> brc20_prog::types::FixedBytesED<N>
+pub fn brc20_prog::types::FixedBytesED<N>::new(bytes: alloy_primitives::bits::fixed::FixedBytes<N>) -> Self
+impl<'de, const N: usize> serde::de::Deserialize<'de> for brc20_prog::types::FixedBytesED<N>
+pub fn brc20_prog::types::FixedBytesED<N>::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
+impl<const N: usize> core::convert::From<[u8; N]> for brc20_prog::types::FixedBytesED<N>
+pub fn brc20_prog::types::FixedBytesED<N>::from(bytes: [u8; N]) -> Self
+impl<const N: usize> core::convert::From<alloy_primitives::bits::fixed::FixedBytes<N>> for brc20_prog::types::FixedBytesED<N>
+pub fn brc20_prog::types::FixedBytesED<N>::from(bytes: alloy_primitives::bits::fixed::FixedBytes<N>) -> Self
+impl<const N: usize> core::convert::From<brc20_prog::types::FixedBytesED<N>> for alloy_primitives::bits::fixed::FixedBytes<N>
+pub fn alloy_primitives::bits::fixed::FixedBytes<N>::from(b_encode_decode: brc20_prog::types::FixedBytesED<N>) -> Self
+impl<const N: usize> serde::ser::Serialize for brc20_prog::types::FixedBytesED<N>
+pub fn brc20_prog::types::FixedBytesED<N>::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
+pub struct brc20_prog::types::GetLogsFilter
+pub brc20_prog::types::GetLogsFilter::address: core::option::Option<brc20_prog::types::AddressED>
+pub brc20_prog::types::GetLogsFilter::from_block: core::option::Option<alloc::string::String>
+pub brc20_prog::types::GetLogsFilter::to_block: core::option::Option<alloc::string::String>
+pub brc20_prog::types::GetLogsFilter::topics: core::option::Option<alloc::vec::Vec<serde_either::enums::SingleOrVec<core::option::Option<brc20_prog::types::B256ED>>>>
+pub struct brc20_prog::types::LogED
+pub brc20_prog::types::LogED::address: brc20_prog::types::AddressED
+pub brc20_prog::types::LogED::block_hash: brc20_prog::types::B256ED
+pub brc20_prog::types::LogED::block_number: brc20_prog::types::U64ED
+pub brc20_prog::types::LogED::data: brc20_prog::types::BytesED
+pub brc20_prog::types::LogED::log_index: brc20_prog::types::U64ED
+pub brc20_prog::types::LogED::topics: alloc::vec::Vec<brc20_prog::types::B256ED>
+pub brc20_prog::types::LogED::transaction_hash: brc20_prog::types::B256ED
+pub brc20_prog::types::LogED::transaction_index: brc20_prog::types::U64ED
+pub struct brc20_prog::types::TraceED
+pub brc20_prog::types::TraceED::calls: alloc::vec::Vec<brc20_prog::types::TraceED>
+pub brc20_prog::types::TraceED::error: core::option::Option<alloc::string::String>
+pub brc20_prog::types::TraceED::from: brc20_prog::types::AddressED
+pub brc20_prog::types::TraceED::gas: brc20_prog::types::U256ED
+pub brc20_prog::types::TraceED::gas_used: brc20_prog::types::U256ED
+pub brc20_prog::types::TraceED::input: brc20_prog::types::BytesED
+pub brc20_prog::types::TraceED::output: brc20_prog::types::BytesED
+pub brc20_prog::types::TraceED::revert_reason: core::option::Option<alloc::string::String>
+pub brc20_prog::types::TraceED::to: core::option::Option<brc20_prog::types::AddressED>
+pub brc20_prog::types::TraceED::tx_type: alloc::string::String
+pub brc20_prog::types::TraceED::value: brc20_prog::types::U256ED
+impl core::convert::From<alloy_rpc_types_trace::geth::call::CallFrame> for brc20_prog::types::TraceED
+pub fn brc20_prog::types::TraceED::from(call: alloy_rpc_types_trace::geth::call::CallFrame) -> Self
+pub struct brc20_prog::types::TxED
+pub brc20_prog::types::TxED::block_hash: brc20_prog::types::B256ED
+pub brc20_prog::types::TxED::block_number: brc20_prog::types::U64ED
+pub brc20_prog::types::TxED::chain_id: brc20_prog::types::U64ED
+pub brc20_prog::types::TxED::from: brc20_prog::types::AddressED
+pub brc20_prog::types::TxED::gas: brc20_prog::types::U64ED
+pub brc20_prog::types::TxED::gas_price: brc20_prog::types::U64ED
+pub brc20_prog::types::TxED::hash: brc20_prog::types::B256ED
+pub brc20_prog::types::TxED::input: brc20_prog::types::BytesED
+pub brc20_prog::types::TxED::inscription_id: core::option::Option<alloc::string::String>
+pub brc20_prog::types::TxED::nonce: brc20_prog::types::U64ED
+pub brc20_prog::types::TxED::r: brc20_prog::types::U8ED
+pub brc20_prog::types::TxED::s: brc20_prog::types::U8ED
+pub brc20_prog::types::TxED::to: core::option::Option<brc20_prog::types::AddressED>
+pub brc20_prog::types::TxED::transaction_index: brc20_prog::types::U64ED
+pub brc20_prog::types::TxED::tx_type: brc20_prog::types::U8ED
+pub brc20_prog::types::TxED::v: brc20_prog::types::U8ED
+pub brc20_prog::types::TxED::value: brc20_prog::types::U64ED
+pub struct brc20_prog::types::TxReceiptED
+pub brc20_prog::types::TxReceiptED::block_hash: brc20_prog::types::B256ED
+pub brc20_prog::types::TxReceiptED::block_number: brc20_prog::types::U64ED
+pub brc20_prog::types::TxReceiptED::block_timestamp: brc20_prog::types::U64ED
+pub brc20_prog::types::TxReceiptED::contract_address: core::option::Option<brc20_prog::types::AddressED>
+pub brc20_prog::types::TxReceiptED::cumulative_gas_used: brc20_prog::types::U64ED
+pub brc20_prog::types::TxReceiptED::effective_gas_price: brc20_prog::types::U64ED
+pub brc20_prog::types::TxReceiptED::from: brc20_prog::types::AddressED
+pub brc20_prog::types::TxReceiptED::gas_used: brc20_prog::types::U64ED
+pub brc20_prog::types::TxReceiptED::logs: alloc::vec::Vec<brc20_prog::types::LogED>
+pub brc20_prog::types::TxReceiptED::logs_bloom: brc20_prog::types::B2048ED
+pub brc20_prog::types::TxReceiptED::nonce: brc20_prog::types::U64ED
+pub brc20_prog::types::TxReceiptED::reason: alloc::string::String
+pub brc20_prog::types::TxReceiptED::result_bytes: core::option::Option<brc20_prog::types::BytesED>
+pub brc20_prog::types::TxReceiptED::status: brc20_prog::types::U8ED
+pub brc20_prog::types::TxReceiptED::to: core::option::Option<brc20_prog::types::AddressED>
+pub brc20_prog::types::TxReceiptED::transaction_hash: brc20_prog::types::B256ED
+pub brc20_prog::types::TxReceiptED::transaction_index: brc20_prog::types::U64ED
+pub brc20_prog::types::TxReceiptED::transaction_result: alloc::string::String
+pub brc20_prog::types::TxReceiptED::transaction_type: brc20_prog::types::U8ED
+pub struct brc20_prog::types::UintED<const BITS: usize, const LIMBS: usize>
+pub brc20_prog::types::UintED::uint: ruint::Uint<BITS, LIMBS>
+impl<const BITS: usize, const LIMBS: usize> brc20_prog::types::UintED<BITS, LIMBS>
+pub fn brc20_prog::types::UintED<BITS, LIMBS>::new(uint: ruint::Uint<BITS, LIMBS>) -> Self
+impl<'de, const BITS: usize, const LIMBS: usize> serde::de::Deserialize<'de> for brc20_prog::types::UintED<BITS, LIMBS>
+pub fn brc20_prog::types::UintED<BITS, LIMBS>::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
+impl<const BITS: usize, const LIMBS: usize> core::convert::From<ruint::Uint<BITS, LIMBS>> for brc20_prog::types::UintED<BITS, LIMBS>
+pub fn brc20_prog::types::UintED<BITS, LIMBS>::from(uint: ruint::Uint<BITS, LIMBS>) -> Self
+impl<const BITS: usize, const LIMBS: usize> core::convert::From<u128> for brc20_prog::types::UintED<BITS, LIMBS>
+pub fn brc20_prog::types::UintED<BITS, LIMBS>::from(value: u128) -> Self
+impl<const BITS: usize, const LIMBS: usize> core::convert::From<u32> for brc20_prog::types::UintED<BITS, LIMBS>
+pub fn brc20_prog::types::UintED<BITS, LIMBS>::from(value: u32) -> Self
+impl<const BITS: usize, const LIMBS: usize> core::convert::From<u64> for brc20_prog::types::UintED<BITS, LIMBS>
+pub fn brc20_prog::types::UintED<BITS, LIMBS>::from(value: u64) -> Self
+impl<const BITS: usize, const LIMBS: usize> core::convert::From<u8> for brc20_prog::types::UintED<BITS, LIMBS>
+pub fn brc20_prog::types::UintED<BITS, LIMBS>::from(value: u8) -> Self
+impl<const BITS: usize, const LIMBS: usize> core::fmt::Display for brc20_prog::types::UintED<BITS, LIMBS>
+pub fn brc20_prog::types::UintED<BITS, LIMBS>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<const BITS: usize, const LIMBS: usize> serde::ser::Serialize for brc20_prog::types::UintED<BITS, LIMBS>
+pub fn brc20_prog::types::UintED<BITS, LIMBS>::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
+pub type brc20_prog::types::B2048ED = brc20_prog::types::FixedBytesED<256>
+pub type brc20_prog::types::B256ED = brc20_prog::types::FixedBytesED<32>
+pub type brc20_prog::types::U128ED = brc20_prog::types::UintED<128, 2>
+pub type brc20_prog::types::U256ED = brc20_prog::types::UintED<256, 4>
+pub type brc20_prog::types::U512ED = brc20_prog::types::UintED<512, 8>
+pub type brc20_prog::types::U64ED = brc20_prog::types::UintED<64, 1>
+pub type brc20_prog::types::U8ED = brc20_prog::types::UintED<8, 1>
+pub struct brc20_prog::Brc20ProgConfig
+pub brc20_prog::Brc20ProgConfig::bitcoin_rpc_network: alloc::string::String
+pub brc20_prog::Brc20ProgConfig::bitcoin_rpc_password: alloc::string::String
+pub brc20_prog::Brc20ProgConfig::bitcoin_rpc_url: alloc::string::String
+pub brc20_prog::Brc20ProgConfig::bitcoin_rpc_user: alloc::string::String
+pub brc20_prog::Brc20ProgConfig::brc20_balance_server_url: alloc::string::String
+pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_enable_auth: bool
+pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_password: core::option::Option<alloc::string::String>
+pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_url: alloc::string::String
+pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_user: core::option::Option<alloc::string::String>
+pub brc20_prog::Brc20ProgConfig::db_path: alloc::string::String
+pub brc20_prog::Brc20ProgConfig::evm_record_traces: bool
+pub brc20_prog::Brc20ProgConfig::fail_on_bitcoin_rpc_error: bool
+pub brc20_prog::Brc20ProgConfig::fail_on_brc20_balance_server_error: bool
+impl brc20_prog::Brc20ProgConfig
+pub fn brc20_prog::Brc20ProgConfig::from_env() -> Self
+pub fn brc20_prog::Brc20ProgConfig::new(brc20_prog_rpc_server_url: alloc::string::String, brc20_prog_rpc_server_enable_auth: bool, brc20_prog_rpc_server_user: core::option::Option<alloc::string::String>, brc20_prog_rpc_server_password: core::option::Option<alloc::string::String>, brc20_balance_server_url: alloc::string::String, evm_record_traces: bool, bitcoin_rpc_url: alloc::string::String, bitcoin_rpc_user: alloc::string::String, bitcoin_rpc_password: alloc::string::String, bitcoin_rpc_network: alloc::string::String, fail_on_brc20_balance_server_error: bool, fail_on_bitcoin_rpc_error: bool, db_path: alloc::string::String) -> Self
+impl core::default::Default for brc20_prog::Brc20ProgConfig
+pub fn brc20_prog::Brc20ProgConfig::default() -> Self
+pub trait brc20_prog::Brc20ProgApiClient: jsonrpsee_core::client::ClientT
+pub fn brc20_prog::Brc20ProgApiClient::accounts(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<alloc::string::String>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::balance(&self, pkscript: alloc::string::String, ticker: alloc::string::String) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::base_fee_per_gas(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::block_number(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::call(&self, eth_call: brc20_prog::types::EthCall, block: core::option::Option<alloc::string::String>) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::call_contract(&self, from_pkscript: alloc::string::String, contract_address: core::option::Option<brc20_prog::types::AddressED>, contract_inscription_id: core::option::Option<alloc::string::String>, data: brc20_prog::types::EncodedBytes, timestamp: u64, hash: brc20_prog::types::B256ED, tx_idx: u64, inscription_id: core::option::Option<alloc::string::String>, inscription_byte_len: core::option::Option<u64>) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<brc20_prog::types::TxReceiptED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::chain_id(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::clear_caches(&self) -> impl core::future::future::Future<Output = core::result::Result<(), jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::commit_to_database(&self) -> impl core::future::future::Future<Output = core::result::Result<(), jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::debug_trace_transaction(&self, transaction: brc20_prog::types::B256ED) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<brc20_prog::types::TraceED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::deploy_contract(&self, from_pkscript: alloc::string::String, data: brc20_prog::types::EncodedBytes, timestamp: u64, hash: brc20_prog::types::B256ED, tx_idx: u64, inscription_id: core::option::Option<alloc::string::String>, inscription_byte_len: core::option::Option<u64>) -> impl core::future::future::Future<Output = core::result::Result<brc20_prog::types::TxReceiptED, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::deposit(&self, to_pkscript: alloc::string::String, ticker: alloc::string::String, amount: brc20_prog::types::U256ED, timestamp: u64, hash: brc20_prog::types::B256ED, tx_idx: u64, inscription_id: core::option::Option<alloc::string::String>) -> impl core::future::future::Future<Output = core::result::Result<brc20_prog::types::TxReceiptED, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::estimate_gas(&self, eth_call: brc20_prog::types::EthCall, block: core::option::Option<alloc::string::String>) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::finalise_block(&self, timestamp: u64, hash: brc20_prog::types::B256ED, block_tx_count: u64) -> impl core::future::future::Future<Output = core::result::Result<(), jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::gas_price(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_balance(&self, _address: brc20_prog::types::AddressED, _block: alloc::string::String) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_block_by_hash(&self, block: brc20_prog::types::B256ED, is_full: core::option::Option<bool>) -> impl core::future::future::Future<Output = core::result::Result<brc20_prog::types::BlockResponseED, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_block_by_number(&self, block: alloc::string::String, is_full: core::option::Option<bool>) -> impl core::future::future::Future<Output = core::result::Result<brc20_prog::types::BlockResponseED, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_block_transaction_count_by_hash(&self, block: brc20_prog::types::B256ED) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_block_transaction_count_by_number(&self, block: alloc::string::String) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_code(&self, contract: brc20_prog::types::AddressED) -> impl core::future::future::Future<Output = core::result::Result<brc20_prog::types::BytecodeED, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_inscription_id_by_contract_address(&self, contract_address: brc20_prog::types::AddressED) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<alloc::string::String>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_inscription_id_by_tx_hash(&self, transaction: brc20_prog::types::B256ED) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<alloc::string::String>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_logs(&self, filter: brc20_prog::types::GetLogsFilter) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<brc20_prog::types::LogED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_storage_at(&self, contract: brc20_prog::types::AddressED, location: brc20_prog::types::U256ED) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_transaction_by_block_hash_and_index(&self, hash: brc20_prog::types::B256ED, index: core::option::Option<u64>) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<brc20_prog::types::TxED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_transaction_by_block_number_and_index(&self, number: u64, index: core::option::Option<u64>) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<brc20_prog::types::TxED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_transaction_by_hash(&self, transaction: brc20_prog::types::B256ED) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<brc20_prog::types::TxED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_transaction_count(&self, account: brc20_prog::types::AddressED, block: alloc::string::String) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_transaction_receipt(&self, transaction: brc20_prog::types::B256ED) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<brc20_prog::types::TxReceiptED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_transaction_receipt_by_inscription_id(&self, inscription_id: alloc::string::String) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<brc20_prog::types::TxReceiptED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_uncle_by_block_hash_and_index(&self, _hash: brc20_prog::types::B256ED, _index: u64) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<alloc::string::String>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_uncle_by_block_number_and_index(&self, _number: u64, _index: u64) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<alloc::string::String>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_uncle_count_by_block_hash(&self, _hash: brc20_prog::types::B256ED) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::get_uncle_count_by_block_number(&self, _number: u64) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::initialise(&self, genesis_hash: brc20_prog::types::B256ED, genesis_timestamp: u64, genesis_height: u64) -> impl core::future::future::Future<Output = core::result::Result<(), jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::max_priority_fee_per_gas(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::mine(&self, block_count: u64, timestamp: u64) -> impl core::future::future::Future<Output = core::result::Result<(), jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::net_version(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::reorg(&self, latest_valid_block_number: u64) -> impl core::future::future::Future<Output = core::result::Result<(), jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::syncing(&self) -> impl core::future::future::Future<Output = core::result::Result<bool, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::version(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::withdraw(&self, from_pkscript: alloc::string::String, ticker: alloc::string::String, amount: brc20_prog::types::U256ED, timestamp: u64, hash: brc20_prog::types::B256ED, tx_idx: u64, inscription_id: core::option::Option<alloc::string::String>) -> impl core::future::future::Future<Output = core::result::Result<brc20_prog::types::TxReceiptED, jsonrpsee_core::client::error::Error>> + core::marker::Send
+impl<TypeJsonRpseeInternal> brc20_prog::Brc20ProgApiClient for TypeJsonRpseeInternal where TypeJsonRpseeInternal: jsonrpsee_core::client::ClientT
+pub async fn brc20_prog::start(config: brc20_prog::Brc20ProgConfig) -> core::result::Result<jsonrpsee_server::future::ServerHandle, alloc::boxed::Box<dyn core::error::Error>>

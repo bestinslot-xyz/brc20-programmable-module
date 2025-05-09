@@ -3,8 +3,8 @@ use alloy_sol_types::{sol, SolCall};
 use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
-use crate::evm::precompiles::btc_utils::{get_block_info, get_raw_transaction};
-use crate::evm::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
+use crate::engine::precompiles::btc_utils::{get_block_info, get_raw_transaction};
+use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 
 static GAS_PER_RPC_CALL: u64 = 100000;
 
@@ -124,7 +124,7 @@ mod tests {
     use alloy_primitives::hex::FromHex;
 
     use super::*;
-    use crate::evm::precompiles::btc_utils::validate_bitcoin_rpc_status;
+    use crate::engine::precompiles::btc_utils::validate_bitcoin_rpc_status;
 
     #[test]
     fn test_get_tx_details_encode_params_single_vin_vout() {

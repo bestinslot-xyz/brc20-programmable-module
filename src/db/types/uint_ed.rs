@@ -71,6 +71,7 @@ impl Into<u64> for U64ED {
 }
 
 impl U512ED {
+    // This is used by the server, so doesn't need to be public
     pub(crate) fn from_addr_u256(address: Address, mem_loc: U256) -> Result<Self, Box<dyn Error>> {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&address.0.to_vec());

@@ -6,7 +6,7 @@ use revm::handler::PrecompileProvider;
 use revm::interpreter::{Gas, InputsImpl, InstructionResult, InterpreterResult};
 use revm::precompile::Precompiles;
 
-use crate::evm::precompiles::{
+use crate::engine::precompiles::{
     bip322_verify_precompile, brc20_balance_precompile, btc_tx_details_precompile,
     get_locked_pkscript_precompile, last_sat_location_precompile,
 };

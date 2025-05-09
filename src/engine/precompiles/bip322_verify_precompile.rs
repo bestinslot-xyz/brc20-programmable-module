@@ -5,9 +5,8 @@ use bitcoin::consensus::Decodable;
 use bitcoin::Witness;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
-use crate::evm::precompiles::{
-    get_bitcoin_network, precompile_error, precompile_output, use_gas, PrecompileCall,
-};
+use crate::engine::precompiles::btc_utils::get_bitcoin_network;
+use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 
 sol! {
     function verify(bytes pkscript, bytes message, bytes signature) returns (bool success);
