@@ -15,7 +15,7 @@ async fn test_bip322_verify() -> Result<(), Box<dyn Error>> {
     bip322_precompile[19] = 0xfe;
 
     let response = client
-        .call(
+        .eth_call(
             EthCall::new(
                 Some([1u8; 20].into()),
                 Some(bip322_precompile.into()),
@@ -43,7 +43,7 @@ async fn test_btc_locked_pkscript() -> Result<(), Box<dyn Error>> {
     btc_locked_pkscript_precompile[19] = 0xfb;
 
     let response = client
-        .call(
+        .eth_call(
             EthCall::new(
                 Some([1u8; 20].into()),
                 Some(btc_locked_pkscript_precompile.into()),
@@ -72,10 +72,10 @@ async fn test_btc_last_sat_loc() -> Result<(), Box<dyn Error>> {
     btc_last_sat_loc_precompile[19] = 0xfc;
 
     // Mine some blocks to ensure the transaction is included in a block
-    client.mine(250000, 0).await?;
+    client.brc20_mine(250000, 0).await?;
 
     let response = client
-        .call(
+        .eth_call(
             EthCall::new(
                 Some([1u8; 20].into()),
                 Some(btc_last_sat_loc_precompile.into()),
@@ -103,10 +103,10 @@ async fn text_btc_get_tx_details() -> Result<(), Box<dyn Error>> {
     btc_get_tx_details_precompile[19] = 0xfd;
 
     // Mine some blocks to ensure the transaction is included in a block
-    client.mine(250000, 0).await?;
+    client.brc20_mine(250000, 0).await?;
 
     let response = client
-        .call(
+        .eth_call(
             EthCall::new(
                 Some([1u8; 20].into()),
                 Some(btc_get_tx_details_precompile.into()),
