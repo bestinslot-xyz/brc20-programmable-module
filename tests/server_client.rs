@@ -7,7 +7,7 @@ use common::spawn_test_server;
 async fn test_version() {
     let (server, client) = spawn_test_server().await;
 
-    assert_eq!(env!("CARGO_PKG_VERSION"), client.version().await.unwrap());
+    assert_eq!(env!("CARGO_PKG_VERSION"), client.brc20_version().await.unwrap());
 
     server.stop().unwrap();
 }

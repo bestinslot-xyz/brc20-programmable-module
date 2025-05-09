@@ -28,7 +28,7 @@
 //!
 //! async fn print_block_number() -> Result<(), Box<dyn Error>> {
 //!     let client = HttpClientBuilder::default().build("https://url:port")?;
-//!     println!("eth_blockNumber: {}", client.block_number().await?);
+//!     println!("eth_blockNumber: {}", client.eth_block_number().await?);
 //!     Ok(())
 //! }
 //! ```
