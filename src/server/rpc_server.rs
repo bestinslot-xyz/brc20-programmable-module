@@ -389,7 +389,11 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self), level = "error")]
-    async fn eth_get_transaction_count(&self, account: AddressED, block: String) -> RpcResult<String> {
+    async fn eth_get_transaction_count(
+        &self,
+        account: AddressED,
+        block: String,
+    ) -> RpcResult<String> {
         log_call();
         let block_number = self.parse_block_number(&block).map_err(wrap_rpc_error)?;
         self.engine
@@ -532,7 +536,10 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self), level = "error")]
-    async fn eth_get_transaction_receipt(&self, transaction: B256ED) -> RpcResult<Option<TxReceiptED>> {
+    async fn eth_get_transaction_receipt(
+        &self,
+        transaction: B256ED,
+    ) -> RpcResult<Option<TxReceiptED>> {
         log_call();
         self.engine
             .get_transaction_receipt(transaction.bytes)

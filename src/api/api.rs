@@ -113,8 +113,10 @@ pub trait Brc20ProgApi {
 
     /// Retrieves inscription id for given transaction hash
     #[method(name = "brc20_getInscriptionIdByTxHash")]
-    async fn brc20_get_inscription_id_by_tx_hash(&self, transaction: B256ED)
-        -> RpcResult<Option<String>>;
+    async fn brc20_get_inscription_id_by_tx_hash(
+        &self,
+        transaction: B256ED,
+    ) -> RpcResult<Option<String>>;
 
     /// Retrieves inscription id by contract address
     #[method(name = "brc20_getInscriptionIdByContractAddress")]
@@ -172,7 +174,11 @@ pub trait Brc20ProgApi {
 
     /// Returns the transaction count by address and block number
     #[method(name = "eth_getTransactionCount")]
-    async fn eth_get_transaction_count(&self, account: AddressED, block: String) -> RpcResult<String>;
+    async fn eth_get_transaction_count(
+        &self,
+        account: AddressED,
+        block: String,
+    ) -> RpcResult<String>;
 
     /// Returns the transaction count by block number
     #[method(name = "eth_getBlockTransactionCountByNumber")]
@@ -192,7 +198,8 @@ pub trait Brc20ProgApi {
 
     /// Estimates the gas for the given transaction
     #[method(name = "eth_estimateGas")]
-    async fn eth_estimate_gas(&self, eth_call: EthCall, block: Option<String>) -> RpcResult<String>;
+    async fn eth_estimate_gas(&self, eth_call: EthCall, block: Option<String>)
+        -> RpcResult<String>;
 
     /// Get storage for the given contract and memory location
     #[method(name = "eth_getStorageAt")]
@@ -204,7 +211,10 @@ pub trait Brc20ProgApi {
 
     /// Returns the transaction receipt for the given transaction hash
     #[method(name = "eth_getTransactionReceipt")]
-    async fn eth_get_transaction_receipt(&self, transaction: B256ED) -> RpcResult<Option<TxReceiptED>>;
+    async fn eth_get_transaction_receipt(
+        &self,
+        transaction: B256ED,
+    ) -> RpcResult<Option<TxReceiptED>>;
 
     /// Returns the trace for the given transaction hash
     #[method(name = "debug_traceTransaction")]
