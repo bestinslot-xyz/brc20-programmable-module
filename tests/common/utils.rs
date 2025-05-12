@@ -19,14 +19,15 @@ fn get_free_port() -> u16 {
 }
 
 #[allow(dead_code)]
-pub async fn spawn_test_server() -> (ServerHandle, HttpClient) {
+pub async fn spawn_test_server(config: Brc20ProgConfig) -> (ServerHandle, HttpClient) {
     let db_path = TempDir::new().unwrap();
     let server_address = format!("127.0.0.1:{}", get_free_port());
     let server = start(Brc20ProgConfig {
         db_path: db_path.path().to_str().unwrap().to_string(),
         brc20_prog_rpc_server_url: server_address.clone(),
         fail_on_bitcoin_rpc_error: false,
-        ..Default::default()
+        fail_on_brc20_balance_server_error: false,
+        ..config
     })
     .await
     .expect("Failed to start server");
