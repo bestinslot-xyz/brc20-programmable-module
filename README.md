@@ -455,6 +455,9 @@ interface IBTC_LockedPkscript {
 
 BRC2.0 execution engine is designed to work together with a BRC20 indexer, and the indexer should recognise inscriptions that are intended for BRC2.0 and execute transactions, deposit and withdraw BRC20 tokens.
 
+> [!NOTE]
+> BRC20 indexer in [OPI/experimental-signet-brc20-prog](https://github.com/bestinslot-xyz/OPI/tree/experimental-signet-brc20-prog) branch already has the brc20-prog integration in place.
+
 ### Deploy/Call inscriptions
 
 Defined in the [proposal](https://github.com/bestinslot-xyz/brc20-prog-module-proposal), deploy inscriptions have the following structure:
@@ -561,7 +564,7 @@ for (inscription, transfer) in block:
     sender = transfer.sender
     receiver = transfer.receiver
 
-    if inscription.op is 'deploy' and
+    if inscription.op in ['deploy', 'd'] and
        receiver.pkscript is OP_RETURN "BRC20PROG":
         brc20_deploy(
             from_pkscript: sender.pkscript,
@@ -572,7 +575,7 @@ for (inscription, transfer) in block:
             inscription_id: current_inscription_id,
             inscription_byte_len: inscription.content.length)
 
-    if inscription.op is 'call' and
+    if inscription.op in ['call', 'c'] and
        receiver.pkscript is OP_RETURN "BRC20PROG":
         brc20_call(
             from_pkscript: sender.pkscript,
