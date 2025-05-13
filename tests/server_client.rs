@@ -1,7 +1,5 @@
 use brc20_prog::Brc20ProgApiClient;
-
-mod common;
-use common::spawn_test_server;
+use test_utils::spawn_test_server;
 
 #[tokio::test]
 async fn test_version() {

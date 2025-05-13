@@ -1,0 +1,12 @@
+[package]
+name = "test-utils"
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Test utils for brc20-prog"
+
+[dependencies]
+brc20-prog = { path = "../" }
+jsonrpsee = { version = "0.25.1", features = ["client"] }
+rust-embed = "8.7.1"
+tempfile = "3.20.0"

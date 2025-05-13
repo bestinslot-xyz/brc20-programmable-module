@@ -8,7 +8,7 @@ use serde_either::SingleOrVec;
 use crate::global::{CALLDATA_LIMIT, COMPRESSION_ACTIVATION_HEIGHT};
 use crate::types::{AddressED, B256ED};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 /// Represents a call to a contract with optional parameters for from, to, data, and input.
 pub struct EthCall {
     /// The address of the sender
@@ -44,7 +44,7 @@ impl EthCall {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 /// Represents a filter for retrieving logs from the blockchain.
 pub struct GetLogsFilter {
     #[serde(rename = "fromBlock")]

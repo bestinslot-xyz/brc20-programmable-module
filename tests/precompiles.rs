@@ -1,11 +1,10 @@
-mod common;
 use std::error::Error;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 
 use brc20_prog::types::EthCall;
 use brc20_prog::{Brc20ProgApiClient, Brc20ProgConfig};
-use common::{is_in_ci, load_file_as_bytes, load_file_as_string, spawn_test_server};
+use test_utils::{is_in_ci, load_file_as_bytes, load_file_as_string, spawn_test_server};
 
 #[tokio::test]
 async fn test_bip322_verify() -> Result<(), Box<dyn Error>> {
