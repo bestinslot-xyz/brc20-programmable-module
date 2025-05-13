@@ -1021,7 +1021,7 @@ mod tests {
 
     #[test]
     fn test_db() {
-        let path = TempDir::new().unwrap().into_path();
+        let path = TempDir::new().unwrap().keep();
 
         let address = [1u8; 20].into();
         let code_hash = [2u8; 32].into();
@@ -1124,7 +1124,7 @@ mod tests {
 
     #[test]
     fn test_tx_methods() {
-        let path = TempDir::new().unwrap().into_path();
+        let path = TempDir::new().unwrap().keep();
 
         let data = vec![0u8; 32];
         let block_hash = [1u8; 32].into();
@@ -1223,7 +1223,7 @@ mod tests {
 
     #[test]
     fn test_get_logs() {
-        let path = TempDir::new().unwrap().into_path();
+        let path = TempDir::new().unwrap().keep();
 
         let block_number = 1;
         let block_hash = [1u8; 32].into();

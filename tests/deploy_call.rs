@@ -1,11 +1,10 @@
-mod common;
 use std::error::Error;
 use std::str::FromStr;
 
 use alloy_primitives::Bytes;
 use brc20_prog::types::EncodedBytes;
 use brc20_prog::Brc20ProgApiClient;
-use common::{load_file_as_string, spawn_test_server};
+use test_utils::{load_file_as_string, spawn_test_server};
 
 #[tokio::test]
 async fn test_deploy_call() -> Result<(), Box<dyn Error>> {
