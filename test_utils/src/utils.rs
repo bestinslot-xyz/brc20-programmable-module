@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::io::{Read, Write};
 use std::net::TcpListener;
 
 use brc20_prog::types::EncodedBytes;
@@ -37,6 +38,19 @@ pub async fn spawn_test_server(config: Brc20ProgConfig) -> (ServerHandle, HttpCl
             .build(format!("http://{}", server_address))
             .expect("Failed to create client"),
     )
+}
+
+pub fn spawn_balance_server() {
+    std::thread::spawn(|| {
+        let listener = TcpListener::bind("127.0.0.1:18546").unwrap();
+        loop {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buf = [0; 1024];
+            let _ = stream.read(&mut buf).unwrap();
+            let response = b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n100";
+            let _ = stream.write(response).unwrap();
+        }
+    });
 }
 
 pub fn is_in_ci() -> bool {

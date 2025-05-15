@@ -78,7 +78,7 @@ impl GetLogsFilter {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 //// A wrapper for encoded bytes that can be serialized and deserialized.
 /// This struct is used to handle the encoding and decoding of bytes in the BRC20 protocol.
 ///

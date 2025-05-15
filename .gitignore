@@ -4,6 +4,7 @@
 /examples/brc20_prog_helper/output
 /examples/simple_contract/output
 /examples/erc20_contract/output
+/test_utils/target
 test_db
 node_modules
 venv

@@ -1,10 +1,10 @@
 use std::error::Error;
-use std::io::{Read, Write};
-use std::net::TcpListener;
 
 use brc20_prog::types::EthCall;
 use brc20_prog::{Brc20ProgApiClient, Brc20ProgConfig};
-use test_utils::{is_in_ci, load_file_as_bytes, load_file_as_string, spawn_test_server};
+use test_utils::{
+    is_in_ci, load_file_as_bytes, load_file_as_string, spawn_balance_server, spawn_test_server,
+};
 
 #[tokio::test]
 async fn test_bip322_verify() -> Result<(), Box<dyn Error>> {
@@ -146,18 +146,10 @@ async fn test_btc_get_tx_details() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn test_get_brc20_balance() -> Result<(), Box<dyn Error>> {
-    // Spawn a tcp server that reads a single request and returns 100
-    // don't use tokio here because the server is already running in tokio
-    // and we don't want to block the tokio runtime
-    let balance_server_thread = std::thread::spawn(|| {
-        let listener = TcpListener::bind("127.0.0.1:18546").unwrap();
-        let (mut stream, _) = listener.accept().unwrap();
-        let mut buf = [0; 1024];
-        let _ = stream.read(&mut buf).unwrap();
-        let response = b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n100";
-        let _ = stream.write(response).unwrap();
-        stream.shutdown(std::net::Shutdown::Both).unwrap();
-    });
+    spawn_balance_server();
+
+    // Wait for the server to start
+    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
     let mut get_brc20_balance_precompile = [0; 20];
     get_brc20_balance_precompile[19] = 0xff;
@@ -188,6 +180,5 @@ async fn test_get_brc20_balance() -> Result<(), Box<dyn Error>> {
     assert_eq!(response, call_response);
 
     server.stop().unwrap();
-    balance_server_thread.join().unwrap();
     Ok(())
 }
