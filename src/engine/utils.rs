@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use alloy_primitives::{keccak256, Address, Bytes, B256};
 use revm::context::result::{ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason};
@@ -12,7 +12,8 @@ pub struct LastBlockInfo {
     pub hash: B256,
     pub gas_used: u64,
     pub log_index: u64,
-    pub start_time: Option<Instant>,
+    pub start_time: Instant,
+    pub total_processing_time: Option<Duration>,
 }
 
 impl LastBlockInfo {
@@ -23,7 +24,8 @@ impl LastBlockInfo {
             hash: B256::ZERO,
             gas_used: 0,
             log_index: 0,
-            start_time: None,
+            start_time: Instant::now(),
+            total_processing_time: None,
         }
     }
 }
