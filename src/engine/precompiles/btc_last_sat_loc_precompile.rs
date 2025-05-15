@@ -3,7 +3,7 @@ use alloy_sol_types::{sol, SolCall};
 use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
-use crate::engine::precompiles::btc_utils::get_raw_transaction;
+use crate::engine::precompiles::btc_utils::{get_block_info, get_raw_transaction};
 use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 
 static GAS_PER_RPC_CALL: u64 = 100000;
@@ -43,6 +43,21 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
         tracing::warn!("Failed to get transaction details");
         return precompile_error(interpreter_result);
     };
+
+    let Some(block_hash) = raw_tx_info.blockhash else {
+        // Failed to get block hash, must be a mempool transaction
+        return precompile_error(interpreter_result);
+    };
+
+    let Ok(block_info) = get_block_info(&block_hash) else {
+        // Failed to get block height
+        return precompile_error(interpreter_result);
+    };
+
+    if block_info.height > call.block_height as usize {
+        // Transaction is in the future, ignore it
+        return precompile_error(interpreter_result);
+    }
 
     if let Some(vin) = raw_tx_info.vin.get(0) {
         if vin.coinbase.is_some() {
