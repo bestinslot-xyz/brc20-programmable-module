@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::time::{Instant, UNIX_EPOCH};
+use std::time::{Duration, UNIX_EPOCH};
 
 use alloy_primitives::{logs_bloom, Address, B256, U256};
 use alloy_rpc_types_trace::geth::CallConfig;
@@ -166,7 +166,8 @@ impl BRC20ProgEngine {
                     hash: block_hash,
                     gas_used: 0,
                     log_index: 0,
-                    start_time: Instant::now().into(),
+                    start_time: block_info.start_time,
+                    total_processing_time: None,
                 };
             });
         }
@@ -176,6 +177,8 @@ impl BRC20ProgEngine {
         let gas_limit = get_gas_limit(inscription_byte_len.unwrap_or(tx_info.data.len() as u64));
 
         self.db.write_fn(|db| {
+            let processing_start_time = self.last_block_info.read().start_time.elapsed();
+
             let db_moved = core::mem::take(&mut *db);
             let mut evm = get_evm(block_number, block_hash, timestamp, db_moved, None);
 
@@ -255,6 +258,12 @@ impl BRC20ProgEngine {
                     .checked_add(output.gas_used())
                     .unwrap_or(last_block_info.gas_used);
                 last_block_info.log_index += output.logs().len() as u64;
+                last_block_info.total_processing_time = Some(
+                    (last_block_info.start_time.elapsed() - processing_start_time)
+                        + last_block_info
+                            .total_processing_time
+                            .unwrap_or(Duration::ZERO),
+                );
             });
 
             db.get_tx_receipt(tx_hash)?
@@ -375,7 +384,10 @@ impl BRC20ProgEngine {
 
         self.db.write_fn(|db| {
             let (total_time_took, gas_used) = self.last_block_info.read_fn(|info| {
-                let total_time_took = info.start_time.map(|x| x.elapsed().as_nanos()).unwrap_or(0);
+                let total_time_took = info
+                    .total_processing_time
+                    .unwrap_or(Duration::ZERO)
+                    .as_nanos();
                 Ok((total_time_took, info.gas_used))
             })?;
 
