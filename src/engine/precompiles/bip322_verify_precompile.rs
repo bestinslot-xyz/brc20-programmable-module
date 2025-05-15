@@ -19,7 +19,7 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
         Gas::new(call.gas_limit),
     );
 
-    if !use_gas(&mut interpreter_result, 100000) {
+    if !use_gas(&mut interpreter_result, 20000) {
         return interpreter_result;
     }
 
