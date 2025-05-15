@@ -997,7 +997,7 @@ dependencies = [
 
 [[package]]
 name = "brc20-prog"
-version = "0.4.2"
+version = "0.4.1"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-trace",
@@ -1031,16 +1031,6 @@ dependencies = [
  "tracing-subscriber 0.3.19",
  "ureq",
  "zstd-safe",
-]
-
-[[package]]
-name = "brc20-prog-test-utils"
-version = "0.0.0"
-dependencies = [
- "brc20-prog",
- "jsonrpsee",
- "rust-embed",
- "tempfile",
 ]
 
 [[package]]
@@ -4240,6 +4230,16 @@ dependencies = [
  "once_cell",
  "rustix",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "test-utils"
+version = "0.0.0"
+dependencies = [
+ "brc20-prog",
+ "jsonrpsee",
+ "rust-embed",
+ "tempfile",
 ]
 
 [[package]]
