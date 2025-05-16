@@ -3,7 +3,7 @@ use alloy_sol_types::{sol, SolCall};
 use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
-use crate::engine::precompiles::btc_utils::{get_block_info, get_raw_transaction};
+use crate::engine::precompiles::btc_utils::{get_block_info, get_transaction_and_block_hash};
 use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 
 static GAS_PER_RPC_CALL: u64 = 100000;
@@ -35,18 +35,19 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
         return precompile_error(interpreter_result, "Failed to decode parameters");
     };
 
-    let Ok(raw_tx_info) = get_raw_transaction(&txid.txid) else {
+    let Ok((tx_info, block_hash)) = get_transaction_and_block_hash(&txid.txid) else {
         return precompile_error(interpreter_result, "Failed to get transaction details");
     };
 
     if !use_gas(
         &mut interpreter_result,
-        raw_tx_info.vin.len() as u64 * GAS_PER_RPC_CALL,
+        // +1 for block height retrieval
+        (tx_info.input.len()) as u64 * GAS_PER_RPC_CALL,
     ) {
         return interpreter_result;
     }
 
-    let Some(block_hash) = raw_tx_info.blockhash else {
+    let Some(block_hash) = block_hash else {
         return precompile_error(interpreter_result, "Transaction is not confirmed");
     };
 
@@ -65,36 +66,35 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
     let mut vout_script_pub_keys: Vec<Bytes> = Vec::new();
     let mut vout_values = Vec::new();
 
-    for vin in raw_tx_info.vin {
-        let Some(vin_txid) = vin.txid.map(|txid| {
-            let mut bytes = FixedBytes::<32>::from_slice(txid.as_raw_hash().as_byte_array());
-            bytes.reverse();
-            bytes
-        }) else {
+    for vin in tx_info.input {
+        if vin.previous_output.is_null() {
             return precompile_error(interpreter_result, "Failed to get vin txid");
         };
 
-        let Some(vin_vout) = vin.vout else {
-            return precompile_error(interpreter_result, "Failed to get vin vout");
-        };
+        let mut vin_txid =
+            FixedBytes::<32>::from_slice(vin.previous_output.txid.as_raw_hash().as_byte_array());
+        vin_txid.reverse();
 
         vin_txids.push(vin_txid);
-        vin_vouts.push(U256::from(vin_vout));
+        vin_vouts.push(U256::from(vin.previous_output.vout));
 
         // Get the scriptPubKey from the vin transaction, using the txid and vout
-        let Ok(vin_transaction) = get_raw_transaction(&vin_txid) else {
+        let Ok((vin_transaction, _)) = get_transaction_and_block_hash(&vin_txid) else {
             return precompile_error(interpreter_result, "Failed to get vin transaction details");
         };
 
-        let Some(prev_vout) = &vin_transaction.vout.get(vin_vout as usize) else {
+        let Some(prev_vout) = &vin_transaction
+            .output
+            .get(vin.previous_output.vout as usize)
+        else {
             return precompile_error(interpreter_result, "Failed to get vin vout");
         };
-        vin_script_pub_keys.push(prev_vout.script_pub_key.hex.clone().into());
+        vin_script_pub_keys.push(prev_vout.script_pubkey.clone().into_bytes().into());
         vin_values.push(U256::from(prev_vout.value.to_sat()));
     }
 
-    for vout in raw_tx_info.vout {
-        vout_script_pub_keys.push(vout.script_pub_key.hex.into());
+    for vout in tx_info.output {
+        vout_script_pub_keys.push(vout.script_pubkey.clone().into_bytes().into());
         vout_values.push(U256::from(vout.value.to_sat()));
     }
 

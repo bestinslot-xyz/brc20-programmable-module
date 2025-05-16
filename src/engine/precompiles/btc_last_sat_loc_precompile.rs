@@ -3,7 +3,7 @@ use alloy_sol_types::{sol, SolCall};
 use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
-use crate::engine::precompiles::btc_utils::{get_block_info, get_raw_transaction};
+use crate::engine::precompiles::btc_utils::{get_block_info, get_transaction_and_block_hash};
 use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 
 static GAS_PER_RPC_CALL: u64 = 100000;
@@ -39,12 +39,12 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
         return interpreter_result;
     }
 
-    let Ok(raw_tx_info) = get_raw_transaction(&txid) else {
+    let Ok((raw_tx_info, block_hash)) = get_transaction_and_block_hash(&txid) else {
         return precompile_error(interpreter_result, "Failed to get transaction details");
     };
 
-    let Some(block_hash) = raw_tx_info.blockhash else {
-        return precompile_error(interpreter_result, "Transaction is not confirmed");
+    let Some(block_hash) = block_hash else {
+        return precompile_error(interpreter_result, "Failed to get block height");
     };
 
     let Ok(block_info) = get_block_info(&block_hash) else {
@@ -55,22 +55,21 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
         return precompile_error(interpreter_result, "Transaction is in the future");
     }
 
-    if let Some(vin) = raw_tx_info.vin.get(0) {
-        if vin.coinbase.is_some() {
-            return precompile_error(
-                interpreter_result,
-                "Coinbase transactions are not supported",
-            );
-        }
-    } else {
+    if raw_tx_info.is_coinbase() {
+        return precompile_error(
+            interpreter_result,
+            "Coinbase transactions are not supported",
+        );
+    }
+    if raw_tx_info.input.len() == 0 {
         return precompile_error(interpreter_result, "No vin found");
     }
 
-    if raw_tx_info.vout.len() < vout {
+    if raw_tx_info.output.len() < vout {
         return precompile_error(interpreter_result, "Vout index out of bounds");
     }
 
-    if let Some(value) = raw_tx_info.vout.get(vout) {
+    if let Some(value) = raw_tx_info.output.get(vout) {
         if value.value.to_sat() < sat {
             return precompile_error(interpreter_result, "Sat value out of bounds");
         }
@@ -78,10 +77,9 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
         return precompile_error(interpreter_result, "Invalid response");
     }
 
-    let Some(new_pkscript) = raw_tx_info
-        .vout
-        .get(vout)
-        .map(|x| Bytes::from(x.script_pub_key.hex.clone()))
+    let Ok(new_pkscript) = raw_tx_info
+        .tx_out(vout)
+        .map(|x| Bytes::from(x.script_pubkey.clone().into_bytes()))
     else {
         return precompile_error(interpreter_result, "Invalid response");
     };
@@ -89,7 +87,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
     let mut total_vout_sat_count = 0;
     let mut current_vout_index = 0;
     while current_vout_index < vout {
-        let value = raw_tx_info.vout[current_vout_index].value.to_sat();
+        let value = raw_tx_info.output[current_vout_index].value.to_sat();
         total_vout_sat_count += value;
         current_vout_index += 1;
     }
@@ -101,33 +99,38 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
     let mut result_vin_vout: u32;
     let mut old_pkscript;
     let mut current_vin_value;
-    let vin_count = raw_tx_info.vin.len();
+    let vin_count = raw_tx_info.input.len();
     loop {
-        let Some(current_vin_txid) = raw_tx_info.vin[current_vin_index].txid else {
+        if raw_tx_info.input[current_vin_index]
+            .previous_output
+            .is_null()
+        {
             return precompile_error(interpreter_result, "Failed to get vin txid");
-        };
-        let Some(current_vin_vout) = raw_tx_info.vin[current_vin_index].vout else {
-            return precompile_error(interpreter_result, "Failed to get vout for vin");
         };
 
         if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
             return interpreter_result;
         }
 
-        result_vin_txid =
-            FixedBytes::<32>::from_slice(current_vin_txid.as_raw_hash().as_byte_array());
+        result_vin_txid = FixedBytes::<32>::from_slice(
+            raw_tx_info.input[current_vin_index]
+                .previous_output
+                .txid
+                .as_raw_hash()
+                .as_byte_array(),
+        );
         result_vin_txid.reverse();
 
-        result_vin_vout = current_vin_vout;
+        result_vin_vout = raw_tx_info.input[current_vin_index].previous_output.vout;
 
-        let Ok(vin_response) = get_raw_transaction(&result_vin_txid) else {
+        let Ok((vin_response, _)) = get_transaction_and_block_hash(&result_vin_txid) else {
             return precompile_error(interpreter_result, "Failed to get vin transaction details");
         };
-        let Some(current_vin) = vin_response.vout.get(current_vin_vout as usize) else {
+        let Ok(current_vin) = vin_response.tx_out(result_vin_vout as usize) else {
             return precompile_error(interpreter_result, "Failed to get vin vout");
         };
         current_vin_value = current_vin.value.to_sat();
-        old_pkscript = Bytes::from(current_vin.script_pub_key.hex.clone());
+        old_pkscript = Bytes::from(current_vin.script_pubkey.clone().into_bytes());
 
         total_vin_sat_count += current_vin_value;
         current_vin_index += 1;
