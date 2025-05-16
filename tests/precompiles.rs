@@ -72,7 +72,7 @@ async fn test_btc_last_sat_loc_signet() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    dotenvy::from_filename_override("env.signet.sample").ok();
+    dotenvy::from_filename_override(".env.signet").ok();
 
     let (server, client) = spawn_test_server(Default::default()).await;
 
@@ -108,7 +108,7 @@ async fn test_btc_get_tx_details_mainnet() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    dotenvy::dotenv().ok();
+    dotenvy::from_filename_override(".env.mainnet").ok();
 
     let (server, client) = spawn_test_server(Default::default()).await;
 
@@ -144,7 +144,7 @@ async fn test_btc_get_tx_details_signet() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    dotenvy::from_filename_override("env.signet.sample").ok();
+    dotenvy::from_filename_override(".env.signet").ok();
 
     let (server, client) = spawn_test_server(Default::default()).await;
 

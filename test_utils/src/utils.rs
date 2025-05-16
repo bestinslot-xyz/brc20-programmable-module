@@ -2,12 +2,13 @@ use std::error::Error;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 
-use brc20_prog::types::EncodedBytes;
-use brc20_prog::{start, Brc20ProgConfig};
+use brc20_prog::types::{EncodedBytes, EthCall};
+use brc20_prog::{start, Brc20ProgConfig, Brc20ProgApiClient};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::server::ServerHandle;
 use rust_embed::Embed;
 use tempfile::TempDir;
+use tokio::runtime::Runtime;
 
 #[derive(Embed)]
 #[folder = "data"]
@@ -69,4 +70,21 @@ pub fn load_file_as_string(filename: &str) -> Result<String, Box<dyn Error>> {
 
 pub fn load_file_as_bytes(filename: &str) -> Result<EncodedBytes, Box<dyn Error>> {
     Ok(EncodedBytes::new(load_file_as_string(filename)?))
+}
+
+pub fn print_gas_per_call(rt: &Runtime, client: &HttpClient, eth_call: EthCall) -> u64 {
+    let gas_per_call = u64::from_str_radix(
+        rt.block_on(async {
+            client
+                .eth_estimate_gas(eth_call.clone(), None)
+                .await
+                .unwrap()
+        })
+        .trim_start_matches("0x"),
+        16,
+    )
+    .unwrap();
+
+    println!("Gas per call: {}\n", gas_per_call);
+    gas_per_call
 }
