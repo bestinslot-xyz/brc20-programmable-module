@@ -25,21 +25,19 @@ pub fn get_locked_pkscript_precompile(call: &PrecompileCall) -> InterpreterResul
     }
 
     let Ok(inputs) = getLockedPkscriptCall::abi_decode(&call.bytes) else {
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to decode parameters");
     };
 
     if inputs.lock_block_count == U256::ZERO
         || inputs.lock_block_count > U256::from_limbs([65535u64, 0u64, 0u64, 0u64])
     {
-        // Invalid lock block count
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Invalid lock block count");
     }
 
     let lock_block_count = inputs.lock_block_count.as_limbs()[0];
 
     let Ok(result) = get_p2tr_lock_addr(&inputs.pkscript, lock_block_count) else {
-        // Failed to get lock address
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to get lock address");
     };
 
     let bytes = getLockedPkscriptCall::abi_encode_returns(&result);

@@ -1,5 +1,5 @@
 use brc20_prog::types::{AddressED, EthCall};
-use brc20_prog::{Brc20ProgApiClient, Brc20ProgConfig};
+use brc20_prog::Brc20ProgApiClient;
 use criterion::{criterion_group, criterion_main, Criterion};
 use jsonrpsee::http_client::HttpClient;
 use test_utils::{load_file_as_bytes, spawn_balance_server, spawn_test_server};
@@ -53,26 +53,17 @@ fn bip322_fn(c: &mut Criterion) {
     server.stop().unwrap();
 }
 
-fn last_sat_loc_precompile_fn(c: &mut Criterion) {
+fn last_sat_loc_signet_precompile_fn(c: &mut Criterion) {
+    dotenvy::from_filename_override("env.signet.sample").ok();
     let rt = Runtime::new().unwrap();
-    let (server, client) = rt.block_on(async {
-        spawn_test_server(Brc20ProgConfig {
-            fail_on_bitcoin_rpc_error: true,
-            bitcoin_rpc_url: "http://localhost:38332".to_string(),
-            bitcoin_rpc_user: "user".to_string(),
-            bitcoin_rpc_password: "password".to_string(),
-            bitcoin_rpc_network: "signet".to_string(),
-            ..Default::default()
-        })
-        .await
-    });
+    let (server, client) = rt.block_on(async { spawn_test_server(Default::default()).await });
     let from_address: Option<AddressED> = Some([1u8; 20].into());
 
     let mut last_sat_loc_precompile_address = [0u8; 20];
     last_sat_loc_precompile_address[19] = 0xfc; // Last sat loc precompile address
     let to_address: Option<AddressED> = Some(last_sat_loc_precompile_address.into());
 
-    let call_tx_data = load_file_as_bytes("btc_last_sat_loc_call_tx_data").unwrap();
+    let call_tx_data = load_file_as_bytes("btc_last_sat_loc_signet_call_tx_data").unwrap();
 
     let eth_call = EthCall::new(
         from_address.clone(),
@@ -84,7 +75,7 @@ fn last_sat_loc_precompile_fn(c: &mut Criterion) {
         client.brc20_mine(300000, 42).await.unwrap();
     });
 
-    c.bench_function("Call last_sat_location", |b| {
+    c.bench_function("Call last_sat_location on signet", |b| {
         b.iter(|| {
             rt.block_on(async {
                 client.eth_call(eth_call.clone(), None).await.unwrap();
@@ -97,26 +88,17 @@ fn last_sat_loc_precompile_fn(c: &mut Criterion) {
     server.stop().unwrap();
 }
 
-fn get_tx_details_fn(c: &mut Criterion) {
+fn get_tx_details_mainnet_fn(c: &mut Criterion) {
+    dotenvy::dotenv_override().ok();
     let rt = Runtime::new().unwrap();
-    let (server, client) = rt.block_on(async {
-        spawn_test_server(Brc20ProgConfig {
-            fail_on_bitcoin_rpc_error: true,
-            bitcoin_rpc_url: "http://localhost:38332".to_string(),
-            bitcoin_rpc_user: "user".to_string(),
-            bitcoin_rpc_password: "password".to_string(),
-            bitcoin_rpc_network: "signet".to_string(),
-            ..Default::default()
-        })
-        .await
-    });
+    let (server, client) = rt.block_on(async { spawn_test_server(Default::default()).await });
     let from_address: Option<AddressED> = Some([1u8; 20].into());
 
     let mut get_tx_details_precompile_address = [0u8; 20];
     get_tx_details_precompile_address[19] = 0xfd; // Get tx details precompile address
     let to_address: Option<AddressED> = Some(get_tx_details_precompile_address.into());
 
-    let call_tx_data = load_file_as_bytes("btc_get_tx_details_call_tx_data").unwrap();
+    let call_tx_data = load_file_as_bytes("btc_get_tx_details_mainnet_call_tx_data").unwrap();
 
     let eth_call = EthCall::new(
         from_address.clone(),
@@ -128,7 +110,42 @@ fn get_tx_details_fn(c: &mut Criterion) {
         client.brc20_mine(300000, 42).await.unwrap();
     });
 
-    c.bench_function("Call btc_get_tx_details", |b| {
+    c.bench_function("Call btc_get_tx_details on mainnet", |b| {
+        b.iter(|| {
+            rt.block_on(async {
+                client.eth_call(eth_call.clone(), None).await.unwrap();
+            });
+        })
+    });
+
+    print_gas_per_call(&rt, &client, eth_call.clone());
+
+    server.stop().unwrap();
+}
+
+fn get_tx_details_signet_fn(c: &mut Criterion) {
+    dotenvy::from_filename_override("env.signet.sample").ok();
+    let rt = Runtime::new().unwrap();
+    let (server, client) = rt.block_on(async { spawn_test_server(Default::default()).await });
+    let from_address: Option<AddressED> = Some([1u8; 20].into());
+
+    let mut get_tx_details_precompile_address = [0u8; 20];
+    get_tx_details_precompile_address[19] = 0xfd; // Get tx details precompile address
+    let to_address: Option<AddressED> = Some(get_tx_details_precompile_address.into());
+
+    let call_tx_data = load_file_as_bytes("btc_get_tx_details_signet_call_tx_data").unwrap();
+
+    let eth_call = EthCall::new(
+        from_address.clone(),
+        to_address.clone(),
+        call_tx_data.clone(),
+    );
+
+    rt.block_on(async {
+        client.brc20_mine(300000, 42).await.unwrap();
+    });
+
+    c.bench_function("Call btc_get_tx_details on signet", |b| {
         b.iter(|| {
             rt.block_on(async {
                 client.eth_call(eth_call.clone(), None).await.unwrap();
@@ -210,8 +227,9 @@ fn get_brc20_balance_fn(c: &mut Criterion) {
 criterion_group!(
     precompiles,
     bip322_fn,
-    last_sat_loc_precompile_fn,
-    get_tx_details_fn,
+    last_sat_loc_signet_precompile_fn,
+    get_tx_details_mainnet_fn,
+    get_tx_details_signet_fn,
     get_brc20_balance_fn,
     get_locked_pkscript_fn
 );

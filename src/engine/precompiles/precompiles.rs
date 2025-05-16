@@ -135,8 +135,12 @@ pub fn use_gas(interpreter_result: &mut InterpreterResult, gas: u64) -> bool {
 }
 
 /// Fails the instruction with a `PrecompileError` result.
-pub fn precompile_error(mut interpreter_result: InterpreterResult) -> InterpreterResult {
+pub fn precompile_error(
+    mut interpreter_result: InterpreterResult,
+    error: &'static str,
+) -> InterpreterResult {
     interpreter_result.result = revm::interpreter::InstructionResult::PrecompileError;
+    interpreter_result.output = Bytes::from_static(&error.as_bytes());
     interpreter_result
 }
 
