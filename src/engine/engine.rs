@@ -428,8 +428,7 @@ impl BRC20ProgEngine {
                     .unwrap_or(TransactTo::Create);
                 tx.data = tx_info.data.clone();
                 tx.nonce = nonce;
-                // Use 10x gas limit for call
-                tx.gas_limit = get_gas_limit(tx_info.data.len() as u64) * 10;
+                tx.gas_limit = CONFIG.read().evm_call_gas_limit;
             });
 
             let output = evm.replay().map(|x| x.result);

@@ -38,6 +38,9 @@ lazy_static::lazy_static! {
     static ref EVM_RECORD_TRACES_KEY: String = "EVM_RECORD_TRACES".to_string();
     static ref EVM_RECORD_TRACES_DEFAULT: bool = false;
 
+    static ref EVM_CALL_GAS_LIMIT_KEY: String = "EVM_CALL_GAS_LIMIT".to_string();
+    static ref EVM_CALL_GAS_LIMIT: u64 = 1_000_000_000;
+
     static ref BITCOIN_RPC_URL_KEY: String = "BITCOIN_RPC_URL".to_string();
     static ref BITCOIN_RPC_URL_DEFAULT_SIGNET: String = "http://localhost:38332".to_string();
 
@@ -88,6 +91,8 @@ pub struct Brc20ProgConfig {
     pub brc20_balance_server_url: String,
     /// Whether to record EVM traces
     pub evm_record_traces: bool,
+    /// Gas limit for EVM calls, through eth_call or eth_estimate_gas
+    pub evm_call_gas_limit: u64,
     /// The URL of the Bitcoin RPC server
     pub bitcoin_rpc_url: String,
     /// The username for the Bitcoin RPC server
@@ -124,6 +129,7 @@ impl Brc20ProgConfig {
     /// * `brc20_prog_rpc_server_user` - The username for the BRC20 Prog RPC server, if authentication is enabled
     /// * `brc20_prog_rpc_server_password` - The password for the BRC20 Prog RPC server, if authentication is enabled
     /// * `brc20_balance_server_url` - The URL of the BRC20 balance server
+    /// * `evm_call_gas_limit` - Gas limit for EVM calls (default: 1_000_000_000)
     /// * `evm_record_traces` - Whether to record EVM traces
     /// * `bitcoin_rpc_url` - The URL of the Bitcoin RPC server
     /// * `bitcoin_rpc_user` - The username for the Bitcoin RPC server
@@ -139,6 +145,7 @@ impl Brc20ProgConfig {
         brc20_prog_rpc_server_password: Option<String>,
         brc20_balance_server_url: String,
         evm_record_traces: bool,
+        evm_call_gas_limit: u64,
         bitcoin_rpc_url: String,
         bitcoin_rpc_user: String,
         bitcoin_rpc_password: String,
@@ -154,6 +161,7 @@ impl Brc20ProgConfig {
             brc20_prog_rpc_server_password,
             brc20_balance_server_url,
             evm_record_traces,
+            evm_call_gas_limit,
             bitcoin_rpc_url,
             bitcoin_rpc_user,
             bitcoin_rpc_password,
@@ -196,6 +204,9 @@ impl Brc20ProgConfig {
             evm_record_traces: env::var(&*EVM_RECORD_TRACES_KEY)
                 .map(|x| x == "true")
                 .unwrap_or(*EVM_RECORD_TRACES_DEFAULT),
+            evm_call_gas_limit: env::var(&*EVM_CALL_GAS_LIMIT_KEY)
+                .map(|x| x.parse::<u64>().unwrap_or(*EVM_CALL_GAS_LIMIT))
+                .unwrap_or(*EVM_CALL_GAS_LIMIT),
             bitcoin_rpc_url: env::var(&*BITCOIN_RPC_URL_KEY)
                 .unwrap_or(BITCOIN_RPC_URL_DEFAULT_SIGNET.clone()),
             bitcoin_rpc_user: env::var(&*BITCOIN_RPC_USER_KEY).unwrap_or(Default::default()),
