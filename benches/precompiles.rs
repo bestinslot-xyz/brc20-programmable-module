@@ -1,26 +1,8 @@
 use brc20_prog::types::{AddressED, EthCall};
 use brc20_prog::Brc20ProgApiClient;
 use criterion::{criterion_group, criterion_main, Criterion};
-use jsonrpsee::http_client::HttpClient;
-use test_utils::{load_file_as_bytes, spawn_balance_server, spawn_test_server};
+use test_utils::{load_file_as_bytes, print_gas_per_call, spawn_balance_server, spawn_test_server};
 use tokio::runtime::Runtime;
-
-fn print_gas_per_call(rt: &Runtime, client: &HttpClient, eth_call: EthCall) -> u64 {
-    let gas_per_call = u64::from_str_radix(
-        rt.block_on(async {
-            client
-                .eth_estimate_gas(eth_call.clone(), None)
-                .await
-                .unwrap()
-        })
-        .trim_start_matches("0x"),
-        16,
-    )
-    .unwrap();
-
-    println!("Gas per call: {}\n", gas_per_call);
-    gas_per_call
-}
 
 fn bip322_fn(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
@@ -54,7 +36,7 @@ fn bip322_fn(c: &mut Criterion) {
 }
 
 fn last_sat_loc_signet_precompile_fn(c: &mut Criterion) {
-    dotenvy::from_filename_override("env.signet.sample").ok();
+    dotenvy::from_filename_override(".env.signet").ok();
     let rt = Runtime::new().unwrap();
     let (server, client) = rt.block_on(async { spawn_test_server(Default::default()).await });
     let from_address: Option<AddressED> = Some([1u8; 20].into());
@@ -89,7 +71,7 @@ fn last_sat_loc_signet_precompile_fn(c: &mut Criterion) {
 }
 
 fn get_tx_details_mainnet_fn(c: &mut Criterion) {
-    dotenvy::dotenv_override().ok();
+    dotenvy::from_filename_override(".env.mainnet").ok();
     let rt = Runtime::new().unwrap();
     let (server, client) = rt.block_on(async { spawn_test_server(Default::default()).await });
     let from_address: Option<AddressED> = Some([1u8; 20].into());
@@ -124,7 +106,7 @@ fn get_tx_details_mainnet_fn(c: &mut Criterion) {
 }
 
 fn get_tx_details_signet_fn(c: &mut Criterion) {
-    dotenvy::from_filename_override("env.signet.sample").ok();
+    dotenvy::from_filename_override(".env.signet").ok();
     let rt = Runtime::new().unwrap();
     let (server, client) = rt.block_on(async { spawn_test_server(Default::default()).await });
     let from_address: Option<AddressED> = Some([1u8; 20].into());
