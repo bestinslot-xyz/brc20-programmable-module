@@ -32,12 +32,11 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
     }
 
     let Ok(txid) = getTxDetailsCall::abi_decode(&call.bytes) else {
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to decode parameters");
     };
 
     let Ok(raw_tx_info) = get_raw_transaction(&txid.txid) else {
-        // Failed to get transaction details
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to get transaction details");
     };
 
     if !use_gas(
@@ -48,18 +47,15 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
     }
 
     let Some(block_hash) = raw_tx_info.blockhash else {
-        // Failed to get block hash, must be a mempool transaction
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Transaction is not confirmed");
     };
 
     let Ok(block_info) = get_block_info(&block_hash) else {
-        // Failed to get block height
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to get block info");
     };
 
     if block_info.height > call.block_height as usize {
-        // Transaction is in the future, ignore it
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Transaction is in the future");
     }
 
     let mut vin_txids = Vec::new();
@@ -75,13 +71,11 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
             bytes.reverse();
             bytes
         }) else {
-            // Failed to get vin txid
-            return precompile_error(interpreter_result);
+            return precompile_error(interpreter_result, "Failed to get vin txid");
         };
 
         let Some(vin_vout) = vin.vout else {
-            // Failed to get vin vout
-            return precompile_error(interpreter_result);
+            return precompile_error(interpreter_result, "Failed to get vin vout");
         };
 
         vin_txids.push(vin_txid);
@@ -89,13 +83,11 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
 
         // Get the scriptPubKey from the vin transaction, using the txid and vout
         let Ok(vin_transaction) = get_raw_transaction(&vin_txid) else {
-            // Failed to get vin transaction details
-            return precompile_error(interpreter_result);
+            return precompile_error(interpreter_result, "Failed to get vin transaction details");
         };
 
         let Some(prev_vout) = &vin_transaction.vout.get(vin_vout as usize) else {
-            // Failed to get vin vout
-            return precompile_error(interpreter_result);
+            return precompile_error(interpreter_result, "Failed to get vin vout");
         };
         vin_script_pub_keys.push(prev_vout.script_pub_key.hex.clone().into());
         vin_values.push(U256::from(prev_vout.value.to_sat()));

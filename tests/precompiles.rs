@@ -1,3 +1,8 @@
+// Run with cargo test -- --test-threads = 1
+//
+// Because the BTC client is shared across all tests, we can't run mainnet and signet tests in parallel
+// TODO: Fix this by separating the clients across threads
+
 use std::error::Error;
 
 use brc20_prog::types::EthCall;
@@ -9,7 +14,6 @@ use test_utils::{
 #[tokio::test]
 async fn test_bip322_verify() -> Result<(), Box<dyn Error>> {
     let (server, client) = spawn_test_server(Default::default()).await;
-
     let mut bip322_precompile = [0; 20];
     bip322_precompile[19] = 0xfe;
 
@@ -63,19 +67,14 @@ async fn test_btc_locked_pkscript() -> Result<(), Box<dyn Error>> {
 }
 
 #[tokio::test]
-async fn test_btc_last_sat_loc() -> Result<(), Box<dyn Error>> {
+async fn test_btc_last_sat_loc_signet() -> Result<(), Box<dyn Error>> {
     if is_in_ci() {
         return Ok(());
     }
 
-    let (server, client) = spawn_test_server(Brc20ProgConfig {
-        bitcoin_rpc_url: "http://localhost:38332".to_string(),
-        bitcoin_rpc_user: "user".to_string(), // Replace with actual user
-        bitcoin_rpc_password: "password".to_string(), // Replace with actual password
-        bitcoin_rpc_network: "signet".to_string(),
-        ..Default::default()
-    })
-    .await;
+    dotenvy::from_filename_override("env.signet.sample").ok();
+
+    let (server, client) = spawn_test_server(Default::default()).await;
 
     let mut btc_last_sat_loc_precompile = [0; 20];
     btc_last_sat_loc_precompile[19] = 0xfc;
@@ -88,7 +87,7 @@ async fn test_btc_last_sat_loc() -> Result<(), Box<dyn Error>> {
             EthCall::new(
                 Some([1u8; 20].into()),
                 Some(btc_last_sat_loc_precompile.into()),
-                load_file_as_bytes("btc_last_sat_loc_call_tx_data")?,
+                load_file_as_bytes("btc_last_sat_loc_signet_call_tx_data")?,
             ),
             Some("latest".to_string()),
         )
@@ -96,7 +95,7 @@ async fn test_btc_last_sat_loc() -> Result<(), Box<dyn Error>> {
 
     assert_eq!(
         response,
-        load_file_as_string("btc_last_sat_loc_call_response")?
+        load_file_as_string("btc_last_sat_loc_signet_call_response")?
     );
 
     server.stop()?;
@@ -104,19 +103,14 @@ async fn test_btc_last_sat_loc() -> Result<(), Box<dyn Error>> {
 }
 
 #[tokio::test]
-async fn test_btc_get_tx_details() -> Result<(), Box<dyn Error>> {
+async fn test_btc_get_tx_details_mainnet() -> Result<(), Box<dyn Error>> {
     if is_in_ci() {
         return Ok(());
     }
 
-    let (server, client) = spawn_test_server(Brc20ProgConfig {
-        bitcoin_rpc_url: "http://localhost:38332".to_string(),
-        bitcoin_rpc_user: "user".to_string(), // Replace with actual user
-        bitcoin_rpc_password: "password".to_string(), // Replace with actual password
-        bitcoin_rpc_network: "signet".to_string(),
-        ..Default::default()
-    })
-    .await;
+    dotenvy::dotenv().ok();
+
+    let (server, client) = spawn_test_server(Default::default()).await;
 
     let mut btc_get_tx_details_precompile = [0; 20];
     btc_get_tx_details_precompile[19] = 0xfd;
@@ -129,7 +123,7 @@ async fn test_btc_get_tx_details() -> Result<(), Box<dyn Error>> {
             EthCall::new(
                 Some([1u8; 20].into()),
                 Some(btc_get_tx_details_precompile.into()),
-                load_file_as_bytes("btc_get_tx_details_call_tx_data")?,
+                load_file_as_bytes("btc_get_tx_details_mainnet_call_tx_data")?,
             ),
             Some("latest".to_string()),
         )
@@ -137,7 +131,43 @@ async fn test_btc_get_tx_details() -> Result<(), Box<dyn Error>> {
 
     assert_eq!(
         response,
-        load_file_as_string("btc_get_tx_details_call_response")?
+        load_file_as_string("btc_get_tx_details_mainnet_call_response")?
+    );
+
+    server.stop()?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_btc_get_tx_details_signet() -> Result<(), Box<dyn Error>> {
+    if is_in_ci() {
+        return Ok(());
+    }
+
+    dotenvy::from_filename_override("env.signet.sample").ok();
+
+    let (server, client) = spawn_test_server(Default::default()).await;
+
+    let mut btc_get_tx_details_precompile = [0; 20];
+    btc_get_tx_details_precompile[19] = 0xfd;
+
+    // Mine some blocks to ensure the transaction is included in a block
+    client.brc20_mine(250000, 0).await?;
+
+    let response = client
+        .eth_call(
+            EthCall::new(
+                Some([1u8; 20].into()),
+                Some(btc_get_tx_details_precompile.into()),
+                load_file_as_bytes("btc_get_tx_details_signet_call_tx_data")?,
+            ),
+            Some("latest".to_string()),
+        )
+        .await?;
+
+    assert_eq!(
+        response,
+        load_file_as_string("btc_get_tx_details_signet_call_response")?
     );
 
     server.stop()?;

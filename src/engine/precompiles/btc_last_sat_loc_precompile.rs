@@ -28,7 +28,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
     );
 
     let Ok(inputs) = getLastSatLocationCall::abi_decode(&call.bytes) else {
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to decode parameters");
     };
 
     let txid = inputs.txid;
@@ -40,57 +40,42 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
     }
 
     let Ok(raw_tx_info) = get_raw_transaction(&txid) else {
-        tracing::warn!("Failed to get transaction details");
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to get transaction details");
     };
 
     let Some(block_hash) = raw_tx_info.blockhash else {
-        // Failed to get block hash, must be a mempool transaction
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Transaction is not confirmed");
     };
 
     let Ok(block_info) = get_block_info(&block_hash) else {
-        // Failed to get block height
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to get block info");
     };
 
     if block_info.height > call.block_height as usize {
-        // Transaction is in the future, ignore it
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Transaction is in the future");
     }
 
     if let Some(vin) = raw_tx_info.vin.get(0) {
         if vin.coinbase.is_some() {
-            // Transaction is a coinbase transaction
-            tracing::warn!("Coinbase transactions are not supported");
-            return precompile_error(interpreter_result);
+            return precompile_error(
+                interpreter_result,
+                "Coinbase transactions are not supported",
+            );
         }
     } else {
-        // No vin found
-        tracing::warn!("No vin found");
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "No vin found");
     }
 
     if raw_tx_info.vout.len() < vout {
-        // Vout index out of bounds
-        tracing::warn!(
-            "Vout index out of bounds, vout: {}, vout_len: {}",
-            vout,
-            raw_tx_info.vout.len()
-        );
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Vout index out of bounds");
     }
 
     if let Some(value) = raw_tx_info.vout.get(vout) {
         if value.value.to_sat() < sat {
-            // Sat value out of bounds
-            tracing::warn!("Sat value out of bounds");
-            return precompile_error(interpreter_result);
+            return precompile_error(interpreter_result, "Sat value out of bounds");
         }
     } else {
-        // Invalid response
-        tracing::warn!("Invalid response");
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Invalid response");
     }
 
     let Some(new_pkscript) = raw_tx_info
@@ -98,9 +83,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
         .get(vout)
         .map(|x| Bytes::from(x.script_pub_key.hex.clone()))
     else {
-        // Invalid response
-        tracing::warn!("Invalid response");
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Invalid response");
     };
 
     let mut total_vout_sat_count = 0;
@@ -121,12 +104,10 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
     let vin_count = raw_tx_info.vin.len();
     loop {
         let Some(current_vin_txid) = raw_tx_info.vin[current_vin_index].txid else {
-            // Failed to get vin txid
-            return precompile_error(interpreter_result);
+            return precompile_error(interpreter_result, "Failed to get vin txid");
         };
         let Some(current_vin_vout) = raw_tx_info.vin[current_vin_index].vout else {
-            // Failed to get vin vout
-            return precompile_error(interpreter_result);
+            return precompile_error(interpreter_result, "Failed to get vout for vin");
         };
 
         if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
@@ -140,14 +121,10 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
         result_vin_vout = current_vin_vout;
 
         let Ok(vin_response) = get_raw_transaction(&result_vin_txid) else {
-            // Failed to get vin transaction details
-            tracing::warn!("Failed to get vin transaction details");
-            return precompile_error(interpreter_result);
+            return precompile_error(interpreter_result, "Failed to get vin transaction details");
         };
         let Some(current_vin) = vin_response.vout.get(current_vin_vout as usize) else {
-            // Failed to get vin vout
-            tracing::warn!("Failed to get vin vout");
-            return precompile_error(interpreter_result);
+            return precompile_error(interpreter_result, "Failed to get vin vout");
         };
         current_vin_value = current_vin.value.to_sat();
         old_pkscript = Bytes::from(current_vin.script_pub_key.hex.clone());
@@ -160,8 +137,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
     }
 
     if total_vin_sat_count < total_vout_sat_count {
-        // Insufficient satoshis in vin
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Insufficient satoshis in vin");
     }
 
     let bytes = getLastSatLocationCall::abi_encode_returns_tuple(&(

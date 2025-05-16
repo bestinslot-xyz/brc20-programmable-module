@@ -28,11 +28,11 @@ pub fn brc20_balance_precompile(call: &PrecompileCall) -> InterpreterResult {
     }
 
     let Ok(inputs) = balanceOfCall::abi_decode(&call.bytes) else {
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to decode parameters");
     };
 
     let Ok(balance) = get_brc20_balance(&inputs.ticker, &inputs.pkscript) else {
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to get balance");
     };
 
     let bytes = balanceOfCall::abi_encode_returns(&U256::from(balance));

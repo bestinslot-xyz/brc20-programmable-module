@@ -24,7 +24,7 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
     }
 
     let Ok(inputs) = verifyCall::abi_decode(&call.bytes) else {
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to decode parameters");
     };
 
     let (pkscript, message, signature) = (inputs.pkscript, inputs.message, inputs.signature);
@@ -35,7 +35,7 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
     );
 
     let Ok(address) = address else {
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to decode address");
     };
 
     let address = address;
@@ -44,11 +44,11 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
     let signature = Witness::consensus_decode(&mut signature.iter().as_slice());
 
     let Ok(signature) = signature else {
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to decode signature");
     };
 
     let Ok(_) = verify_simple(&address, &message, signature) else {
-        return precompile_error(interpreter_result);
+        return precompile_error(interpreter_result, "Failed to verify signature");
     };
 
     return precompile_output(interpreter_result, verifyCall::abi_encode_returns(&true));

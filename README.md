@@ -378,7 +378,7 @@ BRC2.0 has a set of precompiles that make it easier to work with bitcoin transac
 > [!WARNING]
 > `BTC_Transaction` and `BTC_LastSatLoc` precompiles use Bitcoin JSON-RPC calls to calculate results, so an RPC server needs to be specified in the environment variables.
 > 
-> Associated environment variables are `BITCOIN_RPC_URL`, `BITCOIN_RPC_USER`, `BITCOIN_RPC_PASSWORD` and `BITCOIN_RPC_NETWORK`. See [env.sample](env.sample) for a sample environment.
+> Associated environment variables are `BITCOIN_RPC_URL`, `BITCOIN_RPC_USER`, `BITCOIN_RPC_PASSWORD` and `BITCOIN_RPC_NETWORK`. See [env.signet.sample](env.signet.sample) for a sample environment for Signet.
 
 #### Transaction details
 
@@ -654,7 +654,7 @@ BRC20_PROG_RPC_SERVER_PASSWORD="<PASSWORD>"
 
 ### Indexer Checklist
 
-- [ ] Set environment variables, check [env.sample](env.sample) for a list
+- [ ] Set environment variables, check [env.signet.sample](env.signet.sample) for a list
 - [ ] Start a [BRC20 balance server](#brc20-balance-server) for [BRC20_Balance Contract](#brc20-balance-contract)
 - [ ] Mine [`brc20_mine`](#mine-empty-blocks) or finalise empty blocks [`brc20_finaliseBlock`](#finalise-block) to fill the database before the first inscription height
 - [ ] Deploy the `BRC20_Controller` contract by calling [`brc20_initialise`](#initialise-and-deploy-brc20_controller-contract)
