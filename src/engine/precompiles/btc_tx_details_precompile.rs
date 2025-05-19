@@ -3,7 +3,9 @@ use alloy_sol_types::{sol, SolCall};
 use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
-use crate::engine::precompiles::btc_utils::{get_block_info, get_transaction_and_block_hash};
+use crate::engine::precompiles::btc_utils::{
+    get_block_height, get_transaction, get_transaction_and_block_hash,
+};
 use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 
 static GAS_PER_RPC_CALL: u64 = 100000;
@@ -51,11 +53,11 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
         return precompile_error(interpreter_result, "Transaction is not confirmed");
     };
 
-    let Ok(block_info) = get_block_info(&block_hash) else {
+    let Ok(block_height) = get_block_height(&block_hash) else {
         return precompile_error(interpreter_result, "Failed to get block info");
     };
 
-    if block_info.height > call.block_height as usize {
+    if block_height > call.block_height as usize {
         return precompile_error(interpreter_result, "Transaction is in the future");
     }
 
@@ -79,7 +81,7 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
         vin_vouts.push(U256::from(vin.previous_output.vout));
 
         // Get the scriptPubKey from the vin transaction, using the txid and vout
-        let Ok((vin_transaction, _)) = get_transaction_and_block_hash(&vin_txid) else {
+        let Ok(vin_transaction) = get_transaction(&vin_txid) else {
             return precompile_error(interpreter_result, "Failed to get vin transaction details");
         };
 
@@ -99,7 +101,7 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
     }
 
     let bytes = getTxDetailsCall::abi_encode_returns_tuple(&(
-        U256::from(block_info.height),
+        U256::from(block_height),
         vin_txids,
         vin_vouts,
         vin_script_pub_keys,

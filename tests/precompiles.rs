@@ -116,7 +116,7 @@ async fn test_btc_get_tx_details_mainnet() -> Result<(), Box<dyn Error>> {
     btc_get_tx_details_precompile[19] = 0xfd;
 
     // Mine some blocks to ensure the transaction is included in a block
-    client.brc20_mine(250000, 0).await?;
+    client.brc20_mine(300000, 0).await?;
 
     let response = client
         .eth_call(

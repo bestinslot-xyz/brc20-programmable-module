@@ -8,7 +8,6 @@ use bitcoin::{BlockHash, KnownHrp, Network, Transaction, Txid};
 use bitcoincore_rpc::jsonrpc::Error::Rpc;
 use bitcoincore_rpc::Error::JsonRpc;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
-use bitcoincore_rpc_json::GetBlockResult;
 
 use crate::global::{SharedData, CONFIG};
 
@@ -153,20 +152,51 @@ fn get_transaction_and_block_hash_with_retry(
     }
 }
 
-pub fn get_block_info(block_hash: &BlockHash) -> Result<GetBlockResult, Box<dyn Error>> {
-    get_block_info_with_retry(block_hash, 5)
+pub fn get_transaction(txid: &B256) -> Result<Transaction, Box<dyn Error>> {
+    let bitcoin_txid = Txid::from_str(&hex::encode(txid.as_slice()).to_lowercase().as_str())
+        .map_err(|_| "Invalid Txid")?;
+    get_transaction_with_retry(&bitcoin_txid, 5)
 }
 
-fn get_block_info_with_retry(
+fn get_transaction_with_retry(
+    txid: &Txid,
+    retries_left: u32,
+) -> Result<Transaction, Box<dyn Error>> {
+    match BTC_CLIENT.read().get_raw_transaction(&txid, None) {
+        Ok(result) => Ok(result),
+        Err(error) => {
+            // Error code -5 is "RPC_INVALID_ADDRESS_OR_KEY", which means the txid is not found
+            if let JsonRpc(Rpc(ref rpc_error)) = error {
+                if rpc_error.code == -5 {
+                    // Transaction not found, return error
+                    return Err(format!("Tx not found. Txid: {:?}", txid).into());
+                }
+            }
+            // Other error, retry
+            if retries_left > 0 {
+                sleep(Duration::from_secs(1));
+                get_transaction_with_retry(txid, retries_left - 1)
+            } else {
+                panic!("Bitcoin RPC unreachable. Response: {:?}", error);
+            }
+        }
+    }
+}
+
+pub fn get_block_height(block_hash: &BlockHash) -> Result<usize, Box<dyn Error>> {
+    get_block_height_with_retry(block_hash, 5)
+}
+
+fn get_block_height_with_retry(
     block_hash: &BlockHash,
     retries_left: u32,
-) -> Result<GetBlockResult, Box<dyn Error>> {
-    match BTC_CLIENT.read().get_block_info(&block_hash) {
-        Ok(response) => return Ok(response),
+) -> Result<usize, Box<dyn Error>> {
+    match BTC_CLIENT.read().get_block_header_info(&block_hash) {
+        Ok(response) => return Ok(response.height),
         Err(error) => {
             if retries_left > 0 {
                 sleep(Duration::from_secs(1));
-                return get_block_info_with_retry(block_hash, retries_left - 1);
+                return get_block_height_with_retry(block_hash, retries_left - 1);
             }
             panic!("Bitcoin RPC unreachable. Response: {:?}", error);
         }
