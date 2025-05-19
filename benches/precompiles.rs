@@ -140,10 +140,6 @@ criterion_group!(
     precompiles,
     bip322_fn,
     last_sat_loc_signet_precompile_fn,
-    get_tx_details_mainnet_case_1_fn,
-    get_tx_details_mainnet_case_2_fn,
-    get_tx_details_mainnet_case_3_fn,
-    get_tx_details_signet_fn,
     get_brc20_balance_fn,
     get_locked_pkscript_fn
 );
