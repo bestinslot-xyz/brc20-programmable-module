@@ -1,8 +1,3 @@
-// Run with cargo test -- --test-threads = 1
-//
-// Because the BTC client is shared across all tests, we can't run mainnet and signet tests in parallel
-// TODO: Fix this by separating the clients across threads
-
 use std::error::Error;
 
 use brc20_prog::types::EthCall;
@@ -66,8 +61,7 @@ async fn test_btc_locked_pkscript() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[tokio::test]
-async fn test_btc_last_sat_loc_signet() -> Result<(), Box<dyn Error>> {
+async fn verify_btc_last_sat_loc_signet() -> Result<(), Box<dyn Error>> {
     if is_in_ci() {
         return Ok(());
     }
@@ -102,13 +96,16 @@ async fn test_btc_last_sat_loc_signet() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[tokio::test]
-async fn test_btc_get_tx_details_mainnet() -> Result<(), Box<dyn Error>> {
+async fn verify_btc_get_tx_details(
+    envfile: &str,
+    call_file: &str,
+    response_file: &str,
+) -> Result<(), Box<dyn Error>> {
     if is_in_ci() {
         return Ok(());
     }
 
-    dotenvy::from_filename_override(".env.mainnet").ok();
+    dotenvy::from_filename_override(envfile).ok();
 
     let (server, client) = spawn_test_server(Default::default()).await;
 
@@ -123,54 +120,59 @@ async fn test_btc_get_tx_details_mainnet() -> Result<(), Box<dyn Error>> {
             EthCall::new(
                 Some([1u8; 20].into()),
                 Some(btc_get_tx_details_precompile.into()),
-                load_file_as_bytes("btc_get_tx_details_mainnet_call_tx_data")?,
+                load_file_as_bytes(call_file)?,
             ),
             Some("latest".to_string()),
         )
         .await?;
 
-    assert_eq!(
-        response,
-        load_file_as_string("btc_get_tx_details_mainnet_call_response")?
-    );
+    assert_eq!(response, load_file_as_string(response_file)?);
 
     server.stop()?;
     Ok(())
 }
 
 #[tokio::test]
-async fn test_btc_get_tx_details_signet() -> Result<(), Box<dyn Error>> {
+async fn test_btc_rpc_precompiles() -> Result<(), Box<dyn Error>> {
     if is_in_ci() {
         return Ok(());
     }
 
-    dotenvy::from_filename_override(".env.signet").ok();
+    // Precompiles that interact with Bitcoin RPC are run sequentially
+    // as environment variables (for mainnet and signet) need to be reloaded between runs.
+    verify_btc_get_tx_details(
+        ".env.mainnet",
+        "btc_get_tx_details_mainnet_call_1_tx_data",
+        "btc_get_tx_details_mainnet_call_1_response",
+    )
+    .await
+    .expect("Failed to verify btc_get_tx_details mainnet call 1");
+    verify_btc_get_tx_details(
+        ".env.mainnet",
+        "btc_get_tx_details_mainnet_call_2_tx_data",
+        "btc_get_tx_details_mainnet_call_2_response",
+    )
+    .await
+    .expect("Failed to verify btc_get_tx_details mainnet call 2");
+    verify_btc_get_tx_details(
+        ".env.mainnet",
+        "btc_get_tx_details_mainnet_call_3_tx_data",
+        "btc_get_tx_details_mainnet_call_3_response",
+    )
+    .await
+    .expect("Failed to verify btc_get_tx_details mainnet call 3");
 
-    let (server, client) = spawn_test_server(Default::default()).await;
+    verify_btc_get_tx_details(
+        ".env.signet",
+        "btc_get_tx_details_signet_call_tx_data",
+        "btc_get_tx_details_signet_call_response",
+    )
+    .await
+    .expect("Failed to verify btc_get_tx_details signet call");
+    verify_btc_last_sat_loc_signet()
+        .await
+        .expect("Failed to verify btc_last_sat_loc signet call");
 
-    let mut btc_get_tx_details_precompile = [0; 20];
-    btc_get_tx_details_precompile[19] = 0xfd;
-
-    // Mine some blocks to ensure the transaction is included in a block
-    client.brc20_mine(250000, 0).await?;
-
-    let response = client
-        .eth_call(
-            EthCall::new(
-                Some([1u8; 20].into()),
-                Some(btc_get_tx_details_precompile.into()),
-                load_file_as_bytes("btc_get_tx_details_signet_call_tx_data")?,
-            ),
-            Some("latest".to_string()),
-        )
-        .await?;
-
-    assert_eq!(
-        response,
-        load_file_as_string("btc_get_tx_details_signet_call_response")?
-    );
-
-    server.stop()?;
     Ok(())
 }
 
