@@ -3,7 +3,9 @@ use alloy_sol_types::{sol, SolCall};
 use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
-use crate::engine::precompiles::btc_utils::{get_block_info, get_transaction_and_block_hash};
+use crate::engine::precompiles::btc_utils::{
+    get_block_height, get_transaction, get_transaction_and_block_hash,
+};
 use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 
 static GAS_PER_RPC_CALL: u64 = 100000;
@@ -47,11 +49,11 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
         return precompile_error(interpreter_result, "Failed to get block height");
     };
 
-    let Ok(block_info) = get_block_info(&block_hash) else {
+    let Ok(block_height) = get_block_height(&block_hash) else {
         return precompile_error(interpreter_result, "Failed to get block info");
     };
 
-    if block_info.height > call.block_height as usize {
+    if block_height > call.block_height as usize {
         return precompile_error(interpreter_result, "Transaction is in the future");
     }
 
@@ -123,7 +125,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
 
         result_vin_vout = raw_tx_info.input[current_vin_index].previous_output.vout;
 
-        let Ok((vin_response, _)) = get_transaction_and_block_hash(&result_vin_txid) else {
+        let Ok(vin_response) = get_transaction(&result_vin_txid) else {
             return precompile_error(interpreter_result, "Failed to get vin transaction details");
         };
         let Ok(current_vin) = vin_response.tx_out(result_vin_vout as usize) else {
