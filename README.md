@@ -43,10 +43,6 @@ cargo run --release
 > You must use clang as CC. Try installing clang `sudo apt install clang` before running `brc20_prog`.
 > 
 > Eg. `CC=/usr/bin/clang CXX=/usr/bin/clang++`. Clang llvm version must be the same as the one used by rust compiler. On the rust side you should use `RUSTFLAGS="-Clinker-plugin-lto -Clinker=clang -Clink-arg=-fuse-ld=lld"`.
->
-
-> [!WARNING]
-> Compression with zstd requires a larger stack size, otherwise you might see a stack overflow. `RUST_MIN_STACK=4194304` should be set to increase stack size while running.
 
 ## Supported JSON-RPC methods
 
