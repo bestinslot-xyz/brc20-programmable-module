@@ -60,3 +60,7 @@ test-utils = { path = "test_utils" }
 [[bench]]
 name = "precompiles"
 harness = false
+
+[[bench]]
+name = "btc_precompiles"
+harness = false
