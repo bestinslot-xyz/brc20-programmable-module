@@ -61,7 +61,7 @@ impl<'de, const N: usize> Deserialize<'de> for FixedBytesED<N> {
     where
         D: Deserializer<'de>,
     {
-        let hex_string: String = String::deserialize(deserializer)?;
+        let hex_string = String::deserialize(deserializer)?;
         Ok(FixedBytesED {
             bytes: hex_string.parse().map_err(serde::de::Error::custom)?,
         })

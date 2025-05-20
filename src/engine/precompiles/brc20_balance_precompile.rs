@@ -6,7 +6,7 @@ use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use ureq::Agent;
 
 use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
-use crate::global::CONFIG;
+use crate::global::{CONFIG, GAS_PER_BRC20_BALANCE_CALL};
 
 lazy_static::lazy_static! {
     static ref BRC20_CLIENT: Agent = Agent::new_with_defaults();
@@ -23,7 +23,7 @@ pub fn brc20_balance_precompile(call: &PrecompileCall) -> InterpreterResult {
         Gas::new(call.gas_limit),
     );
 
-    if !use_gas(&mut interpreter_result, 100000) {
+    if !use_gas(&mut interpreter_result, *GAS_PER_BRC20_BALANCE_CALL) {
         return interpreter_result;
     }
 

@@ -36,7 +36,7 @@ impl<'de> Deserialize<'de> for BytesED {
     where
         D: Deserializer<'de>,
     {
-        let hex_string: String = String::deserialize(deserializer)?;
+        let hex_string = String::deserialize(deserializer)?;
         Ok(BytesED {
             bytes: hex_string.parse().map_err(serde::de::Error::custom)?,
         })

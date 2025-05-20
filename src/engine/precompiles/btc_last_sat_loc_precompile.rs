@@ -7,8 +7,7 @@ use crate::engine::precompiles::btc_utils::{
     get_block_height, get_transaction, get_transaction_and_block_hash,
 };
 use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
-
-static GAS_PER_RPC_CALL: u64 = 100000;
+use crate::global::GAS_PER_BITCOIN_RPC_CALL;
 
 /*
     Signature for the getLastSatLocation function in the LastSatLocationPrecompile contract
@@ -37,7 +36,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
     let vout = inputs.vout.as_limbs()[0] as usize;
     let sat = inputs.sat.as_limbs()[0];
 
-    if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
+    if !use_gas(&mut interpreter_result, *GAS_PER_BITCOIN_RPC_CALL) {
         return interpreter_result;
     }
 
@@ -110,7 +109,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
             return precompile_error(interpreter_result, "Failed to get vin txid");
         };
 
-        if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
+        if !use_gas(&mut interpreter_result, *GAS_PER_BITCOIN_RPC_CALL) {
             return interpreter_result;
         }
 

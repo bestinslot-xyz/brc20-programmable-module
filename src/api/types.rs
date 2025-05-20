@@ -285,7 +285,7 @@ pub fn decode_bytes_from_inscription_data(
 }
 
 fn decode_zstd_into_bytes(data: &[u8]) -> Option<Bytes> {
-    let mut decompressed: Vec<u8> = vec![0; *CALLDATA_LIMIT]; // 1MB buffer
+    let mut decompressed = vec![0u8; *CALLDATA_LIMIT]; // 1MB buffer
     if let Ok(length) = zstd_safe::decompress(decompressed.as_mut_slice(), &data) {
         if length > *CALLDATA_LIMIT {
             None

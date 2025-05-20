@@ -19,9 +19,7 @@ use crate::db::types::{
     AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED,
     B256ED, U128ED, U256ED, U512ED, U64ED,
 };
-use crate::global::{GAS_PER_BYTE, MAX_BLOCK_SIZE};
-
-const MAX_HISTORY_SIZE: u64 = 10;
+use crate::global::{GAS_PER_BYTE, MAX_BLOCK_SIZE, MAX_REORG_HISTORY_SIZE};
 
 pub struct DB {
     /// Account address to memory location
@@ -574,7 +572,7 @@ impl DB {
 
         let tx_merkle = MerkleTree::<Sha256>::from_leaves(leaves.as_slice());
 
-        let mut transactions: Vec<B256ED> = Vec::new();
+        let mut transactions = Vec::new();
         let mut bloom = Bloom::new([0u8; 256]);
         for tx_pair in tx_ids {
             let tx_id = tx_pair.1.into();
@@ -851,7 +849,7 @@ impl DB {
     }
 
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
-        if self.get_latest_block_height()? - latest_valid_block_number > MAX_HISTORY_SIZE {
+        if self.get_latest_block_height()? - latest_valid_block_number > *MAX_REORG_HISTORY_SIZE {
             return Err("Latest valid block number is too far behind current block height".into());
         }
 

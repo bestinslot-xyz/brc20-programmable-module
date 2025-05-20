@@ -14,14 +14,14 @@ use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_addres
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, Decode, LogED, TraceED, TxED, TxReceiptED, B2048ED,
 };
-use crate::db::{DB, MAX_HISTORY_SIZE};
+use crate::db::DB;
 use crate::engine::evm::get_evm;
 use crate::engine::precompiles::get_brc20_balance;
 use crate::engine::utils::{
     get_contract_address, get_gas_limit, get_result_reason, get_result_type, get_tx_hash,
     LastBlockInfo, TxInfo,
 };
-use crate::global::{SharedData, CONFIG};
+use crate::global::{SharedData, CONFIG, MAX_REORG_HISTORY_SIZE};
 
 pub struct BRC20ProgEngine {
     db: SharedData<DB>,
@@ -549,7 +549,7 @@ impl BRC20ProgEngine {
         if latest_valid_block_number > current_block_height {
             return Err("Latest valid block number is greater than current block height".into());
         }
-        if current_block_height - latest_valid_block_number > MAX_HISTORY_SIZE {
+        if current_block_height - latest_valid_block_number > *MAX_REORG_HISTORY_SIZE {
             return Err("Latest valid block number is too far behind current block height".into());
         }
         if latest_valid_block_number == current_block_height {

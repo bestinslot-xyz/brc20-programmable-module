@@ -42,7 +42,7 @@ impl<'de> Deserialize<'de> for AddressED {
     where
         D: Deserializer<'de>,
     {
-        let hex_string: String = String::deserialize(deserializer)?;
+        let hex_string = String::deserialize(deserializer)?;
         Ok(AddressED {
             address: hex_string.parse().unwrap_or(*INVALID_ADDRESS),
         })
