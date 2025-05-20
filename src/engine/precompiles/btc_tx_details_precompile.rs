@@ -7,8 +7,7 @@ use crate::engine::precompiles::btc_utils::{
     get_block_height, get_transaction, get_transaction_and_block_hash,
 };
 use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
-
-static GAS_PER_RPC_CALL: u64 = 100000;
+use crate::global::GAS_PER_BITCOIN_RPC_CALL;
 
 /*
     Signature for the getTxDetails function in the BTCPrecompile contract
@@ -29,7 +28,7 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
         Gas::new(call.gas_limit),
     );
 
-    if !use_gas(&mut interpreter_result, GAS_PER_RPC_CALL) {
+    if !use_gas(&mut interpreter_result, *GAS_PER_BITCOIN_RPC_CALL) {
         return interpreter_result;
     }
 
@@ -44,7 +43,7 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
     if !use_gas(
         &mut interpreter_result,
         // +1 for block height retrieval
-        (tx_info.input.len()) as u64 * GAS_PER_RPC_CALL,
+        (tx_info.input.len()) as u64 * *GAS_PER_BITCOIN_RPC_CALL,
     ) {
         return interpreter_result;
     }

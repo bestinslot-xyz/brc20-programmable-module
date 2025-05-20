@@ -8,6 +8,7 @@ use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
 use crate::engine::precompiles::btc_utils::get_bitcoin_hrp;
 use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
+use crate::global::GAS_PER_LOCKED_PKSCRIPT;
 
 sol! {
     function getLockedPkscript(bytes pkscript, uint256 lock_block_count) returns (bytes locked_pkscript);
@@ -20,7 +21,7 @@ pub fn get_locked_pkscript_precompile(call: &PrecompileCall) -> InterpreterResul
         Gas::new(call.gas_limit),
     );
 
-    if !use_gas(&mut interpreter_result, 20000) {
+    if !use_gas(&mut interpreter_result, *GAS_PER_LOCKED_PKSCRIPT) {
         return interpreter_result;
     }
 

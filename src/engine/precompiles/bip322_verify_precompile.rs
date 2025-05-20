@@ -7,6 +7,7 @@ use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
 use crate::engine::precompiles::btc_utils::get_bitcoin_network;
 use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
+use crate::global::GAS_PER_BIP_322_VERIFY;
 
 sol! {
     function verify(bytes pkscript, bytes message, bytes signature) returns (bool success);
@@ -19,7 +20,7 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
         Gas::new(call.gas_limit),
     );
 
-    if !use_gas(&mut interpreter_result, 20000) {
+    if !use_gas(&mut interpreter_result, *GAS_PER_BIP_322_VERIFY) {
         return interpreter_result;
     }
 

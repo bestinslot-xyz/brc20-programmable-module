@@ -85,6 +85,13 @@ pub fn print_gas_per_call(rt: &Runtime, client: &HttpClient, eth_call: EthCall) 
     )
     .unwrap();
 
-    println!("Gas per call: {}\n", gas_per_call);
+    println!("Gas per call: {}", gas_per_call);
+    println!(
+        "Calldata bytes: {}",
+        eth_call.data.unwrap().to_string().len()
+    );
+    println!("Required bytes: {}", gas_per_call / 12000);
+    println!("");
+
     gas_per_call
 }

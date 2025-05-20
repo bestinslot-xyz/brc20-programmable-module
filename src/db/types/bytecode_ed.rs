@@ -24,7 +24,7 @@ impl<'de> Deserialize<'de> for BytecodeED {
     where
         D: Deserializer<'de>,
     {
-        let hex_string: String = String::deserialize(deserializer)?;
+        let hex_string = String::deserialize(deserializer)?;
         Ok(BytecodeED {
             bytecode: Bytecode::new_raw(hex_string.parse().map_err(serde::de::Error::custom)?),
         })

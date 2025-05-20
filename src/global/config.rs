@@ -59,8 +59,14 @@ lazy_static::lazy_static! {
         }
     };
 
+    pub static ref MAX_REORG_HISTORY_SIZE: u64 = 10; // 10 blocks, this is the maximum reorg history size
     pub static ref MAX_BLOCK_SIZE: u64 = 4 * 1024 * 1024; // 4MB
     pub static ref GAS_PER_BYTE: u64 = 12000; // 12K gas per byte
+
+    pub static ref GAS_PER_BITCOIN_RPC_CALL: u64 = 400000; // 400K gas per Bitcoin RPC call
+    pub static ref GAS_PER_BRC20_BALANCE_CALL: u64 = 200000; // 200K gas per BRC20 balance call
+    pub static ref GAS_PER_BIP_322_VERIFY: u64 = 20000; // 20K gas per BIP-322 verify call
+    pub static ref GAS_PER_LOCKED_PKSCRIPT: u64 = 20000; // 20K gas per locked pkscript call
 
     pub static ref CHAIN_ID: u64 = 0x4252433230;
     pub static ref CHAIN_ID_STRING: String = CHAIN_ID.to_string();

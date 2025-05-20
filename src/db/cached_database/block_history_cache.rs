@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::error::Error;
 
 use crate::db::types::{Decode, Encode};
-use crate::db::MAX_HISTORY_SIZE;
+use crate::global::MAX_REORG_HISTORY_SIZE;
 
 /// Cache to store the history of a value at different block numbers
 #[derive(Clone)]
@@ -68,7 +68,7 @@ where
         let keys_to_remove: Vec<u64> = self
             .cache
             .keys()
-            .filter(|&&key| key + MAX_HISTORY_SIZE <= block_number)
+            .filter(|&&key| key + *MAX_REORG_HISTORY_SIZE <= block_number)
             .cloned()
             .collect();
 
@@ -105,7 +105,7 @@ where
     /// Returns: bool - true if the cache is empty, false otherwise
     fn is_old(&self, latest_block_number: u64) -> bool {
         if let Some(&latest_stored_block_number) = self.cache.keys().last() {
-            return latest_stored_block_number + MAX_HISTORY_SIZE < latest_block_number;
+            return latest_stored_block_number + *MAX_REORG_HISTORY_SIZE < latest_block_number;
         } else {
             return true;
         }
@@ -178,12 +178,12 @@ mod tests {
     fn test_history_size() {
         let mut cache = BlockHistoryCacheData::<U256ED>::new(None);
 
-        for i in 0..MAX_HISTORY_SIZE + 2 {
+        for i in 0..*MAX_REORG_HISTORY_SIZE + 2 {
             let value = U256::from(100 * i);
             cache.set(i, value.into());
         }
 
-        assert_eq!(cache.cache.len(), (MAX_HISTORY_SIZE + 1) as usize);
+        assert_eq!(cache.cache.len(), (*MAX_REORG_HISTORY_SIZE + 1) as usize);
     }
 
     #[test]
