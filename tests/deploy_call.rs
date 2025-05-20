@@ -2,7 +2,7 @@ use std::error::Error;
 use std::str::FromStr;
 
 use alloy_primitives::Bytes;
-use brc20_prog::types::EncodedBytes;
+use brc20_prog::types::InscriptionBytes;
 use brc20_prog::Brc20ProgApiClient;
 use test_utils::{load_file_as_string, spawn_test_server};
 
@@ -18,7 +18,7 @@ async fn test_deploy_call() -> Result<(), Box<dyn Error>> {
     let deploy_response = client
         .brc20_deploy(
             from_pkscript.clone(),
-            EncodedBytes::new(deploy_data),
+            InscriptionBytes::new(deploy_data),
             timestamp,
             block_hash,
             0,
@@ -36,7 +36,7 @@ async fn test_deploy_call() -> Result<(), Box<dyn Error>> {
             from_pkscript,
             contract_address.into(),
             None,
-            EncodedBytes::new(call_data),
+            InscriptionBytes::new(call_data),
             timestamp,
             block_hash,
             1,

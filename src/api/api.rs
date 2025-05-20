@@ -1,7 +1,7 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 
-use crate::api::types::{EncodedBytes, EthCall, GetLogsFilter};
+use crate::api::types::{EthCall, GetLogsFilter, InscriptionBytes};
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
@@ -42,7 +42,7 @@ pub trait Brc20ProgApi {
     async fn brc20_deploy(
         &self,
         from_pkscript: String,
-        data: EncodedBytes,
+        data: InscriptionBytes,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
@@ -57,7 +57,7 @@ pub trait Brc20ProgApi {
         from_pkscript: String,
         contract_address: Option<AddressED>,
         contract_inscription_id: Option<String>,
-        data: EncodedBytes,
+        data: InscriptionBytes,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,

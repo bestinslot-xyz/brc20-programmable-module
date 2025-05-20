@@ -2,8 +2,8 @@ use std::error::Error;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 
-use brc20_prog::types::{EncodedBytes, EthCall};
-use brc20_prog::{start, Brc20ProgConfig, Brc20ProgApiClient};
+use brc20_prog::types::{EthBytes, EthCall};
+use brc20_prog::{start, Brc20ProgApiClient, Brc20ProgConfig};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::server::ServerHandle;
 use rust_embed::Embed;
@@ -68,8 +68,8 @@ pub fn load_file_as_string(filename: &str) -> Result<String, Box<dyn Error>> {
     )?)
 }
 
-pub fn load_file_as_bytes(filename: &str) -> Result<EncodedBytes, Box<dyn Error>> {
-    Ok(EncodedBytes::new(load_file_as_string(filename)?))
+pub fn load_file_as_eth_bytes(filename: &str) -> Result<EthBytes, Box<dyn Error>> {
+    Ok(EthBytes::new(load_file_as_string(filename)?))
 }
 
 pub fn print_gas_per_call(rt: &Runtime, client: &HttpClient, eth_call: EthCall) -> u64 {

@@ -3,7 +3,7 @@ use std::error::Error;
 use brc20_prog::types::EthCall;
 use brc20_prog::{Brc20ProgApiClient, Brc20ProgConfig};
 use test_utils::{
-    is_in_ci, load_file_as_bytes, load_file_as_string, spawn_balance_server, spawn_test_server,
+    is_in_ci, load_file_as_eth_bytes, load_file_as_string, spawn_balance_server, spawn_test_server,
 };
 
 #[tokio::test]
@@ -17,7 +17,7 @@ async fn test_bip322_verify() -> Result<(), Box<dyn Error>> {
             EthCall::new(
                 Some([1u8; 20].into()),
                 Some(bip322_precompile.into()),
-                load_file_as_bytes("bip322_verify_call_tx_data")?,
+                load_file_as_eth_bytes("bip322_verify_call_tx_data")?,
             ),
             Some("latest".to_string()),
         )
@@ -45,7 +45,7 @@ async fn test_btc_locked_pkscript() -> Result<(), Box<dyn Error>> {
             EthCall::new(
                 Some([1u8; 20].into()),
                 Some(btc_locked_pkscript_precompile.into()),
-                load_file_as_bytes("btc_get_locked_pkscript_call_tx_data")?,
+                load_file_as_eth_bytes("btc_get_locked_pkscript_call_tx_data")?,
             ),
             Some("latest".to_string()),
         )
@@ -81,7 +81,7 @@ async fn verify_btc_last_sat_loc_signet() -> Result<(), Box<dyn Error>> {
             EthCall::new(
                 Some([1u8; 20].into()),
                 Some(btc_last_sat_loc_precompile.into()),
-                load_file_as_bytes("btc_last_sat_loc_signet_call_tx_data")?,
+                load_file_as_eth_bytes("btc_last_sat_loc_signet_call_tx_data")?,
             ),
             Some("latest".to_string()),
         )
@@ -120,7 +120,7 @@ async fn verify_btc_get_tx_details(
             EthCall::new(
                 Some([1u8; 20].into()),
                 Some(btc_get_tx_details_precompile.into()),
-                load_file_as_bytes(call_file)?,
+                load_file_as_eth_bytes(call_file)?,
             ),
             Some("latest".to_string()),
         )
@@ -186,7 +186,7 @@ async fn test_get_brc20_balance() -> Result<(), Box<dyn Error>> {
     let mut get_brc20_balance_precompile = [0; 20];
     get_brc20_balance_precompile[19] = 0xff;
 
-    let call_tx_data = load_file_as_bytes("get_brc20_balance_call_tx_data")?;
+    let call_tx_data = load_file_as_eth_bytes("get_brc20_balance_call_tx_data")?;
     let call_response = load_file_as_string("get_brc20_balance_call_response")?;
 
     // Wait for the server to start
