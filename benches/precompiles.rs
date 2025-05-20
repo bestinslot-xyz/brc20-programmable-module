@@ -1,7 +1,9 @@
 use brc20_prog::types::{AddressED, EthCall};
 use brc20_prog::Brc20ProgApiClient;
 use criterion::{criterion_group, criterion_main, Criterion};
-use test_utils::{load_file_as_bytes, print_gas_per_call, spawn_balance_server, spawn_test_server};
+use test_utils::{
+    load_file_as_eth_bytes, print_gas_per_call, spawn_balance_server, spawn_test_server,
+};
 use tokio::runtime::Runtime;
 
 fn bip322_fn(c: &mut Criterion) {
@@ -14,7 +16,7 @@ fn bip322_fn(c: &mut Criterion) {
     bip322_precompile_address[19] = 0xfe; // BIP322 precompile address
     let to_address: Option<AddressED> = Some(bip322_precompile_address.into());
 
-    let call_tx_data = load_file_as_bytes("bip322_verify_call_tx_data").unwrap();
+    let call_tx_data = load_file_as_eth_bytes("bip322_verify_call_tx_data").unwrap();
 
     let eth_call = EthCall::new(
         from_address.clone(),
@@ -45,7 +47,7 @@ fn last_sat_loc_signet_precompile_fn(c: &mut Criterion) {
     last_sat_loc_precompile_address[19] = 0xfc; // Last sat loc precompile address
     let to_address: Option<AddressED> = Some(last_sat_loc_precompile_address.into());
 
-    let call_tx_data = load_file_as_bytes("btc_last_sat_loc_signet_call_tx_data").unwrap();
+    let call_tx_data = load_file_as_eth_bytes("btc_last_sat_loc_signet_call_tx_data").unwrap();
 
     let eth_call = EthCall::new(
         from_address.clone(),
@@ -81,7 +83,7 @@ fn get_locked_pkscript_fn(c: &mut Criterion) {
 
     let to_address: Option<AddressED> = Some(btc_locked_pkscript_precompile.into());
 
-    let call_tx_data = load_file_as_bytes("btc_get_locked_pkscript_call_tx_data").unwrap();
+    let call_tx_data = load_file_as_eth_bytes("btc_get_locked_pkscript_call_tx_data").unwrap();
 
     let eth_call = EthCall::new(
         from_address.clone(),
@@ -115,7 +117,7 @@ fn get_brc20_balance_fn(c: &mut Criterion) {
 
     let to_address: Option<AddressED> = Some(brc20_balance_precompile.into());
 
-    let call_tx_data = load_file_as_bytes("get_brc20_balance_call_tx_data").unwrap();
+    let call_tx_data = load_file_as_eth_bytes("get_brc20_balance_call_tx_data").unwrap();
 
     let eth_call = EthCall::new(
         from_address.clone(),

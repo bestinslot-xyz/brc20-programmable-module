@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use alloy_primitives::hex::FromHex;
 use alloy_primitives::{Bytes, B256};
 use base64::prelude::BASE64_STANDARD_NO_PAD;
@@ -16,14 +18,14 @@ pub struct EthCall {
     /// The address of the contract to call
     pub to: Option<AddressED>,
     /// The data to send with the call
-    pub data: Option<EncodedBytes>,
+    pub data: Option<EthBytes>,
     /// The input data for the call (alternative to data, if both are present, data is used)
-    pub input: Option<EncodedBytes>,
+    pub input: Option<EthBytes>,
 }
 
 impl EthCall {
     /// Creates a new EthCall with the given parameters
-    pub fn new(from: Option<AddressED>, to: Option<AddressED>, data: EncodedBytes) -> Self {
+    pub fn new(from: Option<AddressED>, to: Option<AddressED>, data: EthBytes) -> Self {
         Self {
             from,
             to,
@@ -33,7 +35,7 @@ impl EthCall {
     }
 
     // This is used by the server, so doesn't need to be public
-    pub(crate) fn data_or_input(&self) -> Option<&EncodedBytes> {
+    pub(crate) fn data_or_input(&self) -> Option<&EthBytes> {
         if let Some(data) = &self.data {
             Some(data)
         } else if let Some(input) = &self.input {
@@ -79,45 +81,67 @@ impl GetLogsFilter {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-//// A wrapper for encoded bytes that can be serialized and deserialized.
+/// A wrapper for encoded bytes that can be serialized and deserialized.
 /// This struct is used to handle the encoding and decoding of bytes in the BRC20 protocol.
-///
-/// It can be used to represent both the data and input fields in the EthCall struct.
-/// It can also handle the case where the data is not present (None).
-pub struct EncodedBytes(Option<String>);
+pub struct InscriptionBytes(Option<String>);
 
-impl EncodedBytes {
-    /// Creates a new EncodedBytesWrapper with the given inner string.
+impl InscriptionBytes {
+    /// Creates a new InscriptionBytes instance with the given inner string.
     pub fn new(inner: String) -> Self {
         Self(Some(inner))
     }
 
-    /// Creates a new EncodedBytesWrapper from the given bytes.
-    /// The bytes are converted to a hex string with a 0x prefix.
-    /// This is used for encoding the data and input fields in the EthCall struct.
-    pub fn from_bytes(bytes: Bytes) -> Self {
-        Self(Some(format!("0x{}", hex::encode(bytes))))
+    /// Returns the inner string if it exists, otherwise returns empty string.
+    pub fn to_string(&self) -> String {
+        self.0.clone().unwrap_or_default()
     }
 
-    /// Creates a new EncodedBytesWrapper with no inner string (None).
+    /// Creates a new InscriptionBytes from the given bytes and the block height.
+    ///
+    /// If the block height is above compression activation height, the bytes are encoded using either nada or zstd compression, depending on the block height.
+    /// The resulting string is base64 encoded and can be used for the data field in brc20 indexer methods.
+    pub fn from_bytes(bytes: Bytes, block_height: u64) -> Result<Self, Box<dyn Error>> {
+        if block_height < *COMPRESSION_ACTIVATION_HEIGHT.read() {
+            return Ok(Self::new(format!("{}", bytes)));
+        }
+        let mut data = vec![];
+        let nada_encoded = nada::encode(bytes.clone());
+        let mut zstd_compressed = vec![0; *CALLDATA_LIMIT];
+        let zstd_length =
+            zstd_safe::compress(zstd_compressed.as_mut_slice(), bytes.iter().as_slice(), 22)
+                .map_err(|e| format!("Failed to compress with zstd: {}", e))?;
+        // Pick compression method with the shortest length
+        // 0x00 = uncompressed
+        // 0x01 = nada
+        // 0x02 = zstd
+        if bytes.len() < nada_encoded.len() && bytes.len() < zstd_length {
+            data.insert(0, 0x00);
+            data.extend_from_slice(&bytes);
+        } else if nada_encoded.len() < zstd_length {
+            data.insert(0, 0x01);
+            data.extend_from_slice(&nada_encoded);
+        } else {
+            data.insert(0, 0x02);
+            data.extend_from_slice(&zstd_compressed[..zstd_length]);
+        }
+        let base64_encoded = BASE64_STANDARD_NO_PAD.encode(data);
+        Ok(Self(Some(base64_encoded)))
+    }
+
+    /// Creates a new InscriptionBytes instance with no inner string (None).
     pub fn empty() -> Self {
         Self(None)
     }
 
     // This is used by the server, so doesn't need to be public
-    pub(crate) fn value_inscription(&self, block_height: u64) -> Option<Bytes> {
+    pub(crate) fn value(&self, block_height: u64) -> Option<Bytes> {
         self.0
             .as_ref()
             .and_then(|s| decode_bytes_from_inscription_data(s, block_height))
     }
-
-    // This is used by the server, so doesn't need to be public
-    pub(crate) fn value_eth(&self) -> Option<Bytes> {
-        self.0.as_ref().and_then(|s| Bytes::from_hex(s).ok())
-    }
 }
 
-impl Serialize for EncodedBytes {
+impl Serialize for InscriptionBytes {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -130,15 +154,77 @@ impl Serialize for EncodedBytes {
     }
 }
 
-impl<'de> Deserialize<'de> for EncodedBytes {
-    fn deserialize<D>(deserializer: D) -> Result<EncodedBytes, D::Error>
+impl<'de> Deserialize<'de> for InscriptionBytes {
+    fn deserialize<D>(deserializer: D) -> Result<InscriptionBytes, D::Error>
     where
         D: Deserializer<'de>,
     {
         let Ok(s) = String::deserialize(deserializer) else {
-            return Ok(EncodedBytes::empty());
+            return Ok(InscriptionBytes::empty());
         };
-        Ok(EncodedBytes::new(s))
+        Ok(InscriptionBytes::new(s))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+//// A wrapper for encoded bytes that can be serialized and deserialized.
+/// This struct is used to handle the encoding and decoding of bytes in the BRC20 protocol.
+///
+/// It can be used to represent both the data and input fields in the EthCall struct.
+/// It can also handle the case where the data is not present (None).
+pub struct EthBytes(Option<String>);
+
+impl EthBytes {
+    /// Creates a new EthBytes instance with the given inner string.
+    pub fn new(inner: String) -> Self {
+        Self(Some(inner))
+    }
+
+    /// Returns the inner string if it exists, otherwise returns empty string.
+    pub fn to_string(&self) -> String {
+        self.0.clone().unwrap_or_default()
+    }
+
+    /// Creates a new EthBytes instance from the given bytes.
+    /// The bytes are converted to a hex string with a 0x prefix.
+    /// This is used for encoding the data and input fields in the EthCall struct.
+    pub fn from_bytes(bytes: Bytes) -> Self {
+        Self(Some(format!("0x{}", hex::encode(bytes))))
+    }
+
+    /// Creates a new EthBytes instance with no inner string (None).
+    pub fn empty() -> Self {
+        Self(None)
+    }
+
+    // This is used by the server, so doesn't need to be public
+    pub(crate) fn value(&self) -> Option<Bytes> {
+        self.0.as_ref().and_then(|s| Bytes::from_hex(s).ok())
+    }
+}
+
+impl Serialize for EthBytes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if let Some(inner) = &self.0 {
+            serializer.serialize_str(inner)
+        } else {
+            serializer.serialize_none()
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for EthBytes {
+    fn deserialize<D>(deserializer: D) -> Result<EthBytes, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let Ok(s) = String::deserialize(deserializer) else {
+            return Ok(EthBytes::empty());
+        };
+        Ok(EthBytes::new(s))
     }
 }
 
@@ -215,10 +301,62 @@ fn decode_zstd_into_bytes(data: &[u8]) -> Option<Bytes> {
 
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::U256;
+    use alloy_sol_types::{sol, SolCall};
     use base64::prelude::BASE64_STANDARD_NO_PAD;
 
     use super::*;
     use crate::global::COMPRESSION_ACTIVATION_HEIGHT;
+
+    sol! {
+        function transfer(address receiver, bytes ticker, uint256 amount);
+    }
+
+    #[test]
+    fn test_calldata_inscription_roundtrip_before_compression_activation_height() {
+        let address: &str = "0xdead09C7d1621C9D49EdD5c070933b500ac5beef";
+        let ticker = vec![0x6f, 0x72, 0x64, 0x69];
+        let amount = 42;
+        let data = Bytes::from(
+            transferCall::new((
+                address.parse().unwrap(),
+                Bytes::from(ticker),
+                U256::from(amount),
+            ))
+            .abi_encode(),
+        );
+
+        let encoded = InscriptionBytes::from_bytes(data.clone(), 123456).unwrap();
+
+        let decoded = encoded.value(123456).unwrap();
+
+        assert_eq!(decoded, data);
+    }
+
+    #[test]
+    fn test_calldata_inscription_roundtrip_at_compression_activation_height() {
+        let address: &str = "0xdead09C7d1621C9D49EdD5c070933b500ac5beef";
+        let ticker = vec![0x6f, 0x72, 0x64, 0x69];
+        let amount = 42;
+        let data = Bytes::from(
+            transferCall::new((
+                address.parse().unwrap(),
+                Bytes::from(ticker),
+                U256::from(amount),
+            ))
+            .abi_encode(),
+        );
+
+        let encoded =
+            InscriptionBytes::from_bytes(data.clone(), *COMPRESSION_ACTIVATION_HEIGHT.read())
+                .unwrap();
+
+        let decoded = encoded
+            .value(*COMPRESSION_ACTIVATION_HEIGHT.read())
+            .unwrap();
+
+        assert_eq!(decoded, data);
+    }
 
     #[test]
     fn test_decode_bytes_from_inscription_data_old() {

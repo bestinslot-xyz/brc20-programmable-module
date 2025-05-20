@@ -1,7 +1,7 @@
 use brc20_prog::types::{AddressED, EthCall};
 use brc20_prog::Brc20ProgApiClient;
 use criterion::{criterion_group, criterion_main, Criterion};
-use test_utils::{load_file_as_bytes, print_gas_per_call, spawn_test_server};
+use test_utils::{load_file_as_eth_bytes, print_gas_per_call, spawn_test_server};
 use tokio::runtime::Runtime;
 
 fn get_tx_details_mainnet_case_1_fn(c: &mut Criterion) {
@@ -14,7 +14,7 @@ fn get_tx_details_mainnet_case_1_fn(c: &mut Criterion) {
     get_tx_details_precompile_address[19] = 0xfd; // Get tx details precompile address
     let to_address: Option<AddressED> = Some(get_tx_details_precompile_address.into());
 
-    let call_tx_data = load_file_as_bytes("btc_get_tx_details_mainnet_call_1_tx_data").unwrap();
+    let call_tx_data = load_file_as_eth_bytes("btc_get_tx_details_mainnet_call_1_tx_data").unwrap();
 
     let eth_call = EthCall::new(
         from_address.clone(),
@@ -49,7 +49,7 @@ fn get_tx_details_mainnet_case_2_fn(c: &mut Criterion) {
     get_tx_details_precompile_address[19] = 0xfd; // Get tx details precompile address
     let to_address: Option<AddressED> = Some(get_tx_details_precompile_address.into());
 
-    let call_tx_data = load_file_as_bytes("btc_get_tx_details_mainnet_call_2_tx_data").unwrap();
+    let call_tx_data = load_file_as_eth_bytes("btc_get_tx_details_mainnet_call_2_tx_data").unwrap();
 
     let eth_call = EthCall::new(
         from_address.clone(),
@@ -84,7 +84,7 @@ fn get_tx_details_mainnet_case_3_fn(c: &mut Criterion) {
     get_tx_details_precompile_address[19] = 0xfd; // Get tx details precompile address
     let to_address: Option<AddressED> = Some(get_tx_details_precompile_address.into());
 
-    let call_tx_data = load_file_as_bytes("btc_get_tx_details_mainnet_call_3_tx_data").unwrap();
+    let call_tx_data = load_file_as_eth_bytes("btc_get_tx_details_mainnet_call_3_tx_data").unwrap();
 
     let eth_call = EthCall::new(
         from_address.clone(),
@@ -119,7 +119,7 @@ fn get_tx_details_signet_fn(c: &mut Criterion) {
     get_tx_details_precompile_address[19] = 0xfd; // Get tx details precompile address
     let to_address: Option<AddressED> = Some(get_tx_details_precompile_address.into());
 
-    let call_tx_data = load_file_as_bytes("btc_get_tx_details_signet_call_tx_data").unwrap();
+    let call_tx_data = load_file_as_eth_bytes("btc_get_tx_details_signet_call_tx_data").unwrap();
 
     let eth_call = EthCall::new(
         from_address.clone(),

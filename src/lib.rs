@@ -49,7 +49,7 @@ pub mod types {
     //! This module contains the types used in the BRC20 programmable module.
     //!
     //! The types are used to interact with the BRC20 programmable module and the JSON-RPC server.
-    pub use crate::api::types::{EncodedBytes, EthCall, GetLogsFilter};
+    pub use crate::api::types::{EthBytes, EthCall, GetLogsFilter, InscriptionBytes};
     pub use crate::db::types::{
         AddressED, BlockResponseED, BytecodeED, BytesED, FixedBytesED, LogED, TraceED, TxED,
         TxReceiptED, UintED, B2048ED, B256ED, U128ED, U256ED, U512ED, U64ED, U8ED,

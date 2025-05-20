@@ -11,7 +11,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tracing::{info, instrument, warn};
 
-use crate::api::types::{EncodedBytes, EthCall, GetLogsFilter};
+use crate::api::types::{EthCall, GetLogsFilter};
 use crate::api::{Brc20ProgApiServer, INDEXER_METHODS};
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
@@ -25,6 +25,7 @@ use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
     wrap_hex_error, wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
 };
+use crate::types::InscriptionBytes;
 use crate::Brc20ProgConfig;
 
 struct RpcServer {
@@ -208,7 +209,7 @@ impl Brc20ProgApiServer for RpcServer {
     async fn brc20_deploy(
         &self,
         from_pkscript: String,
-        data: EncodedBytes,
+        data: InscriptionBytes,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
@@ -224,7 +225,7 @@ impl Brc20ProgApiServer for RpcServer {
 
         let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
 
-        let data = data.value_inscription(block_height);
+        let data = data.value(block_height);
         let to = if data.is_some() {
             None
         } else {
@@ -254,7 +255,7 @@ impl Brc20ProgApiServer for RpcServer {
         from_pkscript: String,
         contract_address: Option<AddressED>,
         contract_inscription_id: Option<String>,
-        data: EncodedBytes,
+        data: InscriptionBytes,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
@@ -270,7 +271,7 @@ impl Brc20ProgApiServer for RpcServer {
             .get_next_block_height()
             .map_err(wrap_rpc_error)?;
 
-        let data = data.value_inscription(block_height);
+        let data = data.value(block_height);
 
         let derived_contract_address = if !data.is_some() {
             *INVALID_ADDRESS
@@ -464,7 +465,7 @@ impl Brc20ProgApiServer for RpcServer {
                 .map(|x| x.address)
                 .unwrap_or(*INVALID_ADDRESS),
             to: call.to.as_ref().map(|x| x.address),
-            data: data.value_eth().unwrap_or_default().clone(),
+            data: data.value().unwrap_or_default().clone(),
         });
         let Ok(receipt) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
@@ -493,7 +494,7 @@ impl Brc20ProgApiServer for RpcServer {
                 .map(|x| x.address)
                 .unwrap_or(*INVALID_ADDRESS),
             to: call.to.as_ref().map(|x| x.address),
-            data: data.value_eth().unwrap_or_default().clone(),
+            data: data.value().unwrap_or_default().clone(),
         });
         let Ok(receipt) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
@@ -749,7 +750,7 @@ mod tests {
                 "deadbeef".to_string(),
                 None,
                 None,
-                EncodedBytes::empty(),
+                InscriptionBytes::empty(),
                 20,
                 [1; 32].into(),
                 0,
