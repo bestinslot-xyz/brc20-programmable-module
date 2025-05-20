@@ -9,7 +9,7 @@ use crate::global::SharedData;
 
 lazy_static::lazy_static! {
     static ref DB_VERSION_KEY: String = "DB_VERSION".to_string();
-    static ref DB_VERSION: u32 = 3;
+    static ref DB_VERSION: u32 = 4;
 
     static ref PROTOCOL_VERSION_KEY: String = "PROTOCOL_VERSION".to_string();
     static ref PROTOCOL_VERSION: u32 = 1;
