@@ -343,7 +343,8 @@ impl Brc20ProgApiServer for RpcServer {
 
     #[instrument(skip(self), level = "error")]
     async fn eth_block_number(&self) -> RpcResult<String> {
-        log_call();
+        // Skip logs since this is a common call
+        // log_call();
         Ok(format!(
             "0x{:x}",
             self.engine

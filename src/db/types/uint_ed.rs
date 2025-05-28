@@ -32,6 +32,11 @@ impl<const BITS: usize, const LIMBS: usize> UintED<BITS, LIMBS> {
     pub fn new(uint: Uint<BITS, LIMBS>) -> Self {
         Self { uint }
     }
+
+    /// Returns if the `UintED` instance is zero.
+    pub fn is_zero(&self) -> bool {
+        self.uint.is_zero()
+    }
 }
 
 impl<const BITS: usize, const LIMBS: usize> From<Uint<BITS, LIMBS>> for UintED<BITS, LIMBS> {
