@@ -359,7 +359,8 @@ impl Brc20ProgApiServer for RpcServer {
         block: String,
         is_full: Option<bool>,
     ) -> RpcResult<BlockResponseED> {
-        log_call();
+        // Skip logs since this is a common call
+        // log_call();
         let block_number = self.parse_block_number(&block).map_err(wrap_rpc_error)?;
         if let Some(block) = self
             .engine
