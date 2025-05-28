@@ -12,6 +12,9 @@ impl core::convert::From<[u8; 20]> for brc20_prog::types::AddressED
 pub fn brc20_prog::types::AddressED::from(address: [u8; 20]) -> Self
 impl core::convert::From<alloy_primitives::bits::address::Address> for brc20_prog::types::AddressED
 pub fn brc20_prog::types::AddressED::from(address: alloy_primitives::bits::address::Address) -> Self
+impl core::convert::TryFrom<&str> for brc20_prog::types::AddressED
+pub type brc20_prog::types::AddressED::Error = alloc::boxed::Box<dyn core::error::Error>
+pub fn brc20_prog::types::AddressED::try_from(value: &str) -> core::result::Result<Self, Self::Error>
 impl serde::ser::Serialize for brc20_prog::types::AddressED
 pub fn brc20_prog::types::AddressED::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
 impl<'de> serde::de::Deserialize<'de> for brc20_prog::types::AddressED
@@ -91,6 +94,9 @@ impl<const N: usize> core::convert::From<alloy_primitives::bits::fixed::FixedByt
 pub fn brc20_prog::types::FixedBytesED<N>::from(bytes: alloy_primitives::bits::fixed::FixedBytes<N>) -> Self
 impl<const N: usize> core::convert::From<brc20_prog::types::FixedBytesED<N>> for alloy_primitives::bits::fixed::FixedBytes<N>
 pub fn alloy_primitives::bits::fixed::FixedBytes<N>::from(b_encode_decode: brc20_prog::types::FixedBytesED<N>) -> Self
+impl<const N: usize> core::convert::TryFrom<&str> for brc20_prog::types::FixedBytesED<N>
+pub type brc20_prog::types::FixedBytesED<N>::Error = alloc::boxed::Box<dyn core::error::Error>
+pub fn brc20_prog::types::FixedBytesED<N>::try_from(hex_string: &str) -> core::result::Result<Self, Self::Error>
 impl<const N: usize> serde::ser::Serialize for brc20_prog::types::FixedBytesED<N>
 pub fn brc20_prog::types::FixedBytesED<N>::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
 pub struct brc20_prog::types::GetLogsFilter
@@ -172,6 +178,7 @@ pub brc20_prog::types::TxReceiptED::transaction_type: brc20_prog::types::U8ED
 pub struct brc20_prog::types::UintED<const BITS: usize, const LIMBS: usize>
 pub brc20_prog::types::UintED::uint: ruint::Uint<BITS, LIMBS>
 impl<const BITS: usize, const LIMBS: usize> brc20_prog::types::UintED<BITS, LIMBS>
+pub fn brc20_prog::types::UintED<BITS, LIMBS>::is_zero(&self) -> bool
 pub fn brc20_prog::types::UintED<BITS, LIMBS>::new(uint: ruint::Uint<BITS, LIMBS>) -> Self
 impl<'de, const BITS: usize, const LIMBS: usize> serde::de::Deserialize<'de> for brc20_prog::types::UintED<BITS, LIMBS>
 pub fn brc20_prog::types::UintED<BITS, LIMBS>::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
