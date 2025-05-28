@@ -37,6 +37,15 @@ impl From<Address> for AddressED {
     }
 }
 
+impl TryFrom<&str> for AddressED {
+    type Error = Box<dyn Error>;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let address = value.parse::<Address>()?;
+        Ok(AddressED::new(address))
+    }
+}
+
 impl<'de> Deserialize<'de> for AddressED {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

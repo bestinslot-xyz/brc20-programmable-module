@@ -68,6 +68,21 @@ impl<'de, const N: usize> Deserialize<'de> for FixedBytesED<N> {
     }
 }
 
+impl<const N: usize> TryFrom<&str> for FixedBytesED<N> {
+    type Error = Box<dyn Error>;
+
+    fn try_from(hex_string: &str) -> Result<Self, Self::Error> {
+        let bytes = hex_string.trim_start_matches("0x");
+        let bytes = hex::decode(bytes)?;
+        if bytes.len() != N {
+            return Err("Invalid length".into());
+        }
+        Ok(FixedBytesED {
+            bytes: FixedBytes::from_slice(&bytes),
+        })
+    }
+}
+
 impl<const N: usize> Encode for FixedBytesED<N> {
     fn encode(&self, buffer: &mut Vec<u8>) {
         buffer.extend_from_slice(self.bytes.as_slice());
