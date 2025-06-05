@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 mod block_history_cache;
 pub use block_history_cache::{BlockHistoryCache, BlockHistoryCacheData};
 

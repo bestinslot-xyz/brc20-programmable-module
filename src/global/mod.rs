@@ -1,6 +1,7 @@
 mod config;
 pub use config::*;
 
-mod database;
+pub(crate) mod database;
+
 mod shared_data;
 pub use shared_data::SharedData;

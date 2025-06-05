@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 use std::error::Error;
 use std::time::{Duration, UNIX_EPOCH};
 
@@ -14,7 +16,7 @@ use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_addres
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, Decode, LogED, TraceED, TxED, TxReceiptED, B2048ED,
 };
-use crate::db::DB;
+use crate::db::Brc20ProgDatabase;
 use crate::engine::evm::get_evm;
 use crate::engine::precompiles::get_brc20_balance;
 use crate::engine::utils::{
@@ -24,12 +26,12 @@ use crate::engine::utils::{
 use crate::global::{SharedData, CONFIG, MAX_REORG_HISTORY_SIZE};
 
 pub struct BRC20ProgEngine {
-    db: SharedData<DB>,
+    db: SharedData<Brc20ProgDatabase>,
     last_block_info: SharedData<LastBlockInfo>,
 }
 
 impl BRC20ProgEngine {
-    pub fn new(db: DB) -> Self {
+    pub fn new(db: Brc20ProgDatabase) -> Self {
         let engine = BRC20ProgEngine {
             db: SharedData::new(db),
             last_block_info: SharedData::new(LastBlockInfo::new()),
@@ -287,16 +289,23 @@ impl BRC20ProgEngine {
     pub fn get_transaction_count(
         &self,
         account: Address,
-        block_number: u64,
+        _block_number: u64,
     ) -> Result<u64, Box<dyn Error>> {
-        self.db.read().get_tx_count(Some(account), block_number)
+        let account_nonce: u64 = self
+            .db
+            .read()
+            .get_account_info(account)?
+            .map(|x| x.nonce.into())
+            .unwrap_or(0);
+
+        Ok(account_nonce)
     }
 
     pub fn get_block_transaction_count_by_number(
         &self,
         block_number: u64,
     ) -> Result<u64, Box<dyn Error>> {
-        self.db.read().get_tx_count(None, block_number)
+        self.db.read().get_block_tx_count(block_number)
     }
 
     pub fn get_block_transaction_count_by_hash(
@@ -309,7 +318,7 @@ impl BRC20ProgEngine {
                 .ok_or("Block not found")?
                 .into();
 
-            db.get_tx_count(None, block_number)
+            db.get_block_tx_count(block_number)
         })
     }
 
@@ -619,13 +628,13 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::db::DB;
+    use crate::db::Brc20ProgDatabase;
     use crate::global::INDEXER_ADDRESS;
 
     #[test]
     fn test_initialise() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
         let genesis_hash = B256::from_slice([1; 32].as_ref());
         let genesis_timestamp = 1622547800;
@@ -649,7 +658,7 @@ mod tests {
     #[test]
     fn test_get_next_block_height() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
         assert_eq!(engine.get_next_block_height().unwrap(), 0);
@@ -660,7 +669,7 @@ mod tests {
     #[test]
     fn test_get_latest_block_height() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
         assert_eq!(engine.get_latest_block_height().unwrap(), 0);
@@ -673,7 +682,7 @@ mod tests {
     #[test]
     fn test_mine_blocks() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
         let _ = engine.initialise(B256::ZERO, 1622547800, 0);
@@ -685,7 +694,7 @@ mod tests {
     #[test]
     fn test_get_contract_address_by_inscription_id() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
         let inscription_id = "test_inscription_id".to_string();
@@ -719,7 +728,7 @@ mod tests {
     #[test]
     fn test_add_tx_to_block() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
         let from_address = Address::from_slice([1; 20].as_ref());
@@ -750,7 +759,7 @@ mod tests {
     #[test]
     fn test_get_transaction_count() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
         let account_1 = Address::from_slice([1; 20].as_ref());
@@ -797,7 +806,7 @@ mod tests {
     #[test]
     fn test_get_block_transaction_count_by_number() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
         engine.mine_blocks(100, 1622547800).unwrap();
@@ -816,7 +825,7 @@ mod tests {
     #[test]
     fn test_get_block_transaction_count_by_hash() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
         let hash = B256::from_slice([1; 32].as_ref());
 
@@ -858,7 +867,7 @@ mod tests {
     #[test]
     fn test_get_transaction_by_block_hash_and_index() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
         let hash = B256::from_slice([1; 32].as_ref());
 
@@ -919,7 +928,7 @@ mod tests {
     #[test]
     fn test_get_transaction_by_block_number_and_index() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
         let hash = B256::from_slice([1; 32].as_ref());
 
@@ -980,7 +989,7 @@ mod tests {
     #[test]
     fn test_get_transaction_by_hash() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
         let hash = B256::from_slice([1; 32].as_ref());
 
@@ -1017,7 +1026,7 @@ mod tests {
     #[test]
     fn test_get_transaction_receipt_by_inscription_id() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
         let inscription_id = "test_inscription_id".to_string();
@@ -1052,7 +1061,7 @@ mod tests {
     #[test]
     fn test_get_transaction_receipt() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
         let hash = B256::from_slice([1; 32].as_ref());
 
@@ -1089,7 +1098,7 @@ mod tests {
     #[test]
     fn test_require_no_waiting_txes() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
         assert!(engine.require_no_waiting_txes().is_ok());
@@ -1116,7 +1125,7 @@ mod tests {
     #[test]
     fn test_validate_next_tx() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
         let block_hash = B256::from_slice([1; 32].as_ref());
@@ -1171,7 +1180,7 @@ mod tests {
     #[test]
     fn test_get_nonce() {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
         let account = Address::from_slice([1; 20].as_ref());

@@ -1,18 +1,15 @@
 use std::env;
-use std::error::Error;
-use std::path::Path;
 
 use alloy_primitives::Address;
 
-use crate::global::database::ConfigDatabase;
-use crate::global::SharedData;
+use crate::global::shared_data::SharedData;
 
 lazy_static::lazy_static! {
-    static ref DB_VERSION_KEY: String = "DB_VERSION".to_string();
-    static ref DB_VERSION: u32 = 4;
+    pub(crate) static ref DB_VERSION_KEY: String = "DB_VERSION".to_string();
+    pub(crate) static ref DB_VERSION: u32 = 4;
 
-    static ref PROTOCOL_VERSION_KEY: String = "PROTOCOL_VERSION".to_string();
-    static ref PROTOCOL_VERSION: u32 = 1;
+    pub(crate) static ref PROTOCOL_VERSION_KEY: String = "PROTOCOL_VERSION".to_string();
+    pub(crate) static ref PROTOCOL_VERSION: u32 = 1;
 
     static ref DB_PATH_KEY: String = "BRC20_PROG_DB_PATH".to_string();
     static ref DB_PATH_DEFAULT: String = "target/db".to_string();
@@ -35,7 +32,7 @@ lazy_static::lazy_static! {
     static ref FAIL_ON_BITCOIN_RPC_ERROR_KEY: String = "FAIL_ON_BITCOIN_RPC_ERROR".to_string();
     static ref FAIL_ON_BITCOIN_RPC_ERROR_DEFAULT: bool = true;
 
-    static ref EVM_RECORD_TRACES_KEY: String = "EVM_RECORD_TRACES".to_string();
+    pub(crate) static ref EVM_RECORD_TRACES_KEY: String = "EVM_RECORD_TRACES".to_string();
     static ref EVM_RECORD_TRACES_DEFAULT: bool = false;
 
     static ref EVM_CALL_GAS_LIMIT_KEY: String = "EVM_CALL_GAS_LIMIT".to_string();
@@ -47,7 +44,7 @@ lazy_static::lazy_static! {
     static ref BITCOIN_RPC_USER_KEY: String = "BITCOIN_RPC_USER".to_string();
     static ref BITCOIN_RPC_PASSWORD_KEY: String = "BITCOIN_RPC_PASSWORD".to_string();
 
-    static ref BITCOIN_RPC_NETWORK_KEY: String = "BITCOIN_RPC_NETWORK".to_string();
+    pub(crate) static ref BITCOIN_RPC_NETWORK_KEY: String = "BITCOIN_RPC_NETWORK".to_string();
     static ref BITCOIN_RPC_NETWORK_DEFAULT_SIGNET: String = "signet".to_string();
 
     pub static ref CARGO_PKG_VERSION: String = {
@@ -69,15 +66,17 @@ lazy_static::lazy_static! {
     pub static ref GAS_PER_LOCKED_PKSCRIPT: u64 = 20000; // 20K gas per locked pkscript call
 
     pub static ref CHAIN_ID: u64 = 0x4252433230;
-    pub static ref CHAIN_ID_STRING: String = CHAIN_ID.to_string();
+    pub static ref CHAIN_ID_STRING: String = "0x4252433230".to_string();
 
     pub static ref CALLDATA_LIMIT: usize = 1024 * 1024; // 1MB
-    pub static ref COMPRESSION_ACTIVATION_HEIGHT: SharedData<u64> = SharedData::new(u64::MAX);
 
     pub static ref INDEXER_ADDRESS: Address = "0x0000000000000000000000000000000000003Ca6".parse().expect("Failed to parse indexer address");
     pub static ref INDEXER_ADDRESS_STRING: String = INDEXER_ADDRESS.to_string();
     pub static ref INVALID_ADDRESS: Address = "0x000000000000000000000000000000000000dead".parse().expect("Failed to parse invalid address");
+}
 
+lazy_static::lazy_static! {
+    pub static ref COMPRESSION_ACTIVATION_HEIGHT: SharedData<u64> = SharedData::new(u64::MAX);
     pub static ref CONFIG: SharedData<Brc20ProgConfig> = SharedData::new(Brc20ProgConfig::from_env());
 }
 
@@ -231,44 +230,8 @@ impl Brc20ProgConfig {
     }
 }
 
-pub fn validate_config_database(config: &Brc20ProgConfig) -> Result<(), Box<dyn Error>> {
-    let db_path = Path::new(&config.db_path);
-    if !db_path.exists() {
-        std::fs::create_dir_all(db_path)?;
-    } else {
-        if !db_path.is_dir() {
-            return Err(format!("{} is not a directory", config.db_path).into());
-        }
-    }
-    let fresh_run = !db_path.read_dir()?.next().is_some();
-
-    let mut config_database = ConfigDatabase::new(&Path::new(&config.db_path), "config")?;
-    if fresh_run {
-        config_database.set(DB_VERSION_KEY.clone(), DB_VERSION.to_string())?;
-        config_database.set(PROTOCOL_VERSION_KEY.clone(), PROTOCOL_VERSION.to_string())?;
-        config_database.set(
-            BITCOIN_RPC_NETWORK_KEY.clone(),
-            config.bitcoin_rpc_network.clone(),
-        )?;
-        config_database.set(
-            EVM_RECORD_TRACES_KEY.clone(),
-            config.evm_record_traces.to_string(),
-        )?;
-    } else {
-        config_database.validate(&*DB_VERSION_KEY, &DB_VERSION.to_string())?;
-        config_database.validate(&*PROTOCOL_VERSION_KEY, &PROTOCOL_VERSION.to_string())?;
-        config_database.validate(&*BITCOIN_RPC_NETWORK_KEY, &config.bitcoin_rpc_network)?;
-        config_database.validate(
-            &*EVM_RECORD_TRACES_KEY,
-            &config.evm_record_traces.to_string(),
-        )?;
-    }
-    Ok(())
-}
-
-pub fn validate_config(config: &Brc20ProgConfig) -> Result<(), Box<dyn Error>> {
-    validate_config_database(config)?;
-
+#[cfg(feature = "server")]
+pub fn validate_config(config: &Brc20ProgConfig) -> Result<(), Box<dyn std::error::Error>> {
     if config.brc20_prog_rpc_server_enable_auth
         && (config.brc20_prog_rpc_server_user.is_none()
             || config.brc20_prog_rpc_server_password.is_none())

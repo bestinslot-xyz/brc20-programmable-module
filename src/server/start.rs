@@ -4,8 +4,9 @@ use std::path::Path;
 use jsonrpsee::server::ServerHandle;
 use tracing::{error, info, warn};
 
-use crate::db::DB;
+use crate::db::Brc20ProgDatabase;
 use crate::engine::{validate_bitcoin_rpc_status, BRC20ProgEngine};
+use crate::global::database::validate_config_database;
 use crate::global::{validate_config, Brc20ProgConfig, CONFIG};
 use crate::server::rpc_server::start_rpc_server;
 
@@ -77,6 +78,7 @@ pub async fn start(config: Brc20ProgConfig) -> Result<ServerHandle, Box<dyn Erro
         *value = config.clone();
     });
 
+    validate_config_database(&config)?;
     validate_config(&config)?;
 
     match validate_bitcoin_rpc_status() {
@@ -89,7 +91,7 @@ pub async fn start(config: Brc20ProgConfig) -> Result<ServerHandle, Box<dyn Erro
             warn!("Continuing without Bitcoin RPC status check");
         }
     }
-    let engine = BRC20ProgEngine::new(DB::new(&Path::new(&config.db_path))?);
+    let engine = BRC20ProgEngine::new(Brc20ProgDatabase::new(&Path::new(&config.db_path))?);
     info!("Latest block number: {}", engine.get_latest_block_height()?);
     start_rpc_server(engine, config).await
 }

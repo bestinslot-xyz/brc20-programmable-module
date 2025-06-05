@@ -1002,7 +1002,7 @@ dependencies = [
 
 [[package]]
 name = "brc20-prog"
-version = "0.6.2"
+version = "0.7.0"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-trace",
@@ -1011,7 +1011,6 @@ dependencies = [
  "bip322",
  "bitcoin",
  "bitcoincore-rpc",
- "bitcoincore-rpc-json",
  "criterion",
  "dotenvy",
  "either",

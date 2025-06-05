@@ -72,6 +72,7 @@ where
     Ok(U8ED::from(value))
 }
 
+#[cfg(feature = "server")]
 impl TxED {
     // This is returned by the API, so doesn't need to be public
     pub(crate) fn new(

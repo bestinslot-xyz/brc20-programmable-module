@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 mod auth;
 mod error;
 mod rpc_server;

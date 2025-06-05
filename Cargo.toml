@@ -1,6 +1,6 @@
 [package]
 name = "brc20-prog"
-version = "0.6.2"
+version = "0.7.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "BRC20 programmable module - Smart contract execution engine compatible with BRC20 standard"
@@ -10,42 +10,39 @@ repository = "https://github.com/bestinslot-xyz/brc20-programmable-module"
 [dependencies]
 alloy-primitives = "1.1.0"
 alloy-rpc-types-trace = "0.15.7"
-alloy-sol-types = "1.1.0"
-base64 = "0.22.1"
-bip322 = "0.0.9"
-bitcoin = "0.32.5"
-bitcoincore-rpc = "0.19.0"
-bitcoincore-rpc-json = "0.19.0"
+alloy-sol-types = { version = "1.1.0", optional = true }
+base64 = { version = "0.22.1", optional = true }
+bip322 = { version = "0.0.9", optional = true }
+bitcoin = { version = "0.32.5", optional = true }
+bitcoincore-rpc = { version = "0.19.0", optional = true }
 dotenvy = "0.15.0"
 either = { version = "1.15.0" }
 hex = "0.4.3"
-hyper = "1.6.0"
-jsonrpsee = { version = "0.25.1", features = [
-    "server",
-    "client",
-    "macros",
-    "jsonrpsee-core",
-    "jsonrpsee-types",
-] }
+hyper = { version = "1.6.0", optional = true }
+jsonrpsee = { version = "0.25.1", features = ["server", "client", "macros"] }
 lazy_static = "1.5.0"
-nada = "0.2.2"
-revm = { version = "22.0.1", default-features = false }
-revm-inspectors = "0.20.1"
+nada = { version = "0.2.2", optional = true }
+revm = { version = "22.0.1", default-features = false, optional = true }
+revm-inspectors = { version = "0.20.1", optional = true }
 revm-state = "3.0.0"
-rlimit = "0.10.2"
-rocksdb = "0.23.0"
-rs_merkle = "1.4.2"
-rust-embed = "8.7.1"
+rlimit = { version = "0.10.2", optional = true }
+rocksdb = { version = "0.23.0", optional = true }
+rs_merkle = { version = "1.4.2", optional = true }
+rust-embed = { version = "8.7.1", optional = true }
 serde = { version = "1.0.217", features = ["derive"] }
 serde_either = "0.2.1"
 serde_json = "1.0.138"
-tokio = "1.44.2"
-tower = "0.5.2"
-tower-http = { version = "0.6", features = ["cors", "trace", "auth"] }
+tokio = { version = "1.44.2", optional = true }
+tower = { version = "0.5.2", optional = true }
+tower-http = { version = "0.6", features = [
+    "cors",
+    "trace",
+    "auth",
+], optional = true }
 tracing = "0.1.41"
-tracing-subscriber = "0.3.19"
-ureq = "3.0.11"
-zstd-safe = "7.2.4"
+tracing-subscriber = { version = "0.3.19", optional = true }
+ureq = { version = "3.0.11", optional = true }
+zstd-safe = { version = "7.2.4", optional = true }
 
 [dev-dependencies]
 criterion = "0.5.1"
@@ -64,3 +61,32 @@ harness = false
 [[bench]]
 name = "btc_precompiles"
 harness = false
+
+[features]
+default = []
+server = [
+    "alloy-sol-types",
+    "base64",
+    "bip322",
+    "bitcoin",
+    "bitcoincore-rpc",
+    "hyper",
+    "nada",
+    "revm",
+    "revm-inspectors",
+    "rlimit",
+    "rocksdb",
+    "rs_merkle",
+    "rust-embed",
+    "tower",
+    "tower-http",
+    "tokio",
+    "tracing-subscriber",
+    "ureq",
+    "zstd-safe",
+]
+
+[[bin]]
+name = "brc20_prog"
+path = "src/bin/main.rs"
+required-features = ["server"]

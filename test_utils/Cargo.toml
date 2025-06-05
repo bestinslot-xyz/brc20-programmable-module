@@ -6,7 +6,7 @@ license = "Apache-2.0"
 description = "Test utils for brc20-prog"
 
 [dependencies]
-brc20-prog = { path = "../" }
+brc20-prog = { path = "../", features = ["server"] }
 jsonrpsee = { version = "0.25.1", features = ["client"] }
 rust-embed = "8.7.2"
 tempfile = "3.20.0"
