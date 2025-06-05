@@ -1,6 +1,8 @@
 use std::error::Error;
 
+#[cfg(feature = "server")]
 use alloy_primitives::{Bytes, U256};
+#[cfg(feature = "server")]
 use alloy_rpc_types_trace::geth::CallFrame;
 use serde::{Deserialize, Serialize};
 
@@ -41,6 +43,7 @@ pub struct TraceED {
     pub revert_reason: Option<String>,
 }
 
+#[cfg(feature = "server")]
 impl TraceED {
     // This is returned by the API, so doesn't need to be public
     pub(crate) fn new(call: CallFrame) -> Self {
@@ -69,6 +72,7 @@ impl TraceED {
     }
 }
 
+#[cfg(feature = "server")]
 impl From<CallFrame> for TraceED {
     fn from(call: CallFrame) -> Self {
         TraceED::new(call)

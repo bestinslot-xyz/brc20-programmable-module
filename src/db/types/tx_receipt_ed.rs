@@ -1,7 +1,6 @@
 use std::error::Error;
+use alloy_primitives::{logs_bloom, Log};
 
-use alloy_primitives::logs_bloom;
-use revm::context::result::ExecutionResult;
 use serde::{Deserialize, Serialize};
 
 use crate::db::types::{AddressED, BytesED, Decode, Encode, LogED, B2048ED, B256ED, U64ED, U8ED};
@@ -67,6 +66,7 @@ pub struct TxReceiptED {
     pub result_bytes: Option<BytesED>,
 }
 
+
 impl TxReceiptED {
     // This is returned by the API, so doesn't need to be public
     pub(crate) fn new(
@@ -78,7 +78,9 @@ impl TxReceiptED {
         to: Option<AddressED>,
         transaction_hash: B256ED,
         transaction_index: U64ED,
-        output: &ExecutionResult,
+        is_success: bool,
+        logs: &Vec<Log>,
+        gas_used: u64,
         cumulative_gas_used: U64ED,
         nonce: U64ED,
         start_log_index: U64ED,
@@ -87,22 +89,22 @@ impl TxReceiptED {
         result_bytes: Option<BytesED>,
     ) -> Result<Self, Box<dyn Error>> {
         Ok(TxReceiptED {
-            status: (output.is_success() as u8).into(),
+            status: (is_success as u8).into(),
             transaction_result: r#type,
             reason,
             logs: LogED::new_vec(
-                &output.logs().to_vec(),
+                &logs,
                 start_log_index.into(),
                 transaction_index,
                 transaction_hash,
                 block_hash,
                 block_number,
             ),
-            gas_used: output.gas_used().into(),
+            gas_used: gas_used.into(),
             from,
             to,
             contract_address,
-            logs_bloom: B2048ED::decode_vec(&logs_bloom(output.logs()).to_vec())?,
+            logs_bloom: B2048ED::decode_vec(&logs_bloom(logs).to_vec())?,
             block_hash,
             block_number,
             block_timestamp,

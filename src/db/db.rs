@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
@@ -21,7 +23,7 @@ use crate::db::types::{
 };
 use crate::global::{GAS_PER_BYTE, MAX_BLOCK_SIZE, MAX_REORG_HISTORY_SIZE};
 
-pub struct DB {
+pub struct Brc20ProgDatabase {
     /// Account address to memory location
     /// TODO: If the value is zero, consider deleting it from the database to save space
     db_account_memory: Option<BlockCachedDatabase<U512ED, U256ED, BlockHistoryCacheData<U256ED>>>,
@@ -78,7 +80,7 @@ pub struct DB {
     latest_block_number: Option<(u64, B256)>,
 }
 
-impl Default for DB {
+impl Default for Brc20ProgDatabase {
     fn default() -> Self {
         Self {
             db_account_memory: None,
@@ -101,7 +103,7 @@ impl Default for DB {
     }
 }
 
-impl DB {
+impl Brc20ProgDatabase {
     pub fn new(base_path: &Path) -> Result<Self, Box<dyn Error>> {
         rlimit::Resource::NOFILE.set(4096, 8192)?;
 
@@ -297,12 +299,8 @@ impl DB {
         Ok(logs)
     }
 
-    pub fn get_tx_count(
-        &self,
-        account: Option<Address>,
-        block_number: u64,
-    ) -> Result<u64, Box<dyn Error>> {
-        let tx_ids = self
+    pub fn get_block_tx_count(&self, block_number: u64) -> Result<u64, Box<dyn Error>> {
+        let transactions = self
             .db_number_and_index_to_tx_hash
             .as_ref()
             .ok_or("DB Error")?
@@ -311,15 +309,7 @@ impl DB {
                 &Self::get_number_and_index_key(block_number + 1, 0).into(),
             )?;
 
-        let mut count = 0;
-        for tx_pair in tx_ids {
-            let tx_id = tx_pair.1;
-            let tx = self.get_tx_by_hash(tx_id.into())?;
-            if account.is_none() || tx.map(|tx| tx.from.address) == account {
-                count += 1;
-            }
-        }
-        Ok(count)
+        Ok(transactions.len() as u64)
     }
 
     pub fn get_tx_hash_by_inscription_id(
@@ -465,7 +455,9 @@ impl DB {
             to.map(AddressED::new),
             tx_hash.into(),
             tx_idx.into(),
-            output,
+            output.is_success(),
+            &output.logs().to_vec(),
+            output.gas_used().into(),
             cumulative_gas_used.into(),
             nonce.into(),
             start_log_index.into(),
@@ -936,7 +928,7 @@ impl Error for DBError {
     }
 }
 
-impl DatabaseTrait for DB {
+impl DatabaseTrait for Brc20ProgDatabase {
     type Error = DBError;
 
     /// Get basic account information.
@@ -977,7 +969,7 @@ impl DatabaseTrait for DB {
     }
 }
 
-impl DatabaseCommit for DB {
+impl DatabaseCommit for Brc20ProgDatabase {
     fn commit(&mut self, changes: HashMap<Address, Account, RandomState>) {
         for (address, account) in changes {
             if !account.is_touched() {
@@ -1040,7 +1032,7 @@ mod tests {
         let gas_used = 11;
 
         {
-            let mut db = DB::new(&path).unwrap();
+            let mut db = Brc20ProgDatabase::new(&path).unwrap();
 
             db.set_account_info(address, account_info.clone()).unwrap();
             assert_eq!(
@@ -1088,7 +1080,7 @@ mod tests {
             db.commit_changes().unwrap();
         }
 
-        let db = DB::new(&path).unwrap();
+        let db = Brc20ProgDatabase::new(&path).unwrap();
 
         assert_eq!(
             db.get_account_info(address).unwrap().unwrap(),
@@ -1145,7 +1137,7 @@ mod tests {
         let start_log_index = 10;
 
         {
-            let mut db = DB::new(&path).unwrap();
+            let mut db = Brc20ProgDatabase::new(&path).unwrap();
 
             db.set_tx_receipt(
                 "type",
@@ -1173,7 +1165,7 @@ mod tests {
             db.commit_changes().unwrap();
         }
 
-        let db = DB::new(&path).unwrap();
+        let db = Brc20ProgDatabase::new(&path).unwrap();
 
         assert_eq!(
             db.get_tx_hash_by_inscription_id("inscription_id".to_string())
@@ -1207,7 +1199,9 @@ mod tests {
                 Some(to.into()),
                 tx_hash.into(),
                 tx_idx.into(),
-                &output,
+                output.is_success(),
+                &output.logs().to_vec(),
+                output.gas_used().into(),
                 cumulative_gas_used.into(),
                 nonce.into(),
                 start_log_index.into(),
@@ -1257,7 +1251,7 @@ mod tests {
         let data = vec![0u8; 32];
 
         {
-            let mut db = DB::new(&path).unwrap();
+            let mut db = Brc20ProgDatabase::new(&path).unwrap();
 
             db.set_tx_receipt(
                 "type",
@@ -1285,7 +1279,7 @@ mod tests {
             db.commit_changes().unwrap();
         }
 
-        let db = DB::new(&path).unwrap();
+        let db = Brc20ProgDatabase::new(&path).unwrap();
 
         let logs = db
             .get_logs(

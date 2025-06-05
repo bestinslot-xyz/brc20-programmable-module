@@ -1,3 +1,5 @@
+// We use some internal methods only when the server feature is enabled, so we need to allow dead code and unused imports when the server feature is not enabled.
+#![cfg_attr(not(feature = "server"), allow(dead_code, unused_imports))]
 #![warn(missing_docs)]
 //! This crate provides a BRC20 programmable module implementation.
 //!
@@ -43,7 +45,6 @@ pub(crate) mod server;
 
 pub use api::Brc20ProgApiClient;
 pub use global::Brc20ProgConfig;
-pub use server::start;
 
 pub mod types {
     //! This module contains the types used in the BRC20 programmable module.
@@ -55,3 +56,6 @@ pub mod types {
         TxReceiptED, UintED, B2048ED, B256ED, U128ED, U256ED, U512ED, U64ED, U8ED,
     };
 }
+
+#[cfg(any(feature = "server", doc))]
+pub use server::start;

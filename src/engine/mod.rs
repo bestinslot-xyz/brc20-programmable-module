@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 mod engine;
 mod evm;
 mod precompiles;

@@ -1,9 +1,15 @@
+#![cfg(feature = "server")]
+
 use std::error::Error;
 use std::path::Path;
 
 use rocksdb::{Options, DB};
 
 use crate::db::types::{Decode, Encode};
+use crate::global::{
+    Brc20ProgConfig, BITCOIN_RPC_NETWORK_KEY, DB_VERSION, DB_VERSION_KEY, EVM_RECORD_TRACES_KEY,
+    PROTOCOL_VERSION, PROTOCOL_VERSION_KEY,
+};
 
 pub struct ConfigDatabase {
     db: DB,
@@ -47,6 +53,41 @@ impl ConfigDatabase {
         };
         Ok(())
     }
+}
+
+pub fn validate_config_database(config: &Brc20ProgConfig) -> Result<(), Box<dyn Error>> {
+    let db_path = Path::new(&config.db_path);
+    if !db_path.exists() {
+        std::fs::create_dir_all(db_path)?;
+    } else {
+        if !db_path.is_dir() {
+            return Err(format!("{} is not a directory", config.db_path).into());
+        }
+    }
+    let fresh_run = !db_path.read_dir()?.next().is_some();
+
+    let mut config_database = ConfigDatabase::new(&Path::new(&config.db_path), "config")?;
+    if fresh_run {
+        config_database.set(DB_VERSION_KEY.clone(), DB_VERSION.to_string())?;
+        config_database.set(PROTOCOL_VERSION_KEY.clone(), PROTOCOL_VERSION.to_string())?;
+        config_database.set(
+            BITCOIN_RPC_NETWORK_KEY.clone(),
+            config.bitcoin_rpc_network.clone(),
+        )?;
+        config_database.set(
+            EVM_RECORD_TRACES_KEY.clone(),
+            config.evm_record_traces.to_string(),
+        )?;
+    } else {
+        config_database.validate(&*DB_VERSION_KEY, &DB_VERSION.to_string())?;
+        config_database.validate(&*PROTOCOL_VERSION_KEY, &PROTOCOL_VERSION.to_string())?;
+        config_database.validate(&*BITCOIN_RPC_NETWORK_KEY, &config.bitcoin_rpc_network)?;
+        config_database.validate(
+            &*EVM_RECORD_TRACES_KEY,
+            &config.evm_record_traces.to_string(),
+        )?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

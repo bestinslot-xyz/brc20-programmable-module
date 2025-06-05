@@ -457,7 +457,7 @@ impl Brc20ProgApiServer for RpcServer {
     #[instrument(skip(self), level = "error")]
     async fn eth_call(&self, call: EthCall, _: Option<String>) -> RpcResult<String> {
         log_call();
-        let Some(data) = call.data_or_input() else {
+        let Some(data) = call.data else {
             return Err(wrap_rpc_error_string("No data or input provided"));
         };
         let receipt = self.engine.read_contract(&TxInfo {
@@ -486,7 +486,7 @@ impl Brc20ProgApiServer for RpcServer {
     #[instrument(skip(self), level = "error")]
     async fn eth_estimate_gas(&self, call: EthCall, _: Option<String>) -> RpcResult<String> {
         log_call();
-        let Some(data) = call.data_or_input() else {
+        let Some(data) = call.data else {
             return Err(wrap_rpc_error_string("No data or input provided"));
         };
         let receipt = self.engine.read_contract(&TxInfo {
@@ -657,12 +657,12 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::db::DB;
+    use crate::db::Brc20ProgDatabase;
     use crate::engine::BRC20ProgEngine;
 
     fn create_test_server() -> RpcServer {
         let temp_dir = TempDir::new().unwrap();
-        let db = DB::new(temp_dir.path()).unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         RpcServer {
             engine: BRC20ProgEngine::new(db),
         }

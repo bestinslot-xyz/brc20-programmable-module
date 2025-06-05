@@ -1,13 +1,22 @@
-use std::error::Error;
-
-use alloy_primitives::hex::FromHex;
-use alloy_primitives::{Bytes, B256};
-use base64::prelude::BASE64_STANDARD_NO_PAD;
-use base64::Engine;
+use alloy_primitives::Bytes;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_either::SingleOrVec;
+use alloy_primitives::B256;
 
+#[cfg(feature = "server")]
+use std::error::Error;
+
+
+#[cfg(feature = "server")]
+use alloy_primitives::hex::FromHex;
+#[cfg(feature = "server")]
+use base64::prelude::BASE64_STANDARD_NO_PAD;
+#[cfg(feature = "server")]
+use base64::Engine;
+
+#[cfg(feature = "server")]
 use crate::global::{CALLDATA_LIMIT, COMPRESSION_ACTIVATION_HEIGHT};
+
 use crate::types::{AddressED, B256ED};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,9 +27,8 @@ pub struct EthCall {
     /// The address of the contract to call
     pub to: Option<AddressED>,
     /// The data to send with the call
+    #[serde(alias = "input", alias = "data")]
     pub data: Option<EthBytes>,
-    /// The input data for the call (alternative to data, if both are present, data is used)
-    pub input: Option<EthBytes>,
 }
 
 impl EthCall {
@@ -30,18 +38,6 @@ impl EthCall {
             from,
             to,
             data: Some(data),
-            input: None,
-        }
-    }
-
-    // This is used by the server, so doesn't need to be public
-    pub(crate) fn data_or_input(&self) -> Option<&EthBytes> {
-        if let Some(data) = &self.data {
-            Some(data)
-        } else if let Some(input) = &self.input {
-            Some(input)
-        } else {
-            None
         }
     }
 }
@@ -60,6 +56,7 @@ pub struct GetLogsFilter {
     /// The topics to filter logs by
     pub topics: Option<Vec<SingleOrVec<Option<B256ED>>>>,
 }
+
 
 impl GetLogsFilter {
     // This is used by the server, so doesn't need to be public
@@ -100,6 +97,7 @@ impl InscriptionBytes {
     ///
     /// If the block height is above compression activation height, the bytes are encoded using either nada or zstd compression, depending on the block height.
     /// The resulting string is base64 encoded and can be used for the data field in brc20 indexer methods.
+    #[cfg(feature = "server")]
     pub fn from_bytes(bytes: Bytes, block_height: u64) -> Result<Self, Box<dyn Error>> {
         if block_height < *COMPRESSION_ACTIVATION_HEIGHT.read() {
             return Ok(Self::new(format!("{}", bytes)));
@@ -134,6 +132,7 @@ impl InscriptionBytes {
     }
 
     // This is used by the server, so doesn't need to be public
+    #[cfg(feature = "server")]
     pub(crate) fn value(&self, block_height: u64) -> Option<Bytes> {
         self.0
             .as_ref()
@@ -198,6 +197,7 @@ impl EthBytes {
     }
 
     // This is used by the server, so doesn't need to be public
+    #[cfg(feature = "server")]
     pub(crate) fn value(&self) -> Option<Bytes> {
         self.0.as_ref().and_then(|s| Bytes::from_hex(s).ok())
     }
@@ -228,6 +228,7 @@ impl<'de> Deserialize<'de> for EthBytes {
     }
 }
 
+#[cfg(feature = "server")]
 pub fn decode_bytes_from_inscription_data(
     inscription_data: &String,
     block_height: u64,
@@ -284,6 +285,7 @@ pub fn decode_bytes_from_inscription_data(
     }
 }
 
+#[cfg(feature = "server")]
 fn decode_zstd_into_bytes(data: &[u8]) -> Option<Bytes> {
     let mut decompressed = vec![0u8; *CALLDATA_LIMIT]; // 1MB buffer
     if let Ok(length) = zstd_safe::decompress(decompressed.as_mut_slice(), &data) {

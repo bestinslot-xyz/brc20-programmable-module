@@ -7,7 +7,7 @@ use revm::primitives::hardfork::SpecId;
 use revm::{Context, Journal, JournalEntry};
 use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 
-use crate::db::DB;
+use crate::db::Brc20ProgDatabase;
 use crate::engine::precompiles::BRC20Precompiles;
 use crate::global::CHAIN_ID;
 
@@ -17,15 +17,15 @@ pub fn get_evm(
     block_number: u64,
     block_hash: B256,
     timestamp: u64,
-    db: DB,
+    db: Brc20ProgDatabase,
     gas_limit: Option<u64>,
 ) -> Evm<
-    Context<BlockEnv, TxEnv, CfgEnv, DB>,
+    Context<BlockEnv, TxEnv, CfgEnv, Brc20ProgDatabase>,
     TracingInspector,
-    EthInstructions<EthInterpreter, Context<BlockEnv, TxEnv, CfgEnv, DB>>,
+    EthInstructions<EthInterpreter, Context<BlockEnv, TxEnv, CfgEnv, Brc20ProgDatabase>>,
     BRC20Precompiles,
 > {
-    let mut ctx: Context<BlockEnv, TxEnv, CfgEnv, DB, Journal<DB, JournalEntry>> =
+    let mut ctx: Context<BlockEnv, TxEnv, CfgEnv, Brc20ProgDatabase, Journal<Brc20ProgDatabase, JournalEntry>> =
         Context::new(db, CURRENT_SPEC);
 
     ctx.cfg.chain_id = *CHAIN_ID;

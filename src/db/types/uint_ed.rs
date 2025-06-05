@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt;
 
-use alloy_primitives::{Address, Uint, U256};
+use alloy_primitives::Uint;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::db::types::{Decode, Encode};
@@ -75,6 +75,10 @@ impl Into<u64> for U64ED {
     }
 }
 
+#[cfg(feature = "server")]
+use alloy_primitives::{Address, U256};
+
+#[cfg(feature = "server")]
 impl U512ED {
     // This is used by the server, so doesn't need to be public
     pub(crate) fn from_addr_u256(address: Address, mem_loc: U256) -> Result<Self, Box<dyn Error>> {

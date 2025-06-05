@@ -78,7 +78,6 @@ pub fn brc20_prog::types::EthBytes::deserialize<D>(deserializer: D) -> core::res
 pub struct brc20_prog::types::EthCall
 pub brc20_prog::types::EthCall::data: core::option::Option<brc20_prog::types::EthBytes>
 pub brc20_prog::types::EthCall::from: core::option::Option<brc20_prog::types::AddressED>
-pub brc20_prog::types::EthCall::input: core::option::Option<brc20_prog::types::EthBytes>
 pub brc20_prog::types::EthCall::to: core::option::Option<brc20_prog::types::AddressED>
 impl brc20_prog::types::EthCall
 pub fn brc20_prog::types::EthCall::new(from: core::option::Option<brc20_prog::types::AddressED>, to: core::option::Option<brc20_prog::types::AddressED>, data: brc20_prog::types::EthBytes) -> Self
