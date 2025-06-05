@@ -1,7 +1,7 @@
 mod cached_database;
 mod database;
 
-mod db;
+mod brc20_prog_database;
 pub mod types;
 
-pub use db::*;
+pub use brc20_prog_database::Brc20ProgDatabase;
