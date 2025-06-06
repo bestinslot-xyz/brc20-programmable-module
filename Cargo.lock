@@ -1002,7 +1002,7 @@ dependencies = [
 
 [[package]]
 name = "brc20-prog"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-trace",

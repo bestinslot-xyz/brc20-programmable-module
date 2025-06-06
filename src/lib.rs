@@ -57,5 +57,5 @@ pub mod types {
     };
 }
 
-#[cfg(any(feature = "server", doc))]
+#[cfg(feature = "server")]
 pub use server::start;
