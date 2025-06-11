@@ -1,4 +1,4 @@
-use alloy_primitives::{B256, U256};
+use alloy::primitives::{B256, U256};
 use revm::context::{BlockEnv, CfgEnv, Evm, TxEnv};
 use revm::context_interface::block::BlobExcessGasAndPrice;
 use revm::handler::instructions::EthInstructions;
@@ -25,10 +25,15 @@ pub fn get_evm(
     EthInstructions<EthInterpreter, Context<BlockEnv, TxEnv, CfgEnv, Brc20ProgDatabase>>,
     BRC20Precompiles,
 > {
-    let mut ctx: Context<BlockEnv, TxEnv, CfgEnv, Brc20ProgDatabase, Journal<Brc20ProgDatabase, JournalEntry>> =
-        Context::new(db, CURRENT_SPEC);
+    let mut ctx: Context<
+        BlockEnv,
+        TxEnv,
+        CfgEnv,
+        Brc20ProgDatabase,
+        Journal<Brc20ProgDatabase, JournalEntry>,
+    > = Context::new(db, CURRENT_SPEC);
 
-    ctx.cfg.chain_id = *CHAIN_ID;
+    ctx.cfg.chain_id = CHAIN_ID;
     ctx.cfg.spec = CURRENT_SPEC;
     ctx.cfg.limit_contract_code_size = Some(usize::MAX);
 
@@ -40,7 +45,7 @@ pub fn get_evm(
     ctx.block.prevrandao = Some(block_hash);
     ctx.block.blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(0, false));
 
-    ctx.tx.chain_id = Some(*CHAIN_ID);
+    ctx.tx.chain_id = Some(CHAIN_ID);
     ctx.tx.gas_limit = u64::MAX;
     ctx.tx.gas_price = 0;
     ctx.tx.value = U256::ZERO;

@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::str::FromStr;
 
-use alloy_primitives::Bytes;
+use alloy::primitives::Bytes;
 use brc20_prog::types::InscriptionBytes;
 use brc20_prog::Brc20ProgApiClient;
 use test_utils::{load_file_as_string, spawn_test_server};

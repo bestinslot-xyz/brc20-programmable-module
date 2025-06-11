@@ -1,22 +1,18 @@
-use alloy_primitives::Bytes;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_either::SingleOrVec;
-use alloy_primitives::B256;
-
 #[cfg(feature = "server")]
 use std::error::Error;
 
-
 #[cfg(feature = "server")]
-use alloy_primitives::hex::FromHex;
+use alloy::primitives::hex::FromHex;
+use alloy::primitives::{Bytes, B256};
 #[cfg(feature = "server")]
 use base64::prelude::BASE64_STANDARD_NO_PAD;
 #[cfg(feature = "server")]
 use base64::Engine;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_either::SingleOrVec;
 
 #[cfg(feature = "server")]
 use crate::global::{CALLDATA_LIMIT, COMPRESSION_ACTIVATION_HEIGHT};
-
 use crate::types::{AddressED, B256ED};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,7 +52,6 @@ pub struct GetLogsFilter {
     /// The topics to filter logs by
     pub topics: Option<Vec<SingleOrVec<Option<B256ED>>>>,
 }
-
 
 impl GetLogsFilter {
     // This is used by the server, so doesn't need to be public
@@ -104,7 +99,7 @@ impl InscriptionBytes {
         }
         let mut data = vec![];
         let nada_encoded = nada::encode(bytes.clone());
-        let mut zstd_compressed = vec![0; *CALLDATA_LIMIT];
+        let mut zstd_compressed = vec![0; CALLDATA_LIMIT];
         let zstd_length =
             zstd_safe::compress(zstd_compressed.as_mut_slice(), bytes.iter().as_slice(), 22)
                 .map_err(|e| format!("Failed to compress with zstd: {}", e))?;
@@ -245,7 +240,7 @@ pub fn decode_bytes_from_inscription_data(
         match base64_decoded[0] {
             0x00 => {
                 // Uncompressed
-                if base64_decoded.len() > *CALLDATA_LIMIT {
+                if base64_decoded.len() > CALLDATA_LIMIT {
                     None
                 } else {
                     Some(Bytes::from(base64_decoded[1..].to_vec()))
@@ -253,7 +248,7 @@ pub fn decode_bytes_from_inscription_data(
             }
             0x01 => {
                 // Nada
-                nada::decode_with_limit(base64_decoded[1..].iter().cloned(), *CALLDATA_LIMIT)
+                nada::decode_with_limit(base64_decoded[1..].iter().cloned(), CALLDATA_LIMIT)
                     .ok()
                     .map(Bytes::from)
             }
@@ -262,7 +257,7 @@ pub fn decode_bytes_from_inscription_data(
                 match zstd_safe::get_frame_content_size(&base64_decoded[1..]) {
                     Ok(Some(size)) => {
                         // Early exit if size is too large
-                        if size > *CALLDATA_LIMIT as u64 {
+                        if size > CALLDATA_LIMIT as u64 {
                             return None;
                         }
                     }
@@ -287,9 +282,9 @@ pub fn decode_bytes_from_inscription_data(
 
 #[cfg(feature = "server")]
 fn decode_zstd_into_bytes(data: &[u8]) -> Option<Bytes> {
-    let mut decompressed = vec![0u8; *CALLDATA_LIMIT]; // 1MB buffer
+    let mut decompressed = vec![0u8; CALLDATA_LIMIT]; // 1MB buffer
     if let Ok(length) = zstd_safe::decompress(decompressed.as_mut_slice(), &data) {
-        if length > *CALLDATA_LIMIT {
+        if length > CALLDATA_LIMIT {
             None
         } else {
             let mut decompressed = decompressed.to_vec();
@@ -303,8 +298,8 @@ fn decode_zstd_into_bytes(data: &[u8]) -> Option<Bytes> {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::U256;
-    use alloy_sol_types::{sol, SolCall};
+    use alloy::primitives::U256;
+    use alloy::sol_types::{sol, SolCall};
     use base64::prelude::BASE64_STANDARD_NO_PAD;
 
     use super::*;

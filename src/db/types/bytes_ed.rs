@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use alloy_primitives::Bytes;
+use alloy::primitives::Bytes;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::db::types::{Decode, Encode};

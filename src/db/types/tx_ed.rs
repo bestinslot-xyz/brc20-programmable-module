@@ -102,7 +102,7 @@ impl TxED {
             v: 0u8.into(),
             r: 0u8.into(),
             s: 0u8.into(),
-            chain_id: (*CHAIN_ID).into(),
+            chain_id: CHAIN_ID.into(),
             tx_type: 0u8.into(),
             inscription_id,
         }
@@ -157,7 +157,7 @@ impl Decode for TxED {
                 v: 0u8.into(),
                 r: 0u8.into(),
                 s: 0u8.into(),
-                chain_id: (*CHAIN_ID).into(),
+                chain_id: CHAIN_ID.into(),
                 tx_type: 0u8.into(),
                 inscription_id,
             },
@@ -187,7 +187,7 @@ mod tests {
             v: 0u8.into(),
             r: 0u8.into(),
             s: 0u8.into(),
-            chain_id: (*CHAIN_ID).into(),
+            chain_id: CHAIN_ID.into(),
             tx_type: 0u8.into(),
             inscription_id: Some("inscription_id".to_string()),
         };
@@ -213,7 +213,7 @@ mod tests {
             v: 0u8.into(),
             r: 0u8.into(),
             s: 0u8.into(),
-            chain_id: (*CHAIN_ID).into(),
+            chain_id: CHAIN_ID.into(),
             tx_type: 0u8.into(),
             inscription_id: None,
         };
@@ -244,7 +244,7 @@ mod tests {
             v: 0u8.into(),
             r: 0u8.into(),
             s: 0u8.into(),
-            chain_id: (*CHAIN_ID).into(),
+            chain_id: CHAIN_ID.into(),
             tx_type: 0u8.into(),
             inscription_id: Some("inscription_id".to_string()),
         };

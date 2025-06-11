@@ -1,4 +1,3 @@
-
 use std::error::Error;
 
 use revm_state::AccountInfo;
@@ -69,7 +68,7 @@ impl Decode for AccountInfoED {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::U256;
+    use alloy::primitives::U256;
 
     use super::*;
 

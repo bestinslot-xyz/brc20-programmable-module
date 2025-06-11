@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use alloy_primitives::{Address, Bytes, U256};
+use alloy::primitives::{Address, Bytes, U256};
 use alloy_sol_types::{sol, SolCall};
 use rust_embed::Embed;
 
@@ -22,19 +22,21 @@ sol! {
     function balanceOf(bytes, address) returns (uint256);
 }
 
-pub fn load_brc20_mint_tx(ticker: Bytes, address: Address, amount: U256) -> TxInfo {
+pub fn load_brc20_mint_tx(ticker: Bytes, address: Address, amount: U256, nonce: u64) -> TxInfo {
     TxInfo {
         from: *INDEXER_ADDRESS,
         to: *BRC20_CONTROLLER_ADDRESS,
         data: mintCall::new((ticker, address, amount)).abi_encode().into(),
+        nonce,
     }
 }
 
-pub fn load_brc20_burn_tx(ticker: Bytes, address: Address, amount: U256) -> TxInfo {
+pub fn load_brc20_burn_tx(ticker: Bytes, address: Address, amount: U256, nonce: u64) -> TxInfo {
     TxInfo {
         from: *INDEXER_ADDRESS,
         to: *BRC20_CONTROLLER_ADDRESS,
         data: burnCall::new((ticker, address, amount)).abi_encode().into(),
+        nonce,
     }
 }
 
@@ -43,6 +45,7 @@ pub fn load_brc20_balance_tx(ticker: Bytes, address: Address) -> TxInfo {
         from: *INDEXER_ADDRESS,
         to: *BRC20_CONTROLLER_ADDRESS,
         data: balanceOfCall::new((ticker, address)).abi_encode().into(),
+        nonce: 0,
     }
 }
 
@@ -64,6 +67,7 @@ pub fn load_brc20_deploy_tx() -> TxInfo {
         from: *INDEXER_ADDRESS,
         to: None,
         data: Bytes::from_str(&data).expect("Failed to convert string to bytes"),
+        nonce: 0,
     }
 }
 

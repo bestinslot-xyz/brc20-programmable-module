@@ -1,5 +1,5 @@
-use alloy_primitives::{Bytes, FixedBytes, U256};
-use alloy_sol_types::{sol, SolCall};
+use alloy::primitives::{Bytes, FixedBytes, U256};
+use alloy::sol_types::{sol, SolCall};
 use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
@@ -36,7 +36,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
     let vout = inputs.vout.as_limbs()[0] as usize;
     let sat = inputs.sat.as_limbs()[0];
 
-    if !use_gas(&mut interpreter_result, *GAS_PER_BITCOIN_RPC_CALL) {
+    if !use_gas(&mut interpreter_result, GAS_PER_BITCOIN_RPC_CALL) {
         return interpreter_result;
     }
 
@@ -109,7 +109,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
             return precompile_error(interpreter_result, "Failed to get vin txid");
         };
 
-        if !use_gas(&mut interpreter_result, *GAS_PER_BITCOIN_RPC_CALL) {
+        if !use_gas(&mut interpreter_result, GAS_PER_BITCOIN_RPC_CALL) {
             return interpreter_result;
         }
 
@@ -157,7 +157,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::hex::FromHex;
+    use alloy::primitives::hex::FromHex;
 
     use super::*;
     use crate::engine::precompiles::validate_bitcoin_rpc_status;

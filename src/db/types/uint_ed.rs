@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt;
 
-use alloy_primitives::Uint;
+use alloy::primitives::Uint;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::db::types::{Decode, Encode};
@@ -76,7 +76,7 @@ impl Into<u64> for U64ED {
 }
 
 #[cfg(feature = "server")]
-use alloy_primitives::{Address, U256};
+use alloy::primitives::{Address, U256};
 
 #[cfg(feature = "server")]
 impl U512ED {
@@ -175,7 +175,7 @@ impl<const BITS: usize, const LIMBS: usize> fmt::Display for UintED<BITS, LIMBS>
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::U512;
+    use alloy::primitives::U512;
 
     use super::*;
 

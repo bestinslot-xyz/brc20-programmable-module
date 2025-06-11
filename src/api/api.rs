@@ -65,6 +65,18 @@ pub trait Brc20ProgApi {
         inscription_byte_len: Option<u64>,
     ) -> RpcResult<Option<TxReceiptED>>;
 
+    /// Calls a contract with the given parameters
+    #[method(name = "brc20_transact")]
+    async fn brc20_transact(
+        &self,
+        raw_tx_data: InscriptionBytes,
+        timestamp: u64,
+        hash: B256ED,
+        tx_idx: u64,
+        inscription_id: Option<String>,
+        inscription_byte_len: Option<u64>,
+    ) -> RpcResult<Option<TxED>>;
+
     /// Deposits brc20 tokens to the given address
     #[method(name = "brc20_deposit")]
     async fn brc20_deposit(

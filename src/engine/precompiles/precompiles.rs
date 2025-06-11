@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use alloy_primitives::{Address, Bytes};
+use alloy::primitives::{Address, Bytes};
 use revm::context::{Block, Cfg, ContextTr};
 use revm::handler::PrecompileProvider;
 use revm::interpreter::{Gas, InputsImpl, InstructionResult, InterpreterResult};
