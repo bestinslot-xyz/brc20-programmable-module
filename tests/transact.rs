@@ -6,8 +6,8 @@ use alloy_consensus::TxLegacy;
 use alloy_network::{EthereumWallet, TransactionBuilder};
 use alloy_rpc_types_eth::TransactionRequest;
 use alloy_signer_local::PrivateKeySigner;
-use brc20_prog::Brc20ProgApiClient;
-use brc20_prog::{types::InscriptionBytes, Brc20ProgConfig};
+use brc20_prog::types::InscriptionBytes;
+use brc20_prog::{Brc20ProgApiClient, Brc20ProgConfig};
 use revm::primitives::Address;
 use test_utils::{load_file_as_string, spawn_test_server};
 
