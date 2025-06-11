@@ -1,5 +1,5 @@
-use alloy_primitives::Bytes;
-use alloy_sol_types::{sol, SolCall};
+use alloy::primitives::Bytes;
+use alloy::sol_types::{sol, SolCall};
 use bip322::verify_simple;
 use bitcoin::consensus::Decodable;
 use bitcoin::Witness;
@@ -20,7 +20,7 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
         Gas::new(call.gas_limit),
     );
 
-    if !use_gas(&mut interpreter_result, *GAS_PER_BIP_322_VERIFY) {
+    if !use_gas(&mut interpreter_result, GAS_PER_BIP_322_VERIFY) {
         return interpreter_result;
     }
 

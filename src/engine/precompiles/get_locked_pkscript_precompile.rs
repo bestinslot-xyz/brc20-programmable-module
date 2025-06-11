@@ -1,5 +1,5 @@
-use alloy_primitives::{Bytes, U256};
-use alloy_sol_types::{sol, SolCall};
+use alloy::primitives::{Bytes, U256};
+use alloy::sol_types::{sol, SolCall};
 use bitcoin::key::UntweakedPublicKey;
 use bitcoin::script::PushBytesBuf;
 use bitcoin::taproot::TaprootBuilder;
@@ -21,7 +21,7 @@ pub fn get_locked_pkscript_precompile(call: &PrecompileCall) -> InterpreterResul
         Gas::new(call.gas_limit),
     );
 
-    if !use_gas(&mut interpreter_result, *GAS_PER_LOCKED_PKSCRIPT) {
+    if !use_gas(&mut interpreter_result, GAS_PER_LOCKED_PKSCRIPT) {
         return interpreter_result;
     }
 

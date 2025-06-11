@@ -1,6 +1,6 @@
 use std::env;
 
-use alloy_primitives::Address;
+use alloy::primitives::Address;
 
 use crate::global::shared_data::SharedData;
 
@@ -47,6 +47,9 @@ lazy_static::lazy_static! {
     pub(crate) static ref BITCOIN_RPC_NETWORK_KEY: String = "BITCOIN_RPC_NETWORK".to_string();
     static ref BITCOIN_RPC_NETWORK_DEFAULT_SIGNET: String = "signet".to_string();
 
+    pub(crate) static ref BRC20_TRANSACT_ENDPOINT_ENABLED_KEY: String = "BRC20_TRANSACT_ENDPOINT_ENABLED".to_string();
+    static ref BRC20_TRANSACT_ENDPOINT_ENABLED_DEFAULT: bool = false;
+
     pub static ref CARGO_PKG_VERSION: String = {
         let version = env!("CARGO_PKG_VERSION");
         if version.is_empty() {
@@ -55,20 +58,6 @@ lazy_static::lazy_static! {
             version.to_string()
         }
     };
-
-    pub static ref MAX_REORG_HISTORY_SIZE: u64 = 10; // 10 blocks, this is the maximum reorg history size
-    pub static ref MAX_BLOCK_SIZE: u64 = 4 * 1024 * 1024; // 4MB
-    pub static ref GAS_PER_BYTE: u64 = 12000; // 12K gas per byte
-
-    pub static ref GAS_PER_BITCOIN_RPC_CALL: u64 = 400000; // 400K gas per Bitcoin RPC call
-    pub static ref GAS_PER_BRC20_BALANCE_CALL: u64 = 200000; // 200K gas per BRC20 balance call
-    pub static ref GAS_PER_BIP_322_VERIFY: u64 = 20000; // 20K gas per BIP-322 verify call
-    pub static ref GAS_PER_LOCKED_PKSCRIPT: u64 = 20000; // 20K gas per locked pkscript call
-
-    pub static ref CHAIN_ID: u64 = 0x4252433230;
-    pub static ref CHAIN_ID_STRING: String = "0x4252433230".to_string();
-
-    pub static ref CALLDATA_LIMIT: usize = 1024 * 1024; // 1MB
 
     pub static ref INDEXER_ADDRESS: Address = "0x0000000000000000000000000000000000003Ca6".parse().expect("Failed to parse indexer address");
     pub static ref INDEXER_ADDRESS_STRING: String = INDEXER_ADDRESS.to_string();
@@ -79,6 +68,20 @@ lazy_static::lazy_static! {
     pub static ref COMPRESSION_ACTIVATION_HEIGHT: SharedData<u64> = SharedData::new(u64::MAX);
     pub static ref CONFIG: SharedData<Brc20ProgConfig> = SharedData::new(Brc20ProgConfig::from_env());
 }
+
+pub const MAX_REORG_HISTORY_SIZE: u64 = 10; // 10 blocks, this is the maximum reorg history size
+pub const MAX_BLOCK_SIZE: u64 = 4 * 1024 * 1024; // 4MB
+pub const GAS_PER_BYTE: u64 = 12000; // 12K gas per byte
+
+pub const GAS_PER_BITCOIN_RPC_CALL: u64 = 400000; // 400K gas per Bitcoin RPC call
+pub const GAS_PER_BRC20_BALANCE_CALL: u64 = 200000; // 200K gas per BRC20 balance call
+pub const GAS_PER_BIP_322_VERIFY: u64 = 20000; // 20K gas per BIP-322 verify call
+pub const GAS_PER_LOCKED_PKSCRIPT: u64 = 20000; // 20K gas per locked pkscript call
+
+pub const CHAIN_ID: u64 = 0x4252433230;
+pub const CHAIN_ID_STRING: &str = "0x4252433230";
+
+pub const CALLDATA_LIMIT: usize = 1024 * 1024; // 1MB
 
 /// Configuration for the BRC20 Prog server
 /// This struct holds the configuration values for the BRC20 Prog server.
@@ -115,6 +118,8 @@ pub struct Brc20ProgConfig {
     pub fail_on_bitcoin_rpc_error: bool,
     /// Database path
     pub db_path: String,
+    /// brc20_transact endpoint enabled
+    pub brc20_transact_endpoint_enabled: bool,
 }
 
 impl Default for Brc20ProgConfig {
@@ -158,6 +163,7 @@ impl Brc20ProgConfig {
         fail_on_brc20_balance_server_error: bool,
         fail_on_bitcoin_rpc_error: bool,
         db_path: String,
+        brc20_transact_endpoint_enabled: bool,
     ) -> Self {
         Self {
             brc20_prog_rpc_server_url,
@@ -174,6 +180,7 @@ impl Brc20ProgConfig {
             fail_on_brc20_balance_server_error,
             fail_on_bitcoin_rpc_error,
             db_path,
+            brc20_transact_endpoint_enabled,
         }
     }
 
@@ -226,6 +233,9 @@ impl Brc20ProgConfig {
                 .map(|x| x == "true")
                 .unwrap_or(*FAIL_ON_BITCOIN_RPC_ERROR_DEFAULT),
             db_path: env::var(&*DB_PATH_KEY).unwrap_or(DB_PATH_DEFAULT.clone()),
+            brc20_transact_endpoint_enabled: env::var(&*BRC20_TRANSACT_ENDPOINT_ENABLED_KEY)
+                .map(|x| x == "true")
+                .unwrap_or(*BRC20_TRANSACT_ENDPOINT_ENABLED_DEFAULT),
         }
     }
 }

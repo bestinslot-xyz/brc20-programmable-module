@@ -1,7 +1,7 @@
 use std::error::Error;
 
 #[cfg(feature = "server")]
-use alloy_primitives::{Bytes, U256};
+use alloy::primitives::{Bytes, U256};
 #[cfg(feature = "server")]
 use alloy_rpc_types_trace::geth::CallFrame;
 use serde::{Deserialize, Serialize};

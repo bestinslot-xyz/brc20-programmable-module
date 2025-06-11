@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
-use alloy_primitives::B256;
+use alloy::primitives::B256;
 use bitcoin::{BlockHash, KnownHrp, Network, Transaction, Txid};
 use bitcoincore_rpc::jsonrpc::Error::Rpc;
 use bitcoincore_rpc::Error::JsonRpc;
@@ -205,8 +205,8 @@ fn get_block_height_with_retry(
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::hex::FromHex;
-    use alloy_primitives::FixedBytes;
+    use alloy::primitives::hex::FromHex;
+    use alloy::primitives::FixedBytes;
 
     use super::*;
 

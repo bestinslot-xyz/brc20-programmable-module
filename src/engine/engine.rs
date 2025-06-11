@@ -3,12 +3,14 @@
 use std::error::Error;
 use std::time::{Duration, UNIX_EPOCH};
 
-use alloy_primitives::{logs_bloom, Address, B256, U256};
+use alloy::primitives::{keccak256, logs_bloom, Address, Bytes, B256, B512, U256};
+use alloy::rlp::{Decodable, Encodable};
 use alloy_rpc_types_trace::geth::CallConfig;
 use either::Either::Right;
 use revm::context::{ContextTr, TransactTo};
 use revm::handler::EvmTr;
 use revm::inspector::InspectorEvmTr;
+use revm::precompile::secp256k1::ecrecover;
 use revm::{ExecuteEvm, InspectCommitEvm};
 use serde_either::SingleOrVec;
 
@@ -21,9 +23,9 @@ use crate::engine::evm::get_evm;
 use crate::engine::precompiles::get_brc20_balance;
 use crate::engine::utils::{
     get_contract_address, get_gas_limit, get_result_reason, get_result_type, get_tx_hash,
-    LastBlockInfo, TxInfo,
+    EthRawTransaction, LastBlockInfo, TxInfo,
 };
-use crate::global::{SharedData, CONFIG, MAX_REORG_HISTORY_SIZE};
+use crate::global::{SharedData, CHAIN_ID, CONFIG, MAX_REORG_HISTORY_SIZE};
 
 pub struct BRC20ProgEngine {
     db: SharedData<Brc20ProgDatabase>,
@@ -142,6 +144,72 @@ impl BRC20ProgEngine {
         })
     }
 
+    pub fn add_raw_tx_to_block(
+        &self,
+        timestamp: u64,
+        raw_tx: Vec<u8>,
+        tx_idx: u64,
+        block_number: u64,
+        mut block_hash: B256,
+        inscription_id: Option<String>,
+        inscription_byte_len: Option<u64>,
+    ) -> Result<Option<TxED>, Box<dyn Error>> {
+        // This allows testing, and generating hashes for blocks with unknown hashes
+        if block_hash == B256::ZERO {
+            block_hash = generate_block_hash(block_number);
+        }
+
+        let receipt = self.add_tx_to_block(
+            timestamp,
+            &self.get_info_from_raw_tx(raw_tx.clone())?,
+            tx_idx,
+            block_number,
+            block_hash,
+            inscription_id,
+            inscription_byte_len,
+        )?;
+
+        Ok(self.get_transaction_by_hash(receipt.transaction_hash.bytes)?)
+    }
+
+    pub fn get_info_from_raw_tx(&self, mut raw_tx: Vec<u8>) -> Result<TxInfo, Box<dyn Error>> {
+        let decoded_raw_tx = EthRawTransaction::decode(&mut raw_tx.as_mut_slice().as_ref())?;
+
+        let tx_chain_id = decoded_raw_tx.v.saturating_sub(35).saturating_div(2);
+        if tx_chain_id != CHAIN_ID {
+            return Err(format!("Invalid chain ID in raw transaction: {:x}", tx_chain_id).into());
+        }
+
+        let mut signing_tx = decoded_raw_tx.clone();
+        signing_tx.v = tx_chain_id;
+        signing_tx.r = Bytes::new();
+        signing_tx.s = Bytes::new();
+
+        let mut buffer = Vec::new();
+        signing_tx.encode(&mut buffer);
+
+        let signing_hash = keccak256(&buffer);
+
+        let r: B256 = decoded_raw_tx.r.iter().as_slice().try_into()?;
+        let s: B256 = decoded_raw_tx.s.iter().as_slice().try_into()?;
+
+        let sig = B512::from_slice(&[r.as_slice(), s.as_slice()].concat());
+        let from = ecrecover(&sig, 0, &signing_hash)?;
+
+        let recovered_address = Address::from_slice(&from.as_slice()[12..]);
+
+        Ok(TxInfo {
+            from: recovered_address,
+            to: if decoded_raw_tx.to.is_empty() {
+                None
+            } else {
+                Some(Address::from_slice(&decoded_raw_tx.to))
+            },
+            data: decoded_raw_tx.data.clone(),
+            nonce: decoded_raw_tx.nonce as u64,
+        })
+    }
+
     pub fn add_tx_to_block(
         &self,
         timestamp: u64,
@@ -155,6 +223,10 @@ impl BRC20ProgEngine {
         // This allows testing, and generating hashes for blocks with unknown hashes
         if block_hash == B256::ZERO {
             block_hash = generate_block_hash(block_number);
+        }
+
+        if tx_info.nonce != self.get_nonce(tx_info.from)? {
+            return Err("Nonce is different from account nonce".into());
         }
 
         self.validate_next_tx(tx_idx, block_hash, block_number, timestamp)?;
@@ -174,8 +246,7 @@ impl BRC20ProgEngine {
             });
         }
 
-        let nonce = self.get_nonce(tx_info.from)?;
-        let tx_hash = get_tx_hash(&tx_info, &nonce);
+        let tx_hash = get_tx_hash(&tx_info);
         let gas_limit = get_gas_limit(inscription_byte_len.unwrap_or(tx_info.data.len() as u64));
 
         self.db.write_fn(|db| {
@@ -188,10 +259,16 @@ impl BRC20ProgEngine {
                 tx.caller = tx_info.from;
                 tx.kind = tx_info
                     .to
-                    .map(|x| TransactTo::Call(x))
+                    .map(|x| {
+                        if x.is_zero() {
+                            TransactTo::Create
+                        } else {
+                            TransactTo::Call(x)
+                        }
+                    })
                     .unwrap_or(TransactTo::Create);
                 tx.data = tx_info.data.clone();
-                tx.nonce = nonce;
+                tx.nonce = tx_info.nonce;
                 tx.gas_limit = gas_limit;
             });
 
@@ -247,7 +324,7 @@ impl BRC20ProgEngine {
                 tx_idx,
                 &output.clone(),
                 cumulative_gas_used,
-                nonce,
+                tx_info.nonce,
                 self.last_block_info.read().log_index,
                 inscription_id,
                 gas_limit,
@@ -422,7 +499,7 @@ impl BRC20ProgEngine {
         let block_number = self.get_next_block_height()?;
         let timestamp = UNIX_EPOCH.elapsed().map(|x| x.as_secs())?;
         let nonce = self.get_nonce(tx_info.from)?;
-        let txhash = get_tx_hash(&tx_info, &nonce);
+        let txhash = get_tx_hash(&tx_info);
 
         // This isn't actually writing to the database, but the EVM context requires a mutable reference
         let output = self.db.write_fn(|db| {
@@ -558,7 +635,7 @@ impl BRC20ProgEngine {
         if latest_valid_block_number > current_block_height {
             return Err("Latest valid block number is greater than current block height".into());
         }
-        if current_block_height - latest_valid_block_number > *MAX_REORG_HISTORY_SIZE {
+        if current_block_height - latest_valid_block_number > MAX_REORG_HISTORY_SIZE {
             return Err("Latest valid block number is too far behind current block height".into());
         }
         if latest_valid_block_number == current_block_height {
@@ -624,7 +701,7 @@ fn generate_block_hash(block_number: u64) -> B256 {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::B256;
+    use alloy::primitives::B256;
     use tempfile::TempDir;
 
     use super::*;
@@ -706,6 +783,7 @@ mod tests {
                     from: *INDEXER_ADDRESS,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 0,
                 1,
@@ -736,6 +814,7 @@ mod tests {
             from: from_address,
             to: None,
             data: vec![].into(),
+            nonce: 0,
         };
         let block_number = 1;
         let block_hash = B256::ZERO;
@@ -772,6 +851,7 @@ mod tests {
                     from: account_1,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 0,
                 0,
@@ -788,6 +868,7 @@ mod tests {
                     from: account_2,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 1,
                 0,
@@ -836,6 +917,7 @@ mod tests {
                     from: *INDEXER_ADDRESS,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 0,
                 0,
@@ -852,6 +934,7 @@ mod tests {
                     from: *INDEXER_ADDRESS,
                     to: None,
                     data: vec![].into(),
+                    nonce: 1,
                 },
                 1,
                 0,
@@ -880,6 +963,7 @@ mod tests {
                     from: account_1,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 0,
                 0,
@@ -896,6 +980,7 @@ mod tests {
                     from: account_2,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 1,
                 0,
@@ -941,6 +1026,7 @@ mod tests {
                     from: account_1,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 0,
                 0,
@@ -957,6 +1043,7 @@ mod tests {
                     from: account_2,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 1,
                 0,
@@ -1001,6 +1088,7 @@ mod tests {
                     from: account_1,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 0,
                 0,
@@ -1038,6 +1126,7 @@ mod tests {
                     from: *INDEXER_ADDRESS,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 0,
                 0,
@@ -1073,6 +1162,7 @@ mod tests {
                     from: account_1,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 0,
                 0,
@@ -1110,6 +1200,7 @@ mod tests {
                     from: *INDEXER_ADDRESS,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 0,
                 0,
@@ -1143,6 +1234,7 @@ mod tests {
                     from: *INDEXER_ADDRESS,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 0,
                 block_number,
@@ -1163,6 +1255,7 @@ mod tests {
                     from: *INDEXER_ADDRESS,
                     to: None,
                     data: vec![].into(),
+                    nonce: 1,
                 },
                 1,
                 block_number,
@@ -1194,6 +1287,7 @@ mod tests {
                     from: account,
                     to: None,
                     data: vec![].into(),
+                    nonce: 0,
                 },
                 0,
                 0,
@@ -1212,5 +1306,27 @@ mod tests {
         let block_hash = generate_block_hash(block_number);
         assert_eq!(block_hash.0[0..30], [0u8; 30]);
         assert_eq!(block_hash.0[31] as u64, block_number + 1);
+    }
+
+    #[test]
+    fn test_decode_raw_tx() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let raw_tx = hex::decode("f875098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a764000084deadbeef8584a4866483a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83").unwrap();
+
+        let result = engine.get_info_from_raw_tx(raw_tx).unwrap();
+
+        assert_eq!(result.nonce, 9);
+        assert_eq!(
+            result.from.to_string().to_lowercase(),
+            "0x5cc06c45e30d85d863766a6f923658f44f8044af"
+        );
+        assert_eq!(
+            result.to.unwrap().to_string(),
+            "0x3535353535353535353535353535353535353535"
+        );
+        assert_eq!(result.data, vec![0xde, 0xad, 0xbe, 0xef]);
     }
 }

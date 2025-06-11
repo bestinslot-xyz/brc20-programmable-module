@@ -36,7 +36,7 @@ Precompiled contracts require environment variables to work properly, see the [P
 **Build and run brc20_prog:**
 
 ```
-cargo run --release
+cargo run --release --features=server
 ```
 
 > [!NOTE]

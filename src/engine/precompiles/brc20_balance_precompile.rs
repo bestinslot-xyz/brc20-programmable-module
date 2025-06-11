@@ -1,7 +1,7 @@
 use std::error::Error;
 
-use alloy_primitives::{Bytes, U256};
-use alloy_sol_types::{sol, SolCall};
+use alloy::primitives::{Bytes, U256};
+use alloy::sol_types::{sol, SolCall};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 use ureq::Agent;
 
@@ -23,7 +23,7 @@ pub fn brc20_balance_precompile(call: &PrecompileCall) -> InterpreterResult {
         Gas::new(call.gas_limit),
     );
 
-    if !use_gas(&mut interpreter_result, *GAS_PER_BRC20_BALANCE_CALL) {
+    if !use_gas(&mut interpreter_result, GAS_PER_BRC20_BALANCE_CALL) {
         return interpreter_result;
     }
 

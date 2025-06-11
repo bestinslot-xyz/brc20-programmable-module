@@ -1,9 +1,23 @@
 use std::time::{Duration, Instant};
 
-use alloy_primitives::{keccak256, Address, Bytes, B256};
+use alloy::primitives::{keccak256, Address, Bytes, B256};
+use alloy::rlp::{RlpDecodable, RlpEncodable};
 use revm::context::result::{ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason};
 
 use crate::global::GAS_PER_BYTE;
+
+#[derive(Debug, Clone, Eq, PartialEq, RlpEncodable, RlpDecodable)]
+pub struct EthRawTransaction {
+    pub nonce: u64,
+    pub gas_price: u128,
+    pub gas_limit: u128,
+    pub to: Bytes,
+    pub value: u128,
+    pub data: Bytes,
+    pub v: u64,
+    pub r: Bytes,
+    pub s: Bytes,
+}
 
 /// This struct is used to store the unfinalised block information
 pub struct LastBlockInfo {
@@ -35,23 +49,24 @@ pub struct TxInfo {
     pub from: Address,
     pub to: Option<Address>,
     pub data: Bytes,
+    pub nonce: u64,
 }
 
-pub fn get_tx_hash(txinfo: &TxInfo, nonce: &u64) -> B256 {
+pub fn get_tx_hash(tx_info: &TxInfo) -> B256 {
     let mut data = Vec::new();
-    data.extend_from_slice(txinfo.from.as_slice());
-    data.extend_from_slice(&nonce.to_be_bytes());
-    if let Some(to) = txinfo.to {
+    data.extend_from_slice(tx_info.from.as_slice());
+    data.extend_from_slice(&tx_info.nonce.to_be_bytes());
+    if let Some(to) = tx_info.to {
         data.extend_from_slice(to.as_slice());
     } else {
         data.extend_from_slice(&[0; 20]);
     }
-    data.extend_from_slice(&txinfo.data);
+    data.extend_from_slice(&tx_info.data);
     keccak256(data)
 }
 
 pub fn get_gas_limit(inscription_byte_len: u64) -> u64 {
-    inscription_byte_len.saturating_mul(*GAS_PER_BYTE)
+    inscription_byte_len.saturating_mul(GAS_PER_BYTE)
 }
 
 pub fn get_evm_address(pkscript_bytes: &Bytes) -> Address {

@@ -5,8 +5,8 @@ use std::error::Error;
 use std::fmt::Display;
 use std::path::Path;
 
-use alloy_primitives::map::foldhash::fast::RandomState;
-use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, Log, B256, U128, U256, U64};
+use alloy::primitives::map::foldhash::fast::RandomState;
+use alloy::primitives::{Address, Bloom, Bytes, FixedBytes, Log, B256, U128, U256, U64};
 use revm::context::result::ExecutionResult;
 use revm::context::DBErrorMarker;
 use revm::{Database as DatabaseTrait, DatabaseCommit};
@@ -585,7 +585,7 @@ impl Brc20ProgDatabase {
 
         let block_response = BlockResponseED::new(
             0u64.into(),
-            (*MAX_BLOCK_SIZE * *GAS_PER_BYTE).into(),
+            (MAX_BLOCK_SIZE * GAS_PER_BYTE).into(),
             gas_used.as_limbs()[0].into(),
             block_hash.into(),
             FixedBytes(bloom.as_slice().try_into()?).into(),
@@ -841,7 +841,7 @@ impl Brc20ProgDatabase {
     }
 
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
-        if self.get_latest_block_height()? - latest_valid_block_number > *MAX_REORG_HISTORY_SIZE {
+        if self.get_latest_block_height()? - latest_valid_block_number > MAX_REORG_HISTORY_SIZE {
             return Err("Latest valid block number is too far behind current block height".into());
         }
 
@@ -1002,7 +1002,7 @@ impl DatabaseCommit for Brc20ProgDatabase {
 /// Tests for all set and get methods
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::LogData;
+    use alloy::primitives::LogData;
     use revm::context::result::{Output, SuccessReason};
     use tempfile::TempDir;
 

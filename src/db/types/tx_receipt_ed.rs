@@ -1,6 +1,6 @@
 use std::error::Error;
-use alloy_primitives::{logs_bloom, Log};
 
+use alloy::primitives::{logs_bloom, Log};
 use serde::{Deserialize, Serialize};
 
 use crate::db::types::{AddressED, BytesED, Decode, Encode, LogED, B2048ED, B256ED, U64ED, U8ED};
@@ -65,7 +65,6 @@ pub struct TxReceiptED {
     /// (e.g., the return value of a smart contract function call)
     pub result_bytes: Option<BytesED>,
 }
-
 
 impl TxReceiptED {
     // This is returned by the API, so doesn't need to be public

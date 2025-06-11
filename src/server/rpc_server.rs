@@ -1,7 +1,8 @@
 use std::error::Error;
 use std::net::SocketAddr;
 
-use alloy_primitives::Bytes;
+use alloy::primitives::Bytes;
+use alloy::sol_types::sol;
 use hyper::Method;
 use jsonrpsee::core::middleware::RpcServiceBuilder;
 use jsonrpsee::core::{async_trait, RpcResult};
@@ -20,7 +21,7 @@ use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
 use crate::engine::{get_evm_address, BRC20ProgEngine, TxInfo};
-use crate::global::INVALID_ADDRESS;
+use crate::global::{CONFIG, INVALID_ADDRESS};
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
     wrap_hex_error, wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
@@ -30,6 +31,15 @@ use crate::Brc20ProgConfig;
 
 struct RpcServer {
     engine: BRC20ProgEngine,
+}
+
+sol! {
+    function ecrecover(
+        bytes32 hash,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) public pure returns (address);
 }
 
 impl RpcServer {
@@ -76,19 +86,22 @@ impl Brc20ProgApiServer for RpcServer {
         log_call();
 
         let to_pkscript = hex::decode(to_pkscript).map_err(wrap_hex_error)?.into();
+        let to_address = get_evm_address(&to_pkscript);
+        let block_height = self
+            .engine
+            .get_next_block_height()
+            .map_err(wrap_rpc_error)?;
+        let nonce = self
+            .engine
+            .get_transaction_count(to_address, block_height)
+            .map_err(wrap_rpc_error)?;
 
         self.engine
             .add_tx_to_block(
                 timestamp,
-                &load_brc20_mint_tx(
-                    ticker_as_bytes(&ticker),
-                    get_evm_address(&to_pkscript),
-                    amount.uint,
-                ),
+                &load_brc20_mint_tx(ticker_as_bytes(&ticker), to_address, amount.uint, nonce),
                 tx_idx,
-                self.engine
-                    .get_next_block_height()
-                    .map_err(wrap_rpc_error)?,
+                block_height,
                 hash.bytes,
                 inscription_id,
                 Some(u64::MAX),
@@ -110,6 +123,15 @@ impl Brc20ProgApiServer for RpcServer {
         log_call();
 
         let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
+        let from_address = get_evm_address(&from_pkscript);
+        let block_height = self
+            .engine
+            .get_next_block_height()
+            .map_err(wrap_rpc_error)?;
+        let nonce = self
+            .engine
+            .get_transaction_count(from_address, block_height)
+            .map_err(wrap_rpc_error)?;
 
         self.engine
             .add_tx_to_block(
@@ -118,6 +140,7 @@ impl Brc20ProgApiServer for RpcServer {
                     ticker_as_bytes(&ticker),
                     get_evm_address(&from_pkscript),
                     amount.uint,
+                    nonce,
                 ),
                 tx_idx,
                 self.engine
@@ -232,13 +255,20 @@ impl Brc20ProgApiServer for RpcServer {
             Some(*INVALID_ADDRESS) // If data is not valid, send transaction to 0xdead
         };
 
+        let from = get_evm_address(&from_pkscript);
+        let nonce = self
+            .engine
+            .get_transaction_count(from, block_height)
+            .map_err(wrap_rpc_error)?;
+
         self.engine
             .add_tx_to_block(
                 timestamp,
                 &TxInfo {
-                    from: get_evm_address(&from_pkscript),
+                    from,
                     to,
                     data: data.unwrap_or_default().clone(),
+                    nonce,
                 },
                 tx_idx,
                 block_height,
@@ -286,6 +316,11 @@ impl Brc20ProgApiServer for RpcServer {
                 .unwrap_or(*INVALID_ADDRESS)
         };
 
+        let nonce = self
+            .engine
+            .get_transaction_count(get_evm_address(&from_pkscript), block_height)
+            .map_err(wrap_rpc_error)?;
+
         self.engine
             .add_tx_to_block(
                 timestamp,
@@ -293,6 +328,7 @@ impl Brc20ProgApiServer for RpcServer {
                     from: get_evm_address(&from_pkscript),
                     to: derived_contract_address.into(),
                     data: data.unwrap_or_default().clone(),
+                    nonce,
                 },
                 tx_idx,
                 block_height,
@@ -301,6 +337,44 @@ impl Brc20ProgApiServer for RpcServer {
                 inscription_byte_len,
             )
             .map(|receipt| Some(receipt))
+            .map_err(wrap_rpc_error)
+    }
+
+    #[instrument(skip(self), level = "error")]
+    async fn brc20_transact(
+        &self,
+        raw_tx_data: InscriptionBytes,
+        timestamp: u64,
+        hash: B256ED,
+        tx_idx: u64,
+        inscription_id: Option<String>,
+        inscription_byte_len: Option<u64>,
+    ) -> RpcResult<Option<TxED>> {
+        log_call();
+
+        if !CONFIG.read().brc20_transact_endpoint_enabled {
+            return Err(wrap_rpc_error_string("BRC20 transact endpoint is disabled"));
+        }
+
+        let block_height = self
+            .engine
+            .get_next_block_height()
+            .map_err(wrap_rpc_error)?;
+
+        let Some(raw_tx_data) = raw_tx_data.value(block_height) else {
+            return Err(wrap_rpc_error_string("Invalid raw transaction data"));
+        };
+
+        self.engine
+            .add_raw_tx_to_block(
+                timestamp,
+                raw_tx_data.to_vec(),
+                tx_idx,
+                block_height,
+                hash.bytes,
+                inscription_id,
+                inscription_byte_len,
+            )
             .map_err(wrap_rpc_error)
     }
 
@@ -468,6 +542,7 @@ impl Brc20ProgApiServer for RpcServer {
                 .unwrap_or(*INVALID_ADDRESS),
             to: call.to.as_ref().map(|x| x.address),
             data: data.value().unwrap_or_default().clone(),
+            nonce: 0, // Nonce is not used in read-only calls
         });
         let Ok(receipt) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
@@ -497,6 +572,7 @@ impl Brc20ProgApiServer for RpcServer {
                 .unwrap_or(*INVALID_ADDRESS),
             to: call.to.as_ref().map(|x| x.address),
             data: data.value().unwrap_or_default().clone(),
+            nonce: 0, // Nonce is not used in read-only calls
         });
         let Ok(receipt) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
@@ -653,7 +729,7 @@ fn ticker_as_bytes(ticker: &str) -> Bytes {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::B256;
+    use alloy::primitives::B256;
     use tempfile::TempDir;
 
     use super::*;

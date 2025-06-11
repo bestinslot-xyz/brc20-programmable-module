@@ -1,6 +1,6 @@
 [package]
 name = "brc20-prog"
-version = "0.7.1"
+version = "0.8.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "BRC20 programmable module - Smart contract execution engine compatible with BRC20 standard"
@@ -8,9 +8,10 @@ homepage = "https://signet.bestinslot.xyz/brc2.0/interact"
 repository = "https://github.com/bestinslot-xyz/brc20-programmable-module"
 
 [dependencies]
-alloy-primitives = "1.1.0"
-alloy-rpc-types-trace = "0.15.7"
-alloy-sol-types = { version = "1.1.0", optional = true }
+alloy = { version = "0.15.11", features = ["eips", "network", "rlp", "rpc", "signers", "sol-types"] }
+alloy-rlp = "0.3.12"
+alloy-rpc-types-trace = "0.15.11"
+alloy-sol-types = "1.0.9"
 base64 = { version = "0.22.1", optional = true }
 bip322 = { version = "0.0.9", optional = true }
 bitcoin = { version = "0.32.5", optional = true }
@@ -45,6 +46,11 @@ ureq = { version = "3.0.11", optional = true }
 zstd-safe = { version = "7.2.4", optional = true }
 
 [dev-dependencies]
+alloy-consensus = "1.0.9"
+alloy-network = "1.0.9"
+alloy-rpc-types-eth = "1.0.9"
+alloy-signer = "1.0.9"
+alloy-signer-local = "1.0.9"
 criterion = "0.5.1"
 insta = "1.43.1"
 public-api = "0.47.0"
@@ -65,7 +71,6 @@ harness = false
 [features]
 default = []
 server = [
-    "alloy-sol-types",
     "base64",
     "bip322",
     "bitcoin",
@@ -87,6 +92,6 @@ server = [
 ]
 
 [[bin]]
-name = "brc20_prog"
+name = "server"
 path = "src/bin/main.rs"
 required-features = ["server"]

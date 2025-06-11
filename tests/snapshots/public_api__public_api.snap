@@ -212,6 +212,7 @@ pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_enable_auth: bool
 pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_password: core::option::Option<alloc::string::String>
 pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_url: alloc::string::String
 pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_user: core::option::Option<alloc::string::String>
+pub brc20_prog::Brc20ProgConfig::brc20_transact_endpoint_enabled: bool
 pub brc20_prog::Brc20ProgConfig::db_path: alloc::string::String
 pub brc20_prog::Brc20ProgConfig::evm_call_gas_limit: u64
 pub brc20_prog::Brc20ProgConfig::evm_record_traces: bool
@@ -219,7 +220,7 @@ pub brc20_prog::Brc20ProgConfig::fail_on_bitcoin_rpc_error: bool
 pub brc20_prog::Brc20ProgConfig::fail_on_brc20_balance_server_error: bool
 impl brc20_prog::Brc20ProgConfig
 pub fn brc20_prog::Brc20ProgConfig::from_env() -> Self
-pub fn brc20_prog::Brc20ProgConfig::new(brc20_prog_rpc_server_url: alloc::string::String, brc20_prog_rpc_server_enable_auth: bool, brc20_prog_rpc_server_user: core::option::Option<alloc::string::String>, brc20_prog_rpc_server_password: core::option::Option<alloc::string::String>, brc20_balance_server_url: alloc::string::String, evm_record_traces: bool, evm_call_gas_limit: u64, bitcoin_rpc_url: alloc::string::String, bitcoin_rpc_user: alloc::string::String, bitcoin_rpc_password: alloc::string::String, bitcoin_rpc_network: alloc::string::String, fail_on_brc20_balance_server_error: bool, fail_on_bitcoin_rpc_error: bool, db_path: alloc::string::String) -> Self
+pub fn brc20_prog::Brc20ProgConfig::new(brc20_prog_rpc_server_url: alloc::string::String, brc20_prog_rpc_server_enable_auth: bool, brc20_prog_rpc_server_user: core::option::Option<alloc::string::String>, brc20_prog_rpc_server_password: core::option::Option<alloc::string::String>, brc20_balance_server_url: alloc::string::String, evm_record_traces: bool, evm_call_gas_limit: u64, bitcoin_rpc_url: alloc::string::String, bitcoin_rpc_user: alloc::string::String, bitcoin_rpc_password: alloc::string::String, bitcoin_rpc_network: alloc::string::String, fail_on_brc20_balance_server_error: bool, fail_on_bitcoin_rpc_error: bool, db_path: alloc::string::String, brc20_transact_endpoint_enabled: bool) -> Self
 impl core::default::Default for brc20_prog::Brc20ProgConfig
 pub fn brc20_prog::Brc20ProgConfig::default() -> Self
 pub trait brc20_prog::Brc20ProgApiClient: jsonrpsee_core::client::ClientT
@@ -236,6 +237,7 @@ pub fn brc20_prog::Brc20ProgApiClient::brc20_get_tx_receipt_by_inscription_id(&s
 pub fn brc20_prog::Brc20ProgApiClient::brc20_initialise(&self, genesis_hash: brc20_prog::types::B256ED, genesis_timestamp: u64, genesis_height: u64) -> impl core::future::future::Future<Output = core::result::Result<(), jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::brc20_mine(&self, block_count: u64, timestamp: u64) -> impl core::future::future::Future<Output = core::result::Result<(), jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::brc20_reorg(&self, latest_valid_block_number: u64) -> impl core::future::future::Future<Output = core::result::Result<(), jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::brc20_transact(&self, raw_tx_data: brc20_prog::types::InscriptionBytes, timestamp: u64, hash: brc20_prog::types::B256ED, tx_idx: u64, inscription_id: core::option::Option<alloc::string::String>, inscription_byte_len: core::option::Option<u64>) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<brc20_prog::types::TxED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::brc20_version(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::brc20_withdraw(&self, from_pkscript: alloc::string::String, ticker: alloc::string::String, amount: brc20_prog::types::U256ED, timestamp: u64, hash: brc20_prog::types::B256ED, tx_idx: u64, inscription_id: core::option::Option<alloc::string::String>) -> impl core::future::future::Future<Output = core::result::Result<brc20_prog::types::TxReceiptED, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::debug_trace_transaction(&self, transaction: brc20_prog::types::B256ED) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<brc20_prog::types::TraceED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
