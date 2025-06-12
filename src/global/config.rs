@@ -65,7 +65,6 @@ lazy_static::lazy_static! {
 }
 
 lazy_static::lazy_static! {
-    pub static ref COMPRESSION_ACTIVATION_HEIGHT: SharedData<u64> = SharedData::new(u64::MAX);
     pub static ref CONFIG: SharedData<Brc20ProgConfig> = SharedData::new(Brc20ProgConfig::from_env());
 }
 
@@ -278,20 +277,6 @@ pub fn validate_config(config: &Brc20ProgConfig) -> Result<(), Box<dyn std::erro
 
     if config.bitcoin_rpc_network.is_empty() && config.fail_on_bitcoin_rpc_error {
         return Err("Bitcoin RPC network is empty".into());
-    }
-
-    // Set the compression activation height based on the network
-    match config.bitcoin_rpc_network.as_str() {
-        "mainnet" | "signet" => {
-            COMPRESSION_ACTIVATION_HEIGHT.write_fn_unchecked(|value| {
-                *value = u64::MAX;
-            });
-        }
-        _ => {
-            COMPRESSION_ACTIVATION_HEIGHT.write_fn_unchecked(|value| {
-                *value = 0;
-            });
-        }
     }
 
     Ok(())

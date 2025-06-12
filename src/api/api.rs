@@ -1,11 +1,12 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 
-use crate::api::types::{EthCall, GetLogsFilter, InscriptionBytes};
+use crate::api::types::{EthCall, GetLogsFilter, Base64Bytes};
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
 use crate::global::{CARGO_PKG_VERSION, CHAIN_ID_STRING, INDEXER_ADDRESS};
+use crate::types::RawBytes;
 
 lazy_static::lazy_static! {
     // BRC20 Methods intended for the indexers, so they require auth
@@ -42,7 +43,8 @@ pub trait Brc20ProgApi {
     async fn brc20_deploy(
         &self,
         from_pkscript: String,
-        data: InscriptionBytes,
+        data: Option<RawBytes>,
+        base64_data: Option<Base64Bytes>,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
@@ -57,7 +59,8 @@ pub trait Brc20ProgApi {
         from_pkscript: String,
         contract_address: Option<AddressED>,
         contract_inscription_id: Option<String>,
-        data: InscriptionBytes,
+        data: Option<RawBytes>,
+        base64_data: Option<Base64Bytes>,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
@@ -69,7 +72,8 @@ pub trait Brc20ProgApi {
     #[method(name = "brc20_transact")]
     async fn brc20_transact(
         &self,
-        raw_tx_data: InscriptionBytes,
+        raw_tx_data: Option<RawBytes>,
+        base64_raw_tx_data: Option<Base64Bytes>,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,

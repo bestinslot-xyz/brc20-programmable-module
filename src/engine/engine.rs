@@ -225,6 +225,9 @@ impl BRC20ProgEngine {
             block_hash = generate_block_hash(block_number);
         }
 
+        // TODO: Record nonces from the future, so we can execute them later
+        // This is useful for reorgs, where we might have txes with nonces that are not in the current block
+        // We can store them in a separate table, and execute them when the nonce is available
         if tx_info.nonce != self.get_nonce(tx_info.from)? {
             return Err("Nonce is different from account nonce".into());
         }

@@ -112,7 +112,8 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 **Parameters**:
 
 - from_pkscript (`string`): Bitcoin pkscript that created the deploy/call inscription
-- data (`string`): Call or deploy data for EVM
+- data (`string`): Call or deploy data for EVM, corresponds to the "d" (Data) field of a deploy inscription
+- encoded_data (`string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a deploy inscription
 - timestamp (`int`): Current block timestamp
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
@@ -137,6 +138,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - contract_address (`string`): Address of the contract to call, corresponds to the "c" (Contract Address) field of a call inscription
 - contract_inscription_id (`string`): Contract deployed by the inscription ID to call, corresponds to the "i" (Inscription ID) field of a call inscription
 - data (`string`): Call or deploy data for EVM, corresponds to the "d" (Data) field of a call inscription
+- encoded_data (`string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a call inscription
 - timestamp (`int`): Current block timestamp
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
@@ -466,7 +468,8 @@ Defined in the [proposal](https://github.com/bestinslot-xyz/brc20-prog-module-pr
 {
     "p": "brc20-prog",
     "op": "deploy",
-    "d": "<bytecode + constructor_args in hex>"
+    "d": "<bytecode + constructor_args in hex>",
+    "b": "<base64 encoded bytecode + constructor_args with the compression prefix>"
 }
 ```
 
@@ -480,7 +483,8 @@ Once an inscription is deployed as a smart contract, then methods can be called 
     "op": "call",
     "c": "<contract_addr>",
     "i": "<inscription_id>",
-    "d": "<call data>"
+    "d": "<call data>",
+    "b": "<base64 encoded call data with the compression prefix>"
 }
 ```
 
@@ -569,6 +573,7 @@ for (inscription, transfer) in block:
         brc20_deploy(
             from_pkscript: sender.pkscript,
             data: inscription.d,
+            base64_data: inscription.b,
             hash: block.hash,
             timestamp: block.timestamp,
             tx_idx: current_tx_idx++,
@@ -582,6 +587,7 @@ for (inscription, transfer) in block:
             contract_address: inscription.c
             contract_inscription_id: inscription.i,
             data: inscription.d,
+            base64_data: inscription.b,
             hash: block.hash,
             timestamp: block.timestamp,
             tx_idx: current_tx_idx++,

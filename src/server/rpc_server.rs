@@ -12,7 +12,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tracing::{info, instrument, warn};
 
-use crate::api::types::{EthCall, GetLogsFilter};
+use crate::api::types::{select_bytes, EthCall, GetLogsFilter};
 use crate::api::{Brc20ProgApiServer, INDEXER_METHODS};
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
@@ -26,7 +26,7 @@ use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
     wrap_hex_error, wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
 };
-use crate::types::InscriptionBytes;
+use crate::types::{Base64Bytes, RawBytes};
 use crate::Brc20ProgConfig;
 
 struct RpcServer {
@@ -232,7 +232,8 @@ impl Brc20ProgApiServer for RpcServer {
     async fn brc20_deploy(
         &self,
         from_pkscript: String,
-        data: InscriptionBytes,
+        data: Option<RawBytes>,
+        base64_data: Option<Base64Bytes>,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
@@ -248,11 +249,11 @@ impl Brc20ProgApiServer for RpcServer {
 
         let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
 
-        let data = data.value(block_height);
-        let to = if data.is_some() {
-            None
-        } else {
+        let data = select_bytes(&data, &base64_data).map_err(wrap_rpc_error)?;
+        let to = if data.is_none() {
             Some(*INVALID_ADDRESS) // If data is not valid, send transaction to 0xdead
+        } else {
+            None
         };
 
         let from = get_evm_address(&from_pkscript);
@@ -267,7 +268,7 @@ impl Brc20ProgApiServer for RpcServer {
                 &TxInfo {
                     from,
                     to,
-                    data: data.unwrap_or_default().clone(),
+                    data: data.unwrap_or_default(),
                     nonce,
                 },
                 tx_idx,
@@ -285,7 +286,8 @@ impl Brc20ProgApiServer for RpcServer {
         from_pkscript: String,
         contract_address: Option<AddressED>,
         contract_inscription_id: Option<String>,
-        data: InscriptionBytes,
+        data: Option<RawBytes>,
+        base64_data: Option<Base64Bytes>,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
@@ -301,9 +303,9 @@ impl Brc20ProgApiServer for RpcServer {
             .get_next_block_height()
             .map_err(wrap_rpc_error)?;
 
-        let data = data.value(block_height);
+        let data = select_bytes(&data, &base64_data).map_err(wrap_rpc_error)?;
 
-        let derived_contract_address = if !data.is_some() {
+        let derived_contract_address = if data.is_none() {
             *INVALID_ADDRESS
         } else if let Some(contract_inscription_id) = contract_inscription_id {
             self.engine
@@ -327,7 +329,7 @@ impl Brc20ProgApiServer for RpcServer {
                 &TxInfo {
                     from: get_evm_address(&from_pkscript),
                     to: derived_contract_address.into(),
-                    data: data.unwrap_or_default().clone(),
+                    data: data.unwrap_or_default(),
                     nonce,
                 },
                 tx_idx,
@@ -343,7 +345,8 @@ impl Brc20ProgApiServer for RpcServer {
     #[instrument(skip(self), level = "error")]
     async fn brc20_transact(
         &self,
-        raw_tx_data: InscriptionBytes,
+        raw_tx_data: Option<RawBytes>,
+        base64_raw_tx_data: Option<Base64Bytes>,
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
@@ -361,14 +364,13 @@ impl Brc20ProgApiServer for RpcServer {
             .get_next_block_height()
             .map_err(wrap_rpc_error)?;
 
-        let Some(raw_tx_data) = raw_tx_data.value(block_height) else {
-            return Err(wrap_rpc_error_string("Invalid raw transaction data"));
-        };
-
         self.engine
             .add_raw_tx_to_block(
                 timestamp,
-                raw_tx_data.to_vec(),
+                select_bytes(&raw_tx_data, &base64_raw_tx_data)
+                    .map_err(wrap_rpc_error)?
+                    .map(|x| x.to_vec())
+                    .unwrap_or_default(),
                 tx_idx,
                 block_height,
                 hash.bytes,
@@ -828,19 +830,17 @@ mod tests {
                 "deadbeef".to_string(),
                 None,
                 None,
-                InscriptionBytes::empty(),
+                None,
+                Base64Bytes::empty().into(),
                 20,
                 [1; 32].into(),
                 0,
                 None,
                 Some(1000),
             )
-            .await;
+            .await
+            .unwrap();
 
-        assert!(result.is_ok());
-        assert_eq!(
-            result.unwrap().unwrap().to.unwrap().address,
-            *INVALID_ADDRESS
-        );
+        assert_eq!(result.unwrap().to.unwrap().address, *INVALID_ADDRESS);
     }
 }
