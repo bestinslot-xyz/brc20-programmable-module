@@ -188,13 +188,14 @@ impl BRC20ProgEngine {
         let mut buffer = Vec::new();
         signing_tx.encode(&mut buffer);
 
+
         let signing_hash = keccak256(&buffer);
 
         let r: B256 = decoded_raw_tx.r.iter().as_slice().try_into()?;
         let s: B256 = decoded_raw_tx.s.iter().as_slice().try_into()?;
 
         let sig = B512::from_slice(&[r.as_slice(), s.as_slice()].concat());
-        let from = ecrecover(&sig, 0, &signing_hash)?;
+        let from = ecrecover(&sig, (decoded_raw_tx.v.saturating_sub(35) & 1) as u8, &signing_hash)?;
 
         let recovered_address = Address::from_slice(&from.as_slice()[12..]);
 
