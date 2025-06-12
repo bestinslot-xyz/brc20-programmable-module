@@ -1,12 +1,8 @@
-#[cfg(feature = "server")]
 use std::error::Error;
 
-#[cfg(feature = "server")]
 use alloy::primitives::hex::FromHex;
 use alloy::primitives::{Bytes, B256};
-#[cfg(feature = "server")]
 use base64::prelude::BASE64_STANDARD_NO_PAD;
-#[cfg(feature = "server")]
 use base64::Engine;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_either::SingleOrVec;
