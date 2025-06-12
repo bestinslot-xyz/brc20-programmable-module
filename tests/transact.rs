@@ -11,7 +11,6 @@ use brc20_prog::{Brc20ProgApiClient, Brc20ProgConfig};
 use revm::primitives::Address;
 use test_utils::{load_file_as_string, spawn_test_server};
 
-#[ignore]
 #[tokio::test]
 async fn test_transact() -> Result<(), Box<dyn Error>> {
     let (server, client) = spawn_test_server(Brc20ProgConfig {
@@ -133,7 +132,6 @@ async fn test_transact() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[ignore]
 #[tokio::test]
 async fn test_transact_encoded() -> Result<(), Box<dyn Error>> {
     let (server, client) = spawn_test_server(Brc20ProgConfig {
