@@ -12,7 +12,7 @@ alloy = { version = "0.15.11", features = ["eips", "network", "rlp", "rpc", "sig
 alloy-rlp = "0.3.12"
 alloy-rpc-types-trace = "0.15.11"
 alloy-sol-types = "1.0.9"
-base64 = { version = "0.22.1", optional = true }
+base64 = "0.22.1"
 bip322 = { version = "0.0.9", optional = true }
 bitcoin = { version = "0.32.5", optional = true }
 bitcoincore-rpc = { version = "0.19.0", optional = true }
@@ -22,7 +22,7 @@ hex = "0.4.3"
 hyper = { version = "1.6.0", optional = true }
 jsonrpsee = { version = "0.25.1", features = ["server", "client", "macros"] }
 lazy_static = "1.5.0"
-nada = { version = "0.2.2", optional = true }
+nada = "0.2.2"
 revm = { version = "22.0.1", default-features = false, optional = true }
 revm-inspectors = { version = "0.20.1", optional = true }
 revm-state = "3.0.0"
@@ -43,7 +43,7 @@ tower-http = { version = "0.6", features = [
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", optional = true }
 ureq = { version = "3.0.11", optional = true }
-zstd-safe = { version = "7.2.4", optional = true }
+zstd-safe = "7.2.4"
 
 [dev-dependencies]
 alloy-consensus = "1.0.9"
@@ -71,12 +71,10 @@ harness = false
 [features]
 default = []
 server = [
-    "base64",
     "bip322",
     "bitcoin",
     "bitcoincore-rpc",
     "hyper",
-    "nada",
     "revm",
     "revm-inspectors",
     "rlimit",
@@ -88,7 +86,6 @@ server = [
     "tokio",
     "tracing-subscriber",
     "ureq",
-    "zstd-safe",
 ]
 
 [[bin]]
