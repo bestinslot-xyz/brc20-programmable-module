@@ -1,5 +1,6 @@
 // We use some internal methods only when the server feature is enabled, so we need to allow dead code and unused imports when the server feature is not enabled.
 #![cfg_attr(not(feature = "server"), allow(dead_code, unused_imports))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 //! This crate provides a BRC20 programmable module implementation.
 //!
@@ -50,7 +51,7 @@ pub mod types {
     //! This module contains the types used in the BRC20 programmable module.
     //!
     //! The types are used to interact with the BRC20 programmable module and the JSON-RPC server.
-    pub use crate::api::types::{EthBytes, EthCall, GetLogsFilter, InscriptionBytes};
+    pub use crate::api::types::{RawBytes, EthCall, GetLogsFilter, Base64Bytes};
     pub use crate::db::types::{
         AddressED, BlockResponseED, BytecodeED, BytesED, FixedBytesED, LogED, TraceED, TxED,
         TxReceiptED, UintED, B2048ED, B256ED, U128ED, U256ED, U512ED, U64ED, U8ED,
@@ -58,4 +59,5 @@ pub mod types {
 }
 
 #[cfg(feature = "server")]
+#[cfg_attr(docsrs, doc(cfg(feature = "server")))]
 pub use server::start;

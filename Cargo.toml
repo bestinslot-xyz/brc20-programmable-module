@@ -95,3 +95,7 @@ server = [
 name = "server"
 path = "src/bin/main.rs"
 required-features = ["server"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

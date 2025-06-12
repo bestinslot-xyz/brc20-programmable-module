@@ -12,7 +12,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_either::SingleOrVec;
 
 #[cfg(feature = "server")]
-use crate::global::{CALLDATA_LIMIT, COMPRESSION_ACTIVATION_HEIGHT};
+use crate::global::CALLDATA_LIMIT;
 use crate::types::{AddressED, B256ED};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,12 +24,12 @@ pub struct EthCall {
     pub to: Option<AddressED>,
     /// The data to send with the call
     #[serde(alias = "input", alias = "data")]
-    pub data: Option<EthBytes>,
+    pub data: Option<RawBytes>,
 }
 
 impl EthCall {
     /// Creates a new EthCall with the given parameters
-    pub fn new(from: Option<AddressED>, to: Option<AddressED>, data: EthBytes) -> Self {
+    pub fn new(from: Option<AddressED>, to: Option<AddressED>, data: RawBytes) -> Self {
         Self {
             from,
             to,
@@ -73,11 +73,13 @@ impl GetLogsFilter {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// A wrapper for encoded bytes that can be serialized and deserialized.
+/// A wrapper for base64 encoded bytes that can be serialized and deserialized.
 /// This struct is used to handle the encoding and decoding of bytes in the BRC20 protocol.
-pub struct InscriptionBytes(Option<String>);
+///
+/// This struct supports compression and base64 encoding of the bytes.
+pub struct Base64Bytes(Option<String>);
 
-impl InscriptionBytes {
+impl Base64Bytes {
     /// Creates a new InscriptionBytes instance with the given inner string.
     pub fn new(inner: String) -> Self {
         Self(Some(inner))
@@ -90,13 +92,9 @@ impl InscriptionBytes {
 
     /// Creates a new InscriptionBytes from the given bytes and the block height.
     ///
-    /// If the block height is above compression activation height, the bytes are encoded using either nada or zstd compression, depending on the block height.
+    /// The bytes are encoded using either nada or zstd compression.
     /// The resulting string is base64 encoded and can be used for the data field in brc20 indexer methods.
-    #[cfg(feature = "server")]
-    pub fn from_bytes(bytes: Bytes, block_height: u64) -> Result<Self, Box<dyn Error>> {
-        if block_height < *COMPRESSION_ACTIVATION_HEIGHT.read() {
-            return Ok(Self::new(format!("{}", bytes)));
-        }
+    pub fn from_bytes(bytes: Bytes) -> Result<Self, Box<dyn Error>> {
         let mut data = vec![];
         let nada_encoded = nada::encode(bytes.clone());
         let mut zstd_compressed = vec![0; CALLDATA_LIMIT];
@@ -128,14 +126,14 @@ impl InscriptionBytes {
 
     // This is used by the server, so doesn't need to be public
     #[cfg(feature = "server")]
-    pub(crate) fn value(&self, block_height: u64) -> Option<Bytes> {
+    pub(crate) fn value(&self) -> Option<Bytes> {
         self.0
             .as_ref()
-            .and_then(|s| decode_bytes_from_inscription_data(s, block_height))
+            .and_then(|s| decode_bytes_from_inscription_data(s))
     }
 }
 
-impl Serialize for InscriptionBytes {
+impl Serialize for Base64Bytes {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -148,28 +146,44 @@ impl Serialize for InscriptionBytes {
     }
 }
 
-impl<'de> Deserialize<'de> for InscriptionBytes {
-    fn deserialize<D>(deserializer: D) -> Result<InscriptionBytes, D::Error>
+impl<'de> Deserialize<'de> for Base64Bytes {
+    fn deserialize<D>(deserializer: D) -> Result<Base64Bytes, D::Error>
     where
         D: Deserializer<'de>,
     {
         let Ok(s) = String::deserialize(deserializer) else {
-            return Ok(InscriptionBytes::empty());
+            return Ok(Base64Bytes::empty());
         };
-        Ok(InscriptionBytes::new(s))
+        Ok(Base64Bytes::new(s))
+    }
+}
+
+#[cfg(feature = "server")]
+pub fn select_bytes(
+    raw_bytes: &Option<RawBytes>,
+    base64_bytes: &Option<Base64Bytes>,
+) -> Result<Option<Bytes>, Box<dyn Error>> {
+    match (raw_bytes, base64_bytes) {
+        (Some(raw), None) => Ok(raw.value()),
+        (None, Some(encoded)) => Ok(encoded.value()),
+        (None, None) => Err("Both raw_bytes and base64_bytes are None".into()),
+        (Some(_), Some(_)) => {
+            Err("Both raw_bytes and base64_bytes are provided, only one should be used".into())
+        }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-//// A wrapper for encoded bytes that can be serialized and deserialized.
+//// A wrapper for raw bytes in their 0x prefixed hex string representation that can be
+/// serialized and deserialized.
 /// This struct is used to handle the encoding and decoding of bytes in the BRC20 protocol.
 ///
 /// It can be used to represent both the data and input fields in the EthCall struct.
 /// It can also handle the case where the data is not present (None).
-pub struct EthBytes(Option<String>);
+pub struct RawBytes(Option<String>);
 
-impl EthBytes {
-    /// Creates a new EthBytes instance with the given inner string.
+impl RawBytes {
+    /// Creates a new RawBytes instance with the given inner string.
     pub fn new(inner: String) -> Self {
         Self(Some(inner))
     }
@@ -198,7 +212,7 @@ impl EthBytes {
     }
 }
 
-impl Serialize for EthBytes {
+impl Serialize for RawBytes {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -211,71 +225,63 @@ impl Serialize for EthBytes {
     }
 }
 
-impl<'de> Deserialize<'de> for EthBytes {
-    fn deserialize<D>(deserializer: D) -> Result<EthBytes, D::Error>
+impl<'de> Deserialize<'de> for RawBytes {
+    fn deserialize<D>(deserializer: D) -> Result<RawBytes, D::Error>
     where
         D: Deserializer<'de>,
     {
         let Ok(s) = String::deserialize(deserializer) else {
-            return Ok(EthBytes::empty());
+            return Ok(RawBytes::empty());
         };
-        Ok(EthBytes::new(s))
+        Ok(RawBytes::new(s))
     }
 }
 
 #[cfg(feature = "server")]
-pub fn decode_bytes_from_inscription_data(
-    inscription_data: &String,
-    block_height: u64,
-) -> Option<Bytes> {
-    // Starting from compression_activation_height, we can use base64 encoding and compression
-    if block_height < *COMPRESSION_ACTIVATION_HEIGHT.read() {
-        Bytes::from_hex(inscription_data).ok()
-    } else {
-        let base64_decoded = BASE64_STANDARD_NO_PAD.decode(inscription_data).ok()?;
-        // Use first byte to determine compression method
-        // 0x00 = uncompressed
-        // 0x01 = nada
-        // 0x02 = zstd
-        match base64_decoded[0] {
-            0x00 => {
-                // Uncompressed
-                if base64_decoded.len() > CALLDATA_LIMIT {
-                    None
-                } else {
-                    Some(Bytes::from(base64_decoded[1..].to_vec()))
-                }
+pub fn decode_bytes_from_inscription_data(inscription_data: &String) -> Option<Bytes> {
+    let base64_decoded = BASE64_STANDARD_NO_PAD.decode(inscription_data).ok()?;
+    // Use first byte to determine compression method
+    // 0x00 = uncompressed
+    // 0x01 = nada
+    // 0x02 = zstd
+    match base64_decoded[0] {
+        0x00 => {
+            // Uncompressed
+            if base64_decoded.len() > CALLDATA_LIMIT {
+                None
+            } else {
+                Some(Bytes::from(base64_decoded[1..].to_vec()))
             }
-            0x01 => {
-                // Nada
-                nada::decode_with_limit(base64_decoded[1..].iter().cloned(), CALLDATA_LIMIT)
-                    .ok()
-                    .map(Bytes::from)
-            }
-            0x02 => {
-                // Zstd
-                match zstd_safe::get_frame_content_size(&base64_decoded[1..]) {
-                    Ok(Some(size)) => {
-                        // Early exit if size is too large
-                        if size > CALLDATA_LIMIT as u64 {
-                            return None;
-                        }
-                    }
-                    Ok(None) => {
-                        // No size information available, proceed with decompression anyway, it will fail eventually
-                        // This is a valid case, as zstd can be used without size information
-                    }
-                    Err(_) => {
+        }
+        0x01 => {
+            // Nada
+            nada::decode_with_limit(base64_decoded[1..].iter().cloned(), CALLDATA_LIMIT)
+                .ok()
+                .map(Bytes::from)
+        }
+        0x02 => {
+            // Zstd
+            match zstd_safe::get_frame_content_size(&base64_decoded[1..]) {
+                Ok(Some(size)) => {
+                    // Early exit if size is too large
+                    if size > CALLDATA_LIMIT as u64 {
                         return None;
                     }
                 }
-                // In a separate method to avoid unnecessary stack allocation for zstd
-                decode_zstd_into_bytes(&base64_decoded[1..])
+                Ok(None) => {
+                    // No size information available, proceed with decompression anyway, it will fail eventually
+                    // This is a valid case, as zstd can be used without size information
+                }
+                Err(_) => {
+                    return None;
+                }
             }
-            _ => {
-                // Unknown compression method
-                None
-            }
+            // In a separate method to avoid unnecessary stack allocation for zstd
+            decode_zstd_into_bytes(&base64_decoded[1..])
+        }
+        _ => {
+            // Unknown compression method
+            None
         }
     }
 }
@@ -303,14 +309,13 @@ mod tests {
     use base64::prelude::BASE64_STANDARD_NO_PAD;
 
     use super::*;
-    use crate::global::COMPRESSION_ACTIVATION_HEIGHT;
 
     sol! {
         function transfer(address receiver, bytes ticker, uint256 amount);
     }
 
     #[test]
-    fn test_calldata_inscription_roundtrip_before_compression_activation_height() {
+    fn test_calldata_base64_roundtrip() {
         let address: &str = "0xdead09C7d1621C9D49EdD5c070933b500ac5beef";
         let ticker = vec![0x6f, 0x72, 0x64, 0x69];
         let amount = 42;
@@ -323,53 +328,19 @@ mod tests {
             .abi_encode(),
         );
 
-        let encoded = InscriptionBytes::from_bytes(data.clone(), 123456).unwrap();
+        let encoded = Base64Bytes::from_bytes(data.clone()).unwrap();
 
-        let decoded = encoded.value(123456).unwrap();
-
-        assert_eq!(decoded, data);
-    }
-
-    #[test]
-    fn test_calldata_inscription_roundtrip_at_compression_activation_height() {
-        let address: &str = "0xdead09C7d1621C9D49EdD5c070933b500ac5beef";
-        let ticker = vec![0x6f, 0x72, 0x64, 0x69];
-        let amount = 42;
-        let data = Bytes::from(
-            transferCall::new((
-                address.parse().unwrap(),
-                Bytes::from(ticker),
-                U256::from(amount),
-            ))
-            .abi_encode(),
-        );
-
-        let encoded =
-            InscriptionBytes::from_bytes(data.clone(), *COMPRESSION_ACTIVATION_HEIGHT.read())
-                .unwrap();
-
-        let decoded = encoded
-            .value(*COMPRESSION_ACTIVATION_HEIGHT.read())
-            .unwrap();
+        let decoded = encoded.value().unwrap();
 
         assert_eq!(decoded, data);
     }
 
     #[test]
-    fn test_decode_bytes_from_inscription_data_old() {
-        let inscription_data = "0xdeadbeef".to_string();
-        let block_height = 123456;
-        let result = decode_bytes_from_inscription_data(&inscription_data, block_height);
-        assert_eq!(result, Some(Bytes::from(vec![0xde, 0xad, 0xbe, 0xef])));
-    }
-
-    #[test]
-    fn test_decode_bytes_from_inscription_data_uncompressed() {
+    fn test_decode_bytes_from_base64_data_uncompressed() {
         // 0x00 to indicate uncompressed
         let data = vec![0x00, 0xde, 0xad, 0xbe, 0xef, 0xff];
         let base64_encoded = BASE64_STANDARD_NO_PAD.encode(data);
-        let block_height = *COMPRESSION_ACTIVATION_HEIGHT.read();
-        let result = decode_bytes_from_inscription_data(&base64_encoded, block_height);
+        let result = decode_bytes_from_inscription_data(&base64_encoded);
         assert_eq!(
             result,
             Some(Bytes::from(vec![0xde, 0xad, 0xbe, 0xef, 0xff]))
@@ -377,7 +348,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decode_bytes_from_inscription_data_nada() {
+    fn test_decode_bytes_from_base64_data_nada() {
         let data = vec![
             0xde, 0xad, 0xbe, 0xef, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff,
         ];
@@ -390,13 +361,12 @@ mod tests {
         );
 
         let base64_encoded = BASE64_STANDARD_NO_PAD.encode(nada_encoded);
-        let block_height = *COMPRESSION_ACTIVATION_HEIGHT.read();
-        let result = decode_bytes_from_inscription_data(&base64_encoded, block_height);
+        let result = decode_bytes_from_inscription_data(&base64_encoded);
         assert_eq!(result, Some(Bytes::from(data)));
     }
 
     #[test]
-    fn test_decode_bytes_from_inscription_data_repetition_zstd() {
+    fn test_decode_bytes_from_base64_data_repetition_zstd() {
         // Repeated data is better for zstd compression, this is a test for that
         let data = vec![0xde, 0xad, 0xbe, 0xef].repeat(4096);
         let mut compressed = [0u8; 1024 * 1024];
@@ -406,13 +376,12 @@ mod tests {
         compressed_vec.truncate(length);
         compressed_vec.insert(0, 0x02);
         let base64_encoded = BASE64_STANDARD_NO_PAD.encode(compressed_vec);
-        let block_height = *COMPRESSION_ACTIVATION_HEIGHT.read();
-        let result = decode_bytes_from_inscription_data(&base64_encoded, block_height);
+        let result = decode_bytes_from_inscription_data(&base64_encoded);
         assert_eq!(result, Some(Bytes::from(data)));
     }
 
     #[test]
-    fn test_decode_bytes_from_inscription_data_random_zstd() {
+    fn test_decode_bytes_from_base64_data_random_zstd() {
         // Generate random data of size 32k, this performs very poorly with zstd, for testing purposes
         // Real life data will be much smaller and more compressible
         let mut data = vec![0; 32 * 1024];
@@ -426,13 +395,12 @@ mod tests {
         compressed_vec.truncate(length);
         compressed_vec.insert(0, 0x02);
         let base64_encoded = BASE64_STANDARD_NO_PAD.encode(compressed_vec);
-        let block_height = *COMPRESSION_ACTIVATION_HEIGHT.read();
-        let result = decode_bytes_from_inscription_data(&base64_encoded, block_height);
+        let result = decode_bytes_from_inscription_data(&base64_encoded);
         assert_eq!(result, Some(Bytes::from(data)));
     }
 
     #[test]
-    fn test_decode_bytes_from_inscription_data_huge_zstd() {
+    fn test_decode_bytes_from_base64_data_huge_zstd() {
         // Generate repeated data of size 2MB, this should be rejected by the decoder, but also not crash and burn
         let data = vec![0xde, 0xad, 0xbe, 0xef].repeat(512 * 1024);
         let mut compressed = [0u8; 1024 * 1024];
@@ -443,25 +411,22 @@ mod tests {
         compressed_vec.insert(0, 0x02);
         // This is compressed to around 200 bytes
         let base64_encoded = BASE64_STANDARD_NO_PAD.encode(compressed_vec);
-        let block_height = *COMPRESSION_ACTIVATION_HEIGHT.read();
-        let result = decode_bytes_from_inscription_data(&base64_encoded, block_height);
+        let result = decode_bytes_from_inscription_data(&base64_encoded);
         assert_eq!(result, None);
     }
 
     #[test]
-    fn test_invalid_first_byte() {
+    fn test_invalid_zstd() {
         let data = vec![0x02, 0xde, 0xad, 0xbe, 0xef];
         let base64_encoded = BASE64_STANDARD_NO_PAD.encode(data);
-        let block_height = *COMPRESSION_ACTIVATION_HEIGHT.read();
-        let result = decode_bytes_from_inscription_data(&base64_encoded, block_height);
+        let result = decode_bytes_from_inscription_data(&base64_encoded);
         assert_eq!(result, None);
     }
 
     #[test]
     fn test_invalid_base64() {
         let invalid_base64 = "invalid_base64";
-        let block_height = *COMPRESSION_ACTIVATION_HEIGHT.read();
-        let result = decode_bytes_from_inscription_data(&invalid_base64.to_string(), block_height);
+        let result = decode_bytes_from_inscription_data(&invalid_base64.to_string());
         assert_eq!(result, None);
     }
 }

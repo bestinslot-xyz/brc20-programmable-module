@@ -2,7 +2,7 @@ use std::error::Error;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 
-use brc20_prog::types::{EthBytes, EthCall};
+use brc20_prog::types::{EthCall, RawBytes};
 use brc20_prog::{start, Brc20ProgApiClient, Brc20ProgConfig};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::server::ServerHandle;
@@ -68,8 +68,8 @@ pub fn load_file_as_string(filename: &str) -> Result<String, Box<dyn Error>> {
     )?)
 }
 
-pub fn load_file_as_eth_bytes(filename: &str) -> Result<EthBytes, Box<dyn Error>> {
-    Ok(EthBytes::new(load_file_as_string(filename)?))
+pub fn load_file_as_eth_bytes(filename: &str) -> Result<RawBytes, Box<dyn Error>> {
+    Ok(RawBytes::new(load_file_as_string(filename)?))
 }
 
 pub fn print_gas_per_call(rt: &Runtime, client: &HttpClient, eth_call: EthCall) -> u64 {
