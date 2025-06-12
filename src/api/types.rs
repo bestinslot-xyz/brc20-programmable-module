@@ -11,7 +11,6 @@ use base64::Engine;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_either::SingleOrVec;
 
-#[cfg(feature = "server")]
 use crate::global::CALLDATA_LIMIT;
 use crate::types::{AddressED, B256ED};
 
