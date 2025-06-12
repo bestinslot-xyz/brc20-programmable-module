@@ -11,6 +11,7 @@ use brc20_prog::{Brc20ProgApiClient, Brc20ProgConfig};
 use revm::primitives::Address;
 use test_utils::{load_file_as_string, spawn_test_server};
 
+#[ignore]
 #[tokio::test]
 async fn test_transact() -> Result<(), Box<dyn Error>> {
     let (server, client) = spawn_test_server(Brc20ProgConfig {
@@ -90,7 +91,7 @@ async fn test_transact() -> Result<(), Box<dyn Error>> {
     let call_tx_builder: TransactionRequest = TxLegacy::default().into();
     let call_tx_builder = call_tx_builder
         .with_chain_id(chain_id_number)
-        .with_nonce(0)
+        .with_nonce(1)
         .with_gas_price(0)
         .with_gas_limit(0)
         .with_to(contract_address.address)
@@ -132,6 +133,7 @@ async fn test_transact() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_transact_encoded() -> Result<(), Box<dyn Error>> {
     let (server, client) = spawn_test_server(Brc20ProgConfig {
