@@ -7,4 +7,4 @@ mod utils;
 
 pub use engine::BRC20ProgEngine;
 pub use precompiles::validate_bitcoin_rpc_status;
-pub use utils::{get_evm_address, TxInfo};
+pub use utils::{get_evm_address_from_pkscript, TxInfo};

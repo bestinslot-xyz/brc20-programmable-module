@@ -1,15 +1,9 @@
 use std::error::Error;
 
-use hex::FromHexError;
 use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
 use tracing::error;
 
 pub fn wrap_rpc_error(error: Box<dyn Error>) -> ErrorObject<'static> {
-    error!("{:?}", error);
-    ErrorObjectOwned::owned(400, error.to_string(), None::<String>)
-}
-
-pub fn wrap_hex_error(error: FromHexError) -> ErrorObject<'static> {
     error!("{:?}", error);
     ErrorObjectOwned::owned(400, error.to_string(), None::<String>)
 }

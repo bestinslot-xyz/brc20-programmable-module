@@ -1,6 +1,6 @@
 [package]
 name = "brc20-prog"
-version = "0.8.1"
+version = "0.8.2"
 edition = "2021"
 license = "Apache-2.0"
 description = "BRC20 programmable module - Smart contract execution engine compatible with BRC20 standard"
@@ -8,7 +8,7 @@ homepage = "https://signet.bestinslot.xyz/brc2.0/interact"
 repository = "https://github.com/bestinslot-xyz/brc20-programmable-module"
 
 [dependencies]
-alloy = { version = "0.15.11", features = ["eips", "network", "rlp", "rpc", "signers", "sol-types"] }
+alloy = { version = "0.15.11", features = ["consensus", "eips", "network", "rlp", "rpc", "signers", "sol-types"] }
 alloy-rlp = "0.3.12"
 alloy-rpc-types-trace = "0.15.11"
 alloy-sol-types = "1.0.9"
