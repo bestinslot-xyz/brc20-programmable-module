@@ -1,7 +1,7 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 
-use crate::api::types::{EthCall, GetLogsFilter, Base64Bytes};
+use crate::api::types::{Base64Bytes, EthCall, GetLogsFilter};
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };

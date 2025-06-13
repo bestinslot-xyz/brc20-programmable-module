@@ -7,6 +7,7 @@ use hyper::Method;
 use jsonrpsee::core::middleware::RpcServiceBuilder;
 use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::server::{Server, ServerHandle};
+use revm::primitives::TxKind;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
@@ -20,11 +21,11 @@ use crate::brc20_controller::{
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
-use crate::engine::{get_evm_address, BRC20ProgEngine, TxInfo};
+use crate::engine::{get_evm_address_from_pkscript, BRC20ProgEngine, TxInfo};
 use crate::global::{CONFIG, INVALID_ADDRESS};
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
-    wrap_hex_error, wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
+    wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
 };
 use crate::types::{Base64Bytes, RawBytes};
 use crate::Brc20ProgConfig;
@@ -85,21 +86,16 @@ impl Brc20ProgApiServer for RpcServer {
     ) -> RpcResult<TxReceiptED> {
         log_call();
 
-        let to_pkscript = hex::decode(to_pkscript).map_err(wrap_hex_error)?.into();
-        let to_address = get_evm_address(&to_pkscript);
+        let to_address = get_evm_address_from_pkscript(&to_pkscript).map_err(wrap_rpc_error)?;
         let block_height = self
             .engine
             .get_next_block_height()
-            .map_err(wrap_rpc_error)?;
-        let nonce = self
-            .engine
-            .get_transaction_count(to_address, block_height)
             .map_err(wrap_rpc_error)?;
 
         self.engine
             .add_tx_to_block(
                 timestamp,
-                &load_brc20_mint_tx(ticker_as_bytes(&ticker), to_address, amount.uint, nonce),
+                &load_brc20_mint_tx(ticker_as_bytes(&ticker), to_address, amount.uint),
                 tx_idx,
                 block_height,
                 hash.bytes,
@@ -122,25 +118,13 @@ impl Brc20ProgApiServer for RpcServer {
     ) -> RpcResult<TxReceiptED> {
         log_call();
 
-        let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
-        let from_address = get_evm_address(&from_pkscript);
-        let block_height = self
-            .engine
-            .get_next_block_height()
-            .map_err(wrap_rpc_error)?;
-        let nonce = self
-            .engine
-            .get_transaction_count(from_address, block_height)
-            .map_err(wrap_rpc_error)?;
-
         self.engine
             .add_tx_to_block(
                 timestamp,
                 &load_brc20_burn_tx(
                     ticker_as_bytes(&ticker),
-                    get_evm_address(&from_pkscript),
+                    get_evm_address_from_pkscript(&from_pkscript).map_err(wrap_rpc_error)?,
                     amount.uint,
-                    nonce,
                 ),
                 tx_idx,
                 self.engine
@@ -157,12 +141,10 @@ impl Brc20ProgApiServer for RpcServer {
     async fn brc20_balance(&self, pkscript: String, ticker: String) -> RpcResult<String> {
         log_call();
 
-        let pkscript = hex::decode(pkscript).map_err(wrap_hex_error)?.into();
-
         self.engine
             .read_contract(&load_brc20_balance_tx(
                 ticker_as_bytes(&ticker),
-                get_evm_address(&pkscript),
+                get_evm_address_from_pkscript(&pkscript).map_err(wrap_rpc_error)?,
             ))
             .map(|receipt| {
                 format!(
@@ -247,30 +229,22 @@ impl Brc20ProgApiServer for RpcServer {
             .get_next_block_height()
             .map_err(wrap_rpc_error)?;
 
-        let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
-
-        let data = select_bytes(&data, &base64_data).map_err(wrap_rpc_error)?;
-        let to = if data.is_none() {
-            Some(*INVALID_ADDRESS) // If data is not valid, send transaction to 0xdead
-        } else {
-            None
-        };
-
-        let from = get_evm_address(&from_pkscript);
-        let nonce = self
-            .engine
-            .get_transaction_count(from, block_height)
-            .map_err(wrap_rpc_error)?;
+        let data = select_bytes(&data, &base64_data)
+            .map_err(wrap_rpc_error)?
+            .unwrap_or_default();
 
         self.engine
             .add_tx_to_block(
                 timestamp,
-                &TxInfo {
-                    from,
-                    to,
-                    data: data.unwrap_or_default(),
-                    nonce,
-                },
+                &TxInfo::from_inscription(
+                    get_evm_address_from_pkscript(&from_pkscript).map_err(wrap_rpc_error)?,
+                    if data.is_empty() {
+                        TxKind::Call(*INVALID_ADDRESS)
+                    } else {
+                        TxKind::Create
+                    },
+                    data,
+                ),
                 tx_idx,
                 block_height,
                 hash.bytes,
@@ -296,8 +270,6 @@ impl Brc20ProgApiServer for RpcServer {
     ) -> RpcResult<Option<TxReceiptED>> {
         log_call();
 
-        let from_pkscript = hex::decode(from_pkscript).map_err(wrap_hex_error)?.into();
-
         let block_height = self
             .engine
             .get_next_block_height()
@@ -318,20 +290,16 @@ impl Brc20ProgApiServer for RpcServer {
                 .unwrap_or(*INVALID_ADDRESS)
         };
 
-        let nonce = self
-            .engine
-            .get_transaction_count(get_evm_address(&from_pkscript), block_height)
-            .map_err(wrap_rpc_error)?;
+        let from_address = get_evm_address_from_pkscript(&from_pkscript).map_err(wrap_rpc_error)?;
 
         self.engine
             .add_tx_to_block(
                 timestamp,
-                &TxInfo {
-                    from: get_evm_address(&from_pkscript),
-                    to: derived_contract_address.into(),
-                    data: data.unwrap_or_default(),
-                    nonce,
-                },
+                &TxInfo::from_inscription(
+                    from_address,
+                    derived_contract_address.into(),
+                    data.unwrap_or_default(),
+                ),
                 tx_idx,
                 block_height,
                 hash.bytes,
@@ -536,16 +504,14 @@ impl Brc20ProgApiServer for RpcServer {
         let Some(data) = call.data else {
             return Err(wrap_rpc_error_string("No data or input provided"));
         };
-        let receipt = self.engine.read_contract(&TxInfo {
-            from: call
-                .from
+        let receipt = self.engine.read_contract(&TxInfo::from_inscription(
+            call.from
                 .as_ref()
                 .map(|x| x.address)
                 .unwrap_or(*INVALID_ADDRESS),
-            to: call.to.as_ref().map(|x| x.address),
-            data: data.value().unwrap_or_default().clone(),
-            nonce: 0, // Nonce is not used in read-only calls
-        });
+            call.to.as_ref().map(|x| x.address).into(),
+            data.value().unwrap_or_default().clone(),
+        ));
         let Ok(receipt) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
         };
@@ -566,16 +532,14 @@ impl Brc20ProgApiServer for RpcServer {
         let Some(data) = call.data else {
             return Err(wrap_rpc_error_string("No data or input provided"));
         };
-        let receipt = self.engine.read_contract(&TxInfo {
-            from: call
-                .from
+        let receipt = self.engine.read_contract(&TxInfo::from_inscription(
+            call.from
                 .as_ref()
                 .map(|x| x.address)
                 .unwrap_or(*INVALID_ADDRESS),
-            to: call.to.as_ref().map(|x| x.address),
-            data: data.value().unwrap_or_default().clone(),
-            nonce: 0, // Nonce is not used in read-only calls
-        });
+            call.to.as_ref().map(|x| x.address).into(),
+            data.value().unwrap_or_default().clone(),
+        ));
         let Ok(receipt) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
         };

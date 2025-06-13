@@ -177,7 +177,8 @@ async fn test_transact_encoded() -> Result<(), Box<dyn Error>> {
             Some("deploy_inscription".to_string()),
             deploy_data_length.into(),
         )
-        .await?;
+        .await
+        .unwrap();
 
     let tx_hash = deploy_response.unwrap().hash;
 

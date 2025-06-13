@@ -1,23 +1,12 @@
+use std::error::Error;
 use std::time::{Duration, Instant};
 
+use alloy::consensus::TxLegacy;
 use alloy::primitives::{keccak256, Address, Bytes, B256};
-use alloy::rlp::{RlpDecodable, RlpEncodable};
 use revm::context::result::{ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason};
+use revm::primitives::TxKind;
 
 use crate::global::GAS_PER_BYTE;
-
-#[derive(Debug, Clone, Eq, PartialEq, RlpEncodable, RlpDecodable)]
-pub struct EthRawTransaction {
-    pub nonce: u64,
-    pub gas_price: u128,
-    pub gas_limit: u128,
-    pub to: Bytes,
-    pub value: u128,
-    pub data: Bytes,
-    pub v: u64,
-    pub r: Bytes,
-    pub s: Bytes,
-}
 
 /// This struct is used to store the unfinalised block information
 pub struct LastBlockInfo {
@@ -47,16 +36,58 @@ impl LastBlockInfo {
 #[derive(Clone)]
 pub struct TxInfo {
     pub from: Address,
-    pub to: Option<Address>,
+    pub to: TxKind,
     pub data: Bytes,
-    pub nonce: u64,
+    pub nonce: Option<u64>,
+    pub pre_hash: Option<B256>,
 }
 
-pub fn get_tx_hash(tx_info: &TxInfo) -> B256 {
+impl TxInfo {
+    pub fn from_inscription(from: Address, to: TxKind, data: Bytes) -> Self {
+        TxInfo {
+            from,
+            to,
+            data,
+            nonce: None,
+            pre_hash: None,
+        }
+    }
+
+    pub fn from_raw_transaction(from: Address, raw_tx: TxLegacy, tx_hash: B256) -> Self {
+        TxInfo {
+            from,
+            to: match raw_tx.to.into_to() {
+                Some(to) => {
+                    if to == Address::ZERO {
+                        TxKind::Create
+                    } else {
+                        TxKind::Call(to)
+                    }
+                }
+                None => TxKind::Create,
+            },
+            data: raw_tx.input,
+            nonce: Some(raw_tx.nonce),
+            pre_hash: Some(tx_hash),
+        }
+    }
+
+    pub fn to_address_optional(&self) -> Option<Address> {
+        match self.to {
+            TxKind::Call(to) => Some(to),
+            TxKind::Create => None,
+        }
+    }
+}
+
+pub fn get_tx_hash(tx_info: &TxInfo, account_nonce: u64) -> B256 {
+    if let Some(pre_hash) = tx_info.pre_hash {
+        return pre_hash;
+    }
     let mut data = Vec::new();
     data.extend_from_slice(tx_info.from.as_slice());
-    data.extend_from_slice(&tx_info.nonce.to_be_bytes());
-    if let Some(to) = tx_info.to {
+    data.extend_from_slice(&tx_info.nonce.unwrap_or(account_nonce).to_be_bytes());
+    if let TxKind::Call(to) = tx_info.to {
         data.extend_from_slice(to.as_slice());
     } else {
         data.extend_from_slice(&[0; 20]);
@@ -69,11 +100,12 @@ pub fn get_gas_limit(inscription_byte_len: u64) -> u64 {
     inscription_byte_len.saturating_mul(GAS_PER_BYTE)
 }
 
-pub fn get_evm_address(pkscript_bytes: &Bytes) -> Address {
+pub fn get_evm_address_from_pkscript(pkscript: &str) -> Result<Address, Box<dyn Error>> {
+    let pkscript_bytes = hex::decode(pkscript)?;
     let mut address = [0u8; 20];
     let pkscript_hash = keccak256(pkscript_bytes);
     address.copy_from_slice(&pkscript_hash[12..32]);
-    Address::from_slice(&address)
+    Ok(Address::from_slice(&address))
 }
 
 pub fn get_result_type(result: &ExecutionResult) -> String {
@@ -184,12 +216,10 @@ mod tests {
     #[test]
     fn test_get_evm_address() {
         let btc_pkscript = "76a914f1b8e7e4f3f1f2f1e1f1f1f1f1f1f1f1f1f1f1f188ac";
-        let evm_address = get_evm_address(&hex::decode(btc_pkscript).unwrap().into());
+        let evm_address = get_evm_address_from_pkscript(btc_pkscript).unwrap();
         assert_eq!(
-            evm_address,
+            evm_address.to_string().to_lowercase(),
             "0x7f217045127859b40ef1a27a5bfe73aa16687467"
-                .parse::<Address>()
-                .unwrap(),
         );
     }
 }
