@@ -21,7 +21,9 @@ use crate::db::types::{
     AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED,
     B256ED, U128ED, U256ED, U512ED, U64ED,
 };
-use crate::global::{GAS_PER_BYTE, MAX_BLOCK_SIZE, MAX_REORG_HISTORY_SIZE};
+use crate::global::{
+    GAS_PER_BYTE, MAX_BLOCK_SIZE, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_REORG_HISTORY_SIZE,
+};
 
 pub struct Brc20ProgDatabase {
     /// Account address to memory location
@@ -45,6 +47,11 @@ pub struct Brc20ProgDatabase {
 
     /// Tx hash to Tx
     db_tx: Option<BlockCachedDatabase<B256ED, TxED, BlockHistoryCacheData<TxED>>>,
+
+    /// Pending transactions, a map of account and nonce to TxHash
+    /// This is used to get the transaction hash by account and nonce
+    db_pending_txes:
+        Option<BlockCachedDatabase<(AddressED, U64ED), TxED, BlockHistoryCacheData<TxED>>>,
 
     /// TxHash to trace
     db_tx_trace: Option<BlockCachedDatabase<B256ED, TraceED, BlockHistoryCacheData<TraceED>>>,
@@ -89,6 +96,7 @@ impl Default for Brc20ProgDatabase {
             db_number_and_index_to_tx_hash: None,
             db_tx_receipt: None,
             db_tx: None,
+            db_pending_txes: None,
             db_tx_trace: None,
             db_inscription_id_to_tx_hash: None,
             db_contract_address_to_inscription_id: None,
@@ -125,6 +133,10 @@ impl Brc20ProgDatabase {
                 "contract_address_to_inscription_id",
             )?),
             db_tx: Some(BlockCachedDatabase::new(&base_path, "tx")?),
+            db_pending_txes: Some(BlockCachedDatabase::new(
+                &base_path,
+                "account_and_nonce_to_tx_hash",
+            )?),
             db_tx_trace: Some(BlockCachedDatabase::new(&base_path, "tx_trace")?),
             db_block_hash_to_number: Some(BlockCachedDatabase::new(
                 &base_path,
@@ -502,6 +514,82 @@ impl Brc20ProgDatabase {
             &tx_hash.into(),
             tx_receipt,
         )?)
+    }
+
+    pub fn set_pending_tx(
+        &mut self,
+        account: Address,
+        nonce: u64,
+        tx: TxED,
+    ) -> Result<(), Box<dyn Error>> {
+        let block_number = self.get_latest_block_height()?;
+        Ok(self.db_pending_txes.as_mut().ok_or("DB Error")?.set(
+            block_number,
+            &(account.into(), nonce.into()),
+            tx,
+        )?)
+    }
+
+    pub fn get_pending_tx(
+        &self,
+        account: Address,
+        nonce: u64,
+    ) -> Result<Option<TxED>, Box<dyn Error>> {
+        self.db_pending_txes
+            .as_ref()
+            .ok_or("DB Error")?
+            .latest(&(account.into(), nonce.into()))
+    }
+
+    pub fn get_all_pending_txes_from(
+        &self,
+        account: Address,
+    ) -> Result<Vec<((AddressED, U64ED), TxED)>, Box<dyn Error>> {
+        self.db_pending_txes
+            .as_ref()
+            .ok_or("DB Error")?
+            .get_range(
+                &(account.into(), U64::ZERO.into()),
+                &(account.into(), U64::MAX.into()),
+            )
+            .map_err(|e| e.into())
+    }
+
+    pub fn get_all_pending_txes(&self) -> Result<Vec<((AddressED, U64ED), TxED)>, Box<dyn Error>> {
+        self.db_pending_txes
+            .as_ref()
+            .ok_or("DB Error")?
+            .all()
+            .map_err(|e| e.into())
+    }
+
+    pub fn remove_pending_tx(
+        &mut self,
+        account: Address,
+        nonce: u64,
+    ) -> Result<(), Box<dyn Error>> {
+        let block_number = self.get_latest_block_height()?;
+        Ok(self
+            .db_pending_txes
+            .as_mut()
+            .ok_or("DB Error")?
+            .unset(block_number, &(account.into(), nonce.into()))?)
+    }
+
+    pub fn clear_txpool(&mut self, block_number: u64) -> Result<(), Box<dyn Error>> {
+        let pending_txes = self.get_all_pending_txes()?;
+
+        for ((account, nonce), tx) in pending_txes {
+            if let Some(tx_block_number) = tx.block_number {
+                let tx_block_number: u64 = tx_block_number.into();
+                if tx_block_number + MAX_FUTURE_TRANSACTION_BLOCKS <= block_number {
+                    self.remove_pending_tx(account.address, nonce.into())?;
+                }
+            } else {
+                self.remove_pending_tx(account.address, nonce.into())?;
+            };
+        }
+        Ok(())
     }
 
     pub fn get_account_info(

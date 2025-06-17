@@ -72,6 +72,9 @@ pub const MAX_REORG_HISTORY_SIZE: u64 = 10; // 10 blocks, this is the maximum re
 pub const MAX_BLOCK_SIZE: u64 = 4 * 1024 * 1024; // 4MB
 pub const GAS_PER_BYTE: u64 = 12000; // 12K gas per byte
 
+pub const MAX_FUTURE_TRANSACTION_NONCES: u64 = 10; // Maximum future transaction nonces allowed
+pub const MAX_FUTURE_TRANSACTION_BLOCKS: u64 = 10; // Maximum future transaction block depth allowed
+
 pub const GAS_PER_BITCOIN_RPC_CALL: u64 = 400000; // 400K gas per Bitcoin RPC call
 pub const GAS_PER_BRC20_BALANCE_CALL: u64 = 200000; // 200K gas per BRC20 balance call
 pub const GAS_PER_BIP_322_VERIFY: u64 = 20000; // 20K gas per BIP-322 verify call

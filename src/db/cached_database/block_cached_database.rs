@@ -88,24 +88,9 @@ where
     /// end_key: &K - the end key, exclusive
     /// Returns: Vec<(K, V)> - the list of key-value pairs
     pub fn get_range(&self, start_key: &K, end_key: &K) -> Result<Vec<(K, V)>, Box<dyn Error>> {
-        let mut kv_pairs = Vec::new();
+        let mut kv_pairs = HashMap::new();
         let start_key_bytes = start_key.encode_vec();
         let end_key_bytes = end_key.encode_vec();
-
-        for key in self.cache.keys() {
-            let key_bytes = key.encode_vec();
-            if *key_bytes < *start_key_bytes {
-                continue;
-            }
-            if *key_bytes >= *end_key_bytes {
-                break;
-            }
-            if let Some(cache) = self.cache.get(key) {
-                if let Some(value) = cache.latest() {
-                    kv_pairs.push((key.clone(), value.clone()));
-                }
-            }
-        }
 
         for kv_pair in self.db.iterator(IteratorMode::From(
             &start_key_bytes,
@@ -117,10 +102,53 @@ where
             }
             let key = K::decode_vec(&key.to_vec())?;
             let value = V::decode_vec(&value.to_vec())?;
-            kv_pairs.push((key, value));
+            kv_pairs.insert(key, value);
         }
 
-        Ok(kv_pairs)
+        for key in self.cache.keys() {
+            let key_bytes = key.encode_vec();
+            if *key_bytes < *start_key_bytes {
+                continue;
+            }
+            if *key_bytes >= *end_key_bytes {
+                break;
+            }
+            if let Some(cache) = self.cache.get(key) {
+                if let Some(value) = cache.latest() {
+                    kv_pairs.insert(key.clone(), value.clone());
+                } else {
+                    kv_pairs.remove(key);
+                }
+            }
+        }
+
+        Ok(kv_pairs.into_iter().collect())
+    }
+
+    /// Returns all keys and values in the database
+    ///
+    /// It returns a list of all key-value pairs in the database
+    pub fn all(&self) -> Result<Vec<(K, V)>, Box<dyn Error>> {
+        let mut kv_pairs: HashMap<K, V> = HashMap::new();
+
+        for kv_pair in self.db.full_iterator(IteratorMode::Start) {
+            let (key, value) = kv_pair?;
+            let key = K::decode_vec(&key.to_vec())?;
+            let value = V::decode_vec(&value.to_vec())?;
+            if !kv_pairs.contains_key(&key) {
+                kv_pairs.insert(key, value);
+            }
+        }
+
+        for (key, cache) in &self.cache {
+            if let Some(value) = cache.latest() {
+                kv_pairs.insert(key.clone(), value.clone());
+            } else {
+                kv_pairs.remove(key);
+            }
+        }
+
+        Ok(kv_pairs.into_iter().collect())
     }
 
     /// Set the value for a key
@@ -133,6 +161,17 @@ where
     pub fn set(&mut self, block_number: u64, key: &K, value: V) -> Result<(), Box<dyn Error>> {
         let cache = self.retrieve_cache(&key)?;
         cache.set(block_number, value);
+        Ok(())
+    }
+
+    /// Unset the value for a key
+    ///
+    /// It removes the value from the cache, it's not written to the database until commit is called
+    /// block_number: U256 - the block number to unset the value for
+    /// key: K - the key to unset the value for
+    pub fn unset(&mut self, block_number: u64, key: &K) -> Result<(), Box<dyn Error>> {
+        let cache = self.retrieve_cache(&key)?;
+        cache.unset(block_number);
         Ok(())
     }
 

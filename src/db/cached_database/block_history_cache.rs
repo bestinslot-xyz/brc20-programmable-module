@@ -20,8 +20,32 @@ where
     fn new(initial_value: Option<V>) -> Self;
     fn latest(&self) -> Option<V>;
     fn set(&mut self, block_number: u64, value: V);
+    fn unset(&mut self, block_number: u64);
     fn reorg(&mut self, latest_valid_block_number: u64);
     fn is_old(&self, block_number: u64) -> bool;
+}
+
+impl<V> BlockHistoryCacheData<V>
+where
+    V: Encode + Decode + Clone + Eq,
+{
+    fn remove_old_values(&mut self, latest_block_number: u64) {
+        // Remove the old values
+        // Any key that is less than the set block number - MAX_HISTORY_SIZE is too old
+        let keys_to_remove: Vec<u64> = self
+            .cache
+            .keys()
+            .filter(|&&key| key + MAX_REORG_HISTORY_SIZE <= latest_block_number)
+            .cloned()
+            .collect();
+
+        // Remove all except the last one to keep at least one value in the cache
+        if keys_to_remove.len() != 0 {
+            for key in keys_to_remove.iter().take(keys_to_remove.len() - 1) {
+                self.cache.remove(key);
+            }
+        }
+    }
 }
 
 impl<V> BlockHistoryCache<V> for BlockHistoryCacheData<V>
@@ -63,21 +87,25 @@ where
         }
         self.cache.insert(block_number, Some(value));
 
-        // Remove the old values
-        // Any key that is less than the set block number - MAX_HISTORY_SIZE is too old
-        let keys_to_remove: Vec<u64> = self
-            .cache
-            .keys()
-            .filter(|&&key| key + MAX_REORG_HISTORY_SIZE <= block_number)
-            .cloned()
-            .collect();
+        // Remove old values to keep the cache size within MAX_REORG_HISTORY_SIZE
+        self.remove_old_values(block_number);
+    }
 
-        // Remove all except the last one to keep at least one value in the cache
-        if keys_to_remove.len() != 0 {
-            for key in keys_to_remove.iter().take(keys_to_remove.len() - 1) {
-                self.cache.remove(key);
+    fn unset(&mut self, block_number: u64) {
+        // Set the value to None for the given block number
+        if let Some((latest_stored_block_number, _)) = self.cache.iter().last() {
+            if block_number < *latest_stored_block_number {
+                panic!("Block number must be greater than or equal to the latest block number");
             }
         }
+        // This is to avoid storing the same value multiple times
+        if self.latest().is_none() {
+            return;
+        }
+        self.cache.insert(block_number, None);
+
+        // Remove old values to keep the cache size within MAX_REORG_HISTORY_SIZE
+        self.remove_old_values(block_number);
     }
 
     /// Reorganize the cache, removing all values with block number greater than the latest valid block number

@@ -138,7 +138,7 @@ impl core::convert::From<alloy_rpc_types_trace::geth::call::CallFrame> for brc20
 pub fn brc20_prog::types::TraceED::from(call: alloy_rpc_types_trace::geth::call::CallFrame) -> Self
 pub struct brc20_prog::types::TxED
 pub brc20_prog::types::TxED::block_hash: brc20_prog::types::B256ED
-pub brc20_prog::types::TxED::block_number: brc20_prog::types::U64ED
+pub brc20_prog::types::TxED::block_number: core::option::Option<brc20_prog::types::U64ED>
 pub brc20_prog::types::TxED::chain_id: brc20_prog::types::U64ED
 pub brc20_prog::types::TxED::from: brc20_prog::types::AddressED
 pub brc20_prog::types::TxED::gas: brc20_prog::types::U64ED
@@ -150,7 +150,7 @@ pub brc20_prog::types::TxED::nonce: brc20_prog::types::U64ED
 pub brc20_prog::types::TxED::r: brc20_prog::types::U8ED
 pub brc20_prog::types::TxED::s: brc20_prog::types::U8ED
 pub brc20_prog::types::TxED::to: core::option::Option<brc20_prog::types::AddressED>
-pub brc20_prog::types::TxED::transaction_index: brc20_prog::types::U64ED
+pub brc20_prog::types::TxED::transaction_index: core::option::Option<brc20_prog::types::U64ED>
 pub brc20_prog::types::TxED::tx_type: brc20_prog::types::U8ED
 pub brc20_prog::types::TxED::v: brc20_prog::types::U8ED
 pub brc20_prog::types::TxED::value: brc20_prog::types::U64ED
@@ -237,7 +237,7 @@ pub fn brc20_prog::Brc20ProgApiClient::brc20_get_tx_receipt_by_inscription_id(&s
 pub fn brc20_prog::Brc20ProgApiClient::brc20_initialise(&self, genesis_hash: brc20_prog::types::B256ED, genesis_timestamp: u64, genesis_height: u64) -> impl core::future::future::Future<Output = core::result::Result<(), jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::brc20_mine(&self, block_count: u64, timestamp: u64) -> impl core::future::future::Future<Output = core::result::Result<(), jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::brc20_reorg(&self, latest_valid_block_number: u64) -> impl core::future::future::Future<Output = core::result::Result<(), jsonrpsee_core::client::error::Error>> + core::marker::Send
-pub fn brc20_prog::Brc20ProgApiClient::brc20_transact(&self, raw_tx_data: core::option::Option<brc20_prog::types::RawBytes>, base64_raw_tx_data: core::option::Option<brc20_prog::types::Base64Bytes>, timestamp: u64, hash: brc20_prog::types::B256ED, tx_idx: u64, inscription_id: core::option::Option<alloc::string::String>, inscription_byte_len: core::option::Option<u64>) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<brc20_prog::types::TxED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::brc20_transact(&self, raw_tx_data: core::option::Option<brc20_prog::types::RawBytes>, base64_raw_tx_data: core::option::Option<brc20_prog::types::Base64Bytes>, timestamp: u64, hash: brc20_prog::types::B256ED, tx_idx: u64, inscription_id: core::option::Option<alloc::string::String>, inscription_byte_len: core::option::Option<u64>) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<brc20_prog::types::TxReceiptED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::brc20_version(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::brc20_withdraw(&self, from_pkscript: alloc::string::String, ticker: alloc::string::String, amount: brc20_prog::types::U256ED, timestamp: u64, hash: brc20_prog::types::B256ED, tx_idx: u64, inscription_id: core::option::Option<alloc::string::String>) -> impl core::future::future::Future<Output = core::result::Result<brc20_prog::types::TxReceiptED, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::debug_trace_transaction(&self, transaction: brc20_prog::types::B256ED) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<brc20_prog::types::TraceED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
@@ -268,5 +268,7 @@ pub fn brc20_prog::Brc20ProgApiClient::eth_get_uncle_count_by_block_number(&self
 pub fn brc20_prog::Brc20ProgApiClient::eth_max_priority_fee_per_gas(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::eth_syncing(&self) -> impl core::future::future::Future<Output = core::result::Result<bool, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::net_version(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::txpool_content(&self) -> impl core::future::future::Future<Output = core::result::Result<std::collections::hash::map::HashMap<alloc::string::String, std::collections::hash::map::HashMap<brc20_prog::types::AddressED, std::collections::hash::map::HashMap<u64, brc20_prog::types::TxED>>>, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::txpool_content_from(&self, from: brc20_prog::types::AddressED) -> impl core::future::future::Future<Output = core::result::Result<std::collections::hash::map::HashMap<alloc::string::String, std::collections::hash::map::HashMap<brc20_prog::types::AddressED, std::collections::hash::map::HashMap<u64, brc20_prog::types::TxED>>>, jsonrpsee_core::client::error::Error>> + core::marker::Send
 impl<TypeJsonRpseeInternal> brc20_prog::Brc20ProgApiClient for TypeJsonRpseeInternal where TypeJsonRpseeInternal: jsonrpsee_core::client::ClientT
 pub async fn brc20_prog::start(config: brc20_prog::Brc20ProgConfig) -> core::result::Result<jsonrpsee_server::future::ServerHandle, alloc::boxed::Box<dyn core::error::Error>>

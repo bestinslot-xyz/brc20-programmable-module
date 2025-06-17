@@ -19,10 +19,10 @@ pub struct TxED {
     pub block_hash: B256ED,
     #[serde(rename = "blockNumber")]
     /// The number of the block that contains the transaction
-    pub block_number: U64ED,
+    pub block_number: Option<U64ED>,
     #[serde(rename = "transactionIndex")]
     /// The index of the transaction in the block
-    pub transaction_index: U64ED,
+    pub transaction_index: Option<U64ED>,
     /// The address of the sender
     pub from: AddressED,
     /// The address of the recipient, empty if the transaction is a contract creation
@@ -91,8 +91,8 @@ impl TxED {
             hash,
             nonce,
             block_hash,
-            block_number,
-            transaction_index,
+            block_number: block_number.into(),
+            transaction_index: transaction_index.into(),
             from,
             to,
             value: 0u64.into(),
@@ -176,8 +176,8 @@ mod tests {
             hash: [1u8; 32].into(),
             nonce: 1u64.into(),
             block_hash: [2u8; 32].into(),
-            block_number: 2u64.into(),
-            transaction_index: 3u64.into(),
+            block_number: Some(2u64.into()),
+            transaction_index: Some(3u64.into()),
             from: [3u8; 20].into(),
             to: Some([4u8; 20].into()),
             value: 4u64.into(),
@@ -202,8 +202,8 @@ mod tests {
             hash: [1u8; 32].into(),
             nonce: 1u64.into(),
             block_hash: [2u8; 32].into(),
-            block_number: 2u64.into(),
-            transaction_index: 3u64.into(),
+            block_number: Some(2u64.into()),
+            transaction_index: Some(3u64.into()),
             from: [3u8; 20].into(),
             to: Some([4u8; 20].into()),
             value: 4u64.into(),
@@ -233,8 +233,8 @@ mod tests {
             hash: [1u8; 32].into(),
             nonce: 1u64.into(),
             block_hash: [2u8; 32].into(),
-            block_number: 2u64.into(),
-            transaction_index: 3u64.into(),
+            block_number: Some(2u64.into()),
+            transaction_index: Some(3u64.into()),
             from: [3u8; 20].into(),
             to: Some([4u8; 20].into()),
             value: 4u64.into(),
