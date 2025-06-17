@@ -233,7 +233,11 @@ impl<'de> Deserialize<'de> for RawBytes {
 }
 
 #[cfg(feature = "server")]
-pub fn decode_bytes_from_inscription_data(inscription_data: &String) -> Option<Bytes> {
+pub fn decode_bytes_from_inscription_data(mut inscription_data: &str) -> Option<Bytes> {
+    if let Some((base64, _)) = inscription_data.split_once('=') {
+        // Remove any padding '=' characters from the end of the base64 string
+        inscription_data = base64;
+    }
     let base64_decoded = BASE64_STANDARD_NO_PAD.decode(inscription_data).ok()?;
     // Use first byte to determine compression method
     // 0x00 = uncompressed
@@ -335,6 +339,21 @@ mod tests {
         // 0x00 to indicate uncompressed
         let data = vec![0x00, 0xde, 0xad, 0xbe, 0xef, 0xff];
         let base64_encoded = BASE64_STANDARD_NO_PAD.encode(data);
+        let result = decode_bytes_from_inscription_data(&base64_encoded);
+        assert_eq!(
+            result,
+            Some(Bytes::from(vec![0xde, 0xad, 0xbe, 0xef, 0xff]))
+        );
+    }
+
+    #[test]
+    fn test_decode_bytes_from_base64_data_extra_equals() {
+        // 0x00 to indicate uncompressed
+        let data = vec![0x00, 0xde, 0xad, 0xbe, 0xef, 0xff];
+        let base64_encoded = BASE64_STANDARD_NO_PAD.encode(data);
+
+        // Add extra '=' to the end to test padding handling
+        let base64_encoded = format!("{}====", base64_encoded);
         let result = decode_bytes_from_inscription_data(&base64_encoded);
         assert_eq!(
             result,
