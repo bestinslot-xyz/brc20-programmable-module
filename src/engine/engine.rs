@@ -253,6 +253,7 @@ impl BRC20ProgEngine {
 
         // Check if next nonce exists in the pending txes and execute it in the same block
         let mut next_nonce = account_nonce + 1;
+        let mut next_tx_idx = tx_idx + 1;
         loop {
             // Loop instead of while to avoid holding the database read lock here
             let Some(pending_tx) = self.db.read().get_pending_tx(tx_info.from, next_nonce)? else {
@@ -270,7 +271,7 @@ impl BRC20ProgEngine {
                             pending_tx.nonce.into(),
                             pending_tx.hash.bytes,
                         ),
-                        tx_idx + 1,
+                        next_tx_idx,
                         block_number,
                         block_hash,
                         pending_tx.inscription_id.clone(),
@@ -283,6 +284,7 @@ impl BRC20ProgEngine {
                 db.remove_pending_tx(pending_tx.from.address, pending_tx.nonce.into())
             })?;
             next_nonce += 1;
+            next_tx_idx += 1;
         }
 
         Ok(receipts)
