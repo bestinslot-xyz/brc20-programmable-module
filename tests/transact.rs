@@ -329,9 +329,41 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
             Some("call_inscription".to_string()),
             call_data_length.into(),
         )
-        .await?;
+        .await.unwrap();
 
     assert!(call_response.is_empty()); // Nonce 2 should not be processed before nonce 1
+
+    let call_tx_builder: TransactionRequest = TxLegacy::default().into();
+    let call_tx_builder = call_tx_builder
+        .with_chain_id(chain_id_number)
+        .with_nonce(3)
+        .with_gas_price(0)
+        .with_gas_limit(0)
+        .with_to(contract_address.address)
+        .with_value(U256::ZERO)
+        .with_input(Bytes::from_str(&call_data).unwrap());
+
+    let built_tx = call_tx_builder.build(&wallet).await.unwrap();
+
+    let signed_tx = built_tx.into_signed();
+
+    let mut rlp_encoded = Vec::new();
+    signed_tx.network_encode(&mut rlp_encoded);
+    let call_data_length = rlp_encoded.len() as u64;
+
+    let call_response = client
+        .brc20_transact(
+            None,
+            Base64Bytes::from_bytes(rlp_encoded.into()).unwrap().into(),
+            timestamp,
+            block_hash,
+            2,
+            Some("call_inscription3".to_string()),
+            call_data_length.into(),
+        )
+        .await?;
+
+    assert!(call_response.is_empty()); // Nonce 3 should not be processed before nonce 1
 
     let call_tx_builder: TransactionRequest = TxLegacy::default().into();
     let call_tx_builder = call_tx_builder
@@ -363,7 +395,7 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
         )
         .await?;
 
-    assert_eq!(call_response.len(), 2); // Now nonce 1 and 2 should be processed together
+    assert_eq!(call_response.len(), 3); // Now nonce 1 and 2 should be processed together
 
     let receipt = call_response.get(0).unwrap().clone();
 
@@ -376,6 +408,14 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
     let receipt = call_response.get(1).unwrap().clone();
 
     assert_eq!(receipt.nonce, 2u64.into());
+    assert_eq!(
+        receipt.result_bytes.unwrap().bytes,
+        Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
+    );
+
+    let receipt = call_response.get(2).unwrap().clone();
+
+    assert_eq!(receipt.nonce, 3u64.into());
     assert_eq!(
         receipt.result_bytes.unwrap().bytes,
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
