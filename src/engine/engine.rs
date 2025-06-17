@@ -1,5 +1,6 @@
 #![cfg(feature = "server")]
 
+use std::collections::HashMap;
 use std::error::Error;
 use std::time::{Duration, UNIX_EPOCH};
 
@@ -22,10 +23,14 @@ use crate::db::Brc20ProgDatabase;
 use crate::engine::evm::get_evm;
 use crate::engine::precompiles::get_brc20_balance;
 use crate::engine::utils::{
-    get_contract_address, get_gas_limit, get_result_reason, get_result_type, get_tx_hash,
-    LastBlockInfo, TxInfo,
+    get_contract_address, get_gas_limit, get_inscription_byte_len, get_result_reason,
+    get_result_type, get_tx_hash, LastBlockInfo, TxInfo,
 };
-use crate::global::{SharedData, CHAIN_ID, CONFIG, MAX_REORG_HISTORY_SIZE};
+use crate::global::{
+    SharedData, CHAIN_ID, CONFIG, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_FUTURE_TRANSACTION_NONCES,
+    MAX_REORG_HISTORY_SIZE,
+};
+use crate::types::AddressED;
 
 pub struct BRC20ProgEngine {
     db: SharedData<Brc20ProgDatabase>,
@@ -144,6 +149,51 @@ impl BRC20ProgEngine {
         })
     }
 
+    pub fn get_all_pending_transactions(
+        &self,
+    ) -> Result<HashMap<AddressED, HashMap<u64, TxED>>, Box<dyn Error>> {
+        let pending_txes = self.db.read().get_all_pending_txes()?;
+        let mut result = HashMap::new();
+
+        for ((account, nonce), mut tx) in pending_txes {
+            let account_ed: AddressED = account.into();
+            let tx_nonce: u64 = nonce.into();
+
+            if !result.contains_key(&account_ed) {
+                result.insert(account_ed.clone(), HashMap::new());
+            }
+
+            let txes = result.get_mut(&account_ed).unwrap();
+            tx.block_hash = B256::ZERO.into();
+            tx.block_number = None;
+            tx.transaction_index = None;
+            txes.insert(tx_nonce, tx);
+        }
+
+        Ok(result)
+    }
+
+    pub fn get_pending_transactions_from(
+        &self,
+        account: Address,
+    ) -> Result<HashMap<AddressED, HashMap<u64, TxED>>, Box<dyn Error>> {
+        let pending_txes = self.db.read().get_all_pending_txes_from(account)?;
+        let mut result = HashMap::new();
+        result.insert(account.into(), HashMap::new());
+        let Some(txes) = result.get_mut(&account.into()) else {
+            return Err("Failed to get pending transactions for account".into());
+        };
+
+        for ((_, nonce), mut tx) in pending_txes {
+            tx.block_hash = B256::ZERO.into();
+            tx.block_number = None;
+            tx.transaction_index = None;
+            txes.insert(nonce.into(), tx);
+        }
+
+        Ok(result)
+    }
+
     pub fn add_raw_tx_to_block(
         &self,
         timestamp: u64,
@@ -153,12 +203,43 @@ impl BRC20ProgEngine {
         mut block_hash: B256,
         inscription_id: Option<String>,
         inscription_byte_len: Option<u64>,
-    ) -> Result<Option<TxED>, Box<dyn Error>> {
+    ) -> Result<Vec<TxReceiptED>, Box<dyn Error>> {
         // This allows testing, and generating hashes for blocks with unknown hashes
         if block_hash == B256::ZERO {
             block_hash = generate_block_hash(block_number);
         }
 
+        let tx_info = self.get_info_from_raw_tx(raw_tx.clone())?;
+        let gas_limit = get_gas_limit(inscription_byte_len.unwrap_or(tx_info.data.len() as u64));
+        let account_nonce = self.get_account_nonce(tx_info.from)?;
+
+        if let Some(nonce) = tx_info.nonce {
+            if nonce != account_nonce {
+                if nonce > account_nonce && nonce < account_nonce + MAX_FUTURE_TRANSACTION_NONCES {
+                    self.db.write_fn(|db| {
+                        db.set_pending_tx(
+                            tx_info.from,
+                            nonce,
+                            TxED::new(
+                                get_tx_hash(&tx_info, nonce).into(),
+                                nonce.into(),
+                                block_hash.into(),
+                                block_number.into(),
+                                0u64.into(),
+                                tx_info.from.into(),
+                                tx_info.to.into_to().map(|x| x.into()),
+                                gas_limit.into(),
+                                tx_info.data.clone().into(),
+                                inscription_id,
+                            ),
+                        )
+                    })?;
+                }
+                return Ok(Vec::new());
+            }
+        }
+
+        let mut receipts = Vec::new();
         let receipt = self.add_tx_to_block(
             timestamp,
             &self.get_info_from_raw_tx(raw_tx.clone())?,
@@ -168,8 +249,43 @@ impl BRC20ProgEngine {
             inscription_id,
             inscription_byte_len,
         )?;
+        receipts.push(receipt);
 
-        Ok(self.get_transaction_by_hash(receipt.transaction_hash.bytes)?)
+        // Check if next nonce exists in the pending txes and execute it in the same block
+        let mut next_nonce = account_nonce + 1;
+        loop {
+            // Loop instead of while to avoid holding the database read lock here
+            let Some(pending_tx) = self.db.read().get_pending_tx(tx_info.from, next_nonce)? else {
+                break;
+            };
+            if let Some(pending_tx_block_number) = pending_tx.block_number {
+                let pending_tx_block_number: u64 = pending_tx_block_number.into();
+                if MAX_FUTURE_TRANSACTION_BLOCKS + pending_tx_block_number > block_number {
+                    let receipt = self.add_tx_to_block(
+                        timestamp,
+                        &TxInfo::from_saved_transaction(
+                            pending_tx.from.address,
+                            pending_tx.to.map(|x| x.address).into(),
+                            pending_tx.input.bytes,
+                            pending_tx.nonce.into(),
+                            pending_tx.hash.bytes,
+                        ),
+                        tx_idx + 1,
+                        block_number,
+                        block_hash,
+                        pending_tx.inscription_id.clone(),
+                        get_inscription_byte_len(pending_tx.gas.into()).into(),
+                    )?;
+                    receipts.push(receipt);
+                }
+            }
+            self.db.write_fn(|db| {
+                db.remove_pending_tx(pending_tx.from.address, pending_tx.nonce.into())
+            })?;
+            next_nonce += 1;
+        }
+
+        Ok(receipts)
     }
 
     pub fn get_info_from_raw_tx(&self, mut raw_tx: Vec<u8>) -> Result<TxInfo, Box<dyn Error>> {
@@ -210,19 +326,10 @@ impl BRC20ProgEngine {
             block_hash = generate_block_hash(block_number);
         }
 
-        // TODO: Record nonces from the future, so we can execute them later
-        // This is useful for reorgs, where we might have txes with nonces that are not in the current block
-        // We can store them in a separate table, and execute them when the nonce is available
-        let account_nonce = self.get_account_nonce(tx_info.from)?;
-        if let Some(nonce) = tx_info.nonce {
-            if nonce != account_nonce {
-                return Err("Nonce is different from account nonce".into());
-            }
-        }
-
-        let tx_nonce = tx_info.nonce.unwrap_or(account_nonce);
-
         self.validate_next_tx(tx_idx, block_hash, block_number, timestamp)?;
+
+        let account_nonce = self.get_account_nonce(tx_info.from)?;
+        let tx_nonce = tx_info.nonce.unwrap_or(account_nonce);
 
         // First tx in block, set last block info
         if self.last_block_info.read().waiting_tx_count == 0 {
@@ -467,7 +574,10 @@ impl BRC20ProgEngine {
             db.set_block_timestamp(block_number, timestamp)?;
 
             // Save the full block info in the database for ease of access
-            db.set_block(block_number, db.generate_block(block_number)?)
+            db.set_block(block_number, db.generate_block(block_number)?)?;
+
+            // Remove old transactions from the txpool
+            db.clear_txpool(block_number)
         })?;
 
         self.last_block_info.write_fn_unchecked(|last_block_info| {

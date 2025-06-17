@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 
@@ -79,7 +81,7 @@ pub trait Brc20ProgApi {
         tx_idx: u64,
         inscription_id: Option<String>,
         inscription_byte_len: Option<u64>,
-    ) -> RpcResult<Option<TxED>>;
+    ) -> RpcResult<Vec<TxReceiptED>>;
 
     /// Deposits brc20 tokens to the given address
     #[method(name = "brc20_deposit")]
@@ -341,4 +343,17 @@ pub trait Brc20ProgApi {
     async fn eth_syncing(&self) -> RpcResult<bool> {
         Ok(false)
     }
+
+    /// Returns txpool content
+    #[method(name = "txpool_content")]
+    async fn txpool_content(
+        &self,
+    ) -> RpcResult<HashMap<String, HashMap<AddressED, HashMap<u64, TxED>>>>;
+
+    /// Returns txpool content filtered by from address
+    #[method(name = "txpool_contentFrom")]
+    async fn txpool_content_from(
+        &self,
+        from: AddressED,
+    ) -> RpcResult<HashMap<String, HashMap<AddressED, HashMap<u64, TxED>>>>;
 }

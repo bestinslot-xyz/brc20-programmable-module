@@ -184,6 +184,29 @@ impl Decode for u8 {
     }
 }
 
+impl<T, U> Encode for (T, U)
+where
+    T: Encode,
+    U: Encode,
+{
+    fn encode(&self, buffer: &mut Vec<u8>) {
+        self.0.encode(buffer);
+        self.1.encode(buffer);
+    }
+}
+
+impl<T, U> Decode for (T, U)
+where
+    T: Decode,
+    U: Decode,
+{
+    fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>> {
+        let (first, offset) = T::decode(bytes, offset)?;
+        let (second, offset) = U::decode(bytes, offset)?;
+        Ok(((first, second), offset))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -392,6 +415,15 @@ mod tests {
         let mut buffer = Vec::new();
         original.encode(&mut buffer);
         let (decoded, _) = Option::<Vec<Option<[u8; 5]>>>::decode(&buffer, 0).unwrap();
+        assert_eq!(original, decoded);
+    }
+
+    #[test]
+    fn test_tuple_encode_decode() {
+        let original = (42u32, "Hello".to_string());
+        let mut buffer = Vec::new();
+        original.encode(&mut buffer);
+        let (decoded, _) = <(u32, String)>::decode(&buffer, 0).unwrap();
         assert_eq!(original, decoded);
     }
 }

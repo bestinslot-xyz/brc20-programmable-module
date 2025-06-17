@@ -72,6 +72,22 @@ impl TxInfo {
         }
     }
 
+    pub fn from_saved_transaction(
+        from: Address,
+        to: TxKind,
+        data: Bytes,
+        nonce: u64,
+        tx_hash: B256,
+    ) -> Self {
+        TxInfo {
+            from,
+            to,
+            data,
+            nonce: Some(nonce),
+            pre_hash: Some(tx_hash),
+        }
+    }
+
     pub fn to_address_optional(&self) -> Option<Address> {
         match self.to {
             TxKind::Call(to) => Some(to),
@@ -98,6 +114,10 @@ pub fn get_tx_hash(tx_info: &TxInfo, account_nonce: u64) -> B256 {
 
 pub fn get_gas_limit(inscription_byte_len: u64) -> u64 {
     inscription_byte_len.saturating_mul(GAS_PER_BYTE)
+}
+
+pub fn get_inscription_byte_len(gas_limit: u64) -> u64 {
+    gas_limit.saturating_div(GAS_PER_BYTE)
 }
 
 pub fn get_evm_address_from_pkscript(pkscript: &str) -> Result<Address, Box<dyn Error>> {

@@ -1,8 +1,8 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::net::SocketAddr;
 
 use alloy::primitives::Bytes;
-use alloy::sol_types::sol;
 use hyper::Method;
 use jsonrpsee::core::middleware::RpcServiceBuilder;
 use jsonrpsee::core::{async_trait, RpcResult};
@@ -32,15 +32,6 @@ use crate::Brc20ProgConfig;
 
 struct RpcServer {
     engine: BRC20ProgEngine,
-}
-
-sol! {
-    function ecrecover(
-        bytes32 hash,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) public pure returns (address);
 }
 
 impl RpcServer {
@@ -320,7 +311,7 @@ impl Brc20ProgApiServer for RpcServer {
         tx_idx: u64,
         inscription_id: Option<String>,
         inscription_byte_len: Option<u64>,
-    ) -> RpcResult<Option<TxED>> {
+    ) -> RpcResult<Vec<TxReceiptED>> {
         log_call();
 
         if !CONFIG.read().brc20_transact_endpoint_enabled {
@@ -637,6 +628,47 @@ impl Brc20ProgApiServer for RpcServer {
         self.engine
             .get_transaction_by_block_hash_and_index(block_hash.bytes, tx_idx.unwrap_or(0))
             .map_err(wrap_rpc_error)
+    }
+
+    #[instrument(name = "txpool_content", skip(self), level = "error")]
+    async fn txpool_content(
+        &self,
+    ) -> RpcResult<HashMap<String, HashMap<AddressED, HashMap<u64, TxED>>>> {
+        log_call();
+        let mut result = HashMap::new();
+        result.insert(
+            "pending".to_string(),
+            self.engine
+                .get_all_pending_transactions()
+                .map_err(wrap_rpc_error)?,
+        );
+        result.insert(
+            "queued".to_string(),
+            HashMap::new(), // BRC20Prog does not support queued transactions
+        );
+
+        Ok(result)
+    }
+
+    #[instrument(name = "txpool_content_from", skip(self), level = "error")]
+    async fn txpool_content_from(
+        &self,
+        from: AddressED,
+    ) -> RpcResult<HashMap<String, HashMap<AddressED, HashMap<u64, TxED>>>> {
+        log_call();
+        let mut result = HashMap::new();
+        result.insert(
+            "pending".to_string(),
+            self.engine
+                .get_pending_transactions_from(from.address)
+                .map_err(wrap_rpc_error)?,
+        );
+        result.insert(
+            "queued".to_string(),
+            HashMap::new(), // BRC20Prog does not support queued transactions
+        );
+
+        Ok(result)
     }
 }
 
