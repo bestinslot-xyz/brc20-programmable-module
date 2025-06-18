@@ -27,7 +27,7 @@ use crate::engine::utils::{
     get_result_type, get_tx_hash, LastBlockInfo, TxInfo,
 };
 use crate::global::{
-    SharedData, CHAIN_ID, CONFIG, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_FUTURE_TRANSACTION_NONCES,
+    SharedData, CONFIG, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_FUTURE_TRANSACTION_NONCES,
     MAX_REORG_HISTORY_SIZE,
 };
 use crate::types::AddressED;
@@ -295,7 +295,7 @@ impl BRC20ProgEngine {
             TxLegacy::rlp_decode_with_signature(&mut raw_tx.as_mut_slice().as_ref())
                 .map_err(|_| "Failed to decode legacy transaction")?;
 
-        if decoded_raw_tx.chain_id != Some(CHAIN_ID) {
+        if decoded_raw_tx.chain_id != Some(CONFIG.read().chain_id) {
             return Err(format!(
                 "Invalid chain ID in raw transaction: {:?}",
                 decoded_raw_tx.chain_id
@@ -1322,6 +1322,9 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
+        CONFIG.write_fn_unchecked(|config| {
+            config.chain_id = 0x4252433230;
+        });
 
         let raw_tx = hex::decode("f875098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a764000084deadbeef8584a4866483a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83").unwrap();
 

@@ -9,7 +9,7 @@ use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 
 use crate::db::Brc20ProgDatabase;
 use crate::engine::precompiles::BRC20Precompiles;
-use crate::global::CHAIN_ID;
+use crate::global::CONFIG;
 
 const CURRENT_SPEC: SpecId = SpecId::CANCUN;
 
@@ -33,7 +33,7 @@ pub fn get_evm(
         Journal<Brc20ProgDatabase, JournalEntry>,
     > = Context::new(db, CURRENT_SPEC);
 
-    ctx.cfg.chain_id = CHAIN_ID;
+    ctx.cfg.chain_id = CONFIG.read().chain_id.into();
     ctx.cfg.spec = CURRENT_SPEC;
     ctx.cfg.limit_contract_code_size = Some(usize::MAX);
 
@@ -45,7 +45,7 @@ pub fn get_evm(
     ctx.block.prevrandao = Some(block_hash);
     ctx.block.blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(0, false));
 
-    ctx.tx.chain_id = Some(CHAIN_ID);
+    ctx.tx.chain_id = Some(CONFIG.read().chain_id);
     ctx.tx.gas_limit = u64::MAX;
     ctx.tx.gas_price = 0;
     ctx.tx.value = U256::ZERO;

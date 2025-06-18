@@ -7,17 +7,13 @@ use alloy_network::{EthereumWallet, TransactionBuilder};
 use alloy_rpc_types_eth::TransactionRequest;
 use alloy_signer_local::PrivateKeySigner;
 use brc20_prog::types::{Base64Bytes, RawBytes};
-use brc20_prog::{Brc20ProgApiClient, Brc20ProgConfig};
+use brc20_prog::Brc20ProgApiClient;
 use revm::primitives::Address;
 use test_utils::{load_file_as_string, spawn_test_server};
 
 #[tokio::test]
 async fn test_transact() -> Result<(), Box<dyn Error>> {
-    let (server, client) = spawn_test_server(Brc20ProgConfig {
-        brc20_transact_endpoint_enabled: true,
-        ..Default::default()
-    })
-    .await;
+    let (server, client) = spawn_test_server(Default::default()).await;
     let from_pkscript = "7465737420706b736372697074".to_string(); // "test pkscript"
     let timestamp = 42;
     let block_hash = [0u8; 32].into();
@@ -131,11 +127,7 @@ async fn test_transact() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn test_transact_encoded() -> Result<(), Box<dyn Error>> {
-    let (server, client) = spawn_test_server(Brc20ProgConfig {
-        brc20_transact_endpoint_enabled: true,
-        ..Default::default()
-    })
-    .await;
+    let (server, client) = spawn_test_server(Default::default()).await;
     let from_pkscript = "7465737420706b736372697074".to_string(); // "test pkscript"
     let timestamp = 42;
     let block_hash = [0u8; 32].into();
@@ -250,11 +242,7 @@ async fn test_transact_encoded() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
-    let (server, client) = spawn_test_server(Brc20ProgConfig {
-        brc20_transact_endpoint_enabled: true,
-        ..Default::default()
-    })
-    .await;
+    let (server, client) = spawn_test_server(Default::default()).await;
     let timestamp = 42;
     let block_hash = [0u8; 32].into();
 
@@ -329,7 +317,8 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
             Some("call_inscription".to_string()),
             call_data_length.into(),
         )
-        .await.unwrap();
+        .await
+        .unwrap();
 
     assert!(call_response.is_empty()); // Nonce 2 should not be processed before nonce 1
 
@@ -428,11 +417,7 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn test_transact_remove_old_transactions() -> Result<(), Box<dyn Error>> {
-    let (server, client) = spawn_test_server(Brc20ProgConfig {
-        brc20_transact_endpoint_enabled: true,
-        ..Default::default()
-    })
-    .await;
+    let (server, client) = spawn_test_server(Default::default()).await;
     let timestamp = 42;
     let block_hash = [0u8; 32].into();
 
@@ -507,11 +492,7 @@ async fn test_transact_remove_old_transactions() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn test_transact_in_the_past() -> Result<(), Box<dyn Error>> {
-    let (server, client) = spawn_test_server(Brc20ProgConfig {
-        brc20_transact_endpoint_enabled: true,
-        ..Default::default()
-    })
-    .await;
+    let (server, client) = spawn_test_server(Default::default()).await;
     let timestamp = 42;
     let block_hash = [0u8; 32].into();
 
@@ -556,10 +537,7 @@ async fn test_transact_in_the_past() -> Result<(), Box<dyn Error>> {
     assert_eq!(deploy_response.len(), 1);
 
     let txpool = client.txpool_content().await?;
-    assert!(txpool
-        .get("pending")
-        .unwrap()
-        .is_empty()); // No transactions in the pool, as it's processed immediately
+    assert!(txpool.get("pending").unwrap().is_empty()); // No transactions in the pool, as it's processed immediately
 
     let tx_builder: TransactionRequest = TxLegacy::default().into();
     let tx_builder = tx_builder
@@ -595,10 +573,7 @@ async fn test_transact_in_the_past() -> Result<(), Box<dyn Error>> {
     assert_eq!(deploy_response.len(), 0); // Transaction should be ignored due to past nonce
 
     let txpool = client.txpool_content().await?;
-    assert!(txpool
-        .get("pending")
-        .unwrap()
-        .is_empty()); // No transactions in the pool
+    assert!(txpool.get("pending").unwrap().is_empty()); // No transactions in the pool
 
     server.stop()?;
 
@@ -607,11 +582,7 @@ async fn test_transact_in_the_past() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn test_transact_in_the_future() -> Result<(), Box<dyn Error>> {
-    let (server, client) = spawn_test_server(Brc20ProgConfig {
-        brc20_transact_endpoint_enabled: true,
-        ..Default::default()
-    })
-    .await;
+    let (server, client) = spawn_test_server(Default::default()).await;
     let timestamp = 42;
     let block_hash = [0u8; 32].into();
 
@@ -656,10 +627,7 @@ async fn test_transact_in_the_future() -> Result<(), Box<dyn Error>> {
     assert_eq!(deploy_response.len(), 0); // Transaction should be ignored due to future nonce
 
     let txpool = client.txpool_content().await?;
-    assert!(txpool
-        .get("pending")
-        .unwrap()
-        .is_empty()); // No transactions in the pool
+    assert!(txpool.get("pending").unwrap().is_empty()); // No transactions in the pool
 
     server.stop()?;
 

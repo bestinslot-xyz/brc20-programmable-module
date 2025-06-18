@@ -22,7 +22,7 @@ use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
 use crate::engine::{get_evm_address_from_pkscript, BRC20ProgEngine, TxInfo};
-use crate::global::{CONFIG, INVALID_ADDRESS};
+use crate::global::INVALID_ADDRESS;
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
     wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
@@ -313,10 +313,6 @@ impl Brc20ProgApiServer for RpcServer {
         inscription_byte_len: Option<u64>,
     ) -> RpcResult<Vec<TxReceiptED>> {
         log_call();
-
-        if !CONFIG.read().brc20_transact_endpoint_enabled {
-            return Err(wrap_rpc_error_string("BRC20 transact endpoint is disabled"));
-        }
 
         let block_height = self
             .engine
