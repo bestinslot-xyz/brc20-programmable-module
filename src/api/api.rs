@@ -7,7 +7,7 @@ use crate::api::types::{Base64Bytes, EthCall, GetLogsFilter};
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
-use crate::global::{CARGO_PKG_VERSION, CHAIN_ID_STRING, INDEXER_ADDRESS};
+use crate::global::{CARGO_PKG_VERSION, CONFIG, INDEXER_ADDRESS};
 use crate::types::RawBytes;
 
 lazy_static::lazy_static! {
@@ -267,7 +267,7 @@ pub trait Brc20ProgApi {
     /// Returns the chain id in hex format ("BRC20" in hex)
     #[method(name = "eth_chainId")]
     async fn eth_chain_id(&self) -> RpcResult<String> {
-        Ok(CHAIN_ID_STRING.to_string())
+        Ok(format!("0x{:x}", CONFIG.read().chain_id))
     }
 
     /// Returns max priority fee per gas in hex format (0 in BRC20)

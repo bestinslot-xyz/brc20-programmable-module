@@ -3,7 +3,7 @@ use std::error::Error;
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED, U64ED, U8ED};
-use crate::global::CHAIN_ID;
+use crate::global::CONFIG;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 /// Represents a transaction entry from the EVM.
@@ -102,7 +102,7 @@ impl TxED {
             v: 0u8.into(),
             r: 0u8.into(),
             s: 0u8.into(),
-            chain_id: CHAIN_ID.into(),
+            chain_id: CONFIG.read().chain_id.into(),
             tx_type: 0u8.into(),
             inscription_id,
         }
@@ -157,7 +157,7 @@ impl Decode for TxED {
                 v: 0u8.into(),
                 r: 0u8.into(),
                 s: 0u8.into(),
-                chain_id: CHAIN_ID.into(),
+                chain_id: CONFIG.read().chain_id.into(),
                 tx_type: 0u8.into(),
                 inscription_id,
             },
@@ -187,7 +187,7 @@ mod tests {
             v: 0u8.into(),
             r: 0u8.into(),
             s: 0u8.into(),
-            chain_id: CHAIN_ID.into(),
+            chain_id: CONFIG.read().chain_id.into(),
             tx_type: 0u8.into(),
             inscription_id: Some("inscription_id".to_string()),
         };
@@ -213,14 +213,14 @@ mod tests {
             v: 0u8.into(),
             r: 0u8.into(),
             s: 0u8.into(),
-            chain_id: CHAIN_ID.into(),
+            chain_id: CONFIG.read().chain_id.into(),
             tx_type: 0u8.into(),
             inscription_id: None,
         };
         let serialized = serde_json::to_string(&tx).unwrap();
         assert_eq!(
             serialized,
-            "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\",\"v\":\"0x0\",\"r\":\"0x0\",\"s\":\"0x0\",\"chainId\":\"0x4252433230\",\"type\":0}"
+            "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\",\"v\":\"0x0\",\"r\":\"0x0\",\"s\":\"0x0\",\"chainId\":\"0x425243323073\",\"type\":0}"
         );
 
         let deserialized: TxED = serde_json::from_str(&serialized).unwrap();
@@ -244,14 +244,14 @@ mod tests {
             v: 0u8.into(),
             r: 0u8.into(),
             s: 0u8.into(),
-            chain_id: CHAIN_ID.into(),
+            chain_id: CONFIG.read().chain_id.into(),
             tx_type: 0u8.into(),
             inscription_id: Some("inscription_id".to_string()),
         };
         let serialized = serde_json::to_string(&tx).unwrap();
         assert_eq!(
             serialized,
-            "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\",\"v\":\"0x0\",\"r\":\"0x0\",\"s\":\"0x0\",\"chainId\":\"0x4252433230\",\"type\":0}"
+            "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\",\"v\":\"0x0\",\"r\":\"0x0\",\"s\":\"0x0\",\"chainId\":\"0x425243323073\",\"type\":0}"
         );
 
         let deserialized: TxED = serde_json::from_str(&serialized).unwrap();

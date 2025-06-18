@@ -47,9 +47,6 @@ lazy_static::lazy_static! {
     pub(crate) static ref BITCOIN_RPC_NETWORK_KEY: String = "BITCOIN_RPC_NETWORK".to_string();
     static ref BITCOIN_RPC_NETWORK_DEFAULT_SIGNET: String = "signet".to_string();
 
-    pub(crate) static ref BRC20_TRANSACT_ENDPOINT_ENABLED_KEY: String = "BRC20_TRANSACT_ENDPOINT_ENABLED".to_string();
-    static ref BRC20_TRANSACT_ENDPOINT_ENABLED_DEFAULT: bool = false;
-
     pub static ref CARGO_PKG_VERSION: String = {
         let version = env!("CARGO_PKG_VERSION");
         if version.is_empty() {
@@ -80,8 +77,8 @@ pub const GAS_PER_BRC20_BALANCE_CALL: u64 = 200000; // 200K gas per BRC20 balanc
 pub const GAS_PER_BIP_322_VERIFY: u64 = 20000; // 20K gas per BIP-322 verify call
 pub const GAS_PER_LOCKED_PKSCRIPT: u64 = 20000; // 20K gas per locked pkscript call
 
-pub const CHAIN_ID: u64 = 0x4252433230;
-pub const CHAIN_ID_STRING: &str = "0x4252433230";
+const CHAIN_ID: u64 = 0x4252433230; // Mainnet Chain ID: BRC20 in hex
+const CHAIN_ID_TESTNETS: u64 = 0x425243323073; // Testnets Chain ID: BRC20s in hex
 
 pub const CALLDATA_LIMIT: usize = 1024 * 1024; // 1MB
 
@@ -114,14 +111,15 @@ pub struct Brc20ProgConfig {
     /// The network type for the Bitcoin RPC server
     /// This is used to determine the network (mainnet, testnet, signet, etc.) for the Bitcoin RPC server
     pub bitcoin_rpc_network: String,
+    /// Chain ID for the Bitcoin RPC server
+    /// This is used to determine the chain ID for the Bitcoin RPC server
+    pub chain_id: u64,
     /// Whether to fail on BRC20 balance server errors, if set to true, the server will stop if BRC20 balance server is not reachable when needed
     pub fail_on_brc20_balance_server_error: bool,
     /// Whether to fail on Bitcoin RPC errors, if set to true, the server will stop if Bitcoin RPC server is not reachable when needed
     pub fail_on_bitcoin_rpc_error: bool,
     /// Database path
     pub db_path: String,
-    /// brc20_transact endpoint enabled
-    pub brc20_transact_endpoint_enabled: bool,
 }
 
 impl Default for Brc20ProgConfig {
@@ -162,10 +160,10 @@ impl Brc20ProgConfig {
         bitcoin_rpc_user: String,
         bitcoin_rpc_password: String,
         bitcoin_rpc_network: String,
+        chain_id: u64,
         fail_on_brc20_balance_server_error: bool,
         fail_on_bitcoin_rpc_error: bool,
         db_path: String,
-        brc20_transact_endpoint_enabled: bool,
     ) -> Self {
         Self {
             brc20_prog_rpc_server_url,
@@ -179,10 +177,10 @@ impl Brc20ProgConfig {
             bitcoin_rpc_user,
             bitcoin_rpc_password,
             bitcoin_rpc_network,
+            chain_id,
             fail_on_brc20_balance_server_error,
             fail_on_bitcoin_rpc_error,
             db_path,
-            brc20_transact_endpoint_enabled,
         }
     }
 
@@ -228,6 +226,13 @@ impl Brc20ProgConfig {
                 .unwrap_or(Default::default()),
             bitcoin_rpc_network: env::var(&*BITCOIN_RPC_NETWORK_KEY)
                 .unwrap_or("signet".to_string()),
+            chain_id: if env::var(&*BITCOIN_RPC_NETWORK_KEY).unwrap_or("signet".to_string())
+                == "mainnet"
+            {
+                CHAIN_ID
+            } else {
+                CHAIN_ID_TESTNETS
+            },
             fail_on_brc20_balance_server_error: env::var(&*FAIL_ON_BRC20_BALANCE_SERVER_ERROR_KEY)
                 .map(|x| x == "true")
                 .unwrap_or(*FAIL_ON_BRC20_BALANCE_SERVER_ERROR_DEFAULT),
@@ -235,9 +240,6 @@ impl Brc20ProgConfig {
                 .map(|x| x == "true")
                 .unwrap_or(*FAIL_ON_BITCOIN_RPC_ERROR_DEFAULT),
             db_path: env::var(&*DB_PATH_KEY).unwrap_or(DB_PATH_DEFAULT.clone()),
-            brc20_transact_endpoint_enabled: env::var(&*BRC20_TRANSACT_ENDPOINT_ENABLED_KEY)
-                .map(|x| x == "true")
-                .unwrap_or(*BRC20_TRANSACT_ENDPOINT_ENABLED_DEFAULT),
         }
     }
 }
