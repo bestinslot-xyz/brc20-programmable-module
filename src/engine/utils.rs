@@ -2,7 +2,7 @@ use std::error::Error;
 use std::time::{Duration, Instant};
 
 use alloy::consensus::TxLegacy;
-use alloy::primitives::{keccak256, Address, Bytes, B256};
+use alloy::primitives::{keccak256, Address, Bytes, B256, U256};
 use revm::context::result::{ExecutionResult, HaltReason, OutOfGasError, Output, SuccessReason};
 use revm::primitives::TxKind;
 
@@ -40,6 +40,9 @@ pub struct TxInfo {
     pub data: Bytes,
     pub nonce: Option<u64>,
     pub pre_hash: Option<B256>,
+    pub v: u8,
+    pub r: U256,
+    pub s: U256,
 }
 
 impl TxInfo {
@@ -50,10 +53,20 @@ impl TxInfo {
             data,
             nonce: None,
             pre_hash: None,
+            v: 0,
+            r: U256::ZERO,
+            s: U256::ZERO,
         }
     }
 
-    pub fn from_raw_transaction(from: Address, raw_tx: TxLegacy, tx_hash: B256) -> Self {
+    pub fn from_raw_transaction(
+        from: Address,
+        raw_tx: TxLegacy,
+        tx_hash: B256,
+        v: u8,
+        r: U256,
+        s: U256,
+    ) -> Self {
         TxInfo {
             from,
             to: match raw_tx.to.into_to() {
@@ -69,6 +82,9 @@ impl TxInfo {
             data: raw_tx.input,
             nonce: Some(raw_tx.nonce),
             pre_hash: Some(tx_hash),
+            v,
+            r,
+            s,
         }
     }
 
@@ -78,6 +94,9 @@ impl TxInfo {
         data: Bytes,
         nonce: u64,
         tx_hash: B256,
+        v: u8,
+        r: U256,
+        s: U256,
     ) -> Self {
         TxInfo {
             from,
@@ -85,6 +104,9 @@ impl TxInfo {
             data,
             nonce: Some(nonce),
             pre_hash: Some(tx_hash),
+            v,
+            r,
+            s,
         }
     }
 

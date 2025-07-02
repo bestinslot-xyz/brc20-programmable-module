@@ -231,6 +231,9 @@ impl BRC20ProgEngine {
                                 gas_limit.into(),
                                 tx_info.data.clone().into(),
                                 inscription_id,
+                                tx_info.v.into(),
+                                tx_info.r.into(),
+                                tx_info.s.into(),
                             ),
                         )
                     })?;
@@ -270,6 +273,9 @@ impl BRC20ProgEngine {
                             pending_tx.input.bytes,
                             pending_tx.nonce.into(),
                             pending_tx.hash.bytes,
+                            if pending_tx.v.is_zero() { 0 } else { 1 },
+                            pending_tx.r.uint,
+                            pending_tx.s.uint,
                         ),
                         next_tx_idx,
                         block_number,
@@ -310,6 +316,9 @@ impl BRC20ProgEngine {
             recovered_address,
             decoded_raw_tx,
             signing_hash,
+            signature.v() as u8,
+            signature.r(),
+            signature.s(),
         ))
     }
 
@@ -421,6 +430,9 @@ impl BRC20ProgEngine {
                 self.last_block_info.read().log_index,
                 inscription_id,
                 gas_limit,
+                tx_info.v.into(),
+                tx_info.r.into(),
+                tx_info.s.into(),
             )?;
 
             self.last_block_info.write_fn_unchecked(|last_block_info| {

@@ -41,9 +41,10 @@ pub async fn spawn_test_server(config: Brc20ProgConfig) -> (ServerHandle, HttpCl
     )
 }
 
-pub fn spawn_balance_server() {
-    std::thread::spawn(|| {
-        let listener = TcpListener::bind("127.0.0.1:18546").unwrap();
+pub fn spawn_balance_server() -> u16 {
+    let port = get_free_port();
+    std::thread::spawn(move || {
+        let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
         loop {
             let (mut stream, _) = listener.accept().unwrap();
             let mut buf = [0; 1024];
@@ -52,6 +53,7 @@ pub fn spawn_balance_server() {
             let _ = stream.write(response).unwrap();
         }
     });
+    port
 }
 
 pub fn is_in_ci() -> bool {

@@ -348,6 +348,9 @@ mod tests {
             24u64.into(),
             vec![25u8].into(),
             None,
+            0u8.into(),
+            0u8.into(),
+            0u8.into(),
         )]);
 
         let serialized = serde_json::to_string(&block).unwrap();
