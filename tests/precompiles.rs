@@ -178,7 +178,7 @@ async fn test_btc_rpc_precompiles() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn test_get_brc20_balance() -> Result<(), Box<dyn Error>> {
-    spawn_balance_server();
+    let port = spawn_balance_server();
 
     // Wait for the server to start
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
@@ -193,7 +193,7 @@ async fn test_get_brc20_balance() -> Result<(), Box<dyn Error>> {
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
     let (server, client) = spawn_test_server(Brc20ProgConfig {
-        brc20_balance_server_url: "http://localhost:18546".to_string(),
+        brc20_balance_server_url: format!("http://localhost:{}", port),
         ..Default::default()
     })
     .await;

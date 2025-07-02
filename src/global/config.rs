@@ -6,10 +6,10 @@ use crate::global::shared_data::SharedData;
 
 lazy_static::lazy_static! {
     pub(crate) static ref DB_VERSION_KEY: String = "DB_VERSION".to_string();
-    pub(crate) static ref DB_VERSION: u32 = 5;
+    pub(crate) static ref DB_VERSION: u32 = 6;
 
     pub(crate) static ref PROTOCOL_VERSION_KEY: String = "PROTOCOL_VERSION".to_string();
-    pub(crate) static ref PROTOCOL_VERSION: u32 = 1;
+    pub(crate) static ref PROTOCOL_VERSION: u32 = 2;
 
     static ref DB_PATH_KEY: String = "BRC20_PROG_DB_PATH".to_string();
     static ref DB_PATH_DEFAULT: String = "target/db".to_string();

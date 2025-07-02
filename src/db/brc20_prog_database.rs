@@ -455,6 +455,9 @@ impl Brc20ProgDatabase {
         start_log_index: u64,
         inscription_id: Option<String>,
         gas_limit: u64,
+        v: u8,
+        r: U256,
+        s: U256,
     ) -> Result<(), Box<dyn Error>> {
         self.require_block_does_not_exist(block_hash, block_number)?;
 
@@ -489,6 +492,9 @@ impl Brc20ProgDatabase {
             gas_limit.into(),
             data.clone().into(),
             inscription_id.clone(),
+            v.into(),
+            r.into(),
+            s.into(),
         );
 
         self.db_tx
@@ -1246,6 +1252,9 @@ mod tests {
                 start_log_index,
                 Some("inscription_id".to_string()),
                 10000,
+                0u8,
+                U256::from(0),
+                U256::from(0),
             )
             .unwrap();
             db.set_block_hash(block_number, block_hash).unwrap();
@@ -1360,6 +1369,9 @@ mod tests {
                 start_log_index,
                 Some("inscription_id".to_string()),
                 10000,
+                0u8,
+                U256::from(0),
+                U256::from(0),
             )
             .unwrap();
             db.set_block_hash(block_number, block_hash).unwrap();

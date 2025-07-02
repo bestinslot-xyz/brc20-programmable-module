@@ -147,8 +147,8 @@ pub brc20_prog::types::TxED::hash: brc20_prog::types::B256ED
 pub brc20_prog::types::TxED::input: brc20_prog::types::BytesED
 pub brc20_prog::types::TxED::inscription_id: core::option::Option<alloc::string::String>
 pub brc20_prog::types::TxED::nonce: brc20_prog::types::U64ED
-pub brc20_prog::types::TxED::r: brc20_prog::types::U8ED
-pub brc20_prog::types::TxED::s: brc20_prog::types::U8ED
+pub brc20_prog::types::TxED::r: brc20_prog::types::U256ED
+pub brc20_prog::types::TxED::s: brc20_prog::types::U256ED
 pub brc20_prog::types::TxED::to: core::option::Option<brc20_prog::types::AddressED>
 pub brc20_prog::types::TxED::transaction_index: core::option::Option<brc20_prog::types::U64ED>
 pub brc20_prog::types::TxED::tx_type: brc20_prog::types::U8ED

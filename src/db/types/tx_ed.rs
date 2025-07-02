@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED, U64ED, U8ED};
 use crate::global::CONFIG;
+use crate::types::U256ED;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 /// Represents a transaction entry from the EVM.
@@ -36,12 +37,12 @@ pub struct TxED {
     pub gas_price: U64ED,
     /// The input data for the transaction
     pub input: BytesED,
-    /// The v field of the transaction, 0 for BRC2.0
+    /// The v field of the transaction
     pub v: U8ED,
-    /// The r field of the transaction, 0 for BRC2.0
-    pub r: U8ED,
-    /// The s field of the transaction, 0 for BRC2.0
-    pub s: U8ED,
+    /// The r field of the transaction
+    pub r: U256ED,
+    /// The s field of the transaction
+    pub s: U256ED,
     #[serde(rename = "chainId")]
     /// The chain ID for the transaction
     pub chain_id: U64ED,
@@ -86,6 +87,9 @@ impl TxED {
         gas: U64ED,
         input: BytesED,
         inscription_id: Option<String>,
+        v: U8ED,
+        r: U256ED,
+        s: U256ED,
     ) -> Self {
         TxED {
             hash,
@@ -99,9 +103,9 @@ impl TxED {
             gas,
             gas_price: 0u64.into(),
             input,
-            v: 0u8.into(),
-            r: 0u8.into(),
-            s: 0u8.into(),
+            v,
+            r,
+            s,
             chain_id: CONFIG.read().chain_id.into(),
             tx_type: 0u8.into(),
             inscription_id,
@@ -123,6 +127,9 @@ impl Encode for TxED {
         self.gas_price.encode(buffer);
         self.input.encode(buffer);
         self.inscription_id.encode(buffer);
+        self.v.encode(buffer);
+        self.r.encode(buffer);
+        self.s.encode(buffer);
     }
 }
 
@@ -140,6 +147,9 @@ impl Decode for TxED {
         let (gas_price, offset) = Decode::decode(bytes, offset)?;
         let (input, offset) = Decode::decode(bytes, offset)?;
         let (inscription_id, offset) = Decode::decode(bytes, offset)?;
+        let (v, offset) = Decode::decode(bytes, offset)?;
+        let (r, offset) = Decode::decode(bytes, offset)?;
+        let (s, offset) = Decode::decode(bytes, offset)?;
 
         Ok((
             TxED {
@@ -154,9 +164,9 @@ impl Decode for TxED {
                 gas,
                 gas_price,
                 input,
-                v: 0u8.into(),
-                r: 0u8.into(),
-                s: 0u8.into(),
+                v,
+                r,
+                s,
                 chain_id: CONFIG.read().chain_id.into(),
                 tx_type: 0u8.into(),
                 inscription_id,
@@ -184,9 +194,9 @@ mod tests {
             gas: 5u64.into(),
             gas_price: 6u64.into(),
             input: vec![7, 8, 9].into(),
-            v: 0u8.into(),
-            r: 0u8.into(),
-            s: 0u8.into(),
+            v: 10u8.into(),
+            r: 11u8.into(),
+            s: 12u8.into(),
             chain_id: CONFIG.read().chain_id.into(),
             tx_type: 0u8.into(),
             inscription_id: Some("inscription_id".to_string()),
@@ -210,9 +220,9 @@ mod tests {
             gas: 5u64.into(),
             gas_price: 6u64.into(),
             input: vec![7, 8, 9].into(),
-            v: 0u8.into(),
-            r: 0u8.into(),
-            s: 0u8.into(),
+            v: 10u8.into(),
+            r: 11u8.into(),
+            s: 12u8.into(),
             chain_id: CONFIG.read().chain_id.into(),
             tx_type: 0u8.into(),
             inscription_id: None,
@@ -220,7 +230,7 @@ mod tests {
         let serialized = serde_json::to_string(&tx).unwrap();
         assert_eq!(
             serialized,
-            "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\",\"v\":\"0x0\",\"r\":\"0x0\",\"s\":\"0x0\",\"chainId\":\"0x425243323073\",\"type\":0}"
+            "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\",\"v\":\"0xa\",\"r\":\"0xb\",\"s\":\"0xc\",\"chainId\":\"0x425243323073\",\"type\":0}"
         );
 
         let deserialized: TxED = serde_json::from_str(&serialized).unwrap();
