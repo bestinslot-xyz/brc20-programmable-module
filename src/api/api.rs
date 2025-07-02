@@ -20,6 +20,7 @@ lazy_static::lazy_static! {
         "brc20_withdraw".to_string(),
         "brc20_initialise".to_string(),
         "brc20_finaliseBlock".to_string(),
+        "brc20_transact".to_string(),
         "brc20_reorg".to_string(),
         "brc20_commitToDatabase".to_string(),
         "brc20_clearCaches".to_string(),
