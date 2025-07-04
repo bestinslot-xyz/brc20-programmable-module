@@ -35,89 +35,6 @@ class BRC20ProgClient:
         elif self.current_block_timestamp != timestamp:
             raise Exception("Block timestamp mismatch")
 
-    def initialise(
-        self,
-        genesis_hash: str,
-        genesis_timestamp: int,
-        genesis_height: int,
-    ):
-        if not brc20_prog_enabled:
-            return
-
-        result = jsonrpc_call(
-            "brc20_initialise",
-            params={
-                "genesis_hash": genesis_hash,
-                "genesis_timestamp": genesis_timestamp,
-                "genesis_height": genesis_height,
-            },
-        )
-
-        if "error" in result:
-            raise Exception(result["error"])
-
-        self.commit_to_database()
-
-    def deposit(
-        self,
-        to_pkscript: str,
-        ticker: str,
-        timestamp: int,
-        block_hash: str,
-        amount: int,
-    ) -> bool:
-        if not brc20_prog_enabled:
-            return False
-        self.verify_block_hash_and_timestamp(block_hash, timestamp)
-
-        result = jsonrpc_call(
-            "brc20_deposit",
-            params={
-                "to_pkscript": to_pkscript,
-                "ticker": ticker,
-                "timestamp": timestamp,
-                "hash": block_hash,
-                "tx_idx": self.current_block_tx_idx,
-                "amount": str(amount),
-            },
-        )
-
-        if "error" in result:
-            raise Exception(result["error"])
-
-        self.current_block_tx_idx += 1
-        return bool(result["result"]["status"] == "0x1")
-
-    def withdraw(
-        self,
-        from_pkscript: str,
-        ticker: str,
-        timestamp: int,
-        block_hash: str,
-        amount: int,
-    ) -> bool:
-        if not brc20_prog_enabled:
-            return False
-        self.verify_block_hash_and_timestamp(block_hash, timestamp)
-
-        result = jsonrpc_call(
-            "brc20_withdraw",
-            params={
-                "from_pkscript": from_pkscript,
-                "ticker": ticker,
-                "timestamp": timestamp,
-                "hash": block_hash,
-                "tx_idx": self.current_block_tx_idx,
-                "amount": str(amount),
-            },
-        )
-
-        if "error" in result:
-            raise Exception(result["error"])
-
-        self.current_block_tx_idx += 1
-        return bool(result["result"]["status"] == "0x1")
-
     def deploy(
         self,
         from_pkscript: str,
@@ -151,7 +68,7 @@ class BRC20ProgClient:
 
         self.current_block_tx_idx += 1
         return tx_result["result"]["contractAddress"]
-    
+
     def call(
         self,
         from_pkscript: str,
@@ -161,7 +78,7 @@ class BRC20ProgClient:
         timestamp: int,
         block_hash: str,
         inscription_id: str = None,
-        inscription_byte_len: int = 1024
+        inscription_byte_len: int = 1024,
     ):
         if not brc20_prog_enabled:
             return
@@ -178,7 +95,7 @@ class BRC20ProgClient:
                 "hash": block_hash,
                 "tx_idx": self.current_block_tx_idx,
                 "inscription_id": inscription_id,
-                "inscription_byte_len": inscription_byte_len
+                "inscription_byte_len": inscription_byte_len,
             },
         )
 
@@ -190,17 +107,6 @@ class BRC20ProgClient:
 
         self.current_block_tx_idx += 1
         return tx_result["result"]
-
-    def mine_blocks(self, block_count: int):
-        if not brc20_prog_enabled:
-            return
-        result = jsonrpc_call(
-            "brc20_mine", {"block_count": block_count, "timestamp": 0}
-        )
-        if "error" in result:
-            raise Exception(result["error"])
-
-        self.reset_current_block()
 
     def finalise_block(self, block_hash: str, timestamp: int):
         if not brc20_prog_enabled:
@@ -224,7 +130,9 @@ class BRC20ProgClient:
     def get_block(self, block_height: int):
         if not brc20_prog_enabled:
             return ""
-        result = jsonrpc_call("eth_getBlockByNumber", {"block": str(block_height), "is_full": True})
+        result = jsonrpc_call(
+            "eth_getBlockByNumber", {"block": str(block_height), "is_full": True}
+        )
         if "error" in result:
             return None
 
@@ -234,33 +142,6 @@ class BRC20ProgClient:
         if not brc20_prog_enabled:
             return 0
         return int(jsonrpc_call("eth_blockNumber", {})["result"], 0)
-
-    def reorg(self, block_height):
-        if not brc20_prog_enabled:
-            return
-        result = jsonrpc_call(
-            "brc20_reorg", {"latest_valid_block_number": block_height}
-        )
-        if "error" in result:
-            raise Exception(result["error"])
-
-        self.reset_current_block()
-
-    def clear_caches(self):
-        if not brc20_prog_enabled:
-            return
-        result = jsonrpc_call("brc20_clearCaches", {})
-        if "error" in result:
-            raise Exception(result["error"])
-
-        self.reset_current_block()
-
-    def commit_to_database(self):
-        if not brc20_prog_enabled:
-            return
-        result = jsonrpc_call("brc20_commitToDatabase", {})
-        if "error" in result:
-            raise Exception(result["error"])
 
     def reset_current_block(self):
         self.current_block_hash = ""
