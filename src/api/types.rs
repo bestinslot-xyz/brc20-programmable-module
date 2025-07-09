@@ -169,7 +169,7 @@ pub fn select_bytes(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-//// A wrapper for raw bytes in their 0x prefixed hex string representation that can be
+/// A wrapper for raw bytes in their 0x prefixed hex string representation that can be
 /// serialized and deserialized.
 /// This struct is used to handle the encoding and decoding of bytes in the BRC20 protocol.
 ///
