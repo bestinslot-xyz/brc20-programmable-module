@@ -18,8 +18,8 @@ use serde_either::SingleOrVec;
 use crate::db::cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 use crate::db::database::BlockDatabase;
 use crate::db::types::{
-    AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED,
-    B256ED, U128ED, U256ED, U512ED, U64ED,
+    AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, RawBlock, TraceED, TxED,
+    TxReceiptED, B256ED, U128ED, U256ED, U512ED, U64ED,
 };
 use crate::global::{
     GAS_PER_BYTE, MAX_BLOCK_SIZE, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_REORG_HISTORY_SIZE,
@@ -71,6 +71,9 @@ pub struct Brc20ProgDatabase {
     // Block number to Block
     db_block_number_to_block: Option<BlockDatabase<BlockResponseED>>,
 
+    // Block number or hash to Raw Block
+    db_block_number_to_raw_block: Option<BlockDatabase<RawBlock>>,
+
     /// Block number to block hash
     db_block_number_to_hash: Option<BlockDatabase<B256ED>>,
 
@@ -101,6 +104,7 @@ impl Default for Brc20ProgDatabase {
             db_inscription_id_to_tx_hash: None,
             db_contract_address_to_inscription_id: None,
             db_block_number_to_block: None,
+            db_block_number_to_raw_block: None,
             db_block_number_to_hash: None,
             db_block_hash_to_number: None,
             db_block_number_to_timestamp: None,
@@ -145,6 +149,10 @@ impl Brc20ProgDatabase {
             db_block_number_to_block: Some(BlockDatabase::new(
                 &base_path,
                 "block_number_to_block",
+            )?),
+            db_block_number_to_raw_block: Some(BlockDatabase::new(
+                &base_path,
+                "block_number_to_raw_block",
             )?),
             db_block_number_to_hash: Some(BlockDatabase::new(&base_path, "block_number_to_hash")?),
             db_block_number_to_timestamp: Some(BlockDatabase::new(
@@ -621,6 +629,44 @@ impl Brc20ProgDatabase {
         )?)
     }
 
+    pub fn generate_raw_block(&self, block: BlockResponseED) -> Result<RawBlock, Box<dyn Error>> {
+        let block_number: u64 = block.number.into();
+        let transactions = self
+            .db_number_and_index_to_tx_hash
+            .as_ref()
+            .ok_or("DB Error")?
+            .get_range(
+                &Self::get_number_and_index_key(block_number, 0).into(),
+                &Self::get_number_and_index_key(block_number + 1, 0).into(),
+            )?
+            .into_iter()
+            .map(|x| self.get_tx_by_hash(x.1.into()))
+            .filter_map(|x| match x {
+                Ok(Some(tx)) => Some(tx),
+                Ok(None) => None,
+                Err(e) => {
+                    eprintln!("Error getting transaction: {}", e);
+                    None
+                }
+            })
+            .collect::<Vec<TxED>>();
+
+        let receipts = transactions
+            .iter()
+            .map(|tx| self.get_tx_receipt(tx.hash.into()))
+            .filter_map(|x| match x {
+                Ok(Some(receipt)) => Some(receipt),
+                Ok(None) => None,
+                Err(e) => {
+                    eprintln!("Error getting transaction receipt: {}", e);
+                    None
+                }
+            })
+            .collect::<Vec<TxReceiptED>>();
+
+        Ok(RawBlock::new(block, transactions, receipts))
+    }
+
     pub fn generate_block(&self, block_number: u64) -> Result<BlockResponseED, Box<dyn Error>> {
         let block_timestamp = self
             .get_block_timestamp(block_number)?
@@ -715,6 +761,28 @@ impl Brc20ProgDatabase {
             .as_mut()
             .ok_or("DB Error")?
             .set(block_number, block_response))
+    }
+
+    pub fn get_raw_block_by_number(
+        &self,
+        block_number: u64,
+    ) -> Result<Option<RawBlock>, Box<dyn Error>> {
+        self.db_block_number_to_raw_block
+            .as_ref()
+            .ok_or("DB Error")?
+            .get(block_number)
+    }
+
+    pub fn set_raw_block(
+        &mut self,
+        block_number: u64,
+        raw_block: RawBlock,
+    ) -> Result<(), Box<dyn Error>> {
+        Ok(self
+            .db_block_number_to_raw_block
+            .as_mut()
+            .ok_or("DB Error")?
+            .set(block_number, raw_block))
     }
 
     pub fn get_block_number(&self, block_hash: B256) -> Result<Option<U64ED>, Box<dyn Error>> {
@@ -837,6 +905,10 @@ impl Brc20ProgDatabase {
             .as_mut()
             .ok_or("DB Error")?
             .commit()?;
+        self.db_block_number_to_raw_block
+            .as_mut()
+            .ok_or("DB Error")?
+            .commit()?;
 
         self.db_number_and_index_to_tx_hash
             .as_mut()
@@ -929,6 +1001,10 @@ impl Brc20ProgDatabase {
             .as_mut()
             .ok_or("DB Error")?
             .clear_cache();
+        self.db_block_number_to_raw_block
+            .as_mut()
+            .ok_or("DB Error")?
+            .clear_cache();
 
         self.latest_block_number = None;
         Ok(())
@@ -997,6 +1073,10 @@ impl Brc20ProgDatabase {
             .ok_or("DB Error")?
             .reorg(latest_valid_block_number)?;
         self.db_block_number_to_block
+            .as_mut()
+            .ok_or("DB Error")?
+            .reorg(latest_valid_block_number)?;
+        self.db_block_number_to_raw_block
             .as_mut()
             .ok_or("DB Error")?
             .reorg(latest_valid_block_number)?;
