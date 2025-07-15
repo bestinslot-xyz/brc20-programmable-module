@@ -110,13 +110,13 @@ impl RawBlock {
     pub fn raw_header(&self) -> String {
         let mut raw_bytes = Vec::new();
         self.block.header.encode(&mut raw_bytes);
-        hex::encode(raw_bytes)
+        "0x".to_string() + hex::encode(raw_bytes).as_str()
     }
 
     pub fn raw_block(&self) -> String {
         let mut raw_bytes = Vec::new();
         self.block.encode(&mut raw_bytes);
-        hex::encode(raw_bytes)
+        "0x".to_string() + hex::encode(raw_bytes).as_str()
     }
 
     pub fn raw_receipts(&self) -> Vec<String> {
@@ -124,7 +124,7 @@ impl RawBlock {
         for receipt in &self.receipts {
             let mut raw_bytes = Vec::new();
             receipt.encode(&mut raw_bytes);
-            raw_receipts.push(hex::encode(raw_bytes));
+            raw_receipts.push("0x".to_string() + hex::encode(raw_bytes).as_str());
         }
         raw_receipts
     }
@@ -140,13 +140,13 @@ impl Encode for RawBlock {
 impl Decode for RawBlock {
     fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>> {
         let (block_string, offset): (String, usize) = Decode::decode(bytes, offset)?;
-        let block_bytes = hex::decode(block_string)?;
+        let block_bytes = hex::decode(block_string.trim_start_matches("0x"))?;
         let block = Block::<TxEnvelope>::decode(&mut block_bytes.as_slice())?;
 
         let (receipts_strings, offset): (Vec<String>, usize) = Decode::decode(bytes, offset)?;
         let mut receipts = Vec::new();
         for receipt_string in receipts_strings {
-            let receipt_bytes = hex::decode(receipt_string)?;
+            let receipt_bytes = hex::decode(receipt_string.trim_start_matches("0x"))?;
             let receipt = ReceiptWithBloom::decode(&mut receipt_bytes.as_slice())?;
             receipts.push(receipt);
         }
