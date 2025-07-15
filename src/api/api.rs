@@ -357,4 +357,16 @@ pub trait Brc20ProgApi {
         &self,
         from: AddressED,
     ) -> RpcResult<HashMap<String, HashMap<AddressED, HashMap<u64, TxED>>>>;
+
+    /// Returns the raw header for the given block hash or number
+    #[method(name = "debug_getRawHeader")]
+    async fn debug_get_raw_header(&self, block_hash_or_number: String) -> RpcResult<Option<String>>;
+
+    /// Returns the raw block for the given block hash or number
+    #[method(name = "debug_getRawBlock")]
+    async fn debug_get_raw_block(&self, block_hash_or_number: String) -> RpcResult<Option<String>>;
+
+    /// Returns the raw receipts for the given block hash or number
+    #[method(name = "debug_getRawReceipts")]
+    async fn debug_get_raw_receipts(&self, block_hash_or_number: String) -> RpcResult<Option<Vec<String>>>;
 }

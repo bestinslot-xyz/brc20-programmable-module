@@ -48,6 +48,24 @@ impl RpcServer {
             number.parse().map_err(|_| "Invalid block number".into())
         }
     }
+
+    async fn resolve_block_hash_or_number(
+        &self,
+        hash_or_number: &str,
+    ) -> Result<u64, Box<dyn Error>> {
+        match self.parse_block_number(hash_or_number) {
+            Ok(block_number) => Ok(block_number),
+            Err(_) => {
+                let hash = serde_json::from_str::<B256ED>(hash_or_number)
+                    .map_err(|_| "Invalid block hash or number")?;
+                if let Ok(Some(block)) = self.engine.get_block_by_hash(hash.bytes, false) {
+                    Ok(block.number.into())
+                } else {
+                    Err("Block not found".into())
+                }
+            }
+        }
+    }
 }
 
 fn log_call() {
@@ -665,6 +683,48 @@ impl Brc20ProgApiServer for RpcServer {
         );
 
         Ok(result)
+    }
+
+    #[instrument(name = "debug_getRawHeader", skip(self), level = "error")]
+    async fn debug_get_raw_header(
+        &self,
+        block_hash_or_number: String,
+    ) -> RpcResult<Option<String>> {
+        log_call();
+        self.engine
+            .get_raw_header(
+                self.resolve_block_hash_or_number(&block_hash_or_number)
+                    .await
+                    .map_err(wrap_rpc_error)?,
+            )
+            .map_err(wrap_rpc_error)
+    }
+
+    #[instrument(name = "debug_getRawBlock", skip(self), level = "error")]
+    async fn debug_get_raw_block(&self, block_hash_or_number: String) -> RpcResult<Option<String>> {
+        log_call();
+        self.engine
+            .get_raw_block(
+                self.resolve_block_hash_or_number(&block_hash_or_number)
+                    .await
+                    .map_err(wrap_rpc_error)?,
+            )
+            .map_err(wrap_rpc_error)
+    }
+
+    #[instrument(name = "debug_getRawReceipts", skip(self), level = "error")]
+    async fn debug_get_raw_receipts(
+        &self,
+        block_hash_or_number: String,
+    ) -> RpcResult<Option<Vec<String>>> {
+        log_call();
+        self.engine
+            .get_raw_receipts(
+                self.resolve_block_hash_or_number(&block_hash_or_number)
+                    .await
+                    .map_err(wrap_rpc_error)?,
+            )
+            .map_err(wrap_rpc_error)
     }
 }
 

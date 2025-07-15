@@ -194,6 +194,36 @@ impl BRC20ProgEngine {
         Ok(result)
     }
 
+    pub fn get_raw_receipts(
+        &self,
+        block_number: u64,
+    ) -> Result<Option<Vec<String>>, Box<dyn Error>> {
+        self.db.read_fn(|db| {
+            let Some(raw_block) = db.get_raw_block_by_number(block_number)? else {
+                return Ok(None);
+            };
+            Ok(Some(raw_block.raw_receipts()))
+        })
+    }
+
+    pub fn get_raw_block(&self, block_number: u64) -> Result<Option<String>, Box<dyn Error>> {
+        self.db.read_fn(|db| {
+            let Some(raw_block) = db.get_raw_block_by_number(block_number)? else {
+                return Ok(None);
+            };
+            Ok(Some(raw_block.raw_block()))
+        })
+    }
+
+    pub fn get_raw_header(&self, block_number: u64) -> Result<Option<String>, Box<dyn Error>> {
+        self.db.read_fn(|db| {
+            let Some(raw_block) = db.get_raw_block_by_number(block_number)? else {
+                return Ok(None);
+            };
+            Ok(Some(raw_block.raw_header()))
+        })
+    }
+
     pub fn add_raw_tx_to_block(
         &self,
         timestamp: u64,
@@ -588,7 +618,9 @@ impl BRC20ProgEngine {
             db.set_block_timestamp(block_number, timestamp)?;
 
             // Save the full block info in the database for ease of access
-            db.set_block(block_number, db.generate_block(block_number)?)?;
+            let block_response = db.generate_block(block_number)?;
+            db.set_block(block_number, block_response.clone())?;
+            db.set_raw_block(block_number, db.generate_raw_block(block_response)?)?;
 
             // Remove old transactions from the txpool
             db.clear_txpool(block_number)

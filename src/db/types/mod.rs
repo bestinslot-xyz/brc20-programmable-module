@@ -33,3 +33,6 @@ pub use encode_decode::*;
 
 mod bytes_ed;
 pub use bytes_ed::*;
+
+mod raw_block_ed;
+pub use raw_block_ed::*;
