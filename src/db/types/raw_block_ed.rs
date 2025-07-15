@@ -1,20 +1,15 @@
 use std::error::Error;
 
-use alloy::{
-    consensus::{
-        Block, BlockBody, Header, Receipt, ReceiptWithBloom, SignableTransaction, TxEnvelope,
-        TxLegacy,
-    },
-    primitives::{Bloom, Log, B64},
-    signers::Signature,
+use alloy::consensus::{
+    Block, BlockBody, Header, Receipt, ReceiptWithBloom, SignableTransaction, TxEnvelope, TxLegacy,
 };
+use alloy::primitives::{Bloom, Log, B64};
+use alloy::signers::Signature;
 use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
 use revm::primitives::{Address, Bytes, LogData, TxKind, B256, U256};
 
-use crate::{
-    db::types::{Decode, Encode},
-    types::{BlockResponseED, TxED, TxReceiptED},
-};
+use crate::db::types::{Decode, Encode};
+use crate::types::{BlockResponseED, TxED, TxReceiptED};
 
 #[derive(RlpEncodable, RlpDecodable, Debug, Clone, PartialEq, Eq)]
 pub struct RawBlock {
