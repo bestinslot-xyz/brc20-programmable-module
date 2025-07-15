@@ -360,7 +360,8 @@ pub trait Brc20ProgApi {
 
     /// Returns the raw header for the given block hash or number
     #[method(name = "debug_getRawHeader")]
-    async fn debug_get_raw_header(&self, block_hash_or_number: String) -> RpcResult<Option<String>>;
+    async fn debug_get_raw_header(&self, block_hash_or_number: String)
+        -> RpcResult<Option<String>>;
 
     /// Returns the raw block for the given block hash or number
     #[method(name = "debug_getRawBlock")]
@@ -368,5 +369,8 @@ pub trait Brc20ProgApi {
 
     /// Returns the raw receipts for the given block hash or number
     #[method(name = "debug_getRawReceipts")]
-    async fn debug_get_raw_receipts(&self, block_hash_or_number: String) -> RpcResult<Option<Vec<String>>>;
+    async fn debug_get_raw_receipts(
+        &self,
+        block_hash_or_number: String,
+    ) -> RpcResult<Option<Vec<String>>>;
 }
