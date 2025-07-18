@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "brc20-programmable-module.fullname" . }}
+  labels:
+    {{- include "brc20-programmable-module.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "brc20-programmable-module.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "brc20-programmable-module.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "brc20-programmable-module.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          env:
+          - name: BRC20_PROG_DB_PATH
+            value: "/data/db"
+          - name: BRC20_PROG_RPC_SERVER_URL
+            valueFrom:
+              configMapKeyRef:
+                name: bis-config
+                key: brc20Prog.rpcServerUrl
+          - name: BRC20_PROG_RPC_SERVER_ENABLE_AUTH
+            valueFrom:
+              configMapKeyRef:
+                name: bis-config
+                key: brc20Prog.rpcServerEnableAuth
+          - name: BRC20_PROG_RPC_SERVER_USER
+            valueFrom:
+              configMapKeyRef:
+                name: bis-config
+                key: brc20Prog.rpcServerUser
+          - name: BRC20_PROG_RPC_SERVER_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: brc20-prog-rpc-server-credentials
+                key: password
+          - name: BRC20_PROG_BALANCE_SERVER_URL
+            valueFrom:
+              configMapKeyRef:
+                name: bis-config
+                key: brc20Prog.balanceServerUrl
+          - name: EVM_RECORD_TRACES
+            valueFrom:
+              configMapKeyRef:
+                name: bis-config
+                key: brc20Prog.evmRecordTraces
+          - name: EVM_CALL_GAS_LIMIT
+            valueFrom:
+              configMapKeyRef:
+                name: bis-config
+                key: brc20Prog.evmCallGasLimit
+          - name: BITCOIN_RPC_URL
+            valueFrom:
+              configMapKeyRef:
+                name: bis-config
+                key: bitcoin.rpcUrl
+          - name: BITCOIN_RPC_USER
+            valueFrom:
+              configMapKeyRef:
+                name: bis-config
+                key: bitcoin.rpcUser
+          - name: BITCOIN_RPC_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: bitcoin-rpc-credentials
+                key: password
+          - name: BITCOIN_RPC_NETWORK
+            valueFrom:
+              configMapKeyRef:
+                name: bis-config
+                key: networkType
+          - name: FAIL_ON_BRC20_BALANCE_SERVER_ERROR
+            valueFrom:
+              configMapKeyRef:
+                name: bis-config
+                key: brc20Prog.failOnBalanceServerError
+          - name: FAIL_ON_BITCOIN_RPC_ERROR
+            valueFrom:
+              configMapKeyRef:
+                name: bis-config
+                key: brc20Prog.failOnBitcoinRpcError
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: brc20-programmable-module-storage
+              mountPath: /data
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: brc20-programmable-module-storage
+          persistentVolumeClaim:
+            claimName: brc20-programmable-module
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
