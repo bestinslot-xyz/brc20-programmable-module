@@ -17,6 +17,7 @@ COPY test_utils/Cargo.toml ./test_utils/
 # Copy source code
 COPY src ./src
 COPY test_utils/src ./test_utils/src
+COPY benches ./benches
 
 # Build the application with server features
 RUN cargo build --release --features server --bin server
