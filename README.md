@@ -3,7 +3,8 @@
 <div align="center">
 
 [![BRC2.0](https://github.com/bestinslot-xyz/brc20-programmable-module/actions/workflows/rust.yml/badge.svg)](https://github.com/bestinslot-xyz/brc20-programmable-module/actions)
-[![Discord](https://dcbadge.vercel.app/api/server/6G8yPAcP3Z?style=flat)](https://discord.com/invite/6G8yPAcP3Z)
+
+Join us: [Discord](https://discord.com/invite/6G8yPAcP3Z) / [Telegram](https://t.me/bestinslotxyz)
 
 </div>
 
