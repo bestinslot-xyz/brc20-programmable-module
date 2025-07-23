@@ -114,7 +114,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 - from_pkscript (`string`): Bitcoin pkscript that created the deploy/call inscription
 - data (`string`): Call or deploy data for EVM, corresponds to the "d" (Data) field of a deploy inscription
-- encoded_data (`string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a deploy inscription
+- base64_data (`string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a deploy inscription
 - timestamp (`int`): Current block timestamp
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
@@ -139,7 +139,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - contract_address (`string`): Address of the contract to call, corresponds to the "c" (Contract Address) field of a call inscription
 - contract_inscription_id (`string`): Contract deployed by the inscription ID to call, corresponds to the "i" (Inscription ID) field of a call inscription
 - data (`string`): Call or deploy data for EVM, corresponds to the "d" (Data) field of a call inscription
-- encoded_data (`string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a call inscription
+- base64_data (`string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a call inscription
 - timestamp (`int`): Current block timestamp
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
@@ -152,6 +152,31 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 > [!NOTE]
 > `inscription_byte_len` parameter is used to determine the gas limit for `brc20_deploy` and `brc20_call` transactions, currently BRC2.0 sets an allowance of 12000 gas per byte (object to change, but generously set). In case of calling expensive methods and contracts, inscriptions should be padded to increase the gas allowance. Minimum gas limit is set to 32 bytes per transaction. `eth_estimateGas` JSON-RPC method can be used to estimate how much gas this transaction might consume.
+
+<hr>
+
+#### Send raw signed transaction
+
+**Method**: `brc20_transact`
+**Description**: Used to send a raw signed transaction, this adds a transaction to current block. This is useful for sending transactions that are pre-signed using ethereum wallets.
+
+**Parameters**:
+
+- `raw_tx_data` (`string`): Raw signed transaction data, encoded in hex format.
+- `base64_raw_tx_data` (`string`): Raw signed transaction data, encoded in base64 with the compression prefix.
+- `timestamp` (`int`): Current block timestamp.
+- `hash` (`string`): Current block hash.
+- `tx_idx` (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction.
+- `inscription_id` (Optional `string`): Inscription ID that triggered this transaction, will be recorded for easier transaction receipt retrieval.
+- `inscription_byte_len` (Optional `number`): Length of the inscription content, used to determine the gas limit for this transaction.
+
+**Returns**:
+
+- List of receipts for the executed transactions, see [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gettransactionreceipt) for details.
+
+- If the transaction nonce is not in order, zero receipts will be returned, as transaction will be stored as a pending transaction. In that case, `tx_idx` for the next call shouldn't be incremented in that case.
+
+- Multiple receipts can be returned if the pending transaction pool contains multiple transactions with nonces following the current transaction, as they will be executed together. In that case, `tx_idx` for the next call should be incremented by the number of transactions executed.
 
 <hr>
 
@@ -594,6 +619,18 @@ for (inscription, transfer) in block:
             tx_idx: current_tx_idx++,
             inscription_id: current_inscription_id,
             inscription_byte_len: inscription.content.length)
+
+    if inscription.op in ['transact', 't'] and
+       receiver.pkscript is OP_RETURN "BRC20PROG":
+        receipts = brc20_transact(
+            raw_tx_data: inscription.d,
+            base64_raw_tx_data: inscription.b,
+            hash: block.hash,
+            timestamp: block.timestamp,
+            tx_idx: current_tx_idx,
+            inscription_id: current_inscription_id,
+            inscription_byte_len: inscription.content.length)
+        current_tx_idx += receipts.length
 
     if inscription.op is 'transfer' and
        receiver.pkscript is OP_RETURN "BRC20PROG":
