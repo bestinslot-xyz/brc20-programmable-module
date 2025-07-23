@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 use std::error::Error;
 
 use alloy::consensus::{

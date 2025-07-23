@@ -34,5 +34,7 @@ pub use encode_decode::*;
 mod bytes_ed;
 pub use bytes_ed::*;
 
+#[cfg(feature = "server")]
 mod raw_block_ed;
+#[cfg(feature = "server")]
 pub use raw_block_ed::*;
