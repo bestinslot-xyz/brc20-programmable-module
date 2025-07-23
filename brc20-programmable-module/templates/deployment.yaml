@@ -20,6 +20,14 @@ spec:
       labels:
         {{- include "brc20-programmable-module.selectorLabels" . | nindent 8 }}
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                - key: role
+                  operator: NotIn
+                  values: ["dedicated"]
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -31,28 +39,17 @@ spec:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
           env:
           - name: BRC20_PROG_DB_PATH
             value: "/data/db"
           - name: BRC20_PROG_RPC_SERVER_URL
-            valueFrom:
-              configMapKeyRef:
-                name: bis-config
-                key: brc20Prog.rpcServerUrl
+            value: "0.0.0.0:{{ .Values.service.port }}"
           - name: BRC20_PROG_RPC_SERVER_ENABLE_AUTH
             valueFrom:
               configMapKeyRef:
@@ -73,59 +70,39 @@ spec:
               configMapKeyRef:
                 name: bis-config
                 key: brc20Prog.balanceServerUrl
-          - name: EVM_RECORD_TRACES
-            valueFrom:
-              configMapKeyRef:
-                name: bis-config
-                key: brc20Prog.evmRecordTraces
-          - name: EVM_CALL_GAS_LIMIT
-            valueFrom:
-              configMapKeyRef:
-                name: bis-config
-                key: brc20Prog.evmCallGasLimit
           - name: BITCOIN_RPC_URL
             valueFrom:
               configMapKeyRef:
                 name: bis-config
-                key: bitcoin.rpcUrl
+                key: rpc.url
           - name: BITCOIN_RPC_USER
             valueFrom:
               configMapKeyRef:
                 name: bis-config
-                key: bitcoin.rpcUser
+                key: rpc.user
           - name: BITCOIN_RPC_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: bitcoin-rpc-credentials
+                name: rpc-credentials
                 key: password
           - name: BITCOIN_RPC_NETWORK
             valueFrom:
               configMapKeyRef:
                 name: bis-config
                 key: networkType
-          - name: FAIL_ON_BRC20_BALANCE_SERVER_ERROR
-            valueFrom:
-              configMapKeyRef:
-                name: bis-config
-                key: brc20Prog.failOnBalanceServerError
-          - name: FAIL_ON_BITCOIN_RPC_ERROR
-            valueFrom:
-              configMapKeyRef:
-                name: bis-config
-                key: brc20Prog.failOnBitcoinRpcError
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: brc20-programmable-module-storage
               mountPath: /data
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       volumes:
         - name: brc20-programmable-module-storage
           persistentVolumeClaim:
             claimName: brc20-programmable-module
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
