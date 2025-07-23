@@ -3,7 +3,8 @@
 <div align="center">
 
 [![BRC2.0](https://github.com/bestinslot-xyz/brc20-programmable-module/actions/workflows/rust.yml/badge.svg)](https://github.com/bestinslot-xyz/brc20-programmable-module/actions)
-[![Discord](https://dcbadge.vercel.app/api/server/6G8yPAcP3Z?style=flat)](https://discord.com/invite/6G8yPAcP3Z)
+
+Join us: [Discord](https://discord.com/invite/6G8yPAcP3Z) / [Telegram](https://t.me/bestinslotxyz)
 
 </div>
 
@@ -113,7 +114,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 - from_pkscript (`string`): Bitcoin pkscript that created the deploy/call inscription
 - data (`string`): Call or deploy data for EVM, corresponds to the "d" (Data) field of a deploy inscription
-- encoded_data (`string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a deploy inscription
+- base64_data (`string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a deploy inscription
 - timestamp (`int`): Current block timestamp
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
@@ -138,7 +139,7 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 - contract_address (`string`): Address of the contract to call, corresponds to the "c" (Contract Address) field of a call inscription
 - contract_inscription_id (`string`): Contract deployed by the inscription ID to call, corresponds to the "i" (Inscription ID) field of a call inscription
 - data (`string`): Call or deploy data for EVM, corresponds to the "d" (Data) field of a call inscription
-- encoded_data (`string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a call inscription
+- base64_data (`string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a call inscription
 - timestamp (`int`): Current block timestamp
 - hash (`string`): Current block hash
 - tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
@@ -151,6 +152,31 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 > [!NOTE]
 > `inscription_byte_len` parameter is used to determine the gas limit for `brc20_deploy` and `brc20_call` transactions, currently BRC2.0 sets an allowance of 12000 gas per byte (object to change, but generously set). In case of calling expensive methods and contracts, inscriptions should be padded to increase the gas allowance. Minimum gas limit is set to 32 bytes per transaction. `eth_estimateGas` JSON-RPC method can be used to estimate how much gas this transaction might consume.
+
+<hr>
+
+#### Send raw signed transaction
+
+**Method**: `brc20_transact`
+**Description**: Used to send a raw signed transaction, this adds a transaction to current block. This is useful for sending transactions that are pre-signed using ethereum wallets.
+
+**Parameters**:
+
+- `raw_tx_data` (`string`): Raw signed transaction data, encoded in hex format.
+- `base64_raw_tx_data` (`string`): Raw signed transaction data, encoded in base64 with the compression prefix.
+- `timestamp` (`int`): Current block timestamp.
+- `hash` (`string`): Current block hash.
+- `tx_idx` (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction.
+- `inscription_id` (Optional `string`): Inscription ID that triggered this transaction, will be recorded for easier transaction receipt retrieval.
+- `inscription_byte_len` (Optional `number`): Length of the inscription content, used to determine the gas limit for this transaction.
+
+**Returns**:
+
+- List of receipts for the executed transactions, see [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gettransactionreceipt) for details.
+
+- If the transaction nonce is not in order, zero receipts will be returned, as transaction will be stored as a pending transaction. In that case, `tx_idx` for the next call shouldn't be incremented in that case.
+
+- Multiple receipts can be returned if the pending transaction pool contains multiple transactions with nonces following the current transaction, as they will be executed together. In that case, `tx_idx` for the next call should be incremented by the number of transactions executed.
 
 <hr>
 
@@ -467,7 +493,7 @@ Defined in the [proposal](https://github.com/bestinslot-xyz/brc20-prog-module-pr
 ```json
 {
     "p": "brc20-prog",
-    "op": "deploy",
+    "op": "deploy (or d)",
     "d": "<bytecode + constructor_args in hex>",
     "b": "<base64 encoded bytecode + constructor_args with the compression prefix>"
 }
@@ -480,7 +506,7 @@ Once an inscription is deployed as a smart contract, then methods can be called 
 ```json
 {
     "p": "brc20-prog",
-    "op": "call",
+    "op": "call (or c)",
     "c": "<contract_addr>",
     "i": "<inscription_id>",
     "d": "<call data>",
@@ -489,6 +515,21 @@ Once an inscription is deployed as a smart contract, then methods can be called 
 ```
 
 Call inscriptions should be added as transactions to the EVM using `brc20_call` JSON-RPC method. BRC2.0 maintains a map of contract addresses and deploy inscriptions, so at least one of the `"c"` or `"i"` fields should be set to call the contract `"c"`, or a contract deployed by the inscription `"i"`.
+
+### Raw Signed Transaction Inscriptions
+
+Raw signed transaction inscriptions are used to send pre-signed transactions to the execution engine. These inscriptions have the following structure:
+
+```json
+{
+    "p": "brc20-prog",
+    "op": "transact (or t)",
+    "d": "<raw signed transaction data in hex>",
+    "b": "<base64 encoded raw signed transaction data with the compression prefix>"
+}
+```
+
+When an indexer encounters this inscription, it should call `brc20_transact` JSON-RPC method to send the raw signed transaction to the execution engine. This allows users to send pre-signed transactions using their EVM compatible wallets, and have them executed in the BRC2.0 module.
 
 ### Deposit/Withdrawal inscriptions
 
@@ -556,7 +597,7 @@ for all initial blocks:
 ```
 ### Loop for adding transactions and finalising blocks
 
-When a new block arrives, all its deploy/call/deposit/withdraw transactions should be sent to the execution engine in order, with the correct transaction index using the relevant methods such as `brc20_deploy`, `brc20_call`, `brc20_deposit`, and `brc20_withdraw`. Once all inscriptions in the block are processed, block should be finalised using the `brc20_finaliseBlock` JSON-RPC method.
+When a new block arrives, all its deploy/call/deposit/withdraw transactions should be sent to the execution engine in order, with the correct transaction index using the relevant methods such as `brc20_deploy`, `brc20_call`, `brc20_transact`, `brc20_deposit`, and `brc20_withdraw`. Once all inscriptions in the block are processed, block should be finalised using the `brc20_finaliseBlock` JSON-RPC method.
 
 Indexing for a single block in pseudo code would look like the following (field validation is omitted for simplicity):
 
@@ -593,6 +634,18 @@ for (inscription, transfer) in block:
             tx_idx: current_tx_idx++,
             inscription_id: current_inscription_id,
             inscription_byte_len: inscription.content.length)
+
+    if inscription.op in ['transact', 't'] and
+       receiver.pkscript is OP_RETURN "BRC20PROG":
+        receipts = brc20_transact(
+            raw_tx_data: inscription.d,
+            base64_raw_tx_data: inscription.b,
+            hash: block.hash,
+            timestamp: block.timestamp,
+            tx_idx: current_tx_idx,
+            inscription_id: current_inscription_id,
+            inscription_byte_len: inscription.content.length)
+        current_tx_idx += receipts.length
 
     if inscription.op is 'transfer' and
        receiver.pkscript is OP_RETURN "BRC20PROG":
