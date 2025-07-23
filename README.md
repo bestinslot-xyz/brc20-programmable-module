@@ -493,7 +493,7 @@ Defined in the [proposal](https://github.com/bestinslot-xyz/brc20-prog-module-pr
 ```json
 {
     "p": "brc20-prog",
-    "op": "deploy",
+    "op": "deploy (or d)",
     "d": "<bytecode + constructor_args in hex>",
     "b": "<base64 encoded bytecode + constructor_args with the compression prefix>"
 }
@@ -506,7 +506,7 @@ Once an inscription is deployed as a smart contract, then methods can be called 
 ```json
 {
     "p": "brc20-prog",
-    "op": "call",
+    "op": "call (or c)",
     "c": "<contract_addr>",
     "i": "<inscription_id>",
     "d": "<call data>",
@@ -515,6 +515,21 @@ Once an inscription is deployed as a smart contract, then methods can be called 
 ```
 
 Call inscriptions should be added as transactions to the EVM using `brc20_call` JSON-RPC method. BRC2.0 maintains a map of contract addresses and deploy inscriptions, so at least one of the `"c"` or `"i"` fields should be set to call the contract `"c"`, or a contract deployed by the inscription `"i"`.
+
+### Raw Signed Transaction Inscriptions
+
+Raw signed transaction inscriptions are used to send pre-signed transactions to the execution engine. These inscriptions have the following structure:
+
+```json
+{
+    "p": "brc20-prog",
+    "op": "transact (or t)",
+    "d": "<raw signed transaction data in hex>",
+    "b": "<base64 encoded raw signed transaction data with the compression prefix>"
+}
+```
+
+When an indexer encounters this inscription, it should call `brc20_transact` JSON-RPC method to send the raw signed transaction to the execution engine. This allows users to send pre-signed transactions using their EVM compatible wallets, and have them executed in the BRC2.0 module.
 
 ### Deposit/Withdrawal inscriptions
 
@@ -582,7 +597,7 @@ for all initial blocks:
 ```
 ### Loop for adding transactions and finalising blocks
 
-When a new block arrives, all its deploy/call/deposit/withdraw transactions should be sent to the execution engine in order, with the correct transaction index using the relevant methods such as `brc20_deploy`, `brc20_call`, `brc20_deposit`, and `brc20_withdraw`. Once all inscriptions in the block are processed, block should be finalised using the `brc20_finaliseBlock` JSON-RPC method.
+When a new block arrives, all its deploy/call/deposit/withdraw transactions should be sent to the execution engine in order, with the correct transaction index using the relevant methods such as `brc20_deploy`, `brc20_call`, `brc20_transact`, `brc20_deposit`, and `brc20_withdraw`. Once all inscriptions in the block are processed, block should be finalised using the `brc20_finaliseBlock` JSON-RPC method.
 
 Indexing for a single block in pseudo code would look like the following (field validation is omitted for simplicity):
 
