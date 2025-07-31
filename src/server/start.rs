@@ -2,18 +2,17 @@ use std::error::Error;
 use std::path::Path;
 
 use jsonrpsee::server::ServerHandle;
-use tracing::{error, info, warn};
+use tracing::info;
 
 use crate::db::Brc20ProgDatabase;
-use crate::engine::{validate_bitcoin_rpc_status, BRC20ProgEngine};
+use crate::engine::BRC20ProgEngine;
 use crate::global::database::validate_config_database;
 use crate::global::{validate_config, Brc20ProgConfig, CONFIG};
 use crate::server::rpc_server::start_rpc_server;
 
 /// Starts the BRC20 programmable module server.
 ///
-/// This function initializes the logging, validates the configuration, checks the Bitcoin RPC status,
-/// initializes the database, and starts the JSON-RPC server.
+/// This function initializes the logging, validates the configuration, initializes the database, and starts the JSON-RPC server.
 ///
 /// Server can be configured by passing a `Brc20ProgConfig` instance.
 ///
@@ -35,7 +34,6 @@ use crate::server::rpc_server::start_rpc_server;
 /// This function will return an error if:
 /// * The logging initialization fails.
 /// * The configuration validation fails.
-/// * The Bitcoin RPC status check fails and `FAIL_ON_BITCOIN_RPC_ERROR` is true.
 /// * The database initialization fails.
 /// * The JSON-RPC server fails to start.
 ///
@@ -81,16 +79,6 @@ pub async fn start(config: Brc20ProgConfig) -> Result<ServerHandle, Box<dyn Erro
     validate_config_database(&config)?;
     validate_config(&config)?;
 
-    match validate_bitcoin_rpc_status() {
-        Ok(_) => info!("Bitcoin RPC status: OK"),
-        Err(e) => {
-            error!("Bitcoin RPC status: ERROR, Error: {}", e);
-            if config.fail_on_bitcoin_rpc_error {
-                return Err(format!("Bitcoin RPC status: ERROR\nError: {}", e).into());
-            }
-            warn!("Continuing without Bitcoin RPC status check");
-        }
-    }
     let engine = BRC20ProgEngine::new(Brc20ProgDatabase::new(&Path::new(&config.db_path))?);
     info!("Latest block number: {}", engine.get_latest_block_height()?);
     start_rpc_server(engine, config).await
