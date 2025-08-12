@@ -185,6 +185,20 @@ impl Brc20ProgDatabase {
         }
     }
 
+    pub fn get_next_block_height(&self) -> Result<u64, Box<dyn Error>> {
+        match self.latest_block_number {
+            Some((block_number, _)) => return Ok(block_number + 1),
+            None => {
+                return Ok(self
+                    .db_block_number_to_hash
+                    .as_ref()
+                    .ok_or("DB Error")?
+                    .last_key()?
+                    .unwrap_or(0) + 1);
+            }
+        }
+    }
+
     pub fn get_account_memory(
         &self,
         account: Address,
@@ -202,7 +216,7 @@ impl Brc20ProgDatabase {
         mem_loc: U256,
         value: U256,
     ) -> Result<(), Box<dyn Error>> {
-        let block_number = self.get_latest_block_height()?;
+        let block_number = self.get_next_block_height()?;
         self.db_account_memory.as_mut().ok_or("DB Error")?.set(
             block_number,
             &U512ED::from_addr_u256(account, mem_loc)?,
@@ -220,7 +234,7 @@ impl Brc20ProgDatabase {
     }
 
     pub fn set_code(&mut self, code_hash: B256, bytecode: Bytecode) -> Result<(), Box<dyn Error>> {
-        let block_number = self.get_latest_block_height()?;
+        let block_number = self.get_next_block_height()?;
         self.db_code.as_mut().ok_or("DB Error")?.set(
             block_number,
             &code_hash.into(),
@@ -621,7 +635,7 @@ impl Brc20ProgDatabase {
         account: Address,
         value: AccountInfo,
     ) -> Result<(), Box<dyn Error>> {
-        let block_number = self.get_latest_block_height()?;
+        let block_number = self.get_next_block_height()?;
         Ok(self.db_account.as_mut().ok_or("DB Error")?.set(
             block_number,
             &account.into(),
