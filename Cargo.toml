@@ -1,6 +1,6 @@
 [package]
 name = "brc20-prog"
-version = "0.10.2"
+version = "0.10.3"
 edition = "2021"
 license = "Apache-2.0"
 description = "BRC20 programmable module - Smart contract execution engine compatible with BRC20 standard"
@@ -27,7 +27,7 @@ revm = { version = "22.0.1", default-features = false, optional = true }
 revm-inspectors = { version = "0.20.1", optional = true }
 revm-state = "3.0.0"
 rlimit = { version = "0.10.2", optional = true }
-rocksdb = { version = "0.23.0", optional = true }
+rocksdb = { version = "0.24.0", optional = true }
 rs_merkle = { version = "1.4.2", optional = true }
 rust-embed = { version = "8.7.1", optional = true }
 serde = { version = "1.0.217", features = ["derive"] }
