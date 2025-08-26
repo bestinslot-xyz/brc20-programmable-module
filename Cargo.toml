@@ -96,3 +96,6 @@ required-features = ["server"]
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[profile.release]
+panic = 'abort'
