@@ -1327,7 +1327,9 @@ dependencies = [
 
 [[package]]
 name = "bip322"
-version = "0.0.9"
+version = "0.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9a160ac75a0c4885f0e69af525351e8d8cab51265fbc28eac15d885a9a0ac99"
 dependencies = [
  "base64 0.22.1",
  "bitcoin",
@@ -1482,7 +1484,7 @@ dependencies = [
 
 [[package]]
 name = "brc20-prog"
-version = "0.10.4"
+version = "0.10.5"
 dependencies = [
  "alloy",
  "alloy-consensus 1.0.9",
