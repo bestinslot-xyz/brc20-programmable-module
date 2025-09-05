@@ -1,6 +1,6 @@
 [package]
 name = "brc20-prog"
-version = "0.10.4"
+version = "0.10.5"
 edition = "2021"
 license = "Apache-2.0"
 description = "BRC20 programmable module - Smart contract execution engine compatible with BRC20 standard"
@@ -21,7 +21,7 @@ alloy-rlp = "0.3.12"
 alloy-rpc-types-trace = "0.15.11"
 alloy-sol-types = "1.0.9"
 base64 = "0.22.1"
-bip322 = { version = "0.0.9", optional = true, path = "fork/bip322" }
+bip322 = { version = "0.0.10", optional = true }
 bitcoin = { version = "0.32.5", optional = true }
 bitcoincore-rpc = { version = "0.19.0", optional = true }
 dotenvy = "0.15.0"
