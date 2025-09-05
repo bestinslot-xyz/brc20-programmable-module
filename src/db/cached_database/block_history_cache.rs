@@ -30,8 +30,8 @@ where
     V: Encode + Decode + Clone + Eq,
 {
     fn remove_old_values(&mut self, latest_block_number: u64) {
-        // Remove the old values
-        // Any key that is less than the set block number - MAX_HISTORY_SIZE is too old
+        // Remove the old values, always keeping at least one value in the cache
+        // Any key that is less than or equal to the set block number - MAX_HISTORY_SIZE is too old
         let keys_to_remove: Vec<u64> = self
             .cache
             .keys()

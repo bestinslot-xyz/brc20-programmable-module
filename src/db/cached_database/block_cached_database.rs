@@ -177,8 +177,7 @@ where
 
     /// Commit the cache to the database
     ///
-    /// It writes all the values in the cache to the database
-    /// It does not clear the cache
+    /// It writes all the values in the cache to the database and clears the cache
     ///
     /// block_number: U256 - the block number to commit at
     pub fn commit(&mut self, block_number: u64) -> Result<(), Box<dyn Error>> {
@@ -214,8 +213,7 @@ where
 
     /// Revert the state to the latest valid block
     ///
-    /// It reverts the state of all the caches to the latest valid block
-    /// It does not clear the cache
+    /// It reverts the state of all the caches to the latest valid block and clears the cache
     ///
     /// latest_valid_block_number: U256 - the latest valid block number
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {

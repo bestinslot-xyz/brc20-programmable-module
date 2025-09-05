@@ -22,7 +22,7 @@ pub type U8ED = UintED<8, 1>;
 pub type U64ED = UintED<64, 1>;
 /// Type alias for a 128-bit unsigned integer with 2 limbs
 pub type U128ED = UintED<128, 2>;
-/// Type alias for a 512-bit unsigned integer with 4 limbs
+/// Type alias for a 512-bit unsigned integer with 8 limbs
 pub type U512ED = UintED<512, 8>;
 /// Type alias for a 256-bit unsigned integer with 4 limbs
 pub type U256ED = UintED<256, 4>;
