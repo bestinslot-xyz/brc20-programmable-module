@@ -118,15 +118,8 @@ where
     ///
     /// latest_valid_block_number: U256 - the latest valid block number
     fn reorg(&mut self, latest_valid_block_number: u64) {
-        let keys_to_remove: Vec<u64> = self
-            .cache
-            .keys()
-            .filter(|&&key| key > latest_valid_block_number)
-            .cloned()
-            .collect();
-        for key in keys_to_remove {
-            self.cache.remove(&key);
-        }
+        self.cache
+            .retain(|&key, _| key <= latest_valid_block_number);
         if self.cache.is_empty() {
             panic!("Reorg too deep. Please restart your indexer.");
         }
