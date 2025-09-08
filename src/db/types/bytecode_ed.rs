@@ -26,7 +26,11 @@ impl<'de> Deserialize<'de> for BytecodeED {
     {
         let hex_string = String::deserialize(deserializer)?;
         Ok(BytecodeED {
-            bytecode: Bytecode::new_raw(hex_string.parse().map_err(serde::de::Error::custom)?),
+            // Return an error if the bytecode is invalid, as this will run in the client
+            bytecode: Bytecode::new_raw_checked(
+                hex_string.parse().map_err(serde::de::Error::custom)?,
+            )
+            .map_err(serde::de::Error::custom)?,
         })
     }
 }
@@ -55,7 +59,8 @@ impl Decode for BytecodeED {
         Vec::<u8>::decode(bytes, offset).map(|(bytes, offset)| {
             (
                 BytecodeED {
-                    bytecode: Bytecode::new_raw(bytes.into()),
+                    // Panic if the bytecode is invalid as it's coming from the database
+                    bytecode: Bytecode::new_raw_checked(bytes.into()).expect("Valid bytecode"),
                 },
                 offset,
             )
@@ -93,6 +98,7 @@ mod tests {
     fn test_bytecode_ed_serialize() {
         let bytecode_ed: BytecodeED = Bytecode::new_raw("Hello world ".into()).into();
         let serialized = serde_json::to_string(&bytecode_ed).unwrap();
-        assert_eq!(serialized, "\"0x48656c6c6f20776f726c6420\"");
+        let deserialized: BytecodeED = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(bytecode_ed, deserialized);
     }
 }
