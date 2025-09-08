@@ -177,8 +177,7 @@ where
 
     /// Commit the cache to the database
     ///
-    /// It writes all the values in the cache to the database
-    /// It does not clear the cache
+    /// It writes all the values in the cache to the database and clears the cache
     ///
     /// block_number: U256 - the block number to commit at
     pub fn commit(&mut self, block_number: u64) -> Result<(), Box<dyn Error>> {
@@ -214,8 +213,7 @@ where
 
     /// Revert the state to the latest valid block
     ///
-    /// It reverts the state of all the caches to the latest valid block
-    /// It does not clear the cache
+    /// It reverts the state of all the caches to the latest valid block and clears the cache
     ///
     /// latest_valid_block_number: U256 - the latest valid block number
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
@@ -252,7 +250,13 @@ where
             let cache = C::decode_vec(&cache_bytes.to_vec())?;
             self.cache.insert(key.clone(), cache);
         } else {
-            self.cache.insert(key.clone(), C::new(None));
+            // This is a cache miss, retrieve the value from the database to make sure
+            // we have an old value at hand if reorg occurs
+            let stored_value = self
+                .db
+                .get(&key.encode_vec())?
+                .and_then(|value| V::decode_vec(&value.to_vec()).ok());
+            self.cache.insert(key.clone(), C::new(stored_value));
         }
         Ok(self.cache.get_mut(key).ok_or("Cache not found")?)
     }
@@ -429,6 +433,61 @@ mod tests {
         let account_info = db.latest(&address_ed).unwrap().unwrap();
         assert_eq!(account_info.balance, U256::from(100 + 5).into());
         assert_eq!(account_info.nonce, 6u64.into());
+        assert_eq!(account_info.code_hash, B256::from([1; 32]).into());
+    }
+
+    #[test]
+    fn test_reorg_after_removing_an_old_cache() {
+        let path = TempDir::new().unwrap();
+        let mut db = BlockCachedDatabase::<
+            AddressED,
+            AccountInfoED,
+            BlockHistoryCacheData<AccountInfoED>,
+        >::new(path.path(), "test_db")
+        .unwrap();
+
+        let address: Address = "0x1234567890123456789012345678901234567890"
+            .parse()
+            .unwrap();
+        let address_ed: AddressED = address.into();
+
+        db.set(
+            10,
+            &address_ed.clone(),
+            AccountInfo {
+                balance: U256::from(100 + 10),
+                nonce: 10,
+                code_hash: [1; 32].into(),
+                code: None,
+            }
+            .into(),
+        )
+        .unwrap();
+
+        // Value committed at block height 10 first
+        db.commit(10).unwrap();
+
+        // This should remove the old cache, as the cache latest value is at block height 10
+        db.commit(22).unwrap();
+        db.reorg(21).unwrap();
+
+        // Value set at block height 22, causing a new cache to be created
+        db.set(22, &address_ed.clone(), AccountInfo {
+            balance: U256::from(100 + 21),
+            nonce: 22,
+            code_hash: [1; 32].into(),
+            code: None,
+        }
+        .into()).unwrap();
+
+        // Another reorg at block height 22, with an old cache
+        // that doesn't see beyond block 11, this fails.
+        db.commit(22).unwrap();
+        db.reorg(21).unwrap();
+
+        let account_info = db.latest(&address_ed).unwrap().unwrap();
+        assert_eq!(account_info.balance, U256::from(100 + 10).into());
+        assert_eq!(account_info.nonce, 10u64.into());
         assert_eq!(account_info.code_hash, B256::from([1; 32]).into());
     }
 }

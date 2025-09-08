@@ -26,6 +26,7 @@ use crate::engine::utils::{
     get_contract_address, get_gas_limit, get_inscription_byte_len, get_result_reason,
     get_result_type, get_tx_hash, LastBlockInfo, TxInfo,
 };
+use crate::engine::validate_bitcoin_rpc_status;
 use crate::global::{
     SharedData, CONFIG, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_FUTURE_TRANSACTION_NONCES,
     MAX_REORG_HISTORY_SIZE,
@@ -59,6 +60,14 @@ impl BRC20ProgEngine {
 
         if let Some(genesis) = self.get_block_by_number(genesis_height, false)? {
             if genesis.hash.bytes == genesis_hash {
+                // Check status of BRC20 Balance Server before proceeding
+                get_brc20_balance(&[10].into(), &[10].into())
+                    .map_err(|_| "BRC20 Balance Server is down. This error can be ignored in tests that doesn't involve the BRC20 indexer.")?;
+
+                // Check status of Bitcoin RPC
+                tracing::info!("Checking Bitcoin RPC status...");
+                validate_bitcoin_rpc_status().map_err(|_| "Bitcoin RPC status check failed")?;
+
                 return Ok(());
             } else {
                 return Err("Genesis block hash mismatch".into());
@@ -88,6 +97,10 @@ impl BRC20ProgEngine {
         // Check status of BRC20 Balance Server before proceeding
         get_brc20_balance(&[10].into(), &[10].into())
             .map_err(|_| "BRC20 Balance Server is down. This error can be ignored in tests that doesn't involve the BRC20 indexer.")?;
+
+        // Check status of Bitcoin RPC
+        tracing::info!("Checking Bitcoin RPC status...");
+        validate_bitcoin_rpc_status().map_err(|_| "Bitcoin RPC status check failed")?;
 
         Ok(())
     }

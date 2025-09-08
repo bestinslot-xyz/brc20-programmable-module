@@ -22,7 +22,7 @@ pub type U8ED = UintED<8, 1>;
 pub type U64ED = UintED<64, 1>;
 /// Type alias for a 128-bit unsigned integer with 2 limbs
 pub type U128ED = UintED<128, 2>;
-/// Type alias for a 512-bit unsigned integer with 4 limbs
+/// Type alias for a 512-bit unsigned integer with 8 limbs
 pub type U512ED = UintED<512, 8>;
 /// Type alias for a 256-bit unsigned integer with 4 limbs
 pub type U256ED = UintED<256, 4>;
@@ -112,8 +112,7 @@ impl<const BITS: usize, const LIMBS: usize> Serialize for UintED<BITS, LIMBS> {
     where
         S: Serializer,
     {
-        let hex_string = format!("0x{:x}", self.uint);
-        serializer.serialize_str(&hex_string)
+        self.uint.serialize(serializer)
     }
 }
 
@@ -122,21 +121,9 @@ impl<'de, const BITS: usize, const LIMBS: usize> Deserialize<'de> for UintED<BIT
     where
         D: Deserializer<'de>,
     {
-        let hex_string = String::deserialize(deserializer)?;
-        let mut hex_string = hex_string.trim_start_matches("0x").to_string();
-        if hex_string.len() % 2 != 0 {
-            hex_string = format!("0{}", hex_string);
-        }
-        let bytes = hex::decode(hex_string).map_err(serde::de::Error::custom)?;
-        let uint = Uint::<BITS, LIMBS>::try_from_be_slice(bytes.as_slice());
-        match uint {
-            Some(uint) => Ok(Self { uint }),
-            None => {
-                return Err(serde::de::Error::custom(
-                    "Failed to decode integer from hex string",
-                ))
-            }
-        }
+        Ok(Self {
+            uint: Uint::<BITS, LIMBS>::deserialize(deserializer)?,
+        })
     }
 }
 

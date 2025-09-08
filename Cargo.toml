@@ -1,6 +1,6 @@
 [package]
 name = "brc20-prog"
-version = "0.10.1"
+version = "0.10.5"
 edition = "2021"
 license = "Apache-2.0"
 description = "BRC20 programmable module - Smart contract execution engine compatible with BRC20 standard"
@@ -8,12 +8,20 @@ homepage = "https://signet.bestinslot.xyz/brc2.0/interact"
 repository = "https://github.com/bestinslot-xyz/brc20-programmable-module"
 
 [dependencies]
-alloy = { version = "0.15.11", features = ["consensus", "eips", "network", "rlp", "rpc", "signers", "sol-types"] }
+alloy = { version = "0.15.11", features = [
+    "consensus",
+    "eips",
+    "network",
+    "rlp",
+    "rpc",
+    "signers",
+    "sol-types",
+] }
 alloy-rlp = "0.3.12"
 alloy-rpc-types-trace = "0.15.11"
 alloy-sol-types = "1.0.9"
 base64 = "0.22.1"
-bip322 = { version = "0.0.9", optional = true }
+bip322 = { version = "0.0.10", optional = true }
 bitcoin = { version = "0.32.5", optional = true }
 bitcoincore-rpc = { version = "0.19.0", optional = true }
 dotenvy = "0.15.0"
@@ -27,7 +35,7 @@ revm = { version = "22.0.1", default-features = false, optional = true }
 revm-inspectors = { version = "0.20.1", optional = true }
 revm-state = "3.0.0"
 rlimit = { version = "0.10.2", optional = true }
-rocksdb = { version = "0.23.0", optional = true }
+rocksdb = { version = "0.24.0", optional = true }
 rs_merkle = { version = "1.4.2", optional = true }
 rust-embed = { version = "8.7.1", optional = true }
 serde = { version = "1.0.217", features = ["derive"] }
@@ -96,3 +104,6 @@ required-features = ["server"]
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[profile.release]
+panic = 'abort'

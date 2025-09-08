@@ -565,36 +565,26 @@ When encountered, an indexer can call `brc20_withdraw` JSON-RPC method, and veri
 
 ### Initialisation and empty blocks
 
-Execution engine deploys a `BRC20_Controller` contract for BRC20 deposits, transfers and withdrawals. This deployment should be triggered by an indexer via `brc20_initialise` method at any point, before any of the inscriptions take place. This will add a block with a single transaction that is the `BRC20_Controller` deployment transaction.
+Execution engine deploys a `BRC20_Controller` contract for BRC20 deposits, transfers and withdrawals. This deployment should be triggered by an indexer via `brc20_initialise` method first, before any blocks are added. This will add a block with a single transaction that is the `BRC20_Controller` deployment transaction.
 
-In order to skip initial blocks, i.e. empty blocks, miners can call `brc20_mine` to add empty blocks to the system. If the first inscription is at block height 100, then initialisation might look like:
-
-```
-brc20_mine {
-    block_count: 100,
-    timestamp: 0
-}
-brc20_initialise {
-    genesis_hash: "100TH_BLOCK_HASH",
-    genesis_timestamp: "100TH_BLOCK_TIMESTAMP",
-    genesis_height: 100
-}
-```
-
-If an indexer wants earlier block hashes and timestamps to be correct, they can also initialise empty blocks using `brc20_finaliseBlock`, and pass the correct hashes and timestamps.
+In order to skip initial empty blocks, indexers need to call `brc20_mine` to add empty blocks to the system. If the first inscription is at block height 100, then initialisation might look like:
 
 ```
 brc20_initialise {
-    genesis_hash: "GENESIS_HASH",
-    genesis_timestamp: "GENESIS_TIMESTAMP",
+    genesis_hash: "0x0000...0000",
+    genesis_timestamp: "0",
     genesis_height: 0
 }
-for all initial blocks:
-    brc20_finaliseBlock {
-        hash: "KNOWN_HASH",
-        timestamp: "KNOWN_TIMESTAMP", block_tx_count: 0
-    }
+brc20_mine {
+    block_count: 99,
+    timestamp: 0
+}
 ```
+
+This will create a block with the `BRC20_Controller` contract deployed at address `0xc54dd4581af2dbf18e4d90840226756e9d2b3cdb`, and 99 more empty blocks, so the indexer can start processing inscriptions from block height 100.
+
+This also makes sure every block hash before the first inscription is 0, and contracts can only access block hashes after the first BRC2.0 inscription.
+
 ### Loop for adding transactions and finalising blocks
 
 When a new block arrives, all its deploy/call/deposit/withdraw transactions should be sent to the execution engine in order, with the correct transaction index using the relevant methods such as `brc20_deploy`, `brc20_call`, `brc20_transact`, `brc20_deposit`, and `brc20_withdraw`. Once all inscriptions in the block are processed, block should be finalised using the `brc20_finaliseBlock` JSON-RPC method.

@@ -25,6 +25,8 @@ use crate::global::{
     GAS_PER_BYTE, MAX_BLOCK_SIZE, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_REORG_HISTORY_SIZE,
 };
 
+static DB_MUTEX_ERROR: &str = "Database mutex error";
+
 pub struct Brc20ProgDatabase {
     /// Account address to memory location
     /// TODO: If the value is zero, consider deleting it from the database to save space
@@ -178,9 +180,23 @@ impl Brc20ProgDatabase {
                 return Ok(self
                     .db_block_number_to_hash
                     .as_ref()
-                    .ok_or("DB Error")?
+                    .expect(DB_MUTEX_ERROR)
                     .last_key()?
                     .unwrap_or(0));
+            }
+        }
+    }
+
+    pub fn get_next_block_height(&self) -> Result<u64, Box<dyn Error>> {
+        match self.latest_block_number {
+            Some((block_number, _)) => return Ok(block_number + 1),
+            None => {
+                return Ok(self
+                    .db_block_number_to_hash
+                    .as_ref()
+                    .expect(DB_MUTEX_ERROR)
+                    .last_key()?
+                    .unwrap_or(0) + 1);
             }
         }
     }
@@ -192,7 +208,7 @@ impl Brc20ProgDatabase {
     ) -> Result<Option<U256ED>, Box<dyn Error>> {
         self.db_account_memory
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .latest(&U512ED::from_addr_u256(account, mem_loc)?)
     }
 
@@ -202,8 +218,8 @@ impl Brc20ProgDatabase {
         mem_loc: U256,
         value: U256,
     ) -> Result<(), Box<dyn Error>> {
-        let block_number = self.get_latest_block_height()?;
-        self.db_account_memory.as_mut().ok_or("DB Error")?.set(
+        let block_number = self.get_next_block_height()?;
+        self.db_account_memory.as_mut().expect(DB_MUTEX_ERROR).set(
             block_number,
             &U512ED::from_addr_u256(account, mem_loc)?,
             value.into(),
@@ -215,13 +231,13 @@ impl Brc20ProgDatabase {
     pub fn get_code(&self, code_hash: B256) -> Result<Option<BytecodeED>, Box<dyn Error>> {
         self.db_code
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .latest(&code_hash.into())
     }
 
     pub fn set_code(&mut self, code_hash: B256, bytecode: Bytecode) -> Result<(), Box<dyn Error>> {
-        let block_number = self.get_latest_block_height()?;
-        self.db_code.as_mut().ok_or("DB Error")?.set(
+        let block_number = self.get_next_block_height()?;
+        self.db_code.as_mut().expect(DB_MUTEX_ERROR).set(
             block_number,
             &code_hash.into(),
             bytecode.into(),
@@ -257,7 +273,7 @@ impl Brc20ProgDatabase {
         let tx_ids = self
             .db_number_and_index_to_tx_hash
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .get_range(
                 &Self::get_number_and_index_key(block_number_from, 0).into(),
                 &Self::get_number_and_index_key(block_number_to + 1, 0).into(),
@@ -323,7 +339,7 @@ impl Brc20ProgDatabase {
         let transactions = self
             .db_number_and_index_to_tx_hash
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .get_range(
                 &Self::get_number_and_index_key(block_number, 0).into(),
                 &Self::get_number_and_index_key(block_number + 1, 0).into(),
@@ -338,7 +354,7 @@ impl Brc20ProgDatabase {
     ) -> Result<Option<B256ED>, Box<dyn Error>> {
         self.db_inscription_id_to_tx_hash
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .latest(&inscription_id)
     }
 
@@ -348,7 +364,7 @@ impl Brc20ProgDatabase {
     ) -> Result<Option<String>, Box<dyn Error>> {
         self.db_contract_address_to_inscription_id
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .latest(&contract_address.into())
     }
 
@@ -361,7 +377,7 @@ impl Brc20ProgDatabase {
         Ok(self
             .db_contract_address_to_inscription_id
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .set(block_number, &contract_address.into(), inscription_id)?)
     }
 
@@ -374,7 +390,7 @@ impl Brc20ProgDatabase {
         Ok(self
             .db_inscription_id_to_tx_hash
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .set(block_number, &inscription_id, tx_hash.into())?)
     }
 
@@ -385,7 +401,7 @@ impl Brc20ProgDatabase {
     ) -> Result<Option<B256ED>, Box<dyn Error>> {
         self.db_number_and_index_to_tx_hash
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .latest(&Self::get_number_and_index_key(block_number, tx_idx).into())
     }
 
@@ -404,14 +420,14 @@ impl Brc20ProgDatabase {
     pub fn get_tx_by_hash(&self, tx_hash: B256) -> Result<Option<TxED>, Box<dyn Error>> {
         self.db_tx
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .latest(&tx_hash.into())
     }
 
     pub fn get_tx_receipt(&self, tx_hash: B256) -> Result<Option<TxReceiptED>, Box<dyn Error>> {
         self.db_tx_receipt
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .latest(&tx_hash.into())
     }
 
@@ -432,14 +448,14 @@ impl Brc20ProgDatabase {
     pub fn get_tx_trace(&self, tx_hash: B256) -> Result<Option<TraceED>, Box<dyn Error>> {
         self.db_tx_trace
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .latest(&tx_hash.into())
     }
 
     pub fn set_tx_trace(&mut self, tx_hash: B256, trace: TraceED) -> Result<(), Box<dyn Error>> {
         self.db_tx_trace
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .set(0, &tx_hash.into(), trace)
     }
 
@@ -507,12 +523,12 @@ impl Brc20ProgDatabase {
 
         self.db_tx
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .set(block_number, &tx_hash.into(), tx)?;
 
         self.db_number_and_index_to_tx_hash
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .set(
                 block_number,
                 &Self::get_number_and_index_key(block_number, tx_idx).into(),
@@ -523,7 +539,7 @@ impl Brc20ProgDatabase {
             self.set_tx_hash_by_inscription_id(inscription_id, tx_hash)?;
         }
 
-        Ok(self.db_tx_receipt.as_mut().ok_or("DB Error")?.set(
+        Ok(self.db_tx_receipt.as_mut().expect(DB_MUTEX_ERROR).set(
             block_number,
             &tx_hash.into(),
             tx_receipt,
@@ -537,7 +553,7 @@ impl Brc20ProgDatabase {
         tx: TxED,
     ) -> Result<(), Box<dyn Error>> {
         let block_number = self.get_latest_block_height()?;
-        Ok(self.db_pending_txes.as_mut().ok_or("DB Error")?.set(
+        Ok(self.db_pending_txes.as_mut().expect(DB_MUTEX_ERROR).set(
             block_number,
             &(account.into(), nonce.into()),
             tx,
@@ -551,7 +567,7 @@ impl Brc20ProgDatabase {
     ) -> Result<Option<TxED>, Box<dyn Error>> {
         self.db_pending_txes
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .latest(&(account.into(), nonce.into()))
     }
 
@@ -561,7 +577,7 @@ impl Brc20ProgDatabase {
     ) -> Result<Vec<((AddressED, U64ED), TxED)>, Box<dyn Error>> {
         self.db_pending_txes
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .get_range(
                 &(account.into(), U64::ZERO.into()),
                 &(account.into(), U64::MAX.into()),
@@ -572,7 +588,7 @@ impl Brc20ProgDatabase {
     pub fn get_all_pending_txes(&self) -> Result<Vec<((AddressED, U64ED), TxED)>, Box<dyn Error>> {
         self.db_pending_txes
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .all()
             .map_err(|e| e.into())
     }
@@ -586,7 +602,7 @@ impl Brc20ProgDatabase {
         Ok(self
             .db_pending_txes
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .unset(block_number, &(account.into(), nonce.into()))?)
     }
 
@@ -612,7 +628,7 @@ impl Brc20ProgDatabase {
     ) -> Result<Option<AccountInfoED>, Box<dyn Error>> {
         self.db_account
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .latest(&account.into())
     }
 
@@ -621,8 +637,8 @@ impl Brc20ProgDatabase {
         account: Address,
         value: AccountInfo,
     ) -> Result<(), Box<dyn Error>> {
-        let block_number = self.get_latest_block_height()?;
-        Ok(self.db_account.as_mut().ok_or("DB Error")?.set(
+        let block_number = self.get_next_block_height()?;
+        Ok(self.db_account.as_mut().expect(DB_MUTEX_ERROR).set(
             block_number,
             &account.into(),
             value.into(),
@@ -634,7 +650,7 @@ impl Brc20ProgDatabase {
         let transactions = self
             .db_number_and_index_to_tx_hash
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .get_range(
                 &Self::get_number_and_index_key(block_number, 0).into(),
                 &Self::get_number_and_index_key(block_number + 1, 0).into(),
@@ -691,7 +707,7 @@ impl Brc20ProgDatabase {
         let tx_ids = self
             .db_number_and_index_to_tx_hash
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .get_range(
                 &Self::get_number_and_index_key(block_number, 0).into(),
                 &Self::get_number_and_index_key(block_number + 1, 0).into(),
@@ -747,7 +763,7 @@ impl Brc20ProgDatabase {
     pub fn get_block(&self, block_number: u64) -> Result<Option<BlockResponseED>, Box<dyn Error>> {
         self.db_block_number_to_block
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .get(block_number)
     }
 
@@ -759,7 +775,7 @@ impl Brc20ProgDatabase {
         Ok(self
             .db_block_number_to_block
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .set(block_number, block_response))
     }
 
@@ -769,7 +785,7 @@ impl Brc20ProgDatabase {
     ) -> Result<Option<RawBlock>, Box<dyn Error>> {
         self.db_block_number_to_raw_block
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .get(block_number)
     }
 
@@ -781,21 +797,21 @@ impl Brc20ProgDatabase {
         Ok(self
             .db_block_number_to_raw_block
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .set(block_number, raw_block))
     }
 
     pub fn get_block_number(&self, block_hash: B256) -> Result<Option<U64ED>, Box<dyn Error>> {
         self.db_block_hash_to_number
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .latest(&block_hash.into())
     }
 
     pub fn get_block_hash(&self, block_number: u64) -> Result<Option<B256>, Box<dyn Error>> {
         self.db_block_number_to_hash
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .get(block_number)
             .map(|op| op.map(|x| x.into()))
     }
@@ -815,20 +831,20 @@ impl Brc20ProgDatabase {
 
         self.db_block_number_to_hash
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .set(block_number, block_hash.into());
 
         Ok(self
             .db_block_hash_to_number
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .set(block_number, &block_hash.into(), block_number.into())?)
     }
 
     pub fn get_block_timestamp(&self, number: u64) -> Result<Option<U64>, Box<dyn Error>> {
         self.db_block_number_to_timestamp
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .get(number)
             .map(|x| x.map(|x| x.uint))
     }
@@ -841,14 +857,14 @@ impl Brc20ProgDatabase {
         Ok(self
             .db_block_number_to_timestamp
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .set(block_number, block_timestamp.into()))
     }
 
     pub fn get_gas_used(&self, block_number: u64) -> Result<Option<U64>, Box<dyn Error>> {
         self.db_block_number_to_gas_used
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .get(block_number)
             .map(|x| x.map(|x| x.uint))
     }
@@ -857,14 +873,14 @@ impl Brc20ProgDatabase {
         Ok(self
             .db_block_number_to_gas_used
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .set(block_number, gas_used.into()))
     }
 
     pub fn get_mine_timestamp(&self, block_number: u64) -> Result<Option<U128>, Box<dyn Error>> {
         self.db_block_number_to_mine_tm
             .as_ref()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .get(block_number)
             .map(|x| x.map(|x| x.uint))
     }
@@ -876,7 +892,7 @@ impl Brc20ProgDatabase {
     ) -> Result<(), Box<dyn Error>> {
         self.db_block_number_to_mine_tm
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .set(block_number, mine_timestamp.into());
 
         Ok(())
@@ -887,68 +903,68 @@ impl Brc20ProgDatabase {
 
         self.db_block_number_to_hash
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit()?;
         self.db_block_number_to_timestamp
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit()?;
         self.db_block_number_to_gas_used
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit()?;
         self.db_block_number_to_mine_tm
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit()?;
         self.db_block_number_to_block
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit()?;
         self.db_block_number_to_raw_block
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit()?;
 
         self.db_number_and_index_to_tx_hash
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit(latest_block_number)?;
         self.db_inscription_id_to_tx_hash
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit(latest_block_number)?;
         self.db_contract_address_to_inscription_id
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit(latest_block_number)?;
         self.db_tx
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit(latest_block_number)?;
         self.db_tx_trace
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit(latest_block_number)?;
         self.db_tx_receipt
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit(latest_block_number)?;
         self.db_account_memory
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit(latest_block_number)?;
         self.db_code
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit(latest_block_number)?;
         self.db_account
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit(latest_block_number)?;
         self.db_block_hash_to_number
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .commit(latest_block_number)?;
 
         self.clear_caches()?;
@@ -958,52 +974,52 @@ impl Brc20ProgDatabase {
     pub fn clear_caches(&mut self) -> Result<(), Box<dyn Error>> {
         self.db_account_memory
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .clear_cache();
-        self.db_code.as_mut().ok_or("DB Error")?.clear_cache();
-        self.db_account.as_mut().ok_or("DB Error")?.clear_cache();
+        self.db_code.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
+        self.db_account.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
         self.db_block_number_to_hash
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .clear_cache();
         self.db_block_hash_to_number
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .clear_cache();
         self.db_inscription_id_to_tx_hash
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .clear_cache();
         self.db_contract_address_to_inscription_id
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .clear_cache();
-        self.db_tx.as_mut().ok_or("DB Error")?.clear_cache();
-        self.db_tx_trace.as_mut().ok_or("DB Error")?.clear_cache();
-        self.db_tx_receipt.as_mut().ok_or("DB Error")?.clear_cache();
+        self.db_tx.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
+        self.db_tx_trace.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
+        self.db_tx_receipt.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
         self.db_number_and_index_to_tx_hash
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .clear_cache();
         self.db_block_number_to_timestamp
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .clear_cache();
         self.db_block_number_to_gas_used
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .clear_cache();
         self.db_block_number_to_mine_tm
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .clear_cache();
         self.db_block_number_to_block
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .clear_cache();
         self.db_block_number_to_raw_block
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .clear_cache();
 
         self.latest_block_number = None;
@@ -1017,68 +1033,68 @@ impl Brc20ProgDatabase {
 
         self.db_account_memory
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_code
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_account
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_block_hash_to_number
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_number_and_index_to_tx_hash
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_tx_receipt
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_inscription_id_to_tx_hash
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_contract_address_to_inscription_id
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_tx
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_tx_trace
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
 
         self.db_block_number_to_hash
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_block_number_to_timestamp
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_block_number_to_gas_used
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_block_number_to_mine_tm
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_block_number_to_block
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_block_number_to_raw_block
             .as_mut()
-            .ok_or("DB Error")?
+            .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
 
         Ok(self.commit_changes()?)

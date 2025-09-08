@@ -30,8 +30,8 @@ where
     V: Encode + Decode + Clone + Eq,
 {
     fn remove_old_values(&mut self, latest_block_number: u64) {
-        // Remove the old values
-        // Any key that is less than the set block number - MAX_HISTORY_SIZE is too old
+        // Remove the old values, always keeping at least one value in the cache
+        // Any key that is less than or equal to the set block number - MAX_HISTORY_SIZE is too old
         let keys_to_remove: Vec<u64> = self
             .cache
             .keys()
@@ -65,7 +65,11 @@ where
 
     /// Get the latest value
     fn latest(&self) -> Option<V> {
-        self.cache.values().last().cloned().unwrap_or(None)
+        self.cache
+            .values()
+            .last()
+            .cloned()
+            .expect("Cache is never empty")
     }
 
     /// Set the value for a block number
@@ -110,16 +114,14 @@ where
 
     /// Reorganize the cache, removing all values with block number greater than the latest valid block number
     ///
+    /// If the reorg is too deep, this will panic, so make sure the caller never passes a value too old here.
+    ///
     /// latest_valid_block_number: U256 - the latest valid block number
     fn reorg(&mut self, latest_valid_block_number: u64) {
-        let keys_to_remove: Vec<u64> = self
-            .cache
-            .keys()
-            .filter(|&&key| key > latest_valid_block_number)
-            .cloned()
-            .collect();
-        for key in keys_to_remove {
-            self.cache.remove(&key);
+        self.cache
+            .retain(|&key, _| key <= latest_valid_block_number);
+        if self.cache.is_empty() {
+            panic!("Reorg too deep. Please restart your indexer.");
         }
     }
 
@@ -272,7 +274,7 @@ mod tests {
     fn test_reorg_all_blocks() {
         let mut cache = BlockHistoryCacheData::<U256ED>::new(None);
 
-        for i in 1..=11 {
+        for i in 1..=10 {
             let value = U256::from(100 * i);
             cache.set(i, value.into());
             assert_eq!(cache.latest().unwrap(), value.into());
@@ -297,5 +299,19 @@ mod tests {
         cache.set(2, value.into());
 
         assert_eq!(cache.cache.len(), 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_reorg_too_old() {
+        let mut cache = BlockHistoryCacheData::<U256ED>::new(None);
+
+        for i in 1..=11 {
+            let value = U256::from(100 * i);
+            cache.set(i, value.into());
+            assert_eq!(cache.latest().unwrap(), value.into());
+        }
+
+        cache.reorg(0);
     }
 }

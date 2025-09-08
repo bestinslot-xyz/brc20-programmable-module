@@ -78,12 +78,6 @@ pub fn validate_bitcoin_rpc_status() -> Result<(), Box<dyn Error>> {
     if CONFIG.read().bitcoin_rpc_url.is_empty() {
         return Err("Please configure BITCOIN_RPC_URL".into());
     }
-    if CONFIG.read().bitcoin_rpc_user.is_empty() {
-        return Err("Please configure BITCOIN_RPC_USER".into());
-    }
-    if CONFIG.read().bitcoin_rpc_password.is_empty() {
-        return Err("Please configure BITCOIN_RPC_PASSWORD".into());
-    }
     if CONFIG.read().bitcoin_rpc_network.is_empty() {
         return Err("Please configure BITCOIN_RPC_NETWORK".into());
     }

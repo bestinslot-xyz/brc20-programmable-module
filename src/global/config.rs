@@ -272,14 +272,6 @@ pub fn validate_config(config: &Brc20ProgConfig) -> Result<(), Box<dyn std::erro
         return Err("Bitcoin RPC URL is empty".into());
     }
 
-    if config.bitcoin_rpc_user.is_empty() && config.fail_on_bitcoin_rpc_error {
-        return Err("Bitcoin RPC user is empty".into());
-    }
-
-    if config.bitcoin_rpc_password.is_empty() && config.fail_on_bitcoin_rpc_error {
-        return Err("Bitcoin RPC password is empty".into());
-    }
-
     if config.bitcoin_rpc_network.is_empty() && config.fail_on_bitcoin_rpc_error {
         return Err("Bitcoin RPC network is empty".into());
     }
