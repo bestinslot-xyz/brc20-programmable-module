@@ -626,12 +626,10 @@ impl BRC20ProgEngine {
             })?;
 
             db.set_block_hash(block_number, block_hash)?;
-            db.set_mine_timestamp(block_number, total_time_took)?;
-            db.set_gas_used(block_number, gas_used)?;
-            db.set_block_timestamp(block_number, timestamp)?;
 
             // Save the full block info in the database for ease of access
-            let block_response = db.generate_block(block_number)?;
+            let block_response =
+                db.generate_block(block_number, timestamp, gas_used, total_time_took)?;
             db.set_block(block_number, block_response.clone())?;
             db.set_raw_block(block_number, db.generate_raw_block(block_response)?)?;
 

@@ -6,7 +6,7 @@ use std::fmt::Display;
 use std::path::Path;
 
 use alloy::primitives::map::foldhash::fast::RandomState;
-use alloy::primitives::{Address, Bloom, Bytes, FixedBytes, Log, B256, U128, U256, U64};
+use alloy::primitives::{Address, Bloom, Bytes, FixedBytes, Log, B256, U256, U64};
 use revm::context::result::ExecutionResult;
 use revm::context::DBErrorMarker;
 use revm::{Database as DatabaseTrait, DatabaseCommit};
@@ -79,15 +79,6 @@ pub struct Brc20ProgDatabase {
     /// Block number to block hash
     db_block_number_to_hash: Option<BlockDatabase<B256ED>>,
 
-    /// Block number to block timestamp
-    db_block_number_to_timestamp: Option<BlockDatabase<U64ED>>,
-
-    /// Block number to gas used
-    db_block_number_to_gas_used: Option<BlockDatabase<U64ED>>,
-
-    /// Block number to mine timestamp
-    db_block_number_to_mine_tm: Option<BlockDatabase<U128ED>>,
-
     /// Cache for latest block number and block hash
     latest_block_number: Option<(u64, B256)>,
 }
@@ -109,9 +100,6 @@ impl Default for Brc20ProgDatabase {
             db_block_number_to_raw_block: None,
             db_block_number_to_hash: None,
             db_block_hash_to_number: None,
-            db_block_number_to_timestamp: None,
-            db_block_number_to_gas_used: None,
-            db_block_number_to_mine_tm: None,
             latest_block_number: None,
         }
     }
@@ -157,18 +145,6 @@ impl Brc20ProgDatabase {
                 "block_number_to_raw_block",
             )?),
             db_block_number_to_hash: Some(BlockDatabase::new(&base_path, "block_number_to_hash")?),
-            db_block_number_to_timestamp: Some(BlockDatabase::new(
-                &base_path,
-                "block_number_to_timestamp",
-            )?),
-            db_block_number_to_gas_used: Some(BlockDatabase::new(
-                &base_path,
-                "block_number_to_gas_used",
-            )?),
-            db_block_number_to_mine_tm: Some(BlockDatabase::new(
-                &base_path,
-                "block_number_to_mine_tm",
-            )?),
             latest_block_number: None,
         })
     }
@@ -683,16 +659,7 @@ impl Brc20ProgDatabase {
         Ok(RawBlock::new(block, transactions, receipts))
     }
 
-    pub fn generate_block(&self, block_number: u64) -> Result<BlockResponseED, Box<dyn Error>> {
-        let block_timestamp = self
-            .get_block_timestamp(block_number)?
-            .ok_or("Block timestamp not set")?;
-        let gas_used = self
-            .get_gas_used(block_number)?
-            .ok_or("Block gasUsed is not set")?;
-        let mine_timestamp = self
-            .get_mine_timestamp(block_number)?
-            .ok_or("Block mine timestamp not set")?;
+    pub fn generate_block(&self, block_number: u64, block_timestamp: u64, gas_used: u64, total_time_took: u128) -> Result<BlockResponseED, Box<dyn Error>> {
         let block_hash = self
             .get_block_hash(block_number)?
             .ok_or("Block hash not set")?;
@@ -742,13 +709,13 @@ impl Brc20ProgDatabase {
         let block_response = BlockResponseED::new(
             0u64.into(),
             (MAX_BLOCK_SIZE * GAS_PER_BYTE).into(),
-            gas_used.as_limbs()[0].into(),
+            gas_used.into(),
             block_hash.into(),
             FixedBytes(bloom.as_slice().try_into()?).into(),
             (transactions.len() as u64).into(),
             block_number.into(),
-            block_timestamp.as_limbs()[0].into(),
-            mine_timestamp.into(),
+            block_timestamp.into(),
+            total_time_took.into(),
             transactions,
             tx_merkle.root().unwrap_or([0; 32]).into(),
             0u64.into(),
@@ -841,79 +808,10 @@ impl Brc20ProgDatabase {
             .set(block_number, &block_hash.into(), block_number.into())?)
     }
 
-    pub fn get_block_timestamp(&self, number: u64) -> Result<Option<U64>, Box<dyn Error>> {
-        self.db_block_number_to_timestamp
-            .as_ref()
-            .expect(DB_MUTEX_ERROR)
-            .get(number)
-            .map(|x| x.map(|x| x.uint))
-    }
-
-    pub fn set_block_timestamp(
-        &mut self,
-        block_number: u64,
-        block_timestamp: u64,
-    ) -> Result<(), Box<dyn Error>> {
-        Ok(self
-            .db_block_number_to_timestamp
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .set(block_number, block_timestamp.into()))
-    }
-
-    pub fn get_gas_used(&self, block_number: u64) -> Result<Option<U64>, Box<dyn Error>> {
-        self.db_block_number_to_gas_used
-            .as_ref()
-            .expect(DB_MUTEX_ERROR)
-            .get(block_number)
-            .map(|x| x.map(|x| x.uint))
-    }
-
-    pub fn set_gas_used(&mut self, block_number: u64, gas_used: u64) -> Result<(), Box<dyn Error>> {
-        Ok(self
-            .db_block_number_to_gas_used
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .set(block_number, gas_used.into()))
-    }
-
-    pub fn get_mine_timestamp(&self, block_number: u64) -> Result<Option<U128>, Box<dyn Error>> {
-        self.db_block_number_to_mine_tm
-            .as_ref()
-            .expect(DB_MUTEX_ERROR)
-            .get(block_number)
-            .map(|x| x.map(|x| x.uint))
-    }
-
-    pub fn set_mine_timestamp(
-        &mut self,
-        block_number: u64,
-        mine_timestamp: u128,
-    ) -> Result<(), Box<dyn Error>> {
-        self.db_block_number_to_mine_tm
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .set(block_number, mine_timestamp.into());
-
-        Ok(())
-    }
-
     pub fn commit_changes(&mut self) -> Result<(), Box<dyn Error>> {
         let latest_block_number = self.get_latest_block_height()?;
 
         self.db_block_number_to_hash
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit()?;
-        self.db_block_number_to_timestamp
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit()?;
-        self.db_block_number_to_gas_used
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit()?;
-        self.db_block_number_to_mine_tm
             .as_mut()
             .expect(DB_MUTEX_ERROR)
             .commit()?;
@@ -1001,18 +899,6 @@ impl Brc20ProgDatabase {
             .as_mut()
             .expect(DB_MUTEX_ERROR)
             .clear_cache();
-        self.db_block_number_to_timestamp
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .clear_cache();
-        self.db_block_number_to_gas_used
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .clear_cache();
-        self.db_block_number_to_mine_tm
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .clear_cache();
         self.db_block_number_to_block
             .as_mut()
             .expect(DB_MUTEX_ERROR)
@@ -1073,18 +959,6 @@ impl Brc20ProgDatabase {
             .reorg(latest_valid_block_number)?;
 
         self.db_block_number_to_hash
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
-        self.db_block_number_to_timestamp
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
-        self.db_block_number_to_gas_used
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
-        self.db_block_number_to_mine_tm
             .as_mut()
             .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
@@ -1212,14 +1086,11 @@ mod tests {
             code_hash,
             code: Some(bytecode.clone()),
         };
-        let mine_timestamp = 5;
 
         let mem_loc = U256::from(6);
         let value = U256::from(7);
         let block_number = 8;
         let block_hash = [9u8; 32].into();
-        let block_timestamp = 10;
-        let gas_used = 11;
 
         {
             let mut db = Brc20ProgDatabase::new(&path).unwrap();
@@ -1248,25 +1119,6 @@ mod tests {
                 block_hash
             );
 
-            db.set_block_timestamp(block_number, block_timestamp)
-                .unwrap();
-            assert_eq!(
-                db.get_block_timestamp(block_number).unwrap().unwrap(),
-                block_timestamp.try_into().unwrap()
-            );
-
-            db.set_gas_used(block_number, gas_used).unwrap();
-            assert_eq!(
-                db.get_gas_used(block_number).unwrap().unwrap(),
-                gas_used.try_into().unwrap()
-            );
-
-            db.set_mine_timestamp(block_number, mine_timestamp).unwrap();
-            assert_eq!(
-                db.get_mine_timestamp(block_number).unwrap().unwrap(),
-                mine_timestamp.try_into().unwrap()
-            );
-
             db.commit_changes().unwrap();
         }
 
@@ -1287,18 +1139,6 @@ mod tests {
         assert_eq!(
             db.get_block_hash(block_number).unwrap().unwrap(),
             block_hash
-        );
-        assert_eq!(
-            db.get_block_timestamp(block_number).unwrap().unwrap(),
-            block_timestamp.try_into().unwrap()
-        );
-        assert_eq!(
-            db.get_gas_used(block_number).unwrap().unwrap(),
-            gas_used.try_into().unwrap()
-        );
-        assert_eq!(
-            db.get_mine_timestamp(block_number).unwrap().unwrap(),
-            mine_timestamp.try_into().unwrap()
         );
     }
 
