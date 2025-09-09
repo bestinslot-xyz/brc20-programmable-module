@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use alloy::primitives::{Bytes, U256};
 use alloy::sol_types::{sol, SolCall};
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
@@ -31,23 +29,30 @@ pub fn brc20_balance_precompile(call: &PrecompileCall) -> InterpreterResult {
         return precompile_error(interpreter_result, "Failed to decode parameters");
     };
 
-    let Ok(balance) = get_brc20_balance(&inputs.ticker, &inputs.pkscript) else {
-        return precompile_error(interpreter_result, "Failed to get balance");
-    };
+    let balance = get_brc20_balance(&inputs.ticker, &inputs.pkscript);
 
     let bytes = balanceOfCall::abi_encode_returns(&U256::from(balance));
 
     return precompile_output(interpreter_result, bytes);
 }
 
-pub fn get_brc20_balance(ticker: &Bytes, pkscript: &Bytes) -> Result<u128, Box<dyn Error>> {
-    BRC20_CLIENT
+pub fn get_brc20_balance(ticker: &Bytes, pkscript: &Bytes) -> u128 {
+    let Ok(mut balance_string) = BRC20_CLIENT
         .get(CONFIG.read().brc20_balance_server_url.as_str())
         .query("ticker", hex::encode(ticker))
         .query("pkscript", hex::encode(pkscript))
-        .call()?
-        .body_mut()
-        .read_to_string()?
-        .parse::<u128>()
-        .map_err(|e| e.into())
+        .call()
+    else {
+        panic!("Failed to call BRC20 balance server");
+    };
+
+    let Ok(balance_string) = balance_string.body_mut().read_to_string() else {
+        panic!("Failed to read response body from BRC20 balance server");
+    };
+
+    let Ok(balance) = balance_string.parse::<u128>() else {
+        panic!("Failed to parse balance string to u128: {}", balance_string);
+    };
+
+    balance
 }
