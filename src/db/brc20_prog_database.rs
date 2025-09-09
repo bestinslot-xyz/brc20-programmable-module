@@ -21,9 +21,12 @@ use crate::db::types::{
     AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, RawBlock, Signature, TraceED,
     TxED, TxReceiptED, B256ED, U128ED, U256ED, U512ED, U64ED,
 };
+use crate::global::database::ConfigDatabase;
 use crate::global::{MAX_FUTURE_TRANSACTION_BLOCKS, MAX_REORG_HISTORY_SIZE};
 
 static DB_MUTEX_ERROR: &str = "Database mutex error";
+
+static MAX_BLOCK_NUMBER_KEY: &str = "max_block_number";
 
 pub struct Brc20ProgDatabase {
     /// Account address to memory location
@@ -77,6 +80,9 @@ pub struct Brc20ProgDatabase {
     /// Block number to block hash
     db_block_number_to_hash: Option<BlockDatabase<B256ED>>,
 
+    /// Global configuration values
+    db_global_values: Option<ConfigDatabase>,
+
     /// Cache for latest block number and block hash
     latest_block_number: Option<(u64, B256)>,
 }
@@ -98,6 +104,7 @@ impl Default for Brc20ProgDatabase {
             db_block_number_to_raw_block: None,
             db_block_number_to_hash: None,
             db_block_hash_to_number: None,
+            db_global_values: None,
             latest_block_number: None,
         }
     }
@@ -143,6 +150,7 @@ impl Brc20ProgDatabase {
                 "block_number_to_raw_block",
             )?),
             db_block_number_to_hash: Some(BlockDatabase::new(&base_path, "block_number_to_hash")?),
+            db_global_values: Some(ConfigDatabase::new(&base_path, "global")?),
             latest_block_number: None,
         })
     }
@@ -785,6 +793,11 @@ impl Brc20ProgDatabase {
             self.latest_block_number = Some((block_number, block_hash));
         }
 
+        self.db_global_values
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .set(MAX_BLOCK_NUMBER_KEY.to_string(), block_number.to_string())?;
+
         self.db_block_number_to_hash
             .as_mut()
             .expect(DB_MUTEX_ERROR)
@@ -911,8 +924,20 @@ impl Brc20ProgDatabase {
     }
 
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
-        if self.get_latest_block_height()? - latest_valid_block_number > MAX_REORG_HISTORY_SIZE {
-            return Err("Latest valid block number is too far behind current block height".into());
+        let max_global_block_number = self
+            .db_global_values
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .get(MAX_BLOCK_NUMBER_KEY.to_string())?
+            .map(|x| x.parse::<u64>().unwrap_or(0))
+            .unwrap_or(0);
+
+        if max_global_block_number > MAX_REORG_HISTORY_SIZE + latest_valid_block_number {
+            return Err(format!(
+                "Latest valid block number {} is too far behind max recorded block height: {}",
+                latest_valid_block_number, max_global_block_number
+            )
+            .into());
         }
 
         self.db_account_memory
