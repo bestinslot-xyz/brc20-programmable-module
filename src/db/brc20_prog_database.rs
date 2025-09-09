@@ -18,12 +18,10 @@ use serde_either::SingleOrVec;
 use crate::db::cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 use crate::db::database::BlockDatabase;
 use crate::db::types::{
-    AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, RawBlock, TraceED, TxED,
-    TxReceiptED, B256ED, U128ED, U256ED, U512ED, U64ED,
+    AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, RawBlock, Signature, TraceED,
+    TxED, TxReceiptED, B256ED, U128ED, U256ED, U512ED, U64ED,
 };
-use crate::global::{
-    GAS_PER_BYTE, MAX_BLOCK_SIZE, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_REORG_HISTORY_SIZE,
-};
+use crate::global::{MAX_FUTURE_TRANSACTION_BLOCKS, MAX_REORG_HISTORY_SIZE};
 
 static DB_MUTEX_ERROR: &str = "Database mutex error";
 
@@ -438,12 +436,8 @@ impl Brc20ProgDatabase {
 
     pub fn set_tx_receipt(
         &mut self,
-        result_type: &str,
-        reason: &str,
-        result: Option<&Bytes>,
         block_hash: B256,
         block_number: u64,
-        block_timestamp: u64,
         contract_address: Option<Address>,
         from: Address,
         to: Option<Address>,
@@ -465,7 +459,6 @@ impl Brc20ProgDatabase {
         let tx_receipt = TxReceiptED::new(
             block_hash.into(),
             block_number.into(),
-            block_timestamp.into(),
             contract_address.map(AddressED::new),
             from.into(),
             to.map(AddressED::new),
@@ -475,11 +468,7 @@ impl Brc20ProgDatabase {
             &output.logs().to_vec(),
             output.gas_used().into(),
             cumulative_gas_used.into(),
-            nonce.into(),
             start_log_index.into(),
-            result_type.to_string(),
-            reason.to_string(),
-            result.map(|x| x.clone().into()),
         )?;
 
         let tx = TxED::new(
@@ -493,9 +482,7 @@ impl Brc20ProgDatabase {
             gas_limit.into(),
             data.clone().into(),
             inscription_id.clone(),
-            v.into(),
-            r.into(),
-            s.into(),
+            Signature::new(v.into(), r.into(), s.into()),
         );
 
         self.db_tx
@@ -714,8 +701,6 @@ impl Brc20ProgDatabase {
         }
 
         let block_response = BlockResponseED::new(
-            0u64.into(),
-            (MAX_BLOCK_SIZE * GAS_PER_BYTE).into(),
             gas_used.into(),
             block_hash.into(),
             FixedBytes(bloom.as_slice().try_into()?).into(),
@@ -725,10 +710,7 @@ impl Brc20ProgDatabase {
             total_time_took.into(),
             transactions,
             tx_merkle.root().unwrap_or([0; 32]).into(),
-            0u64.into(),
             parent_hash.into(),
-            [0; 32].into(),
-            0u64.into(),
         );
 
         Ok(block_response)
@@ -1087,7 +1069,6 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::db::types::BytesED;
 
     #[test]
     fn test_db() {
@@ -1165,7 +1146,6 @@ mod tests {
         let data = vec![0u8; 32];
         let block_hash = [1u8; 32].into();
         let block_number = 2;
-        let block_timestamp = 11;
         let contract_address = [3u8; 20].into();
         let from = [4u8; 20].into();
         let to = [5u8; 20].into();
@@ -1186,12 +1166,8 @@ mod tests {
             let mut db = Brc20ProgDatabase::new(&path).unwrap();
 
             db.set_tx_receipt(
-                "type",
-                "reason",
-                Some(&vec![11u8; 32].into()),
                 block_hash,
                 block_number,
-                block_timestamp,
                 Some(contract_address),
                 from,
                 Some(to),
@@ -1242,7 +1218,6 @@ mod tests {
             TxReceiptED::new(
                 block_hash.into(),
                 block_number.into(),
-                block_timestamp.into(),
                 Some(contract_address.into()),
                 from.into(),
                 Some(to.into()),
@@ -1252,11 +1227,7 @@ mod tests {
                 &output.logs().to_vec(),
                 output.gas_used().into(),
                 cumulative_gas_used.into(),
-                nonce.into(),
                 start_log_index.into(),
-                "type".to_string(),
-                "reason".to_string(),
-                Some(BytesED::new(vec![11u8; 32].into())),
             )
             .unwrap()
         );
@@ -1268,7 +1239,6 @@ mod tests {
 
         let block_number = 1;
         let block_hash = [1u8; 32].into();
-        let block_timestamp = 11;
         let contract_address = [3u8; 20].into();
         let from = [4u8; 20].into();
         let to = [5u8; 20].into();
@@ -1303,12 +1273,8 @@ mod tests {
             let mut db = Brc20ProgDatabase::new(&path).unwrap();
 
             db.set_tx_receipt(
-                "type",
-                "reason",
-                Some(&vec![11u8; 32].into()),
                 block_hash,
                 block_number,
-                block_timestamp,
                 Some(contract_address),
                 from,
                 Some(to),

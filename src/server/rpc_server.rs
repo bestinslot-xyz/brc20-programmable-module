@@ -158,7 +158,7 @@ impl Brc20ProgApiServer for RpcServer {
             .map(|receipt| {
                 format!(
                     "0x{:x}",
-                    decode_brc20_balance_result(receipt.result_bytes.map(|x| x.bytes).as_ref())
+                    decode_brc20_balance_result(receipt.output.as_ref())
                 )
             })
             .map_err(wrap_rpc_error)
@@ -517,15 +517,11 @@ impl Brc20ProgApiServer for RpcServer {
             call.to.as_ref().map(|x| x.address).into(),
             data.value().unwrap_or_default().clone(),
         ));
-        let Ok(receipt) = receipt else {
+        let Ok(result) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
         };
-        let data_string = receipt
-            .result_bytes
-            .map(|x| x.bytes)
-            .unwrap_or(Bytes::new())
-            .to_string();
-        if receipt.status.uint.is_zero() {
+        let data_string = result.output.unwrap_or(Bytes::new()).to_string();
+        if !result.status {
             return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
         }
         Ok(data_string)
@@ -545,19 +541,14 @@ impl Brc20ProgApiServer for RpcServer {
             call.to.as_ref().map(|x| x.address).into(),
             data.value().unwrap_or_default().clone(),
         ));
-        let Ok(receipt) = receipt else {
+        let Ok(result) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
         };
-        let data_string = receipt
-            .result_bytes
-            .map(|x| x.bytes)
-            .unwrap_or(Bytes::new())
-            .to_string();
-        if receipt.status.uint.is_zero() {
+        let data_string = result.output.unwrap_or(Bytes::new()).to_string();
+        if !result.status {
             return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
         }
-        let gas_used: u64 = receipt.gas_used.into();
-        Ok(format!("0x{:x}", gas_used))
+        Ok(format!("0x{:x}", result.gas_used))
     }
 
     #[instrument(skip(self), level = "error")]
