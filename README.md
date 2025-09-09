@@ -701,6 +701,9 @@ BRC20_PROG_RPC_SERVER_USER="<USER>"
 BRC20_PROG_RPC_SERVER_PASSWORD="<PASSWORD>"
 ```
 
+> [!CAUTION]
+> This uses basic auth, so make sure authenticated calls are made through HTTPS or a secure tunnel if the server is exposed to the internet, otherwise credentials can be intercepted.
+
 ### Indexer Checklist
 
 - [ ] Set environment variables, check [env.sample](env.sample) for a list
