@@ -1,5 +1,6 @@
 #![cfg(feature = "server")]
 
+use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
 
@@ -13,6 +14,7 @@ use crate::global::{
 
 pub struct ConfigDatabase {
     db: DB,
+    cache: HashMap<String, String>,
 }
 
 impl ConfigDatabase {
@@ -21,10 +23,13 @@ impl ConfigDatabase {
         opts.create_if_missing(true);
         opts.set_max_open_files(256);
         let db = DB::open(&opts, &path.join(Path::new(name)))?;
-        Ok(Self { db })
+        Ok(Self { db, cache: HashMap::new() })
     }
 
     pub fn get(&self, key: String) -> Result<Option<String>, Box<dyn Error>> {
+        if let Some(value) = self.cache.get(&key) {
+            return Ok(Some(value.clone()));
+        }
         Ok(self
             .db
             .get(&key.encode_vec())?
@@ -32,7 +37,12 @@ impl ConfigDatabase {
     }
 
     pub fn set(&mut self, key: String, value: String) -> Result<(), Box<dyn Error>> {
-        self.db.put(&key.encode_vec(), &value.encode_vec()).unwrap();
+        self.db.put(&key.encode_vec(), &value.encode_vec())?;
+        self.cache.insert(key, value);
+        Ok(())
+    }
+
+    pub fn flush(&self) -> Result<(), Box<dyn Error>> {
         self.db.flush().map_err(|e| e.into())
     }
 
@@ -78,6 +88,7 @@ pub fn validate_config_database(config: &Brc20ProgConfig) -> Result<(), Box<dyn 
             EVM_RECORD_TRACES_KEY.clone(),
             config.evm_record_traces.to_string(),
         )?;
+        config_database.flush()?;
     } else {
         config_database.validate(&*DB_VERSION_KEY, &DB_VERSION.to_string())?;
         config_database.validate(&*PROTOCOL_VERSION_KEY, &PROTOCOL_VERSION.to_string())?;
@@ -156,5 +167,14 @@ mod tests {
         db.set("key".to_string(), "value".to_string()).unwrap();
         let result = db.validate("key", "value2");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_database_flush() {
+        let temp = TempDir::new().unwrap();
+        let mut db = ConfigDatabase::new(&temp.path(), "config").unwrap();
+        db.set("key".to_string(), "value".to_string()).unwrap();
+        let result = db.flush();
+        assert!(result.is_ok());
     }
 }
