@@ -66,7 +66,7 @@ impl BRC20ProgEngine {
         if let Some(genesis) = self.get_block_by_number(genesis_height, false)? {
             if genesis.hash.bytes == genesis_hash {
                 // Check status of BRC20 Balance Server before proceeding
-                get_brc20_balance(&[10].into(), &[10].into())
+                std::panic::catch_unwind(|| get_brc20_balance(&[10].into(), &[10].into()))
                     .map_err(|_| "BRC20 Balance Server is down. This error can be ignored in tests that doesn't involve the BRC20 indexer.")?;
 
                 // Check status of Bitcoin RPC
@@ -100,7 +100,7 @@ impl BRC20ProgEngine {
         self.finalise_block(genesis_timestamp, genesis_height, genesis_hash, 1)?;
 
         // Check status of BRC20 Balance Server before proceeding
-        get_brc20_balance(&[10].into(), &[10].into())
+        std::panic::catch_unwind(|| get_brc20_balance(&[10].into(), &[10].into()))
             .map_err(|_| "BRC20 Balance Server is down. This error can be ignored in tests that doesn't involve the BRC20 indexer.")?;
 
         // Check status of Bitcoin RPC
