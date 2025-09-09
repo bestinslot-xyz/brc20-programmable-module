@@ -402,6 +402,9 @@ interface IBIP322_Verifier {
 > [!WARNING]
 > Currently [rust-bitcoin/bip322](https://github.com/rust-bitcoin/bip322) and this precompile only supports `P2TR`, `P2WPKH` and `P2SH-P2WPKH` single-sig addresses.
 
+> [!WARNING]
+> This precompile supports up to 32 KB input size for combined `pkscript`, `message` and `signature` parameters. This is to avoid excessive resource usage and potential denial of service attacks.
+
 ### Bitcoin Contracts
 
 BRC2.0 has a set of precompiles that make it easier to work with bitcoin transactions within a smart contract. These can be used to retrieve transaction details, track satoshis across transactions and calculate locked pkscripts. These allow BRC2.0 smart contracts to be aware of the transactions, ordinals and ordinal lockers that happen outside the execution engine.
