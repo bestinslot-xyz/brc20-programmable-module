@@ -155,6 +155,11 @@ pub brc20_prog::types::TxED::tx_type: brc20_prog::types::U8ED
 pub brc20_prog::types::TxED::v: brc20_prog::types::U8ED
 pub brc20_prog::types::TxED::value: brc20_prog::types::U64ED
 pub struct brc20_prog::types::TxReceiptED
+pub brc20_prog::types::TxReceiptED::_block_timestamp: brc20_prog::types::U64ED
+pub brc20_prog::types::TxReceiptED::_nonce: brc20_prog::types::U64ED
+pub brc20_prog::types::TxReceiptED::_reason: alloc::string::String
+pub brc20_prog::types::TxReceiptED::_result_bytes: core::option::Option<brc20_prog::types::BytesED>
+pub brc20_prog::types::TxReceiptED::_transaction_result: alloc::string::String
 pub brc20_prog::types::TxReceiptED::block_hash: brc20_prog::types::B256ED
 pub brc20_prog::types::TxReceiptED::block_number: brc20_prog::types::U64ED
 pub brc20_prog::types::TxReceiptED::contract_address: core::option::Option<brc20_prog::types::AddressED>
@@ -174,6 +179,7 @@ pub brc20_prog::types::UintED::uint: ruint::Uint<BITS, LIMBS>
 impl<const BITS: usize, const LIMBS: usize> brc20_prog::types::UintED<BITS, LIMBS>
 pub fn brc20_prog::types::UintED<BITS, LIMBS>::is_zero(&self) -> bool
 pub fn brc20_prog::types::UintED<BITS, LIMBS>::new(uint: ruint::Uint<BITS, LIMBS>) -> Self
+pub fn brc20_prog::types::UintED<BITS, LIMBS>::zero() -> Self
 impl<'de, const BITS: usize, const LIMBS: usize> serde::de::Deserialize<'de> for brc20_prog::types::UintED<BITS, LIMBS>
 pub fn brc20_prog::types::UintED<BITS, LIMBS>::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
 impl<const BITS: usize, const LIMBS: usize> core::convert::From<ruint::Uint<BITS, LIMBS>> for brc20_prog::types::UintED<BITS, LIMBS>

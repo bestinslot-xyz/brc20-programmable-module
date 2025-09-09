@@ -33,6 +33,13 @@ impl<const BITS: usize, const LIMBS: usize> UintED<BITS, LIMBS> {
         Self { uint }
     }
 
+    /// Returns a `UintED` instance representing zero.
+    pub fn zero() -> Self {
+        Self {
+            uint: Uint::ZERO,
+        }
+    }
+
     /// Returns if the `UintED` instance is zero.
     pub fn is_zero(&self) -> bool {
         self.uint.is_zero()
