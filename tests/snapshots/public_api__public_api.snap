@@ -157,7 +157,6 @@ pub brc20_prog::types::TxED::value: brc20_prog::types::U64ED
 pub struct brc20_prog::types::TxReceiptED
 pub brc20_prog::types::TxReceiptED::block_hash: brc20_prog::types::B256ED
 pub brc20_prog::types::TxReceiptED::block_number: brc20_prog::types::U64ED
-pub brc20_prog::types::TxReceiptED::block_timestamp: brc20_prog::types::U64ED
 pub brc20_prog::types::TxReceiptED::contract_address: core::option::Option<brc20_prog::types::AddressED>
 pub brc20_prog::types::TxReceiptED::cumulative_gas_used: brc20_prog::types::U64ED
 pub brc20_prog::types::TxReceiptED::effective_gas_price: brc20_prog::types::U64ED
@@ -165,14 +164,10 @@ pub brc20_prog::types::TxReceiptED::from: brc20_prog::types::AddressED
 pub brc20_prog::types::TxReceiptED::gas_used: brc20_prog::types::U64ED
 pub brc20_prog::types::TxReceiptED::logs: alloc::vec::Vec<brc20_prog::types::LogED>
 pub brc20_prog::types::TxReceiptED::logs_bloom: brc20_prog::types::B2048ED
-pub brc20_prog::types::TxReceiptED::nonce: brc20_prog::types::U64ED
-pub brc20_prog::types::TxReceiptED::reason: alloc::string::String
-pub brc20_prog::types::TxReceiptED::result_bytes: core::option::Option<brc20_prog::types::BytesED>
 pub brc20_prog::types::TxReceiptED::status: brc20_prog::types::U8ED
 pub brc20_prog::types::TxReceiptED::to: core::option::Option<brc20_prog::types::AddressED>
 pub brc20_prog::types::TxReceiptED::transaction_hash: brc20_prog::types::B256ED
 pub brc20_prog::types::TxReceiptED::transaction_index: brc20_prog::types::U64ED
-pub brc20_prog::types::TxReceiptED::transaction_result: alloc::string::String
 pub brc20_prog::types::TxReceiptED::transaction_type: brc20_prog::types::U8ED
 pub struct brc20_prog::types::UintED<const BITS: usize, const LIMBS: usize>
 pub brc20_prog::types::UintED::uint: ruint::Uint<BITS, LIMBS>
