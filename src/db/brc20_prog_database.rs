@@ -813,6 +813,10 @@ impl Brc20ProgDatabase {
     pub fn commit_changes(&mut self) -> Result<(), Box<dyn Error>> {
         let latest_block_number = self.get_latest_block_height()?;
 
+        self.db_global_values
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .flush()?;
         self.db_block_number_to_hash
             .as_mut()
             .expect(DB_MUTEX_ERROR)
