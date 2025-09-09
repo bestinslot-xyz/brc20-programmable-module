@@ -377,6 +377,9 @@ interface IBRC20_Balance {
 > [!WARNING]
 > `BRC20_PROG_BALANCE_SERVER_URL` must be set for this precompile to work.
 
+> [!WARNING]
+> Ticker is case sensitive, and must match exactly what the indexer has recorded. It's a bytes array, so it can be passed as hex encoded bytes of the ticker string (e.g. `0x6F726469` for "ordi").
+
 ### BIP322 Verifier Contract
 
 `BIP322_Verifier` contract can be used to verify a BIP322 signature. This precompile uses the [rust-bitcoin/bip322](https://github.com/rust-bitcoin/bip322) library.
