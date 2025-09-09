@@ -291,7 +291,7 @@ impl Brc20ProgApiServer for RpcServer {
         } else if let Some(contract_inscription_id) = contract_inscription_id {
             self.engine
                 .get_contract_address_by_inscription_id(contract_inscription_id)
-                .unwrap_or(None)
+                .map_err(wrap_rpc_error)?
                 .unwrap_or(*INVALID_ADDRESS)
         } else {
             contract_address
