@@ -172,7 +172,8 @@ impl Brc20ProgDatabase {
                     .as_ref()
                     .expect(DB_MUTEX_ERROR)
                     .last_key()?
-                    .unwrap_or(0) + 1);
+                    .unwrap_or(0)
+                    + 1);
             }
         }
     }
@@ -659,7 +660,13 @@ impl Brc20ProgDatabase {
         Ok(RawBlock::new(block, transactions, receipts))
     }
 
-    pub fn generate_block(&self, block_number: u64, block_timestamp: u64, gas_used: u64, total_time_took: u128) -> Result<BlockResponseED, Box<dyn Error>> {
+    pub fn generate_block(
+        &self,
+        block_number: u64,
+        block_timestamp: u64,
+        gas_used: u64,
+        total_time_took: u128,
+    ) -> Result<BlockResponseED, Box<dyn Error>> {
         let block_hash = self
             .get_block_hash(block_number)?
             .ok_or("Block hash not set")?;
@@ -875,7 +882,10 @@ impl Brc20ProgDatabase {
             .expect(DB_MUTEX_ERROR)
             .clear_cache();
         self.db_code.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
-        self.db_account.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
+        self.db_account
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .clear_cache();
         self.db_block_number_to_hash
             .as_mut()
             .expect(DB_MUTEX_ERROR)
@@ -893,8 +903,14 @@ impl Brc20ProgDatabase {
             .expect(DB_MUTEX_ERROR)
             .clear_cache();
         self.db_tx.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
-        self.db_tx_trace.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
-        self.db_tx_receipt.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
+        self.db_tx_trace
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .clear_cache();
+        self.db_tx_receipt
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .clear_cache();
         self.db_number_and_index_to_tx_hash
             .as_mut()
             .expect(DB_MUTEX_ERROR)
