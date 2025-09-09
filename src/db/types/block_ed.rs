@@ -193,6 +193,8 @@ impl BlockResponseED {
 
 impl Encode for BlockResponseED {
     fn encode(&self, buffer: &mut Vec<u8>) {
+        self.difficulty.encode(buffer); // Legacy
+        self.gas_limit.encode(buffer); // Legacy
         self.gas_used.encode(buffer);
         self.hash.encode(buffer);
         self.logs_bloom.encode(buffer);
@@ -206,12 +208,18 @@ impl Encode for BlockResponseED {
         };
         transactions.encode(buffer);
         self.transactions_root.encode(buffer);
+        self.total_difficulty.encode(buffer); // Legacy
         self.parent_hash.encode(buffer);
+        self.receipts_root.encode(buffer); // Legacy
+        self.size.encode(buffer); // Legacy
     }
 }
 
 impl Decode for BlockResponseED {
     fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>> {
+        let (_difficulty, offset) = U64ED::decode(bytes, offset)?; // Legacy
+        let (_gas_limit, offset) = U64ED::decode(bytes, offset)?; // Legacy
+
         let (gas_used, offset) = Decode::decode(bytes, offset)?;
         let (hash, offset) = Decode::decode(bytes, offset)?;
         let (logs_bloom, offset) = Decode::decode(bytes, offset)?;
@@ -221,7 +229,13 @@ impl Decode for BlockResponseED {
         let (mine_timestamp, offset) = Decode::decode(bytes, offset)?;
         let (transactions, offset) = Decode::decode(bytes, offset)?;
         let (transactions_root, offset) = Decode::decode(bytes, offset)?;
+
+        let (_total_difficulty, offset) = U64ED::decode(bytes, offset)?; // Legacy
+
         let (parent_hash, offset) = Decode::decode(bytes, offset)?;
+
+        let (_receipts_root, offset) = B256ED::decode(bytes, offset)?; // Legacy
+        let (_size, offset) = U64ED::decode(bytes, offset)?; // Legacy
 
         Ok((
             BlockResponseED::new(
