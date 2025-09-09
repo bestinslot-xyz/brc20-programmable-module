@@ -6,25 +6,24 @@ use std::time::{Duration, UNIX_EPOCH};
 
 use alloy::consensus::transaction::RlpEcdsaDecodableTx;
 use alloy::consensus::{SignableTransaction, TxLegacy};
-use alloy::primitives::{keccak256, logs_bloom, Address, B256, U256};
+use alloy::primitives::{keccak256, Address, B256, U256};
 use alloy_rpc_types_trace::geth::CallConfig;
 use either::Either::Right;
 use revm::context::ContextTr;
 use revm::handler::EvmTr;
 use revm::inspector::InspectorEvmTr;
+use revm::primitives::Bytes;
 use revm::{ExecuteEvm, InspectCommitEvm};
 use serde_either::SingleOrVec;
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
-use crate::db::types::{
-    BlockResponseED, BytecodeED, Decode, LogED, TraceED, TxED, TxReceiptED, B2048ED,
-};
+use crate::db::types::{BlockResponseED, BytecodeED, LogED, Signature, TraceED, TxED, TxReceiptED};
 use crate::db::Brc20ProgDatabase;
 use crate::engine::evm::get_evm;
 use crate::engine::precompiles::get_brc20_balance;
 use crate::engine::utils::{
-    get_contract_address, get_gas_limit, get_inscription_byte_len, get_result_reason,
-    get_result_type, get_tx_hash, LastBlockInfo, TxInfo,
+    get_contract_address, get_gas_limit, get_inscription_byte_len, get_tx_hash, LastBlockInfo,
+    TxInfo,
 };
 use crate::engine::validate_bitcoin_rpc_status;
 use crate::global::{
@@ -36,6 +35,12 @@ use crate::types::AddressED;
 pub struct BRC20ProgEngine {
     db: SharedData<Brc20ProgDatabase>,
     last_block_info: SharedData<LastBlockInfo>,
+}
+
+pub struct ReadContractResult {
+    pub status: bool,
+    pub gas_used: u64,
+    pub output: Option<Bytes>,
 }
 
 impl BRC20ProgEngine {
@@ -274,9 +279,11 @@ impl BRC20ProgEngine {
                                 gas_limit.into(),
                                 tx_info.data.clone().into(),
                                 inscription_id,
-                                tx_info.v.into(),
-                                tx_info.r.into(),
-                                tx_info.s.into(),
+                                Signature::new(
+                                    tx_info.v.into(),
+                                    tx_info.r.into(),
+                                    tx_info.s.into(),
+                                ),
                             ),
                         )
                     })?;
@@ -455,12 +462,8 @@ impl BRC20ProgEngine {
             }
 
             db.set_tx_receipt(
-                &get_result_type(&output),
-                &get_result_reason(&output),
-                output.output(),
                 block_hash,
                 block_number,
-                timestamp,
                 get_contract_address(&output),
                 tx_info.from,
                 tx_info.to_address_optional(),
@@ -644,13 +647,12 @@ impl BRC20ProgEngine {
         Ok(())
     }
 
-    pub fn read_contract(&self, tx_info: &TxInfo) -> Result<TxReceiptED, Box<dyn Error>> {
+    pub fn read_contract(&self, tx_info: &TxInfo) -> Result<ReadContractResult, Box<dyn Error>> {
         self.require_no_waiting_txes()?;
 
         let block_number = self.get_next_block_height()?;
         let timestamp = UNIX_EPOCH.elapsed().map(|x| x.as_secs())?;
         let nonce = self.get_account_nonce(tx_info.from)?;
-        let txhash = get_tx_hash(&tx_info, nonce);
 
         // This isn't actually writing to the database, but the EVM context requires a mutable reference
         let output = self.db.write_fn(|db| {
@@ -671,34 +673,10 @@ impl BRC20ProgEngine {
             output.map_err(|e| e.into())
         })?;
 
-        Ok(TxReceiptED {
-            status: (output.is_success() as u8).into(),
-            transaction_result: get_result_type(&output),
-            reason: get_result_reason(&output),
-            result_bytes: output.output().cloned().map(|x| x.into()),
-            logs: LogED::new_vec(
-                &output.logs().to_vec(),
-                0u64.into(),
-                0u64.into(),
-                txhash.into(),
-                txhash.into(),
-                block_number.into(),
-            ),
+        Ok(ReadContractResult {
+            status: output.is_success(),
             gas_used: output.gas_used().into(),
-            from: tx_info.from.into(),
-            to: tx_info.to_address_optional().map(|x| x.into()),
-            contract_address: get_contract_address(&output).map(|x| x.into()),
-            logs_bloom: B2048ED::decode_vec(&logs_bloom(output.logs()).to_vec())
-                .map_err(|_| "Error while decoding logs bloom")?,
-            block_hash: txhash.into(),
-            block_number: block_number.into(),
-            block_timestamp: timestamp.into(),
-            transaction_hash: txhash.into(),
-            transaction_index: 0u64.into(),
-            cumulative_gas_used: output.gas_used().into(),
-            nonce: nonce.into(),
-            effective_gas_price: 0u64.into(),
-            transaction_type: 0u8.into(),
+            output: output.output().cloned(),
         })
     }
 
