@@ -518,11 +518,11 @@ impl Brc20ProgApiServer for RpcServer {
             data.value().unwrap_or_default().clone(),
         ));
         let Ok(result) = receipt else {
-            return Err(wrap_rpc_error_string("Call failed"));
+            return Ok("0x".to_string());
         };
         let data_string = result.output.unwrap_or(Bytes::new()).to_string();
         if !result.status {
-            return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
+            return Ok(data_string);
         }
         Ok(data_string)
     }
