@@ -8,6 +8,7 @@ use jsonrpsee::core::middleware::RpcServiceBuilder;
 use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::server::{Server, ServerHandle};
 use revm::primitives::TxKind;
+use revm_state::Bytecode;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
@@ -572,7 +573,7 @@ impl Brc20ProgApiServer for RpcServer {
         {
             Ok(bytecode)
         } else {
-            Err(wrap_rpc_error_string("Contract bytecode not found"))
+            Ok(BytecodeED::new(Bytecode::new()))
         }
     }
 
