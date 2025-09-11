@@ -37,16 +37,19 @@ pub fn brc20_balance_precompile(call: &PrecompileCall) -> InterpreterResult {
 }
 
 pub fn get_brc20_balance(ticker: &Bytes, pkscript: &Bytes) -> u128 {
-    let Ok(mut balance_string) = BRC20_CLIENT
+    let mut balance_response = match BRC20_CLIENT
         .get(CONFIG.read().brc20_balance_server_url.as_str())
         .query("ticker", hex::encode(ticker))
         .query("pkscript", hex::encode(pkscript))
         .call()
-    else {
-        panic!("Failed to call BRC20 balance server");
+    {
+        Ok(response) => response,
+        Err(err) => {
+            panic!("Error calling BRC20 balance server: {}", err);
+        }
     };
 
-    let Ok(balance_string) = balance_string.body_mut().read_to_string() else {
+    let Ok(balance_string) = balance_response.body_mut().read_to_string() else {
         panic!("Failed to read response body from BRC20 balance server");
     };
 
