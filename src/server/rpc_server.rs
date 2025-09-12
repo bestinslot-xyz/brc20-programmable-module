@@ -6,7 +6,7 @@ use alloy::primitives::Bytes;
 use hyper::Method;
 use jsonrpsee::core::middleware::RpcServiceBuilder;
 use jsonrpsee::core::{async_trait, RpcResult};
-use jsonrpsee::server::{Server, ServerHandle};
+use jsonrpsee::server::{BatchRequestConfig, Server, ServerConfigBuilder, ServerHandle};
 use revm::primitives::TxKind;
 use revm_state::Bytecode;
 use tower::ServiceBuilder;
@@ -724,6 +724,10 @@ pub async fn start_rpc_server(
     engine: BRC20ProgEngine,
     config: Brc20ProgConfig,
 ) -> Result<ServerHandle, Box<dyn Error>> {
+    static MAX_REQUEST_BODY_SIZE: u32 = 10 * 1024 * 1024; // 10 MB to accommodate large requests
+    static MAX_RESPONSE_BODY_SIZE: u32 = 100 * 1024 * 1024; // 100 MB to accommodate large responses
+    static BATCH_REQUEST_LIMIT: u32 = 50; // Limit batch requests to 50
+
     let cors = CorsLayer::new()
         // Allow `POST` when accessing the resource
         .allow_methods([Method::POST])
@@ -759,6 +763,13 @@ pub async fn start_rpc_server(
     let module = RpcServer { engine }.into_rpc();
 
     let handle = Server::builder()
+        .set_config(
+            ServerConfigBuilder::default()
+                .max_request_body_size(MAX_REQUEST_BODY_SIZE)
+                .max_response_body_size(MAX_RESPONSE_BODY_SIZE)
+                .set_batch_request_config(BatchRequestConfig::Limit(BATCH_REQUEST_LIMIT))
+                .build(),
+        )
         .set_http_middleware(http_middleware)
         .set_rpc_middleware(rpc_middleware)
         .build(config.brc20_prog_rpc_server_url.parse::<SocketAddr>()?)
