@@ -106,7 +106,7 @@ impl BRC20ProgEngine {
 
         // Check status of Bitcoin RPC
         tracing::info!("Checking Bitcoin RPC status...");
-        validate_bitcoin_rpc_status().map_err(|_| "Bitcoin RPC status check failed")?;
+        validate_bitcoin_rpc_status().map_err(|e| format!("Bitcoin RPC status check failed: {}", e))?;
 
         Ok(())
     }
