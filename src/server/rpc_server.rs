@@ -724,9 +724,6 @@ pub async fn start_rpc_server(
     engine: BRC20ProgEngine,
     config: Brc20ProgConfig,
 ) -> Result<ServerHandle, Box<dyn Error>> {
-    static MAX_REQUEST_BODY_SIZE: u32 = 10 * 1024 * 1024; // 10 MB to accommodate large requests
-    static MAX_RESPONSE_BODY_SIZE: u32 = 100 * 1024 * 1024; // 100 MB to accommodate large responses
-
     let cors = CorsLayer::new()
         // Allow `POST` when accessing the resource
         .allow_methods([Method::POST])
@@ -764,8 +761,13 @@ pub async fn start_rpc_server(
     let handle = Server::builder()
         .set_config(
             ServerConfigBuilder::default()
-                .max_request_body_size(MAX_REQUEST_BODY_SIZE)
-                .max_response_body_size(MAX_RESPONSE_BODY_SIZE)
+                .max_request_body_size(config.max_request_size)
+                .max_response_body_size(config.max_response_size)
+                .set_batch_request_config(if config.batch_request_limit == 0 {
+                    BatchRequestConfig::Unlimited
+                } else {
+                    BatchRequestConfig::Limit(config.batch_request_limit)
+                })
                 .build(),
         )
         .set_http_middleware(http_middleware)

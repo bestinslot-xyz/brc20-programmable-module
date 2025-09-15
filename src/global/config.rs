@@ -44,8 +44,17 @@ lazy_static::lazy_static! {
     static ref BITCOIN_RPC_USER_KEY: String = "BITCOIN_RPC_USER".to_string();
     static ref BITCOIN_RPC_PASSWORD_KEY: String = "BITCOIN_RPC_PASSWORD".to_string();
 
-    pub(crate) static ref BITCOIN_RPC_NETWORK_KEY: String = "BITCOIN_RPC_NETWORK".to_string();
+    static ref BITCOIN_RPC_NETWORK_KEY: String = "BITCOIN_RPC_NETWORK".to_string();
     static ref BITCOIN_RPC_NETWORK_DEFAULT_SIGNET: String = "signet".to_string();
+
+    static ref MAX_REQUEST_SIZE_KEY: String = "MAX_REQUEST_SIZE".to_string();
+    static ref MAX_REQUEST_SIZE_DEFAULT: u32 = 10 * 1024 * 1024; // 10MB
+
+    static ref MAX_RESPONSE_SIZE_KEY: String = "MAX_RESPONSE_SIZE".to_string();
+    static ref MAX_RESPONSE_SIZE_DEFAULT: u32 = 100 * 1024 * 1024; // 100MB
+
+    static ref BATCH_REQUEST_LIMIT_KEY: String = "BATCH_REQUEST_LIMIT".to_string();
+    static ref BATCH_REQUEST_LIMIT_DEFAULT: u32 = 50; // 50 requests
 
     pub static ref CARGO_PKG_VERSION: String = {
         let version = env!("CARGO_PKG_VERSION");
@@ -120,6 +129,13 @@ pub struct Brc20ProgConfig {
     pub fail_on_bitcoin_rpc_error: bool,
     /// Database path
     pub db_path: String,
+
+    /// Max request size in bytes
+    pub max_request_size: u32,
+    /// Max response size in bytes
+    pub max_response_size: u32,
+    /// Batch request limit (0 for unlimited)
+    pub batch_request_limit: u32,
 }
 
 impl Default for Brc20ProgConfig {
@@ -148,6 +164,9 @@ impl Brc20ProgConfig {
     /// * `fail_on_bitcoin_rpc_error` - Whether to fail on Bitcoin RPC errors
     /// * `fail_on_brc20_balance_server_error` - Whether to fail on BRC20 balance server errors
     /// * `db_path` - The path to the database folder
+    /// * `max_request_size` - Max request size in bytes
+    /// * `max_response_size` - Max response size in bytes
+    /// * `batch_request_limit` - Batch request limit (0 for unlimited)
     pub fn new(
         brc20_prog_rpc_server_url: String,
         brc20_prog_rpc_server_enable_auth: bool,
@@ -164,6 +183,9 @@ impl Brc20ProgConfig {
         fail_on_brc20_balance_server_error: bool,
         fail_on_bitcoin_rpc_error: bool,
         db_path: String,
+        max_request_size: u32,
+        max_response_size: u32,
+        batch_request_limit: u32,
     ) -> Self {
         Self {
             brc20_prog_rpc_server_url,
@@ -181,6 +203,9 @@ impl Brc20ProgConfig {
             fail_on_brc20_balance_server_error,
             fail_on_bitcoin_rpc_error,
             db_path,
+            max_request_size,
+            max_response_size,
+            batch_request_limit,
         }
     }
 
@@ -202,6 +227,12 @@ impl Brc20ProgConfig {
     /// * `BITCOIN_RPC_NETWORK` - The network type for the Bitcoin RPC server (Default: "signet")
     /// * `FAIL_ON_BRC20_BALANCE_SERVER_ERROR` - Whether to fail on BRC20 balance server errors (Default: true)
     /// * `FAIL_ON_BITCOIN_RPC_ERROR` - Whether to fail on Bitcoin RPC errors (Default: true)
+    /// * `EVM_CALL_GAS_LIMIT` - Gas limit for EVM calls (Default: 1_000_000_000)
+    /// * `MAX_REQUEST_SIZE` - Max request size in bytes (Default: 10MB)
+    /// * `MAX_RESPONSE_SIZE` - Max response size in bytes (Default: 100MB)
+    /// * `BATCH_REQUEST_LIMIT` - Batch request limit (0 for unlimited) (Default: 50)
+    /// # Returns
+    /// A new instance of `Brc20ProgConfig` with the configuration values read from environment variables.
     pub fn from_env() -> Self {
         Self {
             brc20_prog_rpc_server_url: env::var(&*BRC20_PROG_RPC_SERVER_URL_KEY)
@@ -240,6 +271,16 @@ impl Brc20ProgConfig {
                 .map(|x| x == "true")
                 .unwrap_or(*FAIL_ON_BITCOIN_RPC_ERROR_DEFAULT),
             db_path: env::var(&*DB_PATH_KEY).unwrap_or(DB_PATH_DEFAULT.clone()),
+
+            max_request_size: env::var(&*MAX_REQUEST_SIZE_KEY)
+                .map(|x| x.parse::<u32>().unwrap_or(*MAX_REQUEST_SIZE_DEFAULT))
+                .unwrap_or(*MAX_REQUEST_SIZE_DEFAULT),
+            max_response_size: env::var(&*MAX_RESPONSE_SIZE_KEY)
+                .map(|x| x.parse::<u32>().unwrap_or(*MAX_RESPONSE_SIZE_DEFAULT))
+                .unwrap_or(*MAX_RESPONSE_SIZE_DEFAULT),
+            batch_request_limit: env::var(&*BATCH_REQUEST_LIMIT_KEY)
+                .map(|x| x.parse::<u32>().unwrap_or(*BATCH_REQUEST_LIMIT_DEFAULT))
+                .unwrap_or(*BATCH_REQUEST_LIMIT_DEFAULT),
         }
     }
 }
