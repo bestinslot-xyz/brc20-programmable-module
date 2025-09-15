@@ -44,7 +44,7 @@ lazy_static::lazy_static! {
     static ref BITCOIN_RPC_USER_KEY: String = "BITCOIN_RPC_USER".to_string();
     static ref BITCOIN_RPC_PASSWORD_KEY: String = "BITCOIN_RPC_PASSWORD".to_string();
 
-    static ref BITCOIN_RPC_NETWORK_KEY: String = "BITCOIN_RPC_NETWORK".to_string();
+    pub(crate) static ref BITCOIN_RPC_NETWORK_KEY: String = "BITCOIN_RPC_NETWORK".to_string();
     static ref BITCOIN_RPC_NETWORK_DEFAULT_SIGNET: String = "signet".to_string();
 
     static ref MAX_REQUEST_SIZE_KEY: String = "MAX_REQUEST_SIZE".to_string();
