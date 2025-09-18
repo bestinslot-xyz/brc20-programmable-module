@@ -37,7 +37,7 @@ Precompiled contracts require environment variables to work properly, see the [P
 **Build and run brc20_prog:**
 
 ```
-cargo run --release --features=server
+cargo run --release
 ```
 
 > [!NOTE]
@@ -377,6 +377,9 @@ interface IBRC20_Balance {
 > [!WARNING]
 > `BRC20_PROG_BALANCE_SERVER_URL` must be set for this precompile to work.
 
+> [!WARNING]
+> Ticker is case sensitive, and must match exactly what the indexer has recorded. It's a bytes array, so it can be passed as hex encoded bytes of the ticker string (e.g. `0x6F726469` for "ordi").
+
 ### BIP322 Verifier Contract
 
 `BIP322_Verifier` contract can be used to verify a BIP322 signature. This precompile uses the [rust-bitcoin/bip322](https://github.com/rust-bitcoin/bip322) library.
@@ -398,6 +401,9 @@ interface IBIP322_Verifier {
 
 > [!WARNING]
 > Currently [rust-bitcoin/bip322](https://github.com/rust-bitcoin/bip322) and this precompile only supports `P2TR`, `P2WPKH` and `P2SH-P2WPKH` single-sig addresses.
+
+> [!WARNING]
+> This precompile supports up to 32 KB input size for combined `pkscript`, `message` and `signature` parameters. This is to avoid excessive resource usage and potential denial of service attacks.
 
 ### Bitcoin Contracts
 
@@ -700,6 +706,9 @@ BRC20_PROG_RPC_SERVER_ENABLE_AUTH=true
 BRC20_PROG_RPC_SERVER_USER="<USER>"
 BRC20_PROG_RPC_SERVER_PASSWORD="<PASSWORD>"
 ```
+
+> [!CAUTION]
+> This uses basic auth, so make sure authenticated calls are made through HTTPS or a secure tunnel if the server is exposed to the internet, otherwise credentials can be intercepted.
 
 ### Indexer Checklist
 

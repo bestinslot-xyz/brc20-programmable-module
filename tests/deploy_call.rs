@@ -48,8 +48,14 @@ async fn test_deploy_call() -> Result<(), Box<dyn Error>> {
         .await?
         .unwrap();
 
+    assert!(!call_response.status.is_zero());
+
+    let trace = client
+        .debug_trace_transaction(call_response.transaction_hash)
+        .await?;
+
     assert_eq!(
-        call_response.result_bytes.unwrap().bytes,
+        trace.unwrap().output.bytes,
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
     );
 
@@ -104,11 +110,16 @@ async fn test_deploy_call_encoded() -> Result<(), Box<dyn Error>> {
         .await?
         .unwrap();
 
+    assert!(!call_response.status.is_zero());
+
+    let trace = client
+        .debug_trace_transaction(call_response.transaction_hash)
+        .await?;
+
     assert_eq!(
-        call_response.result_bytes.unwrap().bytes,
+        trace.unwrap().output.bytes,
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
     );
-
     server.stop()?;
 
     Ok(())

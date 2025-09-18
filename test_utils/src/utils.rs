@@ -28,6 +28,7 @@ pub async fn spawn_test_server(config: Brc20ProgConfig) -> (ServerHandle, HttpCl
         brc20_prog_rpc_server_url: server_address.clone(),
         fail_on_bitcoin_rpc_error: false,
         fail_on_brc20_balance_server_error: false,
+        evm_record_traces: true,
         ..config
     })
     .await
