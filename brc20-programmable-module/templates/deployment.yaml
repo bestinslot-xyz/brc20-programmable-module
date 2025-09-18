@@ -8,6 +8,8 @@ spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "brc20-programmable-module.selectorLabels" . | nindent 6 }}
@@ -53,12 +55,12 @@ spec:
           - name: BRC20_PROG_RPC_SERVER_ENABLE_AUTH
             valueFrom:
               configMapKeyRef:
-                name: bis-config
+                name: {{ .Values.configMapName }}
                 key: brc20Prog.rpcServerEnableAuth
           - name: BRC20_PROG_RPC_SERVER_USER
             valueFrom:
               configMapKeyRef:
-                name: bis-config
+                name: {{ .Values.configMapName }}
                 key: brc20Prog.rpcServerUser
           - name: BRC20_PROG_RPC_SERVER_PASSWORD
             valueFrom:
@@ -68,17 +70,17 @@ spec:
           - name: BRC20_PROG_BALANCE_SERVER_URL
             valueFrom:
               configMapKeyRef:
-                name: bis-config
+                name: {{ .Values.configMapName }}
                 key: brc20Prog.balanceServerUrl
           - name: BITCOIN_RPC_URL
             valueFrom:
               configMapKeyRef:
-                name: bis-config
+                name: {{ .Values.configMapName }}
                 key: rpc.url
           - name: BITCOIN_RPC_USER
             valueFrom:
               configMapKeyRef:
-                name: bis-config
+                name: {{ .Values.configMapName }}
                 key: rpc.user
           - name: BITCOIN_RPC_PASSWORD
             valueFrom:
@@ -88,7 +90,7 @@ spec:
           - name: BITCOIN_RPC_NETWORK
             valueFrom:
               configMapKeyRef:
-                name: bis-config
+                name: {{ .Values.configMapName }}
                 key: networkType
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
@@ -98,7 +100,7 @@ spec:
       volumes:
         - name: brc20-programmable-module-storage
           persistentVolumeClaim:
-            claimName: brc20-programmable-module
+            claimName: {{ include "brc20-programmable-module.fullname" . }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

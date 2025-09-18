@@ -3,7 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   annotations:
     helm.sh/resource-policy: keep
-  name: brc20-programmable-module
+  name: {{ include "brc20-programmable-module.fullname" . }}
 spec:
   accessModes:
   - ReadWriteOnce

@@ -1,7 +1,7 @@
 # Default values for brc20-programmable-module.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
-
+configMapName: bis-config
 replicaCount: 1
 
 image:
@@ -65,10 +65,10 @@ resources:
   # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
   limits:
   #   cpu: 100m
-    memory: 294Mi
+    memory: 500Mi
   requests:
     cpu: 10m
-    memory: 294Mi
+    memory: 500Mi
 
 autoscaling:
   enabled: false
