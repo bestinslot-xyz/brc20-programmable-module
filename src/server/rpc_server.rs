@@ -6,8 +6,9 @@ use alloy::primitives::Bytes;
 use hyper::Method;
 use jsonrpsee::core::middleware::RpcServiceBuilder;
 use jsonrpsee::core::{async_trait, RpcResult};
-use jsonrpsee::server::{Server, ServerHandle};
+use jsonrpsee::server::{BatchRequestConfig, Server, ServerConfigBuilder, ServerHandle};
 use revm::primitives::TxKind;
+use revm_state::Bytecode;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
@@ -158,7 +159,7 @@ impl Brc20ProgApiServer for RpcServer {
             .map(|receipt| {
                 format!(
                     "0x{:x}",
-                    decode_brc20_balance_result(receipt.result_bytes.map(|x| x.bytes).as_ref())
+                    decode_brc20_balance_result(receipt.output.as_ref())
                 )
             })
             .map_err(wrap_rpc_error)
@@ -291,7 +292,7 @@ impl Brc20ProgApiServer for RpcServer {
         } else if let Some(contract_inscription_id) = contract_inscription_id {
             self.engine
                 .get_contract_address_by_inscription_id(contract_inscription_id)
-                .unwrap_or(None)
+                .map_err(wrap_rpc_error)?
                 .unwrap_or(*INVALID_ADDRESS)
         } else {
             contract_address
@@ -517,16 +518,12 @@ impl Brc20ProgApiServer for RpcServer {
             call.to.as_ref().map(|x| x.address).into(),
             data.value().unwrap_or_default().clone(),
         ));
-        let Ok(receipt) = receipt else {
-            return Err(wrap_rpc_error_string("Call failed"));
+        let Ok(result) = receipt else {
+            return Ok("0x".to_string());
         };
-        let data_string = receipt
-            .result_bytes
-            .map(|x| x.bytes)
-            .unwrap_or(Bytes::new())
-            .to_string();
-        if receipt.status.uint.is_zero() {
-            return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
+        let data_string = result.output.unwrap_or(Bytes::new()).to_string();
+        if !result.status {
+            return Ok(data_string);
         }
         Ok(data_string)
     }
@@ -545,19 +542,14 @@ impl Brc20ProgApiServer for RpcServer {
             call.to.as_ref().map(|x| x.address).into(),
             data.value().unwrap_or_default().clone(),
         ));
-        let Ok(receipt) = receipt else {
+        let Ok(result) = receipt else {
             return Err(wrap_rpc_error_string("Call failed"));
         };
-        let data_string = receipt
-            .result_bytes
-            .map(|x| x.bytes)
-            .unwrap_or(Bytes::new())
-            .to_string();
-        if receipt.status.uint.is_zero() {
+        let data_string = result.output.unwrap_or(Bytes::new()).to_string();
+        if !result.status {
             return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
         }
-        let gas_used: u64 = receipt.gas_used.into();
-        Ok(format!("0x{:x}", gas_used))
+        Ok(format!("0x{:x}", result.gas_used))
     }
 
     #[instrument(skip(self), level = "error")]
@@ -581,7 +573,7 @@ impl Brc20ProgApiServer for RpcServer {
         {
             Ok(bytecode)
         } else {
-            Err(wrap_rpc_error_string("Contract bytecode not found"))
+            Ok(BytecodeED::new(Bytecode::new()))
         }
     }
 
@@ -767,6 +759,17 @@ pub async fn start_rpc_server(
     let module = RpcServer { engine }.into_rpc();
 
     let handle = Server::builder()
+        .set_config(
+            ServerConfigBuilder::default()
+                .max_request_body_size(config.max_request_size)
+                .max_response_body_size(config.max_response_size)
+                .set_batch_request_config(if config.batch_request_limit == 0 {
+                    BatchRequestConfig::Unlimited
+                } else {
+                    BatchRequestConfig::Limit(config.batch_request_limit)
+                })
+                .build(),
+        )
         .set_http_middleware(http_middleware)
         .set_rpc_middleware(rpc_middleware)
         .build(config.brc20_prog_rpc_server_url.parse::<SocketAddr>()?)

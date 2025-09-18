@@ -73,6 +73,22 @@ where
     Ok(U8ED::from(value))
 }
 
+pub(crate) struct Signature {
+    /// The v field of the signature
+    pub v: U8ED,
+    /// The r field of the signature
+    pub r: U256ED,
+    /// The s field of the signature
+    pub s: U256ED,
+}
+
+impl Signature {
+    /// Create a new signature from the given v, r, and s values.
+    pub fn new(v: U8ED, r: U256ED, s: U256ED) -> Self {
+        Signature { v, r, s }
+    }
+}
+
 #[cfg(feature = "server")]
 impl TxED {
     // This is returned by the API, so doesn't need to be public
@@ -87,9 +103,7 @@ impl TxED {
         gas: U64ED,
         input: BytesED,
         inscription_id: Option<String>,
-        v: U8ED,
-        r: U256ED,
-        s: U256ED,
+        signature: Signature,
     ) -> Self {
         TxED {
             hash,
@@ -103,9 +117,9 @@ impl TxED {
             gas,
             gas_price: 0u64.into(),
             input,
-            v,
-            r,
-            s,
+            v: signature.v,
+            r: signature.r,
+            s: signature.s,
             chain_id: CONFIG.read().chain_id.into(),
             tx_type: 0u8.into(),
             inscription_id,

@@ -6,7 +6,7 @@ use std::fmt::Display;
 use std::path::Path;
 
 use alloy::primitives::map::foldhash::fast::RandomState;
-use alloy::primitives::{Address, Bloom, Bytes, FixedBytes, Log, B256, U128, U256, U64};
+use alloy::primitives::{Address, Bloom, Bytes, FixedBytes, Log, B256, U256, U64};
 use revm::context::result::ExecutionResult;
 use revm::context::DBErrorMarker;
 use revm::{Database as DatabaseTrait, DatabaseCommit};
@@ -18,14 +18,15 @@ use serde_either::SingleOrVec;
 use crate::db::cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 use crate::db::database::BlockDatabase;
 use crate::db::types::{
-    AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, RawBlock, TraceED, TxED,
-    TxReceiptED, B256ED, U128ED, U256ED, U512ED, U64ED,
+    AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, RawBlock, Signature, TraceED,
+    TxED, TxReceiptED, B256ED, U128ED, U256ED, U512ED, U64ED,
 };
-use crate::global::{
-    GAS_PER_BYTE, MAX_BLOCK_SIZE, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_REORG_HISTORY_SIZE,
-};
+use crate::global::database::ConfigDatabase;
+use crate::global::{MAX_FUTURE_TRANSACTION_BLOCKS, MAX_REORG_HISTORY_SIZE};
 
 static DB_MUTEX_ERROR: &str = "Database mutex error";
+
+static MAX_BLOCK_NUMBER_KEY: &str = "max_block_number";
 
 pub struct Brc20ProgDatabase {
     /// Account address to memory location
@@ -79,14 +80,8 @@ pub struct Brc20ProgDatabase {
     /// Block number to block hash
     db_block_number_to_hash: Option<BlockDatabase<B256ED>>,
 
-    /// Block number to block timestamp
-    db_block_number_to_timestamp: Option<BlockDatabase<U64ED>>,
-
-    /// Block number to gas used
-    db_block_number_to_gas_used: Option<BlockDatabase<U64ED>>,
-
-    /// Block number to mine timestamp
-    db_block_number_to_mine_tm: Option<BlockDatabase<U128ED>>,
+    /// Global configuration values
+    db_global_values: Option<ConfigDatabase>,
 
     /// Cache for latest block number and block hash
     latest_block_number: Option<(u64, B256)>,
@@ -109,9 +104,7 @@ impl Default for Brc20ProgDatabase {
             db_block_number_to_raw_block: None,
             db_block_number_to_hash: None,
             db_block_hash_to_number: None,
-            db_block_number_to_timestamp: None,
-            db_block_number_to_gas_used: None,
-            db_block_number_to_mine_tm: None,
+            db_global_values: None,
             latest_block_number: None,
         }
     }
@@ -157,18 +150,7 @@ impl Brc20ProgDatabase {
                 "block_number_to_raw_block",
             )?),
             db_block_number_to_hash: Some(BlockDatabase::new(&base_path, "block_number_to_hash")?),
-            db_block_number_to_timestamp: Some(BlockDatabase::new(
-                &base_path,
-                "block_number_to_timestamp",
-            )?),
-            db_block_number_to_gas_used: Some(BlockDatabase::new(
-                &base_path,
-                "block_number_to_gas_used",
-            )?),
-            db_block_number_to_mine_tm: Some(BlockDatabase::new(
-                &base_path,
-                "block_number_to_mine_tm",
-            )?),
+            db_global_values: Some(ConfigDatabase::new(&base_path, "global")?),
             latest_block_number: None,
         })
     }
@@ -196,7 +178,8 @@ impl Brc20ProgDatabase {
                     .as_ref()
                     .expect(DB_MUTEX_ERROR)
                     .last_key()?
-                    .unwrap_or(0) + 1);
+                    .unwrap_or(0)
+                    + 1);
             }
         }
     }
@@ -461,12 +444,8 @@ impl Brc20ProgDatabase {
 
     pub fn set_tx_receipt(
         &mut self,
-        result_type: &str,
-        reason: &str,
-        result: Option<&Bytes>,
         block_hash: B256,
         block_number: u64,
-        block_timestamp: u64,
         contract_address: Option<Address>,
         from: Address,
         to: Option<Address>,
@@ -488,7 +467,6 @@ impl Brc20ProgDatabase {
         let tx_receipt = TxReceiptED::new(
             block_hash.into(),
             block_number.into(),
-            block_timestamp.into(),
             contract_address.map(AddressED::new),
             from.into(),
             to.map(AddressED::new),
@@ -498,11 +476,7 @@ impl Brc20ProgDatabase {
             &output.logs().to_vec(),
             output.gas_used().into(),
             cumulative_gas_used.into(),
-            nonce.into(),
             start_log_index.into(),
-            result_type.to_string(),
-            reason.to_string(),
-            result.map(|x| x.clone().into()),
         )?;
 
         let tx = TxED::new(
@@ -516,9 +490,7 @@ impl Brc20ProgDatabase {
             gas_limit.into(),
             data.clone().into(),
             inscription_id.clone(),
-            v.into(),
-            r.into(),
-            s.into(),
+            Signature::new(v.into(), r.into(), s.into()),
         );
 
         self.db_tx
@@ -683,16 +655,13 @@ impl Brc20ProgDatabase {
         Ok(RawBlock::new(block, transactions, receipts))
     }
 
-    pub fn generate_block(&self, block_number: u64) -> Result<BlockResponseED, Box<dyn Error>> {
-        let block_timestamp = self
-            .get_block_timestamp(block_number)?
-            .ok_or("Block timestamp not set")?;
-        let gas_used = self
-            .get_gas_used(block_number)?
-            .ok_or("Block gasUsed is not set")?;
-        let mine_timestamp = self
-            .get_mine_timestamp(block_number)?
-            .ok_or("Block mine timestamp not set")?;
+    pub fn generate_block(
+        &self,
+        block_number: u64,
+        block_timestamp: u64,
+        gas_used: u64,
+        total_time_took: u128,
+    ) -> Result<BlockResponseED, Box<dyn Error>> {
         let block_hash = self
             .get_block_hash(block_number)?
             .ok_or("Block hash not set")?;
@@ -740,21 +709,16 @@ impl Brc20ProgDatabase {
         }
 
         let block_response = BlockResponseED::new(
-            0u64.into(),
-            (MAX_BLOCK_SIZE * GAS_PER_BYTE).into(),
-            gas_used.as_limbs()[0].into(),
+            gas_used.into(),
             block_hash.into(),
             FixedBytes(bloom.as_slice().try_into()?).into(),
             (transactions.len() as u64).into(),
             block_number.into(),
-            block_timestamp.as_limbs()[0].into(),
-            mine_timestamp.into(),
+            block_timestamp.into(),
+            total_time_took.into(),
             transactions,
             tx_merkle.root().unwrap_or([0; 32]).into(),
-            0u64.into(),
             parent_hash.into(),
-            [0; 32].into(),
-            0u64.into(),
         );
 
         Ok(block_response)
@@ -829,6 +793,11 @@ impl Brc20ProgDatabase {
             self.latest_block_number = Some((block_number, block_hash));
         }
 
+        self.db_global_values
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .set(MAX_BLOCK_NUMBER_KEY.to_string(), block_number.to_string())?;
+
         self.db_block_number_to_hash
             .as_mut()
             .expect(DB_MUTEX_ERROR)
@@ -841,79 +810,14 @@ impl Brc20ProgDatabase {
             .set(block_number, &block_hash.into(), block_number.into())?)
     }
 
-    pub fn get_block_timestamp(&self, number: u64) -> Result<Option<U64>, Box<dyn Error>> {
-        self.db_block_number_to_timestamp
-            .as_ref()
-            .expect(DB_MUTEX_ERROR)
-            .get(number)
-            .map(|x| x.map(|x| x.uint))
-    }
-
-    pub fn set_block_timestamp(
-        &mut self,
-        block_number: u64,
-        block_timestamp: u64,
-    ) -> Result<(), Box<dyn Error>> {
-        Ok(self
-            .db_block_number_to_timestamp
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .set(block_number, block_timestamp.into()))
-    }
-
-    pub fn get_gas_used(&self, block_number: u64) -> Result<Option<U64>, Box<dyn Error>> {
-        self.db_block_number_to_gas_used
-            .as_ref()
-            .expect(DB_MUTEX_ERROR)
-            .get(block_number)
-            .map(|x| x.map(|x| x.uint))
-    }
-
-    pub fn set_gas_used(&mut self, block_number: u64, gas_used: u64) -> Result<(), Box<dyn Error>> {
-        Ok(self
-            .db_block_number_to_gas_used
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .set(block_number, gas_used.into()))
-    }
-
-    pub fn get_mine_timestamp(&self, block_number: u64) -> Result<Option<U128>, Box<dyn Error>> {
-        self.db_block_number_to_mine_tm
-            .as_ref()
-            .expect(DB_MUTEX_ERROR)
-            .get(block_number)
-            .map(|x| x.map(|x| x.uint))
-    }
-
-    pub fn set_mine_timestamp(
-        &mut self,
-        block_number: u64,
-        mine_timestamp: u128,
-    ) -> Result<(), Box<dyn Error>> {
-        self.db_block_number_to_mine_tm
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .set(block_number, mine_timestamp.into());
-
-        Ok(())
-    }
-
     pub fn commit_changes(&mut self) -> Result<(), Box<dyn Error>> {
         let latest_block_number = self.get_latest_block_height()?;
 
+        self.db_global_values
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .flush()?;
         self.db_block_number_to_hash
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit()?;
-        self.db_block_number_to_timestamp
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit()?;
-        self.db_block_number_to_gas_used
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit()?;
-        self.db_block_number_to_mine_tm
             .as_mut()
             .expect(DB_MUTEX_ERROR)
             .commit()?;
@@ -977,7 +881,10 @@ impl Brc20ProgDatabase {
             .expect(DB_MUTEX_ERROR)
             .clear_cache();
         self.db_code.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
-        self.db_account.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
+        self.db_account
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .clear_cache();
         self.db_block_number_to_hash
             .as_mut()
             .expect(DB_MUTEX_ERROR)
@@ -995,21 +902,15 @@ impl Brc20ProgDatabase {
             .expect(DB_MUTEX_ERROR)
             .clear_cache();
         self.db_tx.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
-        self.db_tx_trace.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
-        self.db_tx_receipt.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
+        self.db_tx_trace
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .clear_cache();
+        self.db_tx_receipt
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .clear_cache();
         self.db_number_and_index_to_tx_hash
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .clear_cache();
-        self.db_block_number_to_timestamp
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .clear_cache();
-        self.db_block_number_to_gas_used
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .clear_cache();
-        self.db_block_number_to_mine_tm
             .as_mut()
             .expect(DB_MUTEX_ERROR)
             .clear_cache();
@@ -1027,8 +928,20 @@ impl Brc20ProgDatabase {
     }
 
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
-        if self.get_latest_block_height()? - latest_valid_block_number > MAX_REORG_HISTORY_SIZE {
-            return Err("Latest valid block number is too far behind current block height".into());
+        let max_global_block_number = self
+            .db_global_values
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .get(MAX_BLOCK_NUMBER_KEY.to_string())?
+            .map(|x| x.parse::<u64>().unwrap_or(0))
+            .unwrap_or(0);
+
+        if max_global_block_number > MAX_REORG_HISTORY_SIZE + latest_valid_block_number {
+            return Err(format!(
+                "Latest valid block number {} is too far behind max recorded block height: {}",
+                latest_valid_block_number, max_global_block_number
+            )
+            .into());
         }
 
         self.db_account_memory
@@ -1073,18 +986,6 @@ impl Brc20ProgDatabase {
             .reorg(latest_valid_block_number)?;
 
         self.db_block_number_to_hash
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
-        self.db_block_number_to_timestamp
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
-        self.db_block_number_to_gas_used
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
-        self.db_block_number_to_mine_tm
             .as_mut()
             .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
@@ -1197,7 +1098,6 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::db::types::BytesED;
 
     #[test]
     fn test_db() {
@@ -1212,14 +1112,11 @@ mod tests {
             code_hash,
             code: Some(bytecode.clone()),
         };
-        let mine_timestamp = 5;
 
         let mem_loc = U256::from(6);
         let value = U256::from(7);
         let block_number = 8;
         let block_hash = [9u8; 32].into();
-        let block_timestamp = 10;
-        let gas_used = 11;
 
         {
             let mut db = Brc20ProgDatabase::new(&path).unwrap();
@@ -1248,25 +1145,6 @@ mod tests {
                 block_hash
             );
 
-            db.set_block_timestamp(block_number, block_timestamp)
-                .unwrap();
-            assert_eq!(
-                db.get_block_timestamp(block_number).unwrap().unwrap(),
-                block_timestamp.try_into().unwrap()
-            );
-
-            db.set_gas_used(block_number, gas_used).unwrap();
-            assert_eq!(
-                db.get_gas_used(block_number).unwrap().unwrap(),
-                gas_used.try_into().unwrap()
-            );
-
-            db.set_mine_timestamp(block_number, mine_timestamp).unwrap();
-            assert_eq!(
-                db.get_mine_timestamp(block_number).unwrap().unwrap(),
-                mine_timestamp.try_into().unwrap()
-            );
-
             db.commit_changes().unwrap();
         }
 
@@ -1288,18 +1166,6 @@ mod tests {
             db.get_block_hash(block_number).unwrap().unwrap(),
             block_hash
         );
-        assert_eq!(
-            db.get_block_timestamp(block_number).unwrap().unwrap(),
-            block_timestamp.try_into().unwrap()
-        );
-        assert_eq!(
-            db.get_gas_used(block_number).unwrap().unwrap(),
-            gas_used.try_into().unwrap()
-        );
-        assert_eq!(
-            db.get_mine_timestamp(block_number).unwrap().unwrap(),
-            mine_timestamp.try_into().unwrap()
-        );
     }
 
     #[test]
@@ -1309,7 +1175,6 @@ mod tests {
         let data = vec![0u8; 32];
         let block_hash = [1u8; 32].into();
         let block_number = 2;
-        let block_timestamp = 11;
         let contract_address = [3u8; 20].into();
         let from = [4u8; 20].into();
         let to = [5u8; 20].into();
@@ -1330,12 +1195,8 @@ mod tests {
             let mut db = Brc20ProgDatabase::new(&path).unwrap();
 
             db.set_tx_receipt(
-                "type",
-                "reason",
-                Some(&vec![11u8; 32].into()),
                 block_hash,
                 block_number,
-                block_timestamp,
                 Some(contract_address),
                 from,
                 Some(to),
@@ -1386,7 +1247,6 @@ mod tests {
             TxReceiptED::new(
                 block_hash.into(),
                 block_number.into(),
-                block_timestamp.into(),
                 Some(contract_address.into()),
                 from.into(),
                 Some(to.into()),
@@ -1396,11 +1256,7 @@ mod tests {
                 &output.logs().to_vec(),
                 output.gas_used().into(),
                 cumulative_gas_used.into(),
-                nonce.into(),
                 start_log_index.into(),
-                "type".to_string(),
-                "reason".to_string(),
-                Some(BytesED::new(vec![11u8; 32].into())),
             )
             .unwrap()
         );
@@ -1412,7 +1268,6 @@ mod tests {
 
         let block_number = 1;
         let block_hash = [1u8; 32].into();
-        let block_timestamp = 11;
         let contract_address = [3u8; 20].into();
         let from = [4u8; 20].into();
         let to = [5u8; 20].into();
@@ -1447,12 +1302,8 @@ mod tests {
             let mut db = Brc20ProgDatabase::new(&path).unwrap();
 
             db.set_tx_receipt(
-                "type",
-                "reason",
-                Some(&vec![11u8; 32].into()),
                 block_hash,
                 block_number,
-                block_timestamp,
                 Some(contract_address),
                 from,
                 Some(to),

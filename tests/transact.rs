@@ -78,8 +78,14 @@ async fn test_transact() -> Result<(), Box<dyn Error>> {
         .await?
         .unwrap();
 
+    assert!(!call_response.status.is_zero());
+
+    let trace = client
+        .debug_trace_transaction(call_response.transaction_hash)
+        .await?;
+
     assert_eq!(
-        call_response.result_bytes.unwrap().bytes,
+        trace.unwrap().output.bytes,
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
     );
 
@@ -115,11 +121,16 @@ async fn test_transact() -> Result<(), Box<dyn Error>> {
 
     let receipt = call_response.first().unwrap().clone();
 
+    assert!(!receipt.status.is_zero());
+
+    let trace = client
+        .debug_trace_transaction(receipt.transaction_hash)
+        .await?;
+
     assert_eq!(
-        receipt.result_bytes.unwrap().bytes,
+        trace.unwrap().output.bytes,
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
     );
-
     server.stop()?;
 
     Ok(())
@@ -193,8 +204,12 @@ async fn test_transact_encoded() -> Result<(), Box<dyn Error>> {
         .await?
         .unwrap();
 
+    let trace = client
+        .debug_trace_transaction(call_response.transaction_hash)
+        .await?;
+
     assert_eq!(
-        call_response.result_bytes.unwrap().bytes,
+        trace.unwrap().output.bytes,
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
     );
 
@@ -230,8 +245,12 @@ async fn test_transact_encoded() -> Result<(), Box<dyn Error>> {
 
     let receipt = call_response.first().unwrap().clone();
 
+    let trace = client
+        .debug_trace_transaction(receipt.transaction_hash)
+        .await?;
+
     assert_eq!(
-        receipt.result_bytes.unwrap().bytes,
+        trace.unwrap().output.bytes,
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
     );
 
@@ -388,28 +407,40 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
 
     let receipt = call_response.get(0).unwrap().clone();
 
-    assert_eq!(receipt.nonce, 1u64.into());
+    assert!(!receipt.status.is_zero());
+
+    let trace = client
+        .debug_trace_transaction(receipt.transaction_hash)
+        .await?;
+
     assert_eq!(
-        receipt.result_bytes.unwrap().bytes,
+        trace.unwrap().output.bytes,
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
     );
-
     let receipt = call_response.get(1).unwrap().clone();
 
-    assert_eq!(receipt.nonce, 2u64.into());
+    assert!(!receipt.status.is_zero());
+
+    let trace = client
+        .debug_trace_transaction(receipt.transaction_hash)
+        .await?;
+
     assert_eq!(
-        receipt.result_bytes.unwrap().bytes,
+        trace.unwrap().output.bytes,
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
     );
-
     let receipt = call_response.get(2).unwrap().clone();
 
-    assert_eq!(receipt.nonce, 3u64.into());
+    assert!(!receipt.status.is_zero());
+
+    let trace = client
+        .debug_trace_transaction(receipt.transaction_hash)
+        .await?;
+
     assert_eq!(
-        receipt.result_bytes.unwrap().bytes,
+        trace.unwrap().output.bytes,
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
     );
-
     server.stop()?;
 
     Ok(())

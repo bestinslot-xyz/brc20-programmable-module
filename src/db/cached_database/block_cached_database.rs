@@ -472,13 +472,18 @@ mod tests {
         db.reorg(21).unwrap();
 
         // Value set at block height 22, causing a new cache to be created
-        db.set(22, &address_ed.clone(), AccountInfo {
-            balance: U256::from(100 + 21),
-            nonce: 22,
-            code_hash: [1; 32].into(),
-            code: None,
-        }
-        .into()).unwrap();
+        db.set(
+            22,
+            &address_ed.clone(),
+            AccountInfo {
+                balance: U256::from(100 + 21),
+                nonce: 22,
+                code_hash: [1; 32].into(),
+                code: None,
+            }
+            .into(),
+        )
+        .unwrap();
 
         // Another reorg at block height 22, with an old cache
         // that doesn't see beyond block 11, this fails.

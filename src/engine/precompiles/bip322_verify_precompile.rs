@@ -24,6 +24,14 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
         return interpreter_result;
     }
 
+    // Check bytes length
+    if call.bytes.len() > 32768 {
+        return precompile_error(
+            interpreter_result,
+            "Input bytes length exceeds maximum limit of 32 KB",
+        );
+    }
+
     let Ok(inputs) = verifyCall::abi_decode(&call.bytes) else {
         return precompile_error(interpreter_result, "Failed to decode parameters");
     };
