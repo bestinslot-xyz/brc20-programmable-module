@@ -332,7 +332,7 @@ pub trait Brc20ProgApi {
     #[method(name = "web3_clientVersion")]
     fn web3_client_version(&self) -> RpcResult<String> {
         Ok(format!(
-            "brc20_prog/v{}/{}-{}/rs{}",
+            "Brc20Prog/v{}/{}-{}/rs{}",
             *CARGO_PKG_VERSION,
             std::env::consts::OS,
             std::env::consts::ARCH,
