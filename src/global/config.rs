@@ -65,6 +65,15 @@ lazy_static::lazy_static! {
         }
     };
 
+    pub static ref CARGO_RUST_VERSION: String = {
+        let version = env!("CARGO_PKG_RUST_VERSION");
+        if version.is_empty() {
+            "unknown".to_string()
+        } else {
+            version.to_string()
+        }
+    };
+
     pub static ref INDEXER_ADDRESS: Address = "0x0000000000000000000000000000000000003Ca6".parse().expect("Failed to parse indexer address");
     pub static ref INDEXER_ADDRESS_STRING: String = INDEXER_ADDRESS.to_string();
     pub static ref INVALID_ADDRESS: Address = "0x000000000000000000000000000000000000dead".parse().expect("Failed to parse invalid address");

@@ -2,12 +2,13 @@ use std::collections::HashMap;
 
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
+use revm::primitives::keccak256;
 
 use crate::api::types::{Base64Bytes, EthCall, GetLogsFilter};
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
-use crate::global::{CARGO_PKG_VERSION, CONFIG, INDEXER_ADDRESS};
+use crate::global::{CARGO_PKG_VERSION, CARGO_RUST_VERSION, CONFIG, INDEXER_ADDRESS};
 use crate::types::RawBytes;
 
 lazy_static::lazy_static! {
@@ -325,6 +326,27 @@ pub trait Brc20ProgApi {
     #[method(name = "net_version")]
     async fn net_version(&self) -> RpcResult<String> {
         Ok("4252433230".to_string())
+    }
+
+    /// Returns the client version in format brc20_prog/{version}/{os}-{arch}/{rust_version}
+    #[method(name = "web3_clientVersion")]
+    fn web3_client_version(&self) -> RpcResult<String> {
+        Ok(format!(
+            "brc20_prog/v{}/{}-{}/rs{}",
+            *CARGO_PKG_VERSION,
+            std::env::consts::OS,
+            std::env::consts::ARCH,
+            *CARGO_RUST_VERSION
+        ))
+    }
+
+    /// Returns the keccak256 hash of the given bytes
+    #[method(name = "web3_sha3")]
+    async fn web3_sha3(&self, bytes: RawBytes) -> RpcResult<String> {
+        Ok(format!(
+            "0x{:x}",
+            keccak256(bytes.value().map(|v| v.to_vec()).unwrap_or(vec![]))
+        ))
     }
 
     /// Returns accounts (BRC20 indexer address)
