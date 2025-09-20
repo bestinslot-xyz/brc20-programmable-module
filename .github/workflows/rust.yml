@@ -18,5 +18,7 @@ jobs:
     - uses: actions/checkout@v4
     - name: Build
       run: cargo build --all-features --verbose
+    - name: Build with no default features
+      run: cargo build --no-default-features --verbose
     - name: Run tests
       run: cargo test --all-features --verbose
