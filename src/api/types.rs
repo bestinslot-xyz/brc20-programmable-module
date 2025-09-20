@@ -200,8 +200,6 @@ impl RawBytes {
         Self(None)
     }
 
-    // This is used by the server, so doesn't need to be public
-    #[cfg(feature = "server")]
     pub(crate) fn value(&self) -> Option<Bytes> {
         self.0.as_ref().and_then(|s| Bytes::from_hex(s).ok())
     }
