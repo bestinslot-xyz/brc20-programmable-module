@@ -3,10 +3,8 @@ use std::error::Error;
 use alloy::primitives::{logs_bloom, Log};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    db::types::{AddressED, Decode, Encode, LogED, B2048ED, B256ED, U64ED, U8ED},
-    types::BytesED,
-};
+use crate::db::types::{AddressED, Decode, Encode, LogED, B2048ED, B256ED, U64ED, U8ED};
+use crate::types::BytesED;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 /// Represents a transaction receipt from the EVM.

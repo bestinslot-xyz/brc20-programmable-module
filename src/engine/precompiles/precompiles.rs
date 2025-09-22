@@ -7,12 +7,11 @@ use revm::interpreter::{Gas, InputsImpl, InstructionResult, InterpreterResult};
 use revm::precompile::Precompiles;
 
 use crate::engine::precompiles::{
-    bip322_verify_precompile, brc20_balance_precompile, btc_tx_details_precompile,
-    get_locked_pkscript_precompile, last_sat_location_precompile,
+    bip322_verify_precompile, btc_tx_details_precompile, get_locked_pkscript_precompile,
+    last_sat_location_precompile,
 };
 
 lazy_static::lazy_static! {
-    static ref BRC20_BALANCE_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000ff".parse().expect("Invalid BRC20 balance precompile address");
     static ref BIP322_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fe".parse().expect("Invalid BIP322 precompile address");
     static ref BTC_TX_DETAILS_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fd".parse().expect("Invalid BTC transaction details precompile address");
     static ref LAST_SAT_LOCATION_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fc".parse().expect("Invalid last sat location precompile address");
@@ -38,7 +37,6 @@ impl BRC20Precompiles {
             .addresses()
             .map(|x| x.clone())
             .collect::<HashSet<Address>>();
-        all_addresses.insert(*BRC20_BALANCE_PRECOMPILE_ADDRESS);
         all_addresses.insert(*BIP322_PRECOMPILE_ADDRESS);
         all_addresses.insert(*BTC_TX_DETAILS_PRECOMPILE_ADDRESS);
         all_addresses.insert(*LAST_SAT_LOCATION_PRECOMPILE_ADDRESS);
@@ -46,7 +44,6 @@ impl BRC20Precompiles {
 
         let mut custom_precompiles: HashMap<Address, fn(&PrecompileCall) -> InterpreterResult> =
             HashMap::new();
-        custom_precompiles.insert(*BRC20_BALANCE_PRECOMPILE_ADDRESS, brc20_balance_precompile);
         custom_precompiles.insert(*BIP322_PRECOMPILE_ADDRESS, bip322_verify_precompile);
         custom_precompiles.insert(
             *BTC_TX_DETAILS_PRECOMPILE_ADDRESS,
