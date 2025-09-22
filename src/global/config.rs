@@ -23,12 +23,6 @@ lazy_static::lazy_static! {
     static ref BRC20_PROG_RPC_SERVER_URL_KEY: String = "BRC20_PROG_RPC_SERVER_URL".to_string();
     static ref BRC20_PROG_RPC_SERVER_URL_DEFAULT: String = "127.0.0.1:18545".to_string();
 
-    static ref BRC20_PROG_BALANCE_SERVER_URL_KEY: String = "BRC20_PROG_BALANCE_SERVER_URL".to_string();
-    static ref BRC20_PROG_BALANCE_SERVER_URL_DEFAULT: String = "http://localhost:18546".to_string();
-
-    static ref FAIL_ON_BRC20_BALANCE_SERVER_ERROR_KEY: String = "FAIL_ON_BRC20_BALANCE_SERVER_ERROR".to_string();
-    static ref FAIL_ON_BRC20_BALANCE_SERVER_ERROR_DEFAULT: bool = true;
-
     static ref FAIL_ON_BITCOIN_RPC_ERROR_KEY: String = "FAIL_ON_BITCOIN_RPC_ERROR".to_string();
     static ref FAIL_ON_BITCOIN_RPC_ERROR_DEFAULT: bool = true;
 
@@ -91,7 +85,6 @@ pub const MAX_FUTURE_TRANSACTION_NONCES: u64 = 10; // Maximum future transaction
 pub const MAX_FUTURE_TRANSACTION_BLOCKS: u64 = 10; // Maximum future transaction block depth allowed
 
 pub const GAS_PER_BITCOIN_RPC_CALL: u64 = 400000; // 400K gas per Bitcoin RPC call
-pub const GAS_PER_BRC20_BALANCE_CALL: u64 = 200000; // 200K gas per BRC20 balance call
 pub const GAS_PER_BIP_322_VERIFY: u64 = 20000; // 20K gas per BIP-322 verify call
 pub const GAS_PER_LOCKED_PKSCRIPT: u64 = 20000; // 20K gas per locked pkscript call
 
@@ -112,8 +105,6 @@ pub struct Brc20ProgConfig {
     pub brc20_prog_rpc_server_user: Option<String>,
     /// The password for the BRC20 Prog RPC server, if authentication is enabled
     pub brc20_prog_rpc_server_password: Option<String>,
-    /// The URL of the BRC20 balance server
-    pub brc20_balance_server_url: String,
     /// Whether to record EVM traces
     pub evm_record_traces: bool,
     /// Gas limit for EVM calls, through eth_call or eth_estimate_gas
@@ -132,8 +123,6 @@ pub struct Brc20ProgConfig {
     /// Chain ID for the Bitcoin RPC server
     /// This is used to determine the chain ID for the Bitcoin RPC server
     pub chain_id: u64,
-    /// Whether to fail on BRC20 balance server errors, if set to true, the server will stop if BRC20 balance server is not reachable when needed
-    pub fail_on_brc20_balance_server_error: bool,
     /// Whether to fail on Bitcoin RPC errors, if set to true, the server will stop if Bitcoin RPC server is not reachable when needed
     pub fail_on_bitcoin_rpc_error: bool,
     /// Database path
@@ -163,7 +152,6 @@ impl Brc20ProgConfig {
     /// * `brc20_prog_rpc_server_enable_auth` - Whether to enable authentication for the BRC20 Prog RPC server
     /// * `brc20_prog_rpc_server_user` - The username for the BRC20 Prog RPC server, if authentication is enabled
     /// * `brc20_prog_rpc_server_password` - The password for the BRC20 Prog RPC server, if authentication is enabled
-    /// * `brc20_balance_server_url` - The URL of the BRC20 balance server
     /// * `evm_call_gas_limit` - Gas limit for EVM calls (default: 1_000_000_000)
     /// * `evm_record_traces` - Whether to record EVM traces
     /// * `bitcoin_rpc_url` - The URL of the Bitcoin RPC server
@@ -171,7 +159,6 @@ impl Brc20ProgConfig {
     /// * `bitcoin_rpc_password` - The password for the Bitcoin RPC server
     /// * `bitcoin_rpc_network` - The network type for the Bitcoin RPC server
     /// * `fail_on_bitcoin_rpc_error` - Whether to fail on Bitcoin RPC errors
-    /// * `fail_on_brc20_balance_server_error` - Whether to fail on BRC20 balance server errors
     /// * `db_path` - The path to the database folder
     /// * `max_request_size` - Max request size in bytes
     /// * `max_response_size` - Max response size in bytes
@@ -181,7 +168,6 @@ impl Brc20ProgConfig {
         brc20_prog_rpc_server_enable_auth: bool,
         brc20_prog_rpc_server_user: Option<String>,
         brc20_prog_rpc_server_password: Option<String>,
-        brc20_balance_server_url: String,
         evm_record_traces: bool,
         evm_call_gas_limit: u64,
         bitcoin_rpc_url: String,
@@ -189,7 +175,6 @@ impl Brc20ProgConfig {
         bitcoin_rpc_password: String,
         bitcoin_rpc_network: String,
         chain_id: u64,
-        fail_on_brc20_balance_server_error: bool,
         fail_on_bitcoin_rpc_error: bool,
         db_path: String,
         max_request_size: u32,
@@ -201,7 +186,6 @@ impl Brc20ProgConfig {
             brc20_prog_rpc_server_enable_auth,
             brc20_prog_rpc_server_user,
             brc20_prog_rpc_server_password,
-            brc20_balance_server_url,
             evm_record_traces,
             evm_call_gas_limit,
             bitcoin_rpc_url,
@@ -209,7 +193,6 @@ impl Brc20ProgConfig {
             bitcoin_rpc_password,
             bitcoin_rpc_network,
             chain_id,
-            fail_on_brc20_balance_server_error,
             fail_on_bitcoin_rpc_error,
             db_path,
             max_request_size,
@@ -228,13 +211,11 @@ impl Brc20ProgConfig {
     /// * `BRC20_PROG_RPC_SERVER_ENABLE_AUTH` - Whether to enable authentication for the BRC20 Prog RPC server (Default: false)
     /// * `BRC20_PROG_RPC_SERVER_USER` - The username for the BRC20 Prog RPC server, if authentication is enabled
     /// * `BRC20_PROG_RPC_SERVER_PASSWORD` - The password for the BRC20 Prog RPC server, if authentication is enabled
-    /// * `BRC20_PROG_BALANCE_SERVER_URL` - The URL of the BRC20 balance server (Default: "http://localhost:18546")
     /// * `EVM_RECORD_TRACES` - Whether to record EVM traces (Default: false)
     /// * `BITCOIN_RPC_URL` - The URL of the Bitcoin RPC server (Default: "http://localhost:38332" for signet)
     /// * `BITCOIN_RPC_USER` - The username for the Bitcoin RPC server
     /// * `BITCOIN_RPC_PASSWORD` - The password for the Bitcoin RPC server
     /// * `BITCOIN_RPC_NETWORK` - The network type for the Bitcoin RPC server (Default: "signet")
-    /// * `FAIL_ON_BRC20_BALANCE_SERVER_ERROR` - Whether to fail on BRC20 balance server errors (Default: true)
     /// * `FAIL_ON_BITCOIN_RPC_ERROR` - Whether to fail on Bitcoin RPC errors (Default: true)
     /// * `EVM_CALL_GAS_LIMIT` - Gas limit for EVM calls (Default: 1_000_000_000)
     /// * `MAX_REQUEST_SIZE` - Max request size in bytes (Default: 10MB)
@@ -251,8 +232,6 @@ impl Brc20ProgConfig {
                 .unwrap_or(*BRC20_PROG_RPC_SERVER_ENABLE_AUTH_DEFAULT),
             brc20_prog_rpc_server_user: env::var(&*BRC20_PROG_RPC_SERVER_USER_KEY).ok(),
             brc20_prog_rpc_server_password: env::var(&*BRC20_PROG_RPC_SERVER_PASSWORD_KEY).ok(),
-            brc20_balance_server_url: env::var(&*BRC20_PROG_BALANCE_SERVER_URL_KEY)
-                .unwrap_or(BRC20_PROG_BALANCE_SERVER_URL_DEFAULT.clone()),
             evm_record_traces: env::var(&*EVM_RECORD_TRACES_KEY)
                 .map(|x| x == "true")
                 .unwrap_or(*EVM_RECORD_TRACES_DEFAULT),
@@ -273,9 +252,6 @@ impl Brc20ProgConfig {
             } else {
                 CHAIN_ID_TESTNETS
             },
-            fail_on_brc20_balance_server_error: env::var(&*FAIL_ON_BRC20_BALANCE_SERVER_ERROR_KEY)
-                .map(|x| x == "true")
-                .unwrap_or(*FAIL_ON_BRC20_BALANCE_SERVER_ERROR_DEFAULT),
             fail_on_bitcoin_rpc_error: env::var(&*FAIL_ON_BITCOIN_RPC_ERROR_KEY)
                 .map(|x| x == "true")
                 .unwrap_or(*FAIL_ON_BITCOIN_RPC_ERROR_DEFAULT),
@@ -305,17 +281,6 @@ pub fn validate_config(config: &Brc20ProgConfig) -> Result<(), Box<dyn std::erro
 
     if config.brc20_prog_rpc_server_url.is_empty() {
         return Err("RPC server URL is empty".into());
-    }
-
-    if config.brc20_balance_server_url.is_empty() && config.fail_on_brc20_balance_server_error {
-        return Err("BRC20 balance server URL is empty".into());
-    }
-
-    if !config.brc20_balance_server_url.starts_with("http://")
-        && !config.brc20_balance_server_url.starts_with("https://")
-        && config.fail_on_brc20_balance_server_error
-    {
-        return Err("BRC20 balance server URL must start with http:// or https://".into());
     }
 
     if config.bitcoin_rpc_url.is_empty() && config.fail_on_bitcoin_rpc_error {

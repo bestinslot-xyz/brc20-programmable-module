@@ -337,48 +337,11 @@ Execution engine has precompiled contracts deployed at given addresses to make i
 
 | Precompile         | Address                                    |
 | ------------------ | ------------------------------------------ |
-| BRC20_Balance      | 0x00000000000000000000000000000000000000ff |
+| Reserved.          | 0x00000000000000000000000000000000000000ff |
 | BIP322_Verifier    | 0x00000000000000000000000000000000000000fe |
 | BTC_Transaction    | 0x00000000000000000000000000000000000000fd |
 | BTC_LastSatLoc     | 0x00000000000000000000000000000000000000fc |
 | BTC_LockedPkScript | 0x00000000000000000000000000000000000000fb |
-
-### BRC20 Balance Contract
-
-`BRC20_Balance` contract can be used to retrieve non-module BRC20 balance for a given pkscript. BRC2.0 makes an HTTP call to the server at `BRC20_PROG_BALANCE_SERVER_URL` environment variable.
-
-```
-> curl "http://localhost:18546/?pkscript=1234567890ABCDEF&ticker=0x12345678"
-86
-```
-
-> [!NOTE]
-> `ticker` parameter is hex encoded to avoid passing invalid URL strings.
-
-BRC20 indexers should expose this HTTP server and set the environment variable accordingly.
-
-> [!WARNING]
-> BRC20 Balance Server exposed by the indexer should return BRC20 balance at the time of current transaction after processing all the BRC20 events up until this point, and NOT the BRC20 balance at the start of the block.
-
-**Contract interface**:
-
-```solidity
-/**
- * @dev Get non-module BRC-20 balance of a given Bitcoin wallet script and BRC-20 ticker.
- */
-interface IBRC20_Balance {
-    function balanceOf(
-        bytes calldata ticker,
-        bytes calldata pkscript
-    ) external view returns (uint256);
-}
-```
-
-> [!WARNING]
-> `BRC20_PROG_BALANCE_SERVER_URL` must be set for this precompile to work.
-
-> [!WARNING]
-> Ticker is case sensitive, and must match exactly what the indexer has recorded. It's a bytes array, so it can be passed as hex encoded bytes of the ticker string (e.g. `0x6F726469` for "ordi").
 
 ### BIP322 Verifier Contract
 
@@ -685,18 +648,6 @@ brc20_commitToDatabase()
 
 When a reorg is detected, `brc20_reorg` should be called to revert the EVM to a previous state.
 
-### BRC20 Balance Server
-
-Indexers should expose a balance server that returns current overall balance for a pkscript and a ticker, and set the `BRC20_BALANCE_SERVER_URL` environment variable to make sure the `BRC20_Balance` precompiled contract knows where to send these requests to.
-
-```
-> curl "http://localhost:18546/?pkscript=1234567890ABCDEF&ticker=0x123456789"
-86
-```
-
-> [!WARNING]
-> BRC20 Balance Server exposed by the indexer should return BRC20 balance at the time of current transaction after processing all the BRC20 events up until this point, and NOT the BRC20 balance at the start of the block.
-
 ### Authorization
 
 `brc20_prog` module supports basic username/password HTTP auth. It's turned off by default, but can be enabled using the following environment variables:
@@ -713,7 +664,6 @@ BRC20_PROG_RPC_SERVER_PASSWORD="<PASSWORD>"
 ### Indexer Checklist
 
 - [ ] Set environment variables, check [env.sample](env.sample) for a list
-- [ ] Start a [BRC20 balance server](#brc20-balance-server) for [BRC20_Balance Contract](#brc20-balance-contract)
 - [ ] Mine [`brc20_mine`](#mine-empty-blocks) or finalise empty blocks [`brc20_finaliseBlock`](#finalise-block) to fill the database before the first inscription height
 - [ ] Deploy the `BRC20_Controller` contract by calling [`brc20_initialise`](#initialise-and-deploy-brc20_controller-contract)
 - [ ] Index every block for BRC2.0 transactions

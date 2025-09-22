@@ -23,7 +23,10 @@ impl ConfigDatabase {
         opts.create_if_missing(true);
         opts.set_max_open_files(256);
         let db = DB::open(&opts, &path.join(Path::new(name)))?;
-        Ok(Self { db, cache: HashMap::new() })
+        Ok(Self {
+            db,
+            cache: HashMap::new(),
+        })
     }
 
     pub fn get(&self, key: String) -> Result<Option<String>, Box<dyn Error>> {
