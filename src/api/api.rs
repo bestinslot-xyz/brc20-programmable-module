@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use alloy::primitives::keccak256;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use alloy::primitives::keccak256;
 
 use crate::api::types::{Base64Bytes, EthCall, GetLogsFilter};
 use crate::db::types::{
