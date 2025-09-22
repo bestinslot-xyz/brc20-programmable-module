@@ -25,7 +25,7 @@ impl<T> SharedData<T> {
     ///
     /// In case this is needed to be stored and/or used outside of the function,
     /// it is recommended to use the `read_fn` method instead.
-    pub fn read(&self) -> RwLockReadGuard<T> {
+    pub fn read(&'_ self) -> RwLockReadGuard<'_, T> {
         match self.inner.read() {
             Ok(guard) => guard,
             Err(error) => error.into_inner(),
