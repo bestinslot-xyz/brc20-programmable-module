@@ -13,7 +13,11 @@ pub fn wrap_rpc_error_string(error: &str) -> ErrorObject<'static> {
     ErrorObjectOwned::owned(400, error, None::<String>)
 }
 
-pub fn wrap_rpc_error_string_with_data(code: i32, error: &str, data: String) -> ErrorObject<'static> {
+pub fn wrap_rpc_error_string_with_data(
+    code: i32,
+    error: &str,
+    data: String,
+) -> ErrorObject<'static> {
     error!("{:?}", error);
     ErrorObjectOwned::owned(code, error, data.into())
 }
