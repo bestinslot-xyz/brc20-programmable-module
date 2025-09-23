@@ -39,6 +39,7 @@ pub struct BRC20ProgEngine {
 
 pub struct ReadContractResult {
     pub status: bool,
+    pub status_string: String,
     pub gas_used: u64,
     pub output: Option<Bytes>,
 }
@@ -676,6 +677,7 @@ impl BRC20ProgEngine {
 
         Ok(ReadContractResult {
             status: output.is_success(),
+            status_string: format!("{:?}", output),
             gas_used: output.gas_used().into(),
             output: output.output().cloned(),
         })

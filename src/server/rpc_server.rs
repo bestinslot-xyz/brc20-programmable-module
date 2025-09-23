@@ -519,11 +519,19 @@ impl Brc20ProgApiServer for RpcServer {
             data.value().unwrap_or_default().clone(),
         ));
         let Ok(result) = receipt else {
-            return Ok("0x".to_string());
+            return Err(wrap_rpc_error_string_with_data(
+                3,
+                "Call failed",
+                "0x".into(),
+            ));
         };
         let data_string = result.output.unwrap_or(Bytes::new()).to_string();
         if !result.status {
-            return Ok(data_string);
+            return Err(wrap_rpc_error_string_with_data(
+                3,
+                format!("Execution reverted: {}", result.status_string).as_str(),
+                data_string,
+            ));
         }
         Ok(data_string)
     }
@@ -543,11 +551,19 @@ impl Brc20ProgApiServer for RpcServer {
             data.value().unwrap_or_default().clone(),
         ));
         let Ok(result) = receipt else {
-            return Err(wrap_rpc_error_string("Call failed"));
+            return Err(wrap_rpc_error_string_with_data(
+                3,
+                "Call failed",
+                "0x".into(),
+            ));
         };
         let data_string = result.output.unwrap_or(Bytes::new()).to_string();
         if !result.status {
-            return Err(wrap_rpc_error_string_with_data("Call failed", data_string));
+            return Err(wrap_rpc_error_string_with_data(
+                3,
+                format!("Execution reverted: {}", result.status_string).as_str(),
+                data_string,
+            ));
         }
         Ok(format!("0x{:x}", result.gas_used))
     }
