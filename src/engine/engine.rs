@@ -107,7 +107,8 @@ impl BRC20ProgEngine {
 
         // Check status of Bitcoin RPC
         tracing::info!("Checking Bitcoin RPC status...");
-        validate_bitcoin_rpc_status().map_err(|e| format!("Bitcoin RPC status check failed: {}", e))?;
+        validate_bitcoin_rpc_status()
+            .map_err(|e| format!("Bitcoin RPC status check failed: {}", e))?;
 
         Ok(())
     }
@@ -426,7 +427,7 @@ impl BRC20ProgEngine {
                 tx.gas_limit = gas_limit;
             });
 
-            let output = evm.inspect_replay_commit()?;
+            let output = evm.inspect_replay_commit();
 
             core::mem::swap(&mut *db, &mut evm.ctx().db());
 
@@ -434,7 +435,7 @@ impl BRC20ProgEngine {
                 .last_block_info
                 .read()
                 .gas_used
-                .checked_add(output.gas_used())
+                .checked_add(output.as_ref().map(|o| o.gas_used()).unwrap_or(0))
                 .unwrap_or(self.last_block_info.read().gas_used);
 
             let traces: TraceED = evm
@@ -445,7 +446,7 @@ impl BRC20ProgEngine {
                         only_top_call: Some(false),
                         with_log: Some(true),
                     },
-                    output.gas_used(),
+                    output.as_ref().map(|o| o.gas_used()).unwrap_or(0),
                 )
                 .into();
 
@@ -466,13 +467,16 @@ impl BRC20ProgEngine {
             db.set_tx_receipt(
                 block_hash,
                 block_number,
-                get_contract_address(&output),
+                output
+                    .as_ref()
+                    .map(|output| get_contract_address(output))
+                    .unwrap_or(None),
                 tx_info.from,
                 tx_info.to_address_optional(),
                 &tx_info.data,
                 tx_hash,
                 tx_idx,
-                &output.clone(),
+                output.as_ref().ok().map(|output| output.clone()),
                 cumulative_gas_used,
                 tx_nonce,
                 self.last_block_info.read().log_index,
@@ -487,9 +491,10 @@ impl BRC20ProgEngine {
                 last_block_info.waiting_tx_count += 1;
                 last_block_info.gas_used = last_block_info
                     .gas_used
-                    .checked_add(output.gas_used())
+                    .checked_add(output.as_ref().map(|o| o.gas_used()).unwrap_or(0))
                     .unwrap_or(last_block_info.gas_used);
-                last_block_info.log_index += output.logs().len() as u64;
+                last_block_info.log_index +=
+                    output.as_ref().map(|o| o.logs()).unwrap_or(&[]).len() as u64;
                 last_block_info.total_processing_time = Some(
                     (last_block_info.start_time.elapsed() - processing_start_time)
                         + last_block_info
