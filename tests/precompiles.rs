@@ -133,7 +133,7 @@ async fn verify_btc_get_tx_details(
 }
 
 #[tokio::test]
-async fn test_btc_rpc_precompiles() -> Result<(), Box<dyn Error>> {
+async fn test_btc_rpc_precompiles_mainnet() -> Result<(), Box<dyn Error>> {
     if is_in_ci() {
         return Ok(());
     }
@@ -161,6 +161,15 @@ async fn test_btc_rpc_precompiles() -> Result<(), Box<dyn Error>> {
     )
     .await
     .expect("Failed to verify btc_get_tx_details mainnet call 3");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_btc_rpc_precompiles_signet() -> Result<(), Box<dyn Error>> {
+    if is_in_ci() {
+        return Ok(());
+    }
 
     verify_btc_get_tx_details(
         ".env.signet",
