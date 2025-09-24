@@ -92,6 +92,8 @@ spec:
               configMapKeyRef:
                 name: {{ .Values.configMapName }}
                 key: networkType
+          - name: EVM_RECORD_TRACES
+            value: "{{ .Values.evmRecordTraces }}"
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
