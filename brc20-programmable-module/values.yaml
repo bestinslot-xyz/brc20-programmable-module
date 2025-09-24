@@ -3,6 +3,7 @@
 # Declare variables to be passed into your templates.
 configMapName: bis-config
 replicaCount: 1
+evmRecordTraces: true
 
 image:
   repository: brc20-programmable-module
