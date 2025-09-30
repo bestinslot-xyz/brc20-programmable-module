@@ -155,11 +155,6 @@ pub brc20_prog::types::TxED::tx_type: brc20_prog::types::U8ED
 pub brc20_prog::types::TxED::v: brc20_prog::types::U8ED
 pub brc20_prog::types::TxED::value: brc20_prog::types::U64ED
 pub struct brc20_prog::types::TxReceiptED
-pub brc20_prog::types::TxReceiptED::_block_timestamp: brc20_prog::types::U64ED
-pub brc20_prog::types::TxReceiptED::_nonce: brc20_prog::types::U64ED
-pub brc20_prog::types::TxReceiptED::_reason: alloc::string::String
-pub brc20_prog::types::TxReceiptED::_result_bytes: core::option::Option<brc20_prog::types::BytesED>
-pub brc20_prog::types::TxReceiptED::_transaction_result: alloc::string::String
 pub brc20_prog::types::TxReceiptED::block_hash: brc20_prog::types::B256ED
 pub brc20_prog::types::TxReceiptED::block_number: brc20_prog::types::U64ED
 pub brc20_prog::types::TxReceiptED::contract_address: core::option::Option<brc20_prog::types::AddressED>
