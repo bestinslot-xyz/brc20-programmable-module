@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::io::{Read, Write};
 use std::net::TcpListener;
 
 use brc20_prog::types::{EthCall, RawBytes};
@@ -27,7 +26,6 @@ pub async fn spawn_test_server(config: Brc20ProgConfig) -> (ServerHandle, HttpCl
         db_path: db_path.path().to_str().unwrap().to_string(),
         brc20_prog_rpc_server_url: server_address.clone(),
         fail_on_bitcoin_rpc_error: false,
-        fail_on_brc20_balance_server_error: false,
         evm_record_traces: true,
         ..config
     })
@@ -40,21 +38,6 @@ pub async fn spawn_test_server(config: Brc20ProgConfig) -> (ServerHandle, HttpCl
             .build(format!("http://{}", server_address))
             .expect("Failed to create client"),
     )
-}
-
-pub fn spawn_balance_server() -> u16 {
-    let port = get_free_port();
-    std::thread::spawn(move || {
-        let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
-        loop {
-            let (mut stream, _) = listener.accept().unwrap();
-            let mut buf = [0; 1024];
-            let _ = stream.read(&mut buf).unwrap();
-            let response = b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n100";
-            let _ = stream.write(response).unwrap();
-        }
-    });
-    port
 }
 
 pub fn is_in_ci() -> bool {
