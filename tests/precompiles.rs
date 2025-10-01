@@ -1,10 +1,8 @@
 use std::error::Error;
 
 use brc20_prog::types::EthCall;
-use brc20_prog::{Brc20ProgApiClient, Brc20ProgConfig};
-use test_utils::{
-    is_in_ci, load_file_as_eth_bytes, load_file_as_string, spawn_balance_server, spawn_test_server,
-};
+use brc20_prog::Brc20ProgApiClient;
+use test_utils::{is_in_ci, load_file_as_eth_bytes, load_file_as_string, spawn_test_server};
 
 #[tokio::test]
 async fn test_bip322_verify() -> Result<(), Box<dyn Error>> {
@@ -182,44 +180,5 @@ async fn test_btc_rpc_precompiles_signet() -> Result<(), Box<dyn Error>> {
         .await
         .expect("Failed to verify btc_last_sat_loc signet call");
 
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_get_brc20_balance() -> Result<(), Box<dyn Error>> {
-    let port = spawn_balance_server();
-
-    // Wait for the server to start
-    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-
-    let mut get_brc20_balance_precompile = [0; 20];
-    get_brc20_balance_precompile[19] = 0xff;
-
-    let call_tx_data = load_file_as_eth_bytes("get_brc20_balance_call_tx_data")?;
-    let call_response = load_file_as_string("get_brc20_balance_call_response")?;
-
-    // Wait for the server to start
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-    let (server, client) = spawn_test_server(Brc20ProgConfig {
-        brc20_balance_server_url: format!("http://localhost:{}", port),
-        ..Default::default()
-    })
-    .await;
-    let response = client
-        .eth_call(
-            EthCall::new(
-                Some([1u8; 20].into()),
-                Some(get_brc20_balance_precompile.into()),
-                call_tx_data,
-            ),
-            Some("latest".to_string()),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(response, call_response);
-
-    server.stop().unwrap();
     Ok(())
 }

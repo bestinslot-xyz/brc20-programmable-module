@@ -155,11 +155,6 @@ pub brc20_prog::types::TxED::tx_type: brc20_prog::types::U8ED
 pub brc20_prog::types::TxED::v: brc20_prog::types::U8ED
 pub brc20_prog::types::TxED::value: brc20_prog::types::U64ED
 pub struct brc20_prog::types::TxReceiptED
-pub brc20_prog::types::TxReceiptED::_block_timestamp: brc20_prog::types::U64ED
-pub brc20_prog::types::TxReceiptED::_nonce: brc20_prog::types::U64ED
-pub brc20_prog::types::TxReceiptED::_reason: alloc::string::String
-pub brc20_prog::types::TxReceiptED::_result_bytes: core::option::Option<brc20_prog::types::BytesED>
-pub brc20_prog::types::TxReceiptED::_transaction_result: alloc::string::String
 pub brc20_prog::types::TxReceiptED::block_hash: brc20_prog::types::B256ED
 pub brc20_prog::types::TxReceiptED::block_number: brc20_prog::types::U64ED
 pub brc20_prog::types::TxReceiptED::contract_address: core::option::Option<brc20_prog::types::AddressED>
@@ -209,7 +204,6 @@ pub brc20_prog::Brc20ProgConfig::bitcoin_rpc_network: alloc::string::String
 pub brc20_prog::Brc20ProgConfig::bitcoin_rpc_password: alloc::string::String
 pub brc20_prog::Brc20ProgConfig::bitcoin_rpc_url: alloc::string::String
 pub brc20_prog::Brc20ProgConfig::bitcoin_rpc_user: alloc::string::String
-pub brc20_prog::Brc20ProgConfig::brc20_balance_server_url: alloc::string::String
 pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_enable_auth: bool
 pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_password: core::option::Option<alloc::string::String>
 pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_url: alloc::string::String
@@ -219,12 +213,11 @@ pub brc20_prog::Brc20ProgConfig::db_path: alloc::string::String
 pub brc20_prog::Brc20ProgConfig::evm_call_gas_limit: u64
 pub brc20_prog::Brc20ProgConfig::evm_record_traces: bool
 pub brc20_prog::Brc20ProgConfig::fail_on_bitcoin_rpc_error: bool
-pub brc20_prog::Brc20ProgConfig::fail_on_brc20_balance_server_error: bool
 pub brc20_prog::Brc20ProgConfig::max_request_size: u32
 pub brc20_prog::Brc20ProgConfig::max_response_size: u32
 impl brc20_prog::Brc20ProgConfig
 pub fn brc20_prog::Brc20ProgConfig::from_env() -> Self
-pub fn brc20_prog::Brc20ProgConfig::new(brc20_prog_rpc_server_url: alloc::string::String, brc20_prog_rpc_server_enable_auth: bool, brc20_prog_rpc_server_user: core::option::Option<alloc::string::String>, brc20_prog_rpc_server_password: core::option::Option<alloc::string::String>, brc20_balance_server_url: alloc::string::String, evm_record_traces: bool, evm_call_gas_limit: u64, bitcoin_rpc_url: alloc::string::String, bitcoin_rpc_user: alloc::string::String, bitcoin_rpc_password: alloc::string::String, bitcoin_rpc_network: alloc::string::String, chain_id: u64, fail_on_brc20_balance_server_error: bool, fail_on_bitcoin_rpc_error: bool, db_path: alloc::string::String, max_request_size: u32, max_response_size: u32, batch_request_limit: u32) -> Self
+pub fn brc20_prog::Brc20ProgConfig::new(brc20_prog_rpc_server_url: alloc::string::String, brc20_prog_rpc_server_enable_auth: bool, brc20_prog_rpc_server_user: core::option::Option<alloc::string::String>, brc20_prog_rpc_server_password: core::option::Option<alloc::string::String>, evm_record_traces: bool, evm_call_gas_limit: u64, bitcoin_rpc_url: alloc::string::String, bitcoin_rpc_user: alloc::string::String, bitcoin_rpc_password: alloc::string::String, bitcoin_rpc_network: alloc::string::String, chain_id: u64, fail_on_bitcoin_rpc_error: bool, db_path: alloc::string::String, max_request_size: u32, max_response_size: u32, batch_request_limit: u32) -> Self
 impl core::default::Default for brc20_prog::Brc20ProgConfig
 pub fn brc20_prog::Brc20ProgConfig::default() -> Self
 pub trait brc20_prog::Brc20ProgApiClient: jsonrpsee_core::client::ClientT

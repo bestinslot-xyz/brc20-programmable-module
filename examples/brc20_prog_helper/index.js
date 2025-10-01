@@ -75,17 +75,6 @@ async function main() {
     ), function (_) { });
 
     let btc_pkscript = "0x5120e0e224cd541454519b62047aa0891ea7b81a16598556aeb83a412a0b06a20aab"
-    let ticker = "0x20202020"
-
-    fs.writeFileSync('output/BRC20_Prog_brc20_balance_tx.json', JSON.stringify(
-        {
-            p: "brc20-prog",
-            op: "call",
-            c: "REPLACE_THIS_WITH_CONTRACT_ADDRESS",
-            d: contract_factory.interface.encodeFunctionData("balanceOf", [ticker, btc_pkscript]),
-        }
-    ), function (_) { });
-
     // https://mempool.space/signet/tx/d09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd
     let btc_tx_id = "0xd09d26752d0a33d1bdb0213cf36819635d1258a7e4fcbe669e12bc7dab8cecdd"
 
