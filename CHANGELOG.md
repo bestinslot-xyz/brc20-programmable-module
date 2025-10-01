@@ -5,7 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.13.0 (2025-10-01)
+
+### Bug Fixes
+
+ - <csr-id-af550d39e12924cf1e5cf26b032fbf49318c2528/> revert version bump, this is automated now
+ - <csr-id-60d600b7e42cd3e0dc5a1ccf9cb02ef23aa80f2a/> bump version to 0.13.0 in Cargo.toml
+
+### New Features (BREAKING)
+
+ - <csr-id-d5d74dc396b28fa20232e46a69f56a8a3ed1524d/> Remove BRC20 balance precompile
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 4 commits contributed to the release.
+ - 1 day passed between releases.
+ - 3 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Remove BRC20 balance precompile ([`d5d74dc`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d5d74dc396b28fa20232e46a69f56a8a3ed1524d))
+    - Revert version bump, this is automated now ([`af550d3`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/af550d39e12924cf1e5cf26b032fbf49318c2528))
+    - Merge branch 'main' into remove-brc20-balance-precompile ([`48bf33c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/48bf33c20b74a76afbd6769739cda9094530935e))
+    - Bump version to 0.13.0 in Cargo.toml ([`60d600b`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/60d600b7e42cd3e0dc5a1ccf9cb02ef23aa80f2a))
+</details>
+
 ## v0.12.0 (2025-09-30)
+
+<csr-id-e23f25e5274bbd203746a9610082544da75e3b4e/>
 
 ### Bug Fixes
 
@@ -20,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 3 commits contributed to the release over the course of 6 calendar days.
+ - 5 commits contributed to the release over the course of 6 calendar days.
  - 6 days passed between releases.
  - 3 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -32,8 +67,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release brc20-prog v0.12.0 ([`cae8a3d`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/cae8a3d5e28cd2d150c2d77cfff976d55c4c4bd7))
     - Remove legacy fields from TxReceiptED struct ([`e23f25e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/e23f25e5274bbd203746a9610082544da75e3b4e))
     - Serialize transaction type into hex ([`baad2eb`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/baad2eb9bbb3c323637d4ed0f060edf82ecf188e))
+    - Merge branch 'main' into remove-brc20-balance-precompile ([`d6b190c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d6b190ccb7db42a76b409faed43a50cbba1e09dc))
     - Update homepage URL in Cargo.toml ([`755f0b9`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/755f0b98654d099ea8e48695906c27cc39bdba32))
 </details>
 
@@ -93,6 +130,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-3eb4db14aae057f56ddfd978fa332c01e623c57e/> Release brc20-prog version 0.11.5
 
+### New Features (BREAKING)
+
+ - <csr-id-45a6dc89a8e7905df8bc693c602067c44604a397/> Remove BRC20 balance precompile and update version to 0.12.0
+   Associated proposal: https://github.com/bestinslot-xyz/brc20-proposals/blob/main/002-prog-brc20-precompile-removal/index.md
+
 ### New Features
 
  - <csr-id-5ad7fca362376f7466ac7b425c0ef82843722779/> enhance error handling for eth_call and eth_estimateGas with status codes and detailed messages in RPC server
@@ -100,6 +142,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Bug Fixes
 
  - <csr-id-69c059efb075cbac4ac2623ea06eba7badce21de/> update read method signature to use lifetime annotation
+ - <csr-id-47b99ccb210fac54adb7138f87d85fd71189ef08/> update read method signature to use lifetime annotation
+ - <csr-id-c823151e76db2c0e9dc0ca630ef9f24742aebf26/> remove test data files for BRC20 balance calls
 
 ### Refactor
 
@@ -109,9 +153,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 4 commits contributed to the release.
+ - 7 commits contributed to the release.
  - 2 days passed between releases.
- - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 7 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -124,7 +168,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Release brc20-prog version 0.11.5 ([`3eb4db1`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/3eb4db14aae057f56ddfd978fa332c01e623c57e))
     - Generate receipts for invalid transactions ([`de610e2`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/de610e27f74bb3ef6950816519689ed05ad1ccf4))
     - Enhance error handling for eth_call and eth_estimateGas with status codes and detailed messages in RPC server ([`5ad7fca`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/5ad7fca362376f7466ac7b425c0ef82843722779))
+    - Update read method signature to use lifetime annotation ([`47b99cc`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/47b99ccb210fac54adb7138f87d85fd71189ef08))
     - Update read method signature to use lifetime annotation ([`69c059e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/69c059efb075cbac4ac2623ea06eba7badce21de))
+    - Remove test data files for BRC20 balance calls ([`c823151`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/c823151e76db2c0e9dc0ca630ef9f24742aebf26))
+    - Remove BRC20 balance precompile and update version to 0.12.0 ([`45a6dc8`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/45a6dc89a8e7905df8bc693c602067c44604a397))
 </details>
 
 ## v0.11.4 (2025-09-20)
@@ -250,10 +297,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Modify eth_call in RpcServer to return 0x or the revert reason for compliance ([`c7b0017`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/c7b0017bcdce7de6d83571944c2a8ad4ac0229cd))
 </details>
 
-<csr-unknown>
-Refactored TxReceiptED by removing unused fields and adjusting the encoding/decoding logic accordingly.Modified the BRC20ProgEngine to utilize the new Signature struct when creating transactions.Updated the RPC server to handle the new transaction receipt structure.Adjusted tests to reflect changes in the transaction and receipt structures, ensuring proper validation of transaction results using “debug_traceTransaction”.Incremented database version to 8 to reflect schema changes.Use stored values to create the cache for cache misses, otherwise reorgs might cause data loss if reorg happens on a value that hasn’t been updated in a long time, and updated just before a reorg happensChore: bump rocksdb version to 0.24.0 (librocksdb was updated in this version)Chore: bump brc20-prog version to 0.10.3<csr-unknown/>
-
 ## v0.11.0-audit (2025-09-09)
+
+<csr-id-96f7476b28ab71fe02e27b47886975725abaf427/>
+<csr-id-e6e81baaa3a25b067e46aaf44856a6da57d460b4/>
+<csr-id-641626a921b3c3dfbcf78ecd0fb95d1d622c039a/>
+<csr-id-e89e27ceaf73f604bc767bc7eb4f728544a18002/>
+<csr-id-3246f34c7cfabf308b14286f20064748af8a2941/>
+<csr-id-8957d48ddb8ac104edd5467e0ef33c9ef09d2859/>
+<csr-id-0bb4d936e680f489141887ab73ee4977da7f2409/>
 
 ### Chore
 
@@ -269,11 +321,11 @@ Refactored TxReceiptED by removing unused fields and adjusting the encoding/deco
  - <csr-id-ffd7e2ea0ccb42840722e38489e43158659336d6/> Add a global values database to Brc20ProgDatabase and disallow multiple reorgs by storing a global maximum reorg height
  - <csr-id-a74ffad81aa965518922484709913b26f8378aae/> Refactor transaction handling by removing unnecessary fields, and simplify the code
    - Updated the `TxED` struct to use the new `Signature` struct, simplifying the transaction data structure.
-   - Refactored `TxReceiptED` by removing unused fields and adjusting the encoding/decoding logic accordingly.
-   - Modified the `BRC20ProgEngine` to utilize the new `Signature` struct when creating transactions.
-   - Updated the RPC server to handle the new transaction receipt structure.
-   - Adjusted tests to reflect changes in the transaction and receipt structures, ensuring proper validation of transaction results using "debug_traceTransaction".
-   - Incremented database version to 8 to reflect schema changes.
+- Refactored `TxReceiptED` by removing unused fields and adjusting the encoding/decoding logic accordingly.
+- Modified the `BRC20ProgEngine` to utilize the new `Signature` struct when creating transactions.
+- Updated the RPC server to handle the new transaction receipt structure.
+- Adjusted tests to reflect changes in the transaction and receipt structures, ensuring proper validation of transaction results using "debug_traceTransaction".
+- Incremented database version to 8 to reflect schema changes.
 
 ### Bug Fixes
 
@@ -291,10 +343,9 @@ Refactored TxReceiptED by removing unused fields and adjusting the encoding/deco
  - <csr-id-fb28f3092294946c257d7b7aa5301fc42277e9a2/> Replace "DB Error" with a static error message and panic instead of returning an error, as it's not recoverable
  - <csr-id-4ab801b940a721c5ffd0126c70bcb9c4821fa1f8/> Couple of bug fixes for reorg handling on database
    - Use get_next_block_height method in DatabaseCommit methods to fix an off-by-one error in reorgs, which might incorrectly keep old values
-   - Use stored values to create the cache for cache misses, otherwise reorgs might cause data loss if reorg happens on a value that hasn't been updated in a long time, and updated just before a reorg happens
-   
-   - Chore: bump rocksdb version to 0.24.0 (librocksdb was updated in this version)
-   - Chore: bump brc20-prog version to 0.10.3
+- Use stored values to create the cache for cache misses, otherwise reorgs might cause data loss if reorg happens on a value that hasn't been updated in a long time, and updated just before a reorg happens
+- Chore: bump rocksdb version to 0.24.0 (librocksdb was updated in this version)
+- Chore: bump brc20-prog version to 0.10.3
 
 ### Refactor
 
@@ -754,9 +805,6 @@ Refactored TxReceiptED by removing unused fields and adjusting the encoding/deco
     - Implement HTTP Basic Authentication middleware for RPC server, it allows all methods that start with eth_*, and rejects everything else if the request is unauthenticated ([`e7158f1`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/e7158f1dc2924b81a251a5a604a1a48b068f0c14))
     - Add basic HTTP authentication support to the brc20_prog RPC server ([`d94fe38`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d94fe38a9f08faf432c611c7d32b4b2fe86849dc))
 </details>
-
-<csr-unknown>
-Implemented methods to set, get, remove, and clear pending transactions, ensuring transactions can be processed in order.Updated BlockCachedDatabase to support new operations for managing key-value pairs, and removals.Modified BRC20ProgEngine to handle pending transactions during block processing, ensuring that transactions are executed in the correct order.Updated RPC server to expose new endpoints for querying pending transactions.Added comprehensive tests to validate the new transaction handling logic, including scenarios for out-of-order transactions and transaction expiration.Updated the BRC20ProgEngine to include a TODO for handling future nonces.Replaced EthBytes and InscriptionBytes with RawBytes and Base64Bytes in the API types.Modified the RPC server to accommodate the new data types for deploy and call methods.Added tests to validate the new encoded data handling for transactions and calls.Removed redundant input field from EthCallMoved main.rs in a separate binary setup with the “server” feature requiredeth_getTransactionCount now correctly returns the account nonceBumped version to 0.7.0<csr-unknown/>
 
 ## v0.1.1 (2025-04-03)
 
