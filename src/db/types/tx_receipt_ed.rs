@@ -49,25 +49,6 @@ pub struct TxReceiptED {
     #[serde(rename = "type")]
     /// The type of the transaction, always 0 for BRC2.0
     pub transaction_type: U8ED,
-
-    // Legacy fields required by the API
-    #[serde(rename = "blockTimestamp", default = "U64ED::zero", skip_deserializing)]
-    /// The timestamp of the block that contains the transaction
-    pub _block_timestamp: U64ED,
-    #[serde(rename = "nonce", default = "U64ED::zero", skip_deserializing)]
-    /// The nonce of the transaction
-    pub _nonce: U64ED,
-    #[serde(rename = "output", default = "Option::default", skip_deserializing)]
-    /// The output data from the transaction, if applicable, return value of the call, if any
-    /// (e.g., the return value of a smart contract function call)
-    pub _result_bytes: Option<BytesED>,
-    #[serde(rename = "txResult", default = "String::new", skip_deserializing)]
-    /// The result of the transaction, "Success", "Revert" or "Halt"
-    pub _transaction_result: String,
-    #[serde(rename = "reason", default = "String::new", skip_deserializing)]
-    /// The reason for the transaction result, from a list of possible reasons
-    /// (e.g., "OutOfGas", "Revert", etc.)
-    pub _reason: String,
 }
 
 impl TxReceiptED {
@@ -108,11 +89,6 @@ impl TxReceiptED {
             cumulative_gas_used,
             effective_gas_price: 0u64.into(),
             transaction_type: 0u8.into(),
-            _block_timestamp: 0u64.into(),       // Legacy
-            _nonce: 0u64.into(),                 // Legacy
-            _result_bytes: None,                 // Legacy
-            _transaction_result: "".to_string(), // Legacy
-            _reason: "".to_string(),             // Legacy
         })
     }
 }
@@ -120,8 +96,8 @@ impl TxReceiptED {
 impl Encode for TxReceiptED {
     fn encode(&self, buffer: &mut Vec<u8>) {
         self.status.encode(buffer);
-        self._transaction_result.encode(buffer); // Legacy
-        self._reason.encode(buffer); // Legacy
+        String::new().encode(buffer); // Legacy for tx result
+        String::new().encode(buffer); // Legacy for reason
         self.logs.encode(buffer);
         self.gas_used.encode(buffer);
         self.from.encode(buffer);
@@ -130,20 +106,20 @@ impl Encode for TxReceiptED {
         self.logs_bloom.encode(buffer);
         self.block_hash.encode(buffer);
         self.block_number.encode(buffer);
-        self._block_timestamp.encode(buffer); // Legacy
+        U64ED::zero().encode(buffer); // Legacy for block timestamp
         self.transaction_hash.encode(buffer);
         self.transaction_index.encode(buffer);
         self.cumulative_gas_used.encode(buffer);
-        self._nonce.encode(buffer); // Legacy
-        self._result_bytes.encode(buffer); // Legacy
+        U64ED::zero().encode(buffer); // Legacy for nonce
+        Option::<BytesED>::None.encode(buffer); // Legacy for result bytes
     }
 }
 
 impl Decode for TxReceiptED {
     fn decode(bytes: &[u8], offset: usize) -> Result<(Self, usize), Box<dyn Error>> {
         let (status, offset) = Decode::decode(bytes, offset)?;
-        let (r#type, offset) = Decode::decode(bytes, offset)?;
-        let (reason, offset) = Decode::decode(bytes, offset)?;
+        let (_type, offset) = String::decode(bytes, offset)?; // Legacy, ignore
+        let (_reason, offset) = String::decode(bytes, offset)?; // Legacy, ignore
         let (logs, offset) = Decode::decode(bytes, offset)?;
         let (gas_used, offset) = Decode::decode(bytes, offset)?;
         let (from, offset) = Decode::decode(bytes, offset)?;
@@ -152,17 +128,15 @@ impl Decode for TxReceiptED {
         let (logs_bloom, offset) = Decode::decode(bytes, offset)?;
         let (block_hash, offset) = Decode::decode(bytes, offset)?;
         let (block_number, offset) = Decode::decode(bytes, offset)?;
-        let (block_timestamp, offset) = Decode::decode(bytes, offset)?;
+        let (_block_timestamp, offset) = U64ED::decode(bytes, offset)?; // Legacy, ignore
         let (transaction_hash, offset) = Decode::decode(bytes, offset)?;
         let (transaction_index, offset) = Decode::decode(bytes, offset)?;
         let (cumulative_gas_used, offset) = Decode::decode(bytes, offset)?;
-        let (nonce, offset) = Decode::decode(bytes, offset)?;
-        let (result_bytes, offset) = Decode::decode(bytes, offset)?;
+        let (_nonce, offset) = U64ED::decode(bytes, offset)?; // Legacy, ignore
+        let (_result_bytes, offset) = <Option<BytesED>>::decode(bytes, offset)?; // Legacy, ignore
         Ok((
             TxReceiptED {
                 status,
-                _transaction_result: r#type,
-                _reason: reason,
                 logs,
                 gas_used,
                 from,
@@ -171,14 +145,11 @@ impl Decode for TxReceiptED {
                 logs_bloom,
                 block_hash,
                 block_number,
-                _block_timestamp: block_timestamp,
                 transaction_hash,
                 transaction_index,
                 cumulative_gas_used,
                 effective_gas_price: 0u64.into(),
                 transaction_type: 0u8.into(),
-                _nonce: nonce,
-                _result_bytes: result_bytes,
             },
             offset,
         ))
@@ -247,5 +218,39 @@ mod tests {
         let serialized = serde_json::to_string(&tx_receipt_ed).unwrap();
         let deserialized: TxReceiptED = serde_json::from_str(&serialized).unwrap();
         assert_eq!(tx_receipt_ed, deserialized);
+    }
+
+    #[test]
+    fn test_legacy_fields() {
+        let tx_receipt_ed = TxReceiptED::new(
+            [10u8; 32].into(),      // block_hash
+            11u64.into(),           // block_number
+            Some([8u8; 20].into()), // contract_address
+            [6u8; 20].into(),       // from
+            Some([7u8; 20].into()), // to
+            [12u8; 32].into(),      // transaction_hash
+            13u64.into(),           // transaction_index
+            true,                   // is_success (arbitrary, since status was 4u8 before)
+            &vec![Log {
+                address: [1u8; 20].into(),
+                data: LogData::new(
+                    vec![[2u8; 32].into(), [3u8; 32].into()],
+                    vec![4u8; 32].into(),
+                )
+                .expect("Failed to create LogData"),
+            }],
+            5u64,         // gas_used
+            14u64.into(), // cumulative_gas_used
+            0u64.into(),  // start_log_index (arbitrary for test)
+        )
+        .unwrap();
+
+        // This is a hex dump of the encoded struct, including legacy fields from a previous version
+        // This is to ensure backward compatibility with previously stored data
+        // Future major versions can remove legacy fields and this test can be deleted
+        let encoded_hex = "000000000000000100000000000000000000000101010101010101010101010101010101010101010000000202020202020202020202020202020202020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303000000200404040404040404040404040404040404040404040404040404040404040404000000000000000d0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a000000000000000b000000000000000000000000000000050606060606060606060606060606060606060606010707070707070707070707070707070707070707010808080808080808080808080808080808080808000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000800800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000004000000000020000000000000000000000000000000000000000000000000000000002000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a000000000000000b00000000000000000c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c000000000000000d000000000000000e000000000000000000";
+        let decoded = TxReceiptED::decode_vec(&hex::decode(encoded_hex).unwrap()).unwrap();
+
+        assert_eq!(tx_receipt_ed, decoded);
     }
 }

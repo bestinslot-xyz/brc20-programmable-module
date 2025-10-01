@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::db::types::{AddressED, BytesED, Decode, Encode, B256ED, U64ED, U8ED};
 use crate::global::CONFIG;
@@ -46,31 +46,12 @@ pub struct TxED {
     #[serde(rename = "chainId")]
     /// The chain ID for the transaction
     pub chain_id: U64ED,
-    #[serde(
-        rename = "type",
-        serialize_with = "no_hex",
-        deserialize_with = "no_hex_deserialize"
-    )]
+    #[serde(rename = "type")]
     /// The type of the transaction, always 0 for BRC2.0
     pub tx_type: U8ED,
     #[serde(skip_serializing, skip_deserializing)]
     /// The inscription ID that generated this transaction, if applicable
     pub inscription_id: Option<String>,
-}
-
-fn no_hex<S>(value: &U8ED, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    serializer.serialize_u64(value.uint.as_limbs()[0])
-}
-
-fn no_hex_deserialize<'de, D>(deserializer: D) -> Result<U8ED, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let value = u8::deserialize(deserializer)?;
-    Ok(U8ED::from(value))
 }
 
 pub(crate) struct Signature {
@@ -244,7 +225,7 @@ mod tests {
         let serialized = serde_json::to_string(&tx).unwrap();
         assert_eq!(
             serialized,
-            "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\",\"v\":\"0xa\",\"r\":\"0xb\",\"s\":\"0xc\",\"chainId\":\"0x425243323073\",\"type\":0}"
+            "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\",\"v\":\"0xa\",\"r\":\"0xb\",\"s\":\"0xc\",\"chainId\":\"0x425243323073\",\"type\":\"0x0\"}"
         );
 
         let deserialized: TxED = serde_json::from_str(&serialized).unwrap();
@@ -275,7 +256,7 @@ mod tests {
         let serialized = serde_json::to_string(&tx).unwrap();
         assert_eq!(
             serialized,
-            "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\",\"v\":\"0x0\",\"r\":\"0x0\",\"s\":\"0x0\",\"chainId\":\"0x425243323073\",\"type\":0}"
+            "{\"hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"nonce\":\"0x1\",\"blockHash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"blockNumber\":\"0x2\",\"transactionIndex\":\"0x3\",\"from\":\"0x0303030303030303030303030303030303030303\",\"to\":\"0x0404040404040404040404040404040404040404\",\"value\":\"0x4\",\"gas\":\"0x5\",\"gasPrice\":\"0x6\",\"input\":\"0x070809\",\"v\":\"0x0\",\"r\":\"0x0\",\"s\":\"0x0\",\"chainId\":\"0x425243323073\",\"type\":\"0x0\"}"
         );
 
         let deserialized: TxED = serde_json::from_str(&serialized).unwrap();
