@@ -20,7 +20,6 @@ use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_addres
 use crate::db::types::{BlockResponseED, BytecodeED, LogED, Signature, TraceED, TxED, TxReceiptED};
 use crate::db::Brc20ProgDatabase;
 use crate::engine::evm::get_evm;
-use crate::engine::precompiles::get_brc20_balance;
 use crate::engine::utils::{
     get_contract_address, get_gas_limit, get_inscription_byte_len, get_tx_hash, LastBlockInfo,
     TxInfo,
@@ -66,10 +65,6 @@ impl BRC20ProgEngine {
 
         if let Some(genesis) = self.get_block_by_number(genesis_height, false)? {
             if genesis.hash.bytes == genesis_hash {
-                // Check status of BRC20 Balance Server before proceeding
-                std::panic::catch_unwind(|| get_brc20_balance(&[10].into(), &[10].into()))
-                    .map_err(|_| "BRC20 Balance Server is down. This error can be ignored in tests that doesn't involve the BRC20 indexer.")?;
-
                 // Check status of Bitcoin RPC
                 tracing::info!("Checking Bitcoin RPC status...");
                 validate_bitcoin_rpc_status()
@@ -100,10 +95,6 @@ impl BRC20ProgEngine {
             .map_err(|_| "Invalid BRC20_Controller contract address")?;
 
         self.finalise_block(genesis_timestamp, genesis_height, genesis_hash, 1)?;
-
-        // Check status of BRC20 Balance Server before proceeding
-        std::panic::catch_unwind(|| get_brc20_balance(&[10].into(), &[10].into()))
-            .map_err(|_| "BRC20 Balance Server is down. This error can be ignored in tests that doesn't involve the BRC20 indexer.")?;
 
         // Check status of Bitcoin RPC
         tracing::info!("Checking Bitcoin RPC status...");
