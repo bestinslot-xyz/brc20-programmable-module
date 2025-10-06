@@ -626,8 +626,6 @@ impl BRC20ProgEngine {
                 Ok((total_time_took, info.gas_used))
             })?;
 
-            db.set_block_hash(block_number, block_hash)?;
-
             // Save the full block info in the database for ease of access
             let block_response =
                 db.generate_block(block_number, timestamp, gas_used, total_time_took)?;
@@ -635,7 +633,10 @@ impl BRC20ProgEngine {
             db.set_raw_block(block_number, db.generate_raw_block(block_response)?)?;
 
             // Remove old transactions from the txpool
-            db.clear_txpool(block_number)
+            db.clear_txpool(block_number)?;
+
+            // Set block hash last to avoid race conditions
+            db.set_block_hash(block_number, block_hash)
         })?;
 
         self.last_block_info.write_fn_unchecked(|last_block_info| {
