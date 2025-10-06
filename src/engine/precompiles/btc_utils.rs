@@ -54,6 +54,7 @@ pub fn update_bitcoin_client() {
 
 pub fn get_bitcoin_network() -> Network {
     match CONFIG.read().bitcoin_rpc_network.as_str() {
+        "bitcoin" => Network::Bitcoin,
         "mainnet" => Network::Bitcoin,
         "signet" => Network::Signet,
         "testnet" => Network::Testnet,
@@ -90,19 +91,10 @@ pub fn validate_bitcoin_rpc_status() -> Result<(), Box<dyn Error>> {
         return Err("Bitcoin RPC unreachable.".into());
     };
 
-    let config_network = match CONFIG.read().bitcoin_rpc_network.as_str() {
-        "mainnet" => Network::Bitcoin,
-        "signet" => Network::Signet,
-        "testnet" => Network::Testnet,
-        "testnet4" => Network::Testnet4,
-        "regtest" => Network::Regtest,
-        _ => Network::Testnet4,
-    };
-
-    if info.chain != config_network {
+    if info.chain != get_bitcoin_network() {
         return Err(format!(
             "Bitcoin RPC network mismatch. Expected: {:?}, got: {:?}",
-            config_network, info.chain
+            get_bitcoin_network(), info.chain
         )
         .into());
     }

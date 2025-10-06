@@ -14,4 +14,4 @@ mod precompiles;
 pub use precompiles::*;
 
 mod btc_utils;
-pub use btc_utils::validate_bitcoin_rpc_status;
+pub use btc_utils::{validate_bitcoin_rpc_status, get_bitcoin_network};
