@@ -4,7 +4,7 @@ use alloy::primitives::{Address, Bytes};
 use revm::context::{Block, Cfg, ContextTr};
 use revm::handler::PrecompileProvider;
 use revm::interpreter::{Gas, InputsImpl, InstructionResult, InterpreterResult};
-use revm::precompile::Precompiles;
+use revm::precompile::{PrecompileSpecId, Precompiles};
 
 use crate::engine::precompiles::{
     bip322_verify_precompile, btc_tx_details_precompile, get_locked_pkscript_precompile,
@@ -31,8 +31,8 @@ pub struct BRC20Precompiles {
 }
 
 impl BRC20Precompiles {
-    pub fn new() -> Self {
-        let eth_precompiles = Precompiles::cancun();
+    pub fn new(precompile_spec: PrecompileSpecId) -> Self {
+        let eth_precompiles = Precompiles::new(precompile_spec);
         let mut all_addresses = eth_precompiles
             .addresses()
             .map(|x| x.clone())
@@ -82,8 +82,8 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
         _: bool,
         gas_limit: u64,
     ) -> Result<Option<Self::Output>, String> {
-        if let Some(cancun_precompile) = self.eth_precompiles.get(address) {
-            match cancun_precompile(&inputs.input, gas_limit) {
+        if let Some(eth_precompile) = self.eth_precompiles.get(address) {
+            match eth_precompile(&inputs.input, gas_limit) {
                 Ok(output) => {
                     let mut gas = Gas::new(gas_limit);
                     if !gas.record_cost(output.gas_used) {

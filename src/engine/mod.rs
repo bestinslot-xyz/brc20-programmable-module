@@ -2,6 +2,7 @@
 
 mod engine;
 mod evm;
+mod hardforks;
 mod precompiles;
 mod utils;
 
