@@ -657,15 +657,12 @@ impl Brc20ProgDatabase {
 
     pub fn generate_block(
         &self,
+        block_hash: B256,
         block_number: u64,
         block_timestamp: u64,
         gas_used: u64,
         total_time_took: u128,
     ) -> Result<BlockResponseED, Box<dyn Error>> {
-        let block_hash = self
-            .get_block_hash(block_number)?
-            .ok_or("Block hash not set")?;
-
         let parent_hash = if block_number == 0 {
             B256::ZERO
         } else {
