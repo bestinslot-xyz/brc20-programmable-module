@@ -1,22 +1,10 @@
 use bitcoin::Network;
 use revm::primitives::hardfork::SpecId;
 
-use crate::global::CONFIG;
+use crate::engine::precompiles::get_bitcoin_network;
 
 const PRAGUE_ACTIVATION_HEIGHT_MAINNET: u64 = u64::MAX;
-const PRAGUE_ACTIVATION_HEIGHT_TESTNETS: u64 = u64::MAX;
-
-pub fn get_bitcoin_network() -> bitcoin::Network {
-    use bitcoin::Network;
-    match CONFIG.read().bitcoin_rpc_network.as_str() {
-        "bitcoin" => Network::Bitcoin,
-        "signet" => Network::Signet,
-        "testnet" => Network::Testnet,
-        "regtest" => Network::Regtest,
-        "testnet4" => Network::Testnet4,
-        _ => Network::Regtest,
-    }
-}
+const PRAGUE_ACTIVATION_HEIGHT_SIGNET: u64 = u64::MAX;
 
 pub fn get_evm_spec(block_number: u64) -> SpecId {
     let network = get_bitcoin_network();
@@ -29,13 +17,13 @@ pub fn get_evm_spec(block_number: u64) -> SpecId {
             }
         }
         Network::Signet => {
-            if block_number >= PRAGUE_ACTIVATION_HEIGHT_TESTNETS {
+            if block_number >= PRAGUE_ACTIVATION_HEIGHT_SIGNET {
                 SpecId::PRAGUE
             } else {
                 SpecId::CANCUN
             }
         }
-        Network::Regtest => SpecId::CANCUN,
-        _ => SpecId::CANCUN,
+        Network::Regtest => SpecId::PRAGUE,
+        _ => SpecId::PRAGUE,
     }
 }

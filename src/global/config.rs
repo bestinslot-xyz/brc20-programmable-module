@@ -224,6 +224,15 @@ impl Brc20ProgConfig {
     /// # Returns
     /// A new instance of `Brc20ProgConfig` with the configuration values read from environment variables.
     pub fn from_env() -> Self {
+        let bitcoin_rpc_network =
+            env::var(&*BITCOIN_RPC_NETWORK_KEY).unwrap_or("signet".to_string());
+
+        let chain_id = if bitcoin_rpc_network == "bitcoin" || bitcoin_rpc_network == "mainnet" {
+            CHAIN_ID
+        } else {
+            CHAIN_ID_TESTNETS
+        };
+
         Self {
             brc20_prog_rpc_server_url: env::var(&*BRC20_PROG_RPC_SERVER_URL_KEY)
                 .unwrap_or(BRC20_PROG_RPC_SERVER_URL_DEFAULT.clone()),
@@ -245,13 +254,7 @@ impl Brc20ProgConfig {
                 .unwrap_or(Default::default()),
             bitcoin_rpc_network: env::var(&*BITCOIN_RPC_NETWORK_KEY)
                 .unwrap_or("signet".to_string()),
-            chain_id: if env::var(&*BITCOIN_RPC_NETWORK_KEY).unwrap_or("signet".to_string())
-                == "mainnet"
-            {
-                CHAIN_ID
-            } else {
-                CHAIN_ID_TESTNETS
-            },
+            chain_id,
             fail_on_bitcoin_rpc_error: env::var(&*FAIL_ON_BITCOIN_RPC_ERROR_KEY)
                 .map(|x| x == "true")
                 .unwrap_or(*FAIL_ON_BITCOIN_RPC_ERROR_DEFAULT),
