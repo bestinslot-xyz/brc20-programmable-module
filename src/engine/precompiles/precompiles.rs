@@ -150,3 +150,42 @@ pub fn precompile_output(
     interpreter_result.output = output.into();
     interpreter_result
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn test_prague_spec_has_bls_precompiles() {
+        // A sanity test to ensure that the Prague spec includes the BLS precompiles.
+        let precompiles = BRC20Precompiles::new(PrecompileSpecId::PRAGUE);
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x000000000000000000000000000000000000000b").unwrap()));
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x000000000000000000000000000000000000000c").unwrap()));
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x000000000000000000000000000000000000000d").unwrap()));
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x000000000000000000000000000000000000000e").unwrap()));
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x000000000000000000000000000000000000000f").unwrap()));
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x0000000000000000000000000000000000000010").unwrap()));
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x0000000000000000000000000000000000000011").unwrap()));
+
+        // Make sure it does not contain precompiles that are not part of the Prague spec
+        assert!(!precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x0000000000000000000000000000000000000012").unwrap()));
+    }
+}
