@@ -646,10 +646,15 @@ impl BRC20ProgEngine {
         Ok(())
     }
 
-    pub fn read_contract(&self, tx_info: &TxInfo) -> Result<ReadContractResult, Box<dyn Error>> {
+    pub fn read_contract(&self, tx_info: &TxInfo, block_height: Option<u64>) -> Result<ReadContractResult, Box<dyn Error>> {
         self.require_no_waiting_txes()?;
 
-        let block_number = self.get_next_block_height()?;
+        let block_number = if let Some(height) = block_height {
+            height
+        } else {
+            self.get_next_block_height()?
+        };
+
         let timestamp = UNIX_EPOCH.elapsed().map(|x| x.as_secs())?;
         let nonce = self.get_account_nonce(tx_info.from)?;
 
