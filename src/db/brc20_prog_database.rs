@@ -843,6 +843,10 @@ impl Brc20ProgDatabase {
             .as_mut()
             .expect(DB_MUTEX_ERROR)
             .commit(latest_block_number)?;
+        self.db_pending_txes
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .commit(latest_block_number)?;
         self.db_tx_trace
             .as_mut()
             .expect(DB_MUTEX_ERROR)
@@ -899,6 +903,10 @@ impl Brc20ProgDatabase {
             .expect(DB_MUTEX_ERROR)
             .clear_cache();
         self.db_tx.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
+        self.db_pending_txes
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .clear_cache();
         self.db_tx_trace
             .as_mut()
             .expect(DB_MUTEX_ERROR)
@@ -974,6 +982,10 @@ impl Brc20ProgDatabase {
             .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_tx
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .reorg(latest_valid_block_number)?;
+        self.db_pending_txes
             .as_mut()
             .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
