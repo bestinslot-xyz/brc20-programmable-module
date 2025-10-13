@@ -23,8 +23,8 @@ async fn test_deploy_call() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             0,
-            Some("deploy_inscription".to_string()),
-            deploy_data_length.into(),
+            "deploy_inscription".to_string(),
+            deploy_data_length,
         )
         .await?;
 
@@ -42,8 +42,8 @@ async fn test_deploy_call() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             1,
-            Some("call_inscription".to_string()),
-            call_data_length.into(),
+            "call_inscription".to_string(),
+            call_data_length,
         )
         .await?
         .unwrap();
@@ -83,8 +83,8 @@ async fn test_deploy_call_encoded() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             0,
-            Some("deploy_inscription".to_string()),
-            deploy_data_length.into(),
+            "deploy_inscription".to_string(),
+            deploy_data_length,
         )
         .await?;
 
@@ -104,8 +104,8 @@ async fn test_deploy_call_encoded() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             1,
-            Some("call_inscription".to_string()),
-            call_data_length.into(),
+            "call_inscription".to_string(),
+            call_data_length,
         )
         .await?
         .unwrap();

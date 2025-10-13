@@ -456,7 +456,7 @@ impl Brc20ProgDatabase {
         cumulative_gas_used: u64,
         nonce: u64,
         start_log_index: u64,
-        inscription_id: Option<String>,
+        inscription_id: String,
         gas_limit: u64,
         v: u8,
         r: U256,
@@ -507,9 +507,7 @@ impl Brc20ProgDatabase {
                 tx_hash.into(),
             )?;
 
-        if let Some(inscription_id) = inscription_id {
-            self.set_tx_hash_by_inscription_id(inscription_id, tx_hash)?;
-        }
+        self.set_tx_hash_by_inscription_id(inscription_id, tx_hash)?;
 
         Ok(self.db_tx_receipt.as_mut().expect(DB_MUTEX_ERROR).set(
             block_number,
@@ -1216,7 +1214,7 @@ mod tests {
                 cumulative_gas_used,
                 nonce,
                 start_log_index,
-                Some("inscription_id".to_string()),
+                "inscription_id".to_string(),
                 10000,
                 0u8,
                 U256::from(0),
@@ -1323,7 +1321,7 @@ mod tests {
                 cumulative_gas_used,
                 nonce,
                 start_log_index,
-                Some("inscription_id".to_string()),
+                "inscription_id".to_string(),
                 10000,
                 0u8,
                 U256::from(0),
