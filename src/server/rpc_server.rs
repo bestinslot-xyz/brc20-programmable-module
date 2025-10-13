@@ -92,7 +92,7 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
+        inscription_id: String,
     ) -> RpcResult<TxReceiptED> {
         log_call();
 
@@ -110,7 +110,7 @@ impl Brc20ProgApiServer for RpcServer {
                 block_height,
                 hash.bytes,
                 inscription_id,
-                Some(u64::MAX),
+                u64::MAX,
             )
             .map_err(wrap_rpc_error)
     }
@@ -124,7 +124,7 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
+        inscription_id: String,
     ) -> RpcResult<TxReceiptED> {
         log_call();
 
@@ -142,7 +142,7 @@ impl Brc20ProgApiServer for RpcServer {
                     .map_err(wrap_rpc_error)?,
                 hash.bytes,
                 inscription_id,
-                Some(u64::MAX),
+                u64::MAX,
             )
             .map_err(wrap_rpc_error)
     }
@@ -232,8 +232,8 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
-        inscription_byte_len: Option<u64>,
+        inscription_id: String,
+        inscription_byte_len: u64,
     ) -> RpcResult<TxReceiptED> {
         log_call();
 
@@ -278,8 +278,8 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
-        inscription_byte_len: Option<u64>,
+        inscription_id: String,
+        inscription_byte_len: u64,
     ) -> RpcResult<Option<TxReceiptED>> {
         log_call();
 
@@ -331,8 +331,8 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
-        inscription_byte_len: Option<u64>,
+        inscription_id: String,
+        inscription_byte_len: u64,
     ) -> RpcResult<Vec<TxReceiptED>> {
         log_call();
 
@@ -935,8 +935,8 @@ mod tests {
                 20,
                 [1; 32].into(),
                 0,
-                None,
-                Some(1000),
+                "inscription_id".to_string(),
+                1000,
             )
             .await
             .unwrap();
