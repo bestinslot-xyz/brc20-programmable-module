@@ -5,7 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.15.0 (2025-10-14)
+
+### New Features
+
+ - <csr-id-887ec1c8d69fe63b3dab107b4892a2ab8e2694e2/> Enhance BRC20 precompiles with op_return_tx_id support (enabled after the prague upgrade)
+   - Updated `get_evm` to accept `current_op_return_tx_id` and pass it to `BRC20Precompiles`.
+   - Modified hardfork activation heights for mainnet and signet.
+   - Introduced `get_op_return_tx_id_precompile` to retrieve the op return transaction ID.
+   - Added gas cost for fetching the op return transaction ID.
+   - Updated RPC server methods to include `op_return_tx_id` parameter.
+   - Enhanced tests to validate behavior with and without op return transaction IDs.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 1 commit contributed to the release.
+ - 1 day passed between releases.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Enhance BRC20 precompiles with op_return_tx_id support (enabled after the prague upgrade) ([`887ec1c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/887ec1c8d69fe63b3dab107b4892a2ab8e2694e2))
+</details>
+
 ## v0.14.0 (2025-10-13)
+
+<csr-id-5e700a7cf08be8db9756a1f5ff9719c82aa91efb/>
+<csr-id-eb99d55fdf4570d67d9027ce55713250dc4d326f/>
 
 ### New Features
 
@@ -31,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 8 commits contributed to the release over the course of 7 calendar days.
+ - 9 commits contributed to the release over the course of 7 calendar days.
  - 12 days passed between releases.
  - 8 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -43,6 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release brc20-prog v0.14.0 ([`8cc6e08`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/8cc6e089b1658d780608c0edacf2909f3503c50e))
     - Change inscription_id and inscription_byte_len from Option to required fields in API and update database structures ([`5e700a7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/5e700a7cf08be8db9756a1f5ff9719c82aa91efb))
     - Ensure pending transactions are committed, cleared, and reorganized in Brc20ProgDatabase ([`d06a19c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d06a19ce4b873e02a5151fea7a75a6e366dab8ee))
     - Add unit test for Prague spec BLS precompiles inclusion ([`eb99d55`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/eb99d55fdf4570d67d9027ce55713250dc4d326f))
@@ -438,9 +473,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Replace "DB Error" with a static error message and panic instead of returning an error, as it's not recoverable ([`fb28f30`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/fb28f3092294946c257d7b7aa5301fc42277e9a2))
     - Couple of bug fixes for reorg handling on database ([`4ab801b`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/4ab801b940a721c5ffd0126c70bcb9c4821fa1f8))
 </details>
-
-<csr-unknown>
-Refactored TxReceiptED by removing unused fields and adjusting the encoding/decoding logic accordingly.Modified the BRC20ProgEngine to utilize the new Signature struct when creating transactions.Updated the RPC server to handle the new transaction receipt structure.Adjusted tests to reflect changes in the transaction and receipt structures, ensuring proper validation of transaction results using “debug_traceTransaction”.Incremented database version to 8 to reflect schema changes.Use stored values to create the cache for cache misses, otherwise reorgs might cause data loss if reorg happens on a value that hasn’t been updated in a long time, and updated just before a reorg happensChore: bump rocksdb version to 0.24.0 (librocksdb was updated in this version)Chore: bump brc20-prog version to 0.10.3<csr-unknown/>
 
 ## v0.10.2 (2025-07-31)
 
