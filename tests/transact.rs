@@ -51,6 +51,7 @@ async fn test_transact() -> Result<(), Box<dyn Error>> {
             0,
             "deploy_inscription".to_string(),
             deploy_data_length.into(),
+            [1; 32].into(),
         )
         .await?;
 
@@ -74,6 +75,7 @@ async fn test_transact() -> Result<(), Box<dyn Error>> {
             1,
             "call_inscription1".to_string(),
             call_data_length,
+            [2; 32].into(),
         )
         .await?
         .unwrap();
@@ -116,6 +118,7 @@ async fn test_transact() -> Result<(), Box<dyn Error>> {
             2,
             "call_inscription2".to_string(),
             call_data_length,
+            [2; 32].into(),
         )
         .await?;
 
@@ -176,6 +179,7 @@ async fn test_transact_encoded() -> Result<(), Box<dyn Error>> {
             0,
             "deploy_inscription".to_string(),
             deploy_data_length,
+            [1; 32].into(),
         )
         .await
         .unwrap();
@@ -200,6 +204,7 @@ async fn test_transact_encoded() -> Result<(), Box<dyn Error>> {
             1,
             "call_inscription1".to_string(),
             call_data_length,
+            [2; 32].into(),
         )
         .await?
         .unwrap();
@@ -240,6 +245,7 @@ async fn test_transact_encoded() -> Result<(), Box<dyn Error>> {
             2,
             "call_inscription2".to_string(),
             call_data_length,
+            [2; 32].into(),
         )
         .await?;
 
@@ -298,6 +304,7 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
             0,
             "deploy_inscription".to_string(),
             deploy_data_length,
+            [1; 32].into(),
         )
         .await
         .unwrap();
@@ -335,6 +342,7 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
             2,
             "call_inscription".to_string(),
             call_data_length,
+            [2; 32].into(),
         )
         .await
         .unwrap();
@@ -368,6 +376,7 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
             2,
             "call_inscription3".to_string(),
             call_data_length,
+            [2; 32].into(),
         )
         .await?;
 
@@ -400,6 +409,7 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
             1,
             "call_inscription2".to_string(),
             call_data_length,
+            [2; 32].into(),
         )
         .await?;
 
@@ -487,6 +497,7 @@ async fn test_transact_remove_old_transactions() -> Result<(), Box<dyn Error>> {
             0,
             "deploy_inscription".to_string(),
             deploy_data_length,
+            [1; 32].into(),
         )
         .await
         .unwrap();
@@ -561,6 +572,7 @@ async fn test_transact_in_the_past() -> Result<(), Box<dyn Error>> {
             0,
             "deploy_inscription".to_string(),
             deploy_data_length,
+            [1; 32].into(),
         )
         .await
         .unwrap();
@@ -597,6 +609,7 @@ async fn test_transact_in_the_past() -> Result<(), Box<dyn Error>> {
             0,
             "deploy_inscription".to_string(),
             deploy_data_length,
+            [1; 32].into(),
         )
         .await
         .unwrap();
@@ -651,6 +664,7 @@ async fn test_transact_in_the_future() -> Result<(), Box<dyn Error>> {
             0,
             "deploy_inscription".to_string(),
             deploy_data_length,
+            [1; 32].into(),
         )
         .await
         .unwrap();

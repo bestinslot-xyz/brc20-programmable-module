@@ -25,6 +25,7 @@ async fn test_deploy_call() -> Result<(), Box<dyn Error>> {
             0,
             "deploy_inscription".to_string(),
             deploy_data_length,
+            [1; 32].into(),
         )
         .await?;
 
@@ -44,6 +45,7 @@ async fn test_deploy_call() -> Result<(), Box<dyn Error>> {
             1,
             "call_inscription".to_string(),
             call_data_length,
+            [2; 32].into(),
         )
         .await?
         .unwrap();
@@ -85,6 +87,7 @@ async fn test_deploy_call_encoded() -> Result<(), Box<dyn Error>> {
             0,
             "deploy_inscription".to_string(),
             deploy_data_length,
+            [1; 32].into(),
         )
         .await?;
 
@@ -106,6 +109,7 @@ async fn test_deploy_call_encoded() -> Result<(), Box<dyn Error>> {
             1,
             "call_inscription".to_string(),
             call_data_length,
+            [2; 32].into(),
         )
         .await?
         .unwrap();

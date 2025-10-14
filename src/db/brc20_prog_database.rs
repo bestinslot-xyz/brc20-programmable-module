@@ -56,6 +56,10 @@ pub struct Brc20ProgDatabase {
     db_pending_txes:
         Option<BlockCachedDatabase<(AddressED, U64ED), TxED, BlockHistoryCacheData<TxED>>>,
 
+    /// TX IDs for pending transactions, a map of TxHash to Bitcoin TX ID
+    db_pending_txes_op_return_tx_ids:
+        Option<BlockCachedDatabase<B256ED, B256ED, BlockHistoryCacheData<B256ED>>>,
+
     /// TxHash to trace
     db_tx_trace: Option<BlockCachedDatabase<B256ED, TraceED, BlockHistoryCacheData<TraceED>>>,
 
@@ -97,6 +101,7 @@ impl Default for Brc20ProgDatabase {
             db_tx_receipt: None,
             db_tx: None,
             db_pending_txes: None,
+            db_pending_txes_op_return_tx_ids: None,
             db_tx_trace: None,
             db_inscription_id_to_tx_hash: None,
             db_contract_address_to_inscription_id: None,
@@ -135,6 +140,10 @@ impl Brc20ProgDatabase {
             db_pending_txes: Some(BlockCachedDatabase::new(
                 &base_path,
                 "account_and_nonce_to_tx_hash",
+            )?),
+            db_pending_txes_op_return_tx_ids: Some(BlockCachedDatabase::new(
+                &base_path,
+                "pending_tx_hash_to_tx_id",
             )?),
             db_tx_trace: Some(BlockCachedDatabase::new(&base_path, "tx_trace")?),
             db_block_hash_to_number: Some(BlockCachedDatabase::new(
@@ -356,7 +365,7 @@ impl Brc20ProgDatabase {
         contract_address: Address,
         inscription_id: String,
     ) -> Result<(), Box<dyn Error>> {
-        let block_number = self.get_latest_block_height()?;
+        let block_number = self.get_next_block_height()?;
         Ok(self
             .db_contract_address_to_inscription_id
             .as_mut()
@@ -369,7 +378,7 @@ impl Brc20ProgDatabase {
         inscription_id: String,
         tx_hash: B256,
     ) -> Result<(), Box<dyn Error>> {
-        let block_number = self.get_latest_block_height()?;
+        let block_number = self.get_next_block_height()?;
         Ok(self
             .db_inscription_id_to_tx_hash
             .as_mut()
@@ -521,13 +530,28 @@ impl Brc20ProgDatabase {
         account: Address,
         nonce: u64,
         tx: TxED,
+        op_return_tx_id: B256,
     ) -> Result<(), Box<dyn Error>> {
-        let block_number = self.get_latest_block_height()?;
+        let block_number = self.get_next_block_height()?;
+        self.db_pending_txes_op_return_tx_ids
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .set(block_number, &tx.hash.into(), op_return_tx_id.into())?;
         Ok(self.db_pending_txes.as_mut().expect(DB_MUTEX_ERROR).set(
             block_number,
             &(account.into(), nonce.into()),
             tx,
         )?)
+    }
+
+    pub fn get_pending_tx_op_return_tx_id(
+        &self,
+        tx_hash: B256,
+    ) -> Result<Option<B256ED>, Box<dyn Error>> {
+        self.db_pending_txes_op_return_tx_ids
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .latest(&tx_hash.into())
     }
 
     pub fn get_pending_tx(
@@ -568,7 +592,7 @@ impl Brc20ProgDatabase {
         account: Address,
         nonce: u64,
     ) -> Result<(), Box<dyn Error>> {
-        let block_number = self.get_latest_block_height()?;
+        let block_number = self.get_next_block_height()?;
         Ok(self
             .db_pending_txes
             .as_mut()
@@ -806,7 +830,7 @@ impl Brc20ProgDatabase {
     }
 
     pub fn commit_changes(&mut self) -> Result<(), Box<dyn Error>> {
-        let latest_block_number = self.get_latest_block_height()?;
+        let next_block = self.get_next_block_height()?;
 
         self.db_global_values
             .as_mut()
@@ -828,47 +852,51 @@ impl Brc20ProgDatabase {
         self.db_number_and_index_to_tx_hash
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .commit(latest_block_number)?;
+            .commit(next_block)?;
         self.db_inscription_id_to_tx_hash
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .commit(latest_block_number)?;
+            .commit(next_block)?;
         self.db_contract_address_to_inscription_id
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .commit(latest_block_number)?;
+            .commit(next_block)?;
         self.db_tx
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .commit(latest_block_number)?;
+            .commit(next_block)?;
         self.db_pending_txes
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .commit(latest_block_number)?;
+            .commit(next_block)?;
+        self.db_pending_txes_op_return_tx_ids
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .commit(next_block)?;
         self.db_tx_trace
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .commit(latest_block_number)?;
+            .commit(next_block)?;
         self.db_tx_receipt
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .commit(latest_block_number)?;
+            .commit(next_block)?;
         self.db_account_memory
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .commit(latest_block_number)?;
+            .commit(next_block)?;
         self.db_code
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .commit(latest_block_number)?;
+            .commit(next_block)?;
         self.db_account
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .commit(latest_block_number)?;
+            .commit(next_block)?;
         self.db_block_hash_to_number
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .commit(latest_block_number)?;
+            .commit(next_block)?;
 
         self.clear_caches()?;
         Ok(())
@@ -902,6 +930,10 @@ impl Brc20ProgDatabase {
             .clear_cache();
         self.db_tx.as_mut().expect(DB_MUTEX_ERROR).clear_cache();
         self.db_pending_txes
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .clear_cache();
+        self.db_pending_txes_op_return_tx_ids
             .as_mut()
             .expect(DB_MUTEX_ERROR)
             .clear_cache();
@@ -984,6 +1016,10 @@ impl Brc20ProgDatabase {
             .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
         self.db_pending_txes
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .reorg(latest_valid_block_number)?;
+        self.db_pending_txes_op_return_tx_ids
             .as_mut()
             .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;

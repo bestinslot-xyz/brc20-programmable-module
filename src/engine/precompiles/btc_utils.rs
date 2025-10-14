@@ -94,7 +94,8 @@ pub fn validate_bitcoin_rpc_status() -> Result<(), Box<dyn Error>> {
     if info.chain != get_bitcoin_network() {
         return Err(format!(
             "Bitcoin RPC network mismatch. Expected: {:?}, got: {:?}",
-            get_bitcoin_network(), info.chain
+            get_bitcoin_network(),
+            info.chain
         )
         .into());
     }

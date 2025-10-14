@@ -1,8 +1,92 @@
 use std::error::Error;
 
-use brc20_prog::types::EthCall;
-use brc20_prog::Brc20ProgApiClient;
+use brc20_prog::types::{EthCall, RawBytes};
+use brc20_prog::{Brc20ProgApiClient, Brc20ProgConfig};
 use test_utils::{is_in_ci, load_file_as_eth_bytes, load_file_as_string, spawn_test_server};
+
+#[tokio::test]
+async fn test_current_tx_id_before_prague() -> Result<(), Box<dyn Error>> {
+    let (server, client) = spawn_test_server(Brc20ProgConfig {
+        bitcoin_rpc_network: "signet".to_string(),
+        ..Default::default()
+    })
+    .await;
+    let mut current_tx_id_precompile = [0; 20];
+    current_tx_id_precompile[19] = 0xfa;
+
+    // Mine less than prague activation height
+    client.brc20_mine(274999, 0).await?;
+
+    let response = client
+        .brc20_call(
+            "aaaaabbbbccccddddeeeeffff00001111222233333".to_string(),
+            Some(current_tx_id_precompile.into()),
+            None,
+            Some(RawBytes::new("0x00".to_string())),
+            None,
+            12345,
+            [0u8; 32].into(),
+            0,
+            "inscription".to_string(),
+            100,
+            [5u8; 32].into(),
+        )
+        .await?
+        .unwrap();
+
+    let trace = client
+        .debug_trace_transaction(response.transaction_hash)
+        .await?
+        .unwrap();
+
+    assert_eq!(trace.output, vec![].into());
+
+    server.stop()?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_current_tx_id() -> Result<(), Box<dyn Error>> {
+    let (server, client) = spawn_test_server(Brc20ProgConfig {
+        bitcoin_rpc_network: "signet".to_string(),
+        ..Default::default()
+    })
+    .await;
+    let mut current_tx_id_precompile = [0; 20];
+    current_tx_id_precompile[19] = 0xfa;
+
+    // Mine some blocks to ensure we hit prague activation height
+    client.brc20_mine(275000, 0).await?;
+
+    let response = client
+        .brc20_call(
+            "aaaaabbbbccccddddeeeeffff00001111222233333".to_string(),
+            Some(current_tx_id_precompile.into()),
+            None,
+            Some(RawBytes::new("0x00".to_string())),
+            None,
+            12345,
+            [0u8; 32].into(),
+            0,
+            "inscription".to_string(),
+            100,
+            [5u8; 32].into(),
+        )
+        .await?
+        .unwrap();
+
+    let trace = client
+        .debug_trace_transaction(response.transaction_hash)
+        .await?
+        .unwrap();
+
+    assert_eq!(trace.output, [5u8; 32].to_vec().into());
+
+    server.stop()?;
+
+    Ok(())
+}
 
 #[tokio::test]
 async fn test_bip322_verify() -> Result<(), Box<dyn Error>> {

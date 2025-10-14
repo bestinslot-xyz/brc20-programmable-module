@@ -17,6 +17,7 @@ pub fn get_evm(
     timestamp: u64,
     db: Brc20ProgDatabase,
     gas_limit: Option<u64>,
+    current_op_return_tx_id: B256,
 ) -> Evm<
     Context<BlockEnv, TxEnv, CfgEnv, Brc20ProgDatabase>,
     TracingInspector,
@@ -53,6 +54,6 @@ pub fn get_evm(
         ctx,
         TracingInspector::new(TracingInspectorConfig::none()),
         EthInstructions::new_mainnet(),
-        BRC20Precompiles::new(evm_spec.into()),
+        BRC20Precompiles::new(evm_spec.into(), current_op_return_tx_id),
     )
 }

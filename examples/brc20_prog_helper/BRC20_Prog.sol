@@ -6,6 +6,8 @@ pragma solidity ^0.8.19;
  * @dev BRC-20 Prog helper functions.
  */
 contract BRC20_Prog {
+    address private _current_txid_address =
+        0x00000000000000000000000000000000000000fa;
     address private _btc_locked_pkscript_address =
         0x00000000000000000000000000000000000000fb;
     address private _btc_last_sat_loc_address =
@@ -14,10 +16,21 @@ contract BRC20_Prog {
         0x00000000000000000000000000000000000000fd;
     address private _bip322_verify_address =
         0x00000000000000000000000000000000000000fe;
-    address private _brc20_controller_address =
-        0x00000000000000000000000000000000000000ff;
+    // address private reserved_address =
+    //    0x00000000000000000000000000000000000000ff;
 
     constructor() {}
+
+    /**
+     * @dev Get current Bitcoin transaction id in bytes32 format.
+     */
+    function getBtcTxId() external view returns (bytes32 txid) {
+        (bool success, bytes memory data) = _current_txid_address.staticcall(
+            abi.encodeWithSignature("getBtcTxId()")
+        );
+        require(success, "Failed to get current txid");
+        return abi.decode(data, (bytes32));
+    }
 
     /**
      * @dev Verifies BIP322 signature, given address, message and the signature.
@@ -37,25 +50,6 @@ contract BRC20_Prog {
         );
         require(success, "Failed to verify BIP322 signature");
         return abi.decode(data, (bool));
-    }
-
-    /**
-     * @dev Get non-module BRC-20 balance of a given Bitcoin wallet script and BRC-20 ticker.
-     */
-    function balanceOf(
-        bytes calldata ticker,
-        bytes calldata pkscript
-    ) external view returns (uint256 balance) {
-        (bool success, bytes memory data) = _brc20_controller_address
-            .staticcall(
-                abi.encodeWithSignature(
-                    "balanceOf(bytes,bytes)",
-                    ticker,
-                    pkscript
-                )
-            );
-        require(success, "Failed to get BRC20 balance");
-        return abi.decode(data, (uint256));
     }
 
     /**
