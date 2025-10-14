@@ -5,10 +5,11 @@ use revm::context::{Block, Cfg, ContextTr};
 use revm::handler::PrecompileProvider;
 use revm::interpreter::{Gas, InputsImpl, InstructionResult, InterpreterResult};
 use revm::precompile::{PrecompileSpecId, Precompiles};
+use revm::primitives::B256;
 
 use crate::engine::precompiles::{
     bip322_verify_precompile, btc_tx_details_precompile, get_locked_pkscript_precompile,
-    last_sat_location_precompile,
+    get_op_return_tx_id_precompile, last_sat_location_precompile,
 };
 
 lazy_static::lazy_static! {
@@ -16,22 +17,25 @@ lazy_static::lazy_static! {
     static ref BTC_TX_DETAILS_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fd".parse().expect("Invalid BTC transaction details precompile address");
     static ref LAST_SAT_LOCATION_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fc".parse().expect("Invalid last sat location precompile address");
     static ref GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fb".parse().expect("Invalid get locked pk script precompile address");
+    static ref GET_OP_RETURN_TX_ID_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fa".parse().expect("Invalid get op return tx id precompile address");
 }
 
 pub struct PrecompileCall {
     pub bytes: Bytes,
     pub gas_limit: u64,
     pub block_height: u64,
+    pub current_op_return_tx_id: B256,
 }
 
 pub struct BRC20Precompiles {
     pub eth_precompiles: &'static Precompiles,
     pub custom_precompiles: HashMap<Address, fn(&PrecompileCall) -> InterpreterResult>,
     pub all_addresses: HashSet<Address>,
+    pub op_return_tx_id: B256,
 }
 
 impl BRC20Precompiles {
-    pub fn new(precompile_spec: PrecompileSpecId) -> Self {
+    pub fn new(precompile_spec: PrecompileSpecId, op_return_tx_id: B256) -> Self {
         let eth_precompiles = Precompiles::new(precompile_spec);
         let mut all_addresses = eth_precompiles
             .addresses()
@@ -57,11 +61,18 @@ impl BRC20Precompiles {
             *GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS,
             get_locked_pkscript_precompile,
         );
+        if precompile_spec >= PrecompileSpecId::PRAGUE {
+            custom_precompiles.insert(
+                *GET_OP_RETURN_TX_ID_PRECOMPILE_ADDRESS,
+                get_op_return_tx_id_precompile,
+            );
+        }
 
         Self {
             eth_precompiles,
             all_addresses,
             custom_precompiles,
+            op_return_tx_id,
         }
     }
 }
@@ -107,6 +118,7 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
                 bytes: inputs.input.clone(),
                 gas_limit,
                 block_height: ctx.block().number(),
+                current_op_return_tx_id: self.op_return_tx_id,
             })));
         } else {
             return Ok(None);
@@ -160,7 +172,7 @@ mod tests {
     #[test]
     fn test_prague_spec_has_bls_precompiles() {
         // A sanity test to ensure that the Prague spec includes the BLS precompiles.
-        let precompiles = BRC20Precompiles::new(PrecompileSpecId::PRAGUE);
+        let precompiles = BRC20Precompiles::new(PrecompileSpecId::PRAGUE, [0u8; 32].into());
         assert!(precompiles
             .all_addresses
             .contains(&Address::from_str("0x000000000000000000000000000000000000000b").unwrap()));

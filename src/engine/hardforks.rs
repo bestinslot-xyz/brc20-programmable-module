@@ -3,8 +3,8 @@ use revm::primitives::hardfork::SpecId;
 
 use crate::engine::precompiles::get_bitcoin_network;
 
-const PRAGUE_ACTIVATION_HEIGHT_MAINNET: u64 = u64::MAX;
-const PRAGUE_ACTIVATION_HEIGHT_SIGNET: u64 = u64::MAX;
+const PRAGUE_ACTIVATION_HEIGHT_MAINNET: u64 = 923_369;
+const PRAGUE_ACTIVATION_HEIGHT_SIGNET: u64 = 275_000;
 
 pub fn get_evm_spec(block_number: u64) -> SpecId {
     let network = get_bitcoin_network();

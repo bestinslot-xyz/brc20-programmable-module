@@ -186,6 +186,7 @@ mod tests {
             bytes: data.into(),
             gas_limit: 1000000,
             block_height: 0,
+            current_op_return_tx_id: [0u8; 32].into(),
         });
         let result = result;
         let returns = getLastSatLocationCall::abi_decode_returns(&result.output).unwrap();
@@ -237,6 +238,7 @@ mod tests {
             bytes: data.into(),
             gas_limit: 1000000,
             block_height: 0,
+            current_op_return_tx_id: [0u8; 32].into(),
         });
         let result = result;
         let returns = getLastSatLocationCall::abi_decode_returns(&result.output).unwrap();
@@ -291,6 +293,7 @@ mod tests {
             bytes: data.into(),
             gas_limit: 1000000,
             block_height: 0,
+            current_op_return_tx_id: [0u8; 32].into(),
         });
 
         assert!(result.is_error());

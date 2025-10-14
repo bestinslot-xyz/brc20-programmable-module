@@ -54,6 +54,7 @@ pub trait Brc20ProgApi {
         tx_idx: u64,
         inscription_id: String,
         inscription_byte_len: u64,
+        op_return_tx_id: B256ED,
     ) -> RpcResult<TxReceiptED>;
 
     /// Calls a contract with the given parameters
@@ -70,6 +71,7 @@ pub trait Brc20ProgApi {
         tx_idx: u64,
         inscription_id: String,
         inscription_byte_len: u64,
+        op_return_tx_id: B256ED,
     ) -> RpcResult<Option<TxReceiptED>>;
 
     /// Calls a contract with the given parameters
@@ -83,6 +85,7 @@ pub trait Brc20ProgApi {
         tx_idx: u64,
         inscription_id: String,
         inscription_byte_len: u64,
+        op_return_tx_id: B256ED,
     ) -> RpcResult<Vec<TxReceiptED>>;
 
     /// Deposits brc20 tokens to the given address

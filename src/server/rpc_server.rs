@@ -111,6 +111,7 @@ impl Brc20ProgApiServer for RpcServer {
                 hash.bytes,
                 inscription_id,
                 u64::MAX,
+                [0u8; 32].into(), // Dummy op_return_tx_id
             )
             .map_err(wrap_rpc_error)
     }
@@ -143,6 +144,7 @@ impl Brc20ProgApiServer for RpcServer {
                 hash.bytes,
                 inscription_id,
                 u64::MAX,
+                [0u8; 32].into(), // Dummy op_return_tx_id
             )
             .map_err(wrap_rpc_error)
     }
@@ -234,6 +236,7 @@ impl Brc20ProgApiServer for RpcServer {
         tx_idx: u64,
         inscription_id: String,
         inscription_byte_len: u64,
+        op_return_tx_id: B256ED,
     ) -> RpcResult<TxReceiptED> {
         log_call();
 
@@ -263,6 +266,7 @@ impl Brc20ProgApiServer for RpcServer {
                 hash.bytes,
                 inscription_id,
                 inscription_byte_len,
+                op_return_tx_id.bytes,
             )
             .map_err(wrap_rpc_error)
     }
@@ -280,6 +284,7 @@ impl Brc20ProgApiServer for RpcServer {
         tx_idx: u64,
         inscription_id: String,
         inscription_byte_len: u64,
+        op_return_tx_id: B256ED,
     ) -> RpcResult<Option<TxReceiptED>> {
         log_call();
 
@@ -318,6 +323,7 @@ impl Brc20ProgApiServer for RpcServer {
                 hash.bytes,
                 inscription_id,
                 inscription_byte_len,
+                op_return_tx_id.bytes,
             )
             .map(|receipt| Some(receipt))
             .map_err(wrap_rpc_error)
@@ -333,6 +339,7 @@ impl Brc20ProgApiServer for RpcServer {
         tx_idx: u64,
         inscription_id: String,
         inscription_byte_len: u64,
+        op_return_tx_id: B256ED,
     ) -> RpcResult<Vec<TxReceiptED>> {
         log_call();
 
@@ -353,6 +360,7 @@ impl Brc20ProgApiServer for RpcServer {
                 hash.bytes,
                 inscription_id,
                 inscription_byte_len,
+                op_return_tx_id.bytes,
             )
             .map_err(wrap_rpc_error)
     }
@@ -937,6 +945,7 @@ mod tests {
                 0,
                 "inscription_id".to_string(),
                 1000,
+                [2; 32].into(),
             )
             .await
             .unwrap();
