@@ -145,6 +145,7 @@ mod tests {
             bytes: bytes.into(),
             gas_limit: 100000,
             block_height: 0,
+            current_op_return_tx_id: [0u8; 32].into(),
         });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
         assert_eq!(
@@ -166,6 +167,7 @@ mod tests {
             bytes: bytes.into(),
             gas_limit: 100000,
             block_height: 0,
+            current_op_return_tx_id: [0u8; 32].into(),
         });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
         assert_eq!(
@@ -187,6 +189,7 @@ mod tests {
             bytes: bytes.into(),
             gas_limit: 100000,
             block_height: 0,
+            current_op_return_tx_id: [0u8; 32].into(),
         });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
         assert_eq!(
@@ -208,6 +211,7 @@ mod tests {
             bytes: bytes.into(),
             gas_limit: 100000,
             block_height: 0,
+            current_op_return_tx_id: [0u8; 32].into(),
         });
         assert!(result.is_error());
     }
@@ -225,6 +229,7 @@ mod tests {
             bytes: bytes.into(),
             gas_limit: 100000,
             block_height: 0,
+            current_op_return_tx_id: [0u8; 32].into(),
         });
         assert!(result.is_error());
     }

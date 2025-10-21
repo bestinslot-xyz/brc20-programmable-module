@@ -83,8 +83,9 @@ impl BRC20ProgEngine {
             0,
             genesis_height,
             genesis_hash,
-            None,
-            Some(u64::MAX),
+            "BRC20_CONTROLLER_INIT".to_string(),
+            u64::MAX,
+            [0u8; 32].into(),
         )?;
 
         let brc20_controller_contract = result
@@ -243,8 +244,9 @@ impl BRC20ProgEngine {
         tx_idx: u64,
         block_number: u64,
         mut block_hash: B256,
-        inscription_id: Option<String>,
-        inscription_byte_len: Option<u64>,
+        inscription_id: String,
+        inscription_byte_len: u64,
+        op_return_tx_id: B256,
     ) -> Result<Vec<TxReceiptED>, Box<dyn Error>> {
         // This allows testing, and generating hashes for blocks with unknown hashes
         if block_hash == B256::ZERO {
@@ -252,7 +254,7 @@ impl BRC20ProgEngine {
         }
 
         let tx_info = self.get_info_from_raw_tx(raw_tx.clone())?;
-        let gas_limit = get_gas_limit(inscription_byte_len.unwrap_or(tx_info.data.len() as u64));
+        let gas_limit = get_gas_limit(inscription_byte_len);
         let account_nonce = self.get_account_nonce(tx_info.from)?;
 
         if let Some(nonce) = tx_info.nonce {
@@ -279,6 +281,7 @@ impl BRC20ProgEngine {
                                     tx_info.s.into(),
                                 ),
                             ),
+                            op_return_tx_id,
                         )
                     })?;
                 }
@@ -295,6 +298,7 @@ impl BRC20ProgEngine {
             block_hash,
             inscription_id,
             inscription_byte_len,
+            op_return_tx_id,
         )?;
         receipts.push(receipt);
 
@@ -306,6 +310,12 @@ impl BRC20ProgEngine {
             let Some(pending_tx) = self.db.read().get_pending_tx(tx_info.from, next_nonce)? else {
                 break;
             };
+
+            let pending_tx_op_return_tx_id = self
+                .db
+                .read()
+                .get_pending_tx_op_return_tx_id(pending_tx.hash.bytes)?;
+
             if let Some(pending_tx_block_number) = pending_tx.block_number {
                 let pending_tx_block_number: u64 = pending_tx_block_number.into();
                 if MAX_FUTURE_TRANSACTION_BLOCKS + pending_tx_block_number > block_number {
@@ -324,8 +334,9 @@ impl BRC20ProgEngine {
                         next_tx_idx,
                         block_number,
                         block_hash,
-                        pending_tx.inscription_id.clone(),
+                        pending_tx.inscription_id.unwrap_or_default(),
                         get_inscription_byte_len(pending_tx.gas.into()).into(),
+                        pending_tx_op_return_tx_id.unwrap_or([0u8; 32].into()).bytes,
                     )?;
                     receipts.push(receipt);
                 }
@@ -373,8 +384,9 @@ impl BRC20ProgEngine {
         tx_idx: u64,
         block_number: u64,
         mut block_hash: B256,
-        inscription_id: Option<String>,
-        inscription_byte_len: Option<u64>,
+        inscription_id: String,
+        inscription_byte_len: u64,
+        op_return_tx_id: B256,
     ) -> Result<TxReceiptED, Box<dyn Error>> {
         // This allows testing, and generating hashes for blocks with unknown hashes
         if block_hash == B256::ZERO {
@@ -402,13 +414,20 @@ impl BRC20ProgEngine {
         }
 
         let tx_hash = get_tx_hash(&tx_info, account_nonce);
-        let gas_limit = get_gas_limit(inscription_byte_len.unwrap_or(tx_info.data.len() as u64));
+        let gas_limit = get_gas_limit(inscription_byte_len);
 
         self.db.write_fn(|db| {
             let processing_start_time = self.last_block_info.read().start_time.elapsed();
 
             let db_moved = core::mem::take(&mut *db);
-            let mut evm = get_evm(block_number, block_hash, timestamp, db_moved, None);
+            let mut evm = get_evm(
+                block_number,
+                block_hash,
+                timestamp,
+                db_moved,
+                None,
+                op_return_tx_id,
+            );
 
             evm.ctx().modify_tx(|tx| {
                 tx.caller = tx_info.from;
@@ -441,14 +460,12 @@ impl BRC20ProgEngine {
                 )
                 .into();
 
-            if let Some(inscription_id) = inscription_id.clone() {
-                // If this is a contract creation with inscription id, store it
-                if let Some(created_contract) = traces.get_created_contract() {
-                    db.set_contract_address_to_inscription_id(
-                        created_contract.address,
-                        inscription_id.clone(),
-                    )?;
-                }
+            // If this is a contract creation, store it
+            if let Some(created_contract) = traces.get_created_contract() {
+                db.set_contract_address_to_inscription_id(
+                    created_contract.address,
+                    inscription_id.clone(),
+                )?;
             }
 
             if CONFIG.read().evm_record_traces {
@@ -626,16 +643,22 @@ impl BRC20ProgEngine {
                 Ok((total_time_took, info.gas_used))
             })?;
 
-            db.set_block_hash(block_number, block_hash)?;
-
             // Save the full block info in the database for ease of access
-            let block_response =
-                db.generate_block(block_number, timestamp, gas_used, total_time_took)?;
+            let block_response = db.generate_block(
+                block_hash,
+                block_number,
+                timestamp,
+                gas_used,
+                total_time_took,
+            )?;
             db.set_block(block_number, block_response.clone())?;
             db.set_raw_block(block_number, db.generate_raw_block(block_response)?)?;
 
             // Remove old transactions from the txpool
-            db.clear_txpool(block_number)
+            db.clear_txpool(block_number)?;
+
+            // Set block hash last to avoid race conditions
+            db.set_block_hash(block_number, block_hash)
         })?;
 
         self.last_block_info.write_fn_unchecked(|last_block_info| {
@@ -645,17 +668,33 @@ impl BRC20ProgEngine {
         Ok(())
     }
 
-    pub fn read_contract(&self, tx_info: &TxInfo) -> Result<ReadContractResult, Box<dyn Error>> {
+    pub fn read_contract(
+        &self,
+        tx_info: &TxInfo,
+        block_height: Option<u64>,
+    ) -> Result<ReadContractResult, Box<dyn Error>> {
         self.require_no_waiting_txes()?;
 
-        let block_number = self.get_next_block_height()?;
+        let block_number = if let Some(height) = block_height {
+            height
+        } else {
+            self.get_next_block_height()?
+        };
+
         let timestamp = UNIX_EPOCH.elapsed().map(|x| x.as_secs())?;
         let nonce = self.get_account_nonce(tx_info.from)?;
 
         // This isn't actually writing to the database, but the EVM context requires a mutable reference
         let output = self.db.write_fn(|db| {
             let db_moved = core::mem::take(&mut *db);
-            let mut evm = get_evm(block_number, B256::ZERO, timestamp, db_moved, None);
+            let mut evm = get_evm(
+                block_number,
+                B256::ZERO,
+                timestamp,
+                db_moved,
+                None,
+                [0u8; 32].into(),
+            );
 
             evm.ctx().modify_tx(|tx| {
                 tx.caller = tx_info.from;
@@ -909,8 +948,9 @@ mod tests {
                 0,
                 1,
                 B256::ZERO,
-                Some(inscription_id.clone()),
-                Some(1000),
+                inscription_id.clone(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap()
             .contract_address
@@ -943,8 +983,9 @@ mod tests {
                 0,
                 block_number,
                 block_hash,
-                None,
-                Some(1000),
+                "test_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap();
 
@@ -967,8 +1008,9 @@ mod tests {
                 0,
                 0,
                 B256::ZERO,
-                None,
-                Some(1000),
+                "test_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap();
 
@@ -979,8 +1021,9 @@ mod tests {
                 1,
                 0,
                 B256::ZERO,
-                None,
-                Some(1000),
+                "test_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap();
 
@@ -1023,8 +1066,9 @@ mod tests {
                 0,
                 0,
                 hash,
-                None,
-                Some(1000),
+                "test_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap();
 
@@ -1035,8 +1079,9 @@ mod tests {
                 1,
                 0,
                 hash,
-                None,
-                Some(1000),
+                "test_inscription_id_2".to_string(),
+                1000,
+                [10u8; 32].into(),
             )
             .unwrap();
         engine.finalise_block(1622547800, 0, hash, 2).unwrap();
@@ -1059,8 +1104,9 @@ mod tests {
                 0,
                 0,
                 hash,
-                None,
-                Some(1000),
+                "test_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap();
 
@@ -1071,8 +1117,9 @@ mod tests {
                 1,
                 0,
                 hash,
-                None,
-                Some(1000),
+                "test_inscription_id_2".to_string(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap();
         engine.finalise_block(1622547800, 0, hash, 2).unwrap();
@@ -1112,8 +1159,9 @@ mod tests {
                 0,
                 0,
                 hash,
-                None,
-                Some(1000),
+                "test_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap();
 
@@ -1124,8 +1172,9 @@ mod tests {
                 1,
                 0,
                 hash,
-                None,
-                Some(1000),
+                "test_inscription_id_2".to_string(),
+                1000,
+                [10u8; 32].into(),
             )
             .unwrap();
         engine.finalise_block(1622547800, 0, hash, 2).unwrap();
@@ -1164,8 +1213,9 @@ mod tests {
                 0,
                 0,
                 hash,
-                None,
-                Some(1000),
+                "test_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap()
             .transaction_hash
@@ -1197,8 +1247,9 @@ mod tests {
                 0,
                 0,
                 B256::ZERO,
-                Some(inscription_id.clone()),
-                Some(1000),
+                inscription_id.clone(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap();
 
@@ -1228,8 +1279,9 @@ mod tests {
                 0,
                 0,
                 hash,
-                None,
-                Some(1000),
+                "test_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap()
             .transaction_hash
@@ -1261,8 +1313,9 @@ mod tests {
                 0,
                 0,
                 B256::ZERO,
-                None,
-                Some(10000),
+                "test_inscription_id".to_string(),
+                10000,
+                [0u8; 32].into(),
             )
             .unwrap();
 
@@ -1290,8 +1343,9 @@ mod tests {
                 0,
                 block_number,
                 block_hash,
-                None,
-                Some(1000),
+                "test_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap();
 
@@ -1306,8 +1360,9 @@ mod tests {
                 1,
                 block_number,
                 block_hash,
-                None,
-                Some(1000),
+                "test_inscription_id_2".to_string(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap();
 
@@ -1333,8 +1388,9 @@ mod tests {
                 0,
                 0,
                 B256::ZERO,
-                None,
-                Some(1000),
+                "test_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
             )
             .unwrap();
 

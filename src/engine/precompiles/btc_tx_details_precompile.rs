@@ -158,6 +158,7 @@ mod tests {
             bytes: getTxDetailsCall::new((txid,)).abi_encode().into(),
             gas_limit: 1000000,
             block_height: 240961,
+            current_op_return_tx_id: [0u8; 32].into(),
         });
 
         assert!(response.is_ok());
@@ -207,6 +208,7 @@ mod tests {
             bytes: getTxDetailsCall::new((txid,)).abi_encode().into(),
             gas_limit: 1000000,
             block_height: 240959,
+            current_op_return_tx_id: [0u8; 32].into(),
         });
 
         assert!(response.is_error());

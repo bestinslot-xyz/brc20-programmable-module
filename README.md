@@ -377,6 +377,25 @@ BRC2.0 has a set of precompiles that make it easier to work with bitcoin transac
 > 
 > Associated environment variables are `BITCOIN_RPC_URL`, `BITCOIN_RPC_USER`, `BITCOIN_RPC_PASSWORD` and `BITCOIN_RPC_NETWORK`. See [env.sample](env.sample) for a sample environment for Signet.
 
+#### Get Current Txid
+
+`Current_Txid` contract can be used to retrieve the current Bitcoin transaction id being executed. This can be useful to enable contracts to be aware of the transaction they are being executed in.
+
+**Contract interface**:
+
+```solidity
+/**
+ * @dev Get current Bitcoin transaction id being executed.
+ */
+interface IBTC_CurrentTxid {
+    function getBtcTxId() external view returns (bytes32 txid);
+}
+```
+
+> [!WARNING]
+> This precompile is only usable after block 275_000 on Signet, and 923_369 on Mainnet. This coincides with the Prague upgrade activation on Signet and Mainnet.
+> Proposal: https://github.com/bestinslot-xyz/brc20-proposals/blob/main/004-prog-tx-id-precompile/index.md
+
 #### Transaction details
 
 `BTC_Transaction` contract can be used to retrieve details for a bitcoin transaction. Returns block height, and `vin`, `vout` txids, scriptPubKeys and values as arrays.

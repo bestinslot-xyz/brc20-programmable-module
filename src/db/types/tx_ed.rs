@@ -83,7 +83,7 @@ impl TxED {
         to: Option<AddressED>,
         gas: U64ED,
         input: BytesED,
-        inscription_id: Option<String>,
+        inscription_id: String,
         signature: Signature,
     ) -> Self {
         TxED {
@@ -103,7 +103,7 @@ impl TxED {
             s: signature.s,
             chain_id: CONFIG.read().chain_id.into(),
             tx_type: 0u8.into(),
-            inscription_id,
+            inscription_id: Some(inscription_id),
         }
     }
 }

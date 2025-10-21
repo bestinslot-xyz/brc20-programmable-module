@@ -52,8 +52,9 @@ pub trait Brc20ProgApi {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
-        inscription_byte_len: Option<u64>,
+        inscription_id: String,
+        inscription_byte_len: u64,
+        op_return_tx_id: B256ED,
     ) -> RpcResult<TxReceiptED>;
 
     /// Calls a contract with the given parameters
@@ -68,8 +69,9 @@ pub trait Brc20ProgApi {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
-        inscription_byte_len: Option<u64>,
+        inscription_id: String,
+        inscription_byte_len: u64,
+        op_return_tx_id: B256ED,
     ) -> RpcResult<Option<TxReceiptED>>;
 
     /// Calls a contract with the given parameters
@@ -81,8 +83,9 @@ pub trait Brc20ProgApi {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
-        inscription_byte_len: Option<u64>,
+        inscription_id: String,
+        inscription_byte_len: u64,
+        op_return_tx_id: B256ED,
     ) -> RpcResult<Vec<TxReceiptED>>;
 
     /// Deposits brc20 tokens to the given address
@@ -95,7 +98,7 @@ pub trait Brc20ProgApi {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
+        inscription_id: String,
     ) -> RpcResult<TxReceiptED>;
 
     /// Withdraws brc20 tokens from the given address
@@ -108,7 +111,7 @@ pub trait Brc20ProgApi {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
+        inscription_id: String,
     ) -> RpcResult<TxReceiptED>;
 
     /// Checks BRC20 balance for given address

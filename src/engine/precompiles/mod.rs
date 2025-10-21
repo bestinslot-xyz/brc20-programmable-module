@@ -10,8 +10,11 @@ pub use btc_last_sat_loc_precompile::last_sat_location_precompile;
 mod get_locked_pkscript_precompile;
 pub use get_locked_pkscript_precompile::get_locked_pkscript_precompile;
 
+mod btc_op_return_tx_id_precompile;
+pub use btc_op_return_tx_id_precompile::get_op_return_tx_id_precompile;
+
 mod precompiles;
 pub use precompiles::*;
 
 mod btc_utils;
-pub use btc_utils::validate_bitcoin_rpc_status;
+pub use btc_utils::{get_bitcoin_network, validate_bitcoin_rpc_status};

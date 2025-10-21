@@ -49,8 +49,9 @@ async fn test_transact() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             0,
-            Some("deploy_inscription".to_string()),
+            "deploy_inscription".to_string(),
             deploy_data_length.into(),
+            [1; 32].into(),
         )
         .await?;
 
@@ -72,8 +73,9 @@ async fn test_transact() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             1,
-            Some("call_inscription1".to_string()),
-            call_data_length.into(),
+            "call_inscription1".to_string(),
+            call_data_length,
+            [2; 32].into(),
         )
         .await?
         .unwrap();
@@ -114,8 +116,9 @@ async fn test_transact() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             2,
-            Some("call_inscription2".to_string()),
-            call_data_length.into(),
+            "call_inscription2".to_string(),
+            call_data_length,
+            [2; 32].into(),
         )
         .await?;
 
@@ -174,8 +177,9 @@ async fn test_transact_encoded() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             0,
-            Some("deploy_inscription".to_string()),
-            deploy_data_length.into(),
+            "deploy_inscription".to_string(),
+            deploy_data_length,
+            [1; 32].into(),
         )
         .await
         .unwrap();
@@ -198,8 +202,9 @@ async fn test_transact_encoded() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             1,
-            Some("call_inscription1".to_string()),
-            call_data_length.into(),
+            "call_inscription1".to_string(),
+            call_data_length,
+            [2; 32].into(),
         )
         .await?
         .unwrap();
@@ -238,8 +243,9 @@ async fn test_transact_encoded() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             2,
-            Some("call_inscription2".to_string()),
-            call_data_length.into(),
+            "call_inscription2".to_string(),
+            call_data_length,
+            [2; 32].into(),
         )
         .await?;
 
@@ -296,8 +302,9 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             0,
-            Some("deploy_inscription".to_string()),
-            deploy_data_length.into(),
+            "deploy_inscription".to_string(),
+            deploy_data_length,
+            [1; 32].into(),
         )
         .await
         .unwrap();
@@ -333,8 +340,9 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             2,
-            Some("call_inscription".to_string()),
-            call_data_length.into(),
+            "call_inscription".to_string(),
+            call_data_length,
+            [2; 32].into(),
         )
         .await
         .unwrap();
@@ -366,8 +374,9 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             2,
-            Some("call_inscription3".to_string()),
-            call_data_length.into(),
+            "call_inscription3".to_string(),
+            call_data_length,
+            [2; 32].into(),
         )
         .await?;
 
@@ -398,8 +407,9 @@ async fn test_transact_out_of_order() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             1,
-            Some("call_inscription2".to_string()),
-            call_data_length.into(),
+            "call_inscription2".to_string(),
+            call_data_length,
+            [2; 32].into(),
         )
         .await?;
 
@@ -485,8 +495,9 @@ async fn test_transact_remove_old_transactions() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             0,
-            Some("deploy_inscription".to_string()),
-            deploy_data_length.into(),
+            "deploy_inscription".to_string(),
+            deploy_data_length,
+            [1; 32].into(),
         )
         .await
         .unwrap();
@@ -559,8 +570,9 @@ async fn test_transact_in_the_past() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             0,
-            Some("deploy_inscription".to_string()),
-            deploy_data_length.into(),
+            "deploy_inscription".to_string(),
+            deploy_data_length,
+            [1; 32].into(),
         )
         .await
         .unwrap();
@@ -595,8 +607,9 @@ async fn test_transact_in_the_past() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             0,
-            Some("deploy_inscription".to_string()),
-            deploy_data_length.into(),
+            "deploy_inscription".to_string(),
+            deploy_data_length,
+            [1; 32].into(),
         )
         .await
         .unwrap();
@@ -649,8 +662,9 @@ async fn test_transact_in_the_future() -> Result<(), Box<dyn Error>> {
             timestamp,
             block_hash,
             0,
-            Some("deploy_inscription".to_string()),
-            deploy_data_length.into(),
+            "deploy_inscription".to_string(),
+            deploy_data_length,
+            [1; 32].into(),
         )
         .await
         .unwrap();

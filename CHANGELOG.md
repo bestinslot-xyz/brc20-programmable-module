@@ -5,6 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.15.0 (2025-10-14)
+
+### New Features
+
+ - <csr-id-887ec1c8d69fe63b3dab107b4892a2ab8e2694e2/> Enhance BRC20 precompiles with op_return_tx_id support (enabled after the prague upgrade)
+   - Updated `get_evm` to accept `current_op_return_tx_id` and pass it to `BRC20Precompiles`.
+   - Modified hardfork activation heights for mainnet and signet.
+   - Introduced `get_op_return_tx_id_precompile` to retrieve the op return transaction ID.
+   - Added gas cost for fetching the op return transaction ID.
+   - Updated RPC server methods to include `op_return_tx_id` parameter.
+   - Enhanced tests to validate behavior with and without op return transaction IDs.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 1 commit contributed to the release.
+ - 1 day passed between releases.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Enhance BRC20 precompiles with op_return_tx_id support (enabled after the prague upgrade) ([`887ec1c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/887ec1c8d69fe63b3dab107b4892a2ab8e2694e2))
+</details>
+
+## v0.14.0 (2025-10-13)
+
+<csr-id-5e700a7cf08be8db9756a1f5ff9719c82aa91efb/>
+<csr-id-eb99d55fdf4570d67d9027ce55713250dc4d326f/>
+
+### New Features
+
+ - <csr-id-41d6c24dedbc0620e484d4ad8e85f7e90ec5f902/> use the block height parameter to eth_call and eth_estimateGas
+ - <csr-id-7354a7ee0a1ef87b2faeccf51c91f38745b52c33/> implement dynamic EVM spec selection based on block number and network
+
+### Bug Fixes
+
+ - <csr-id-d06a19ce4b873e02a5151fea7a75a6e366dab8ee/> ensure pending transactions are committed, cleared, and reorganized in Brc20ProgDatabase
+ - <csr-id-048a6b5e953bb6fbbd1a009dcda02e4135595971/> allow "mainnet" and "bitcoin" to be used interchangeably
+ - <csr-id-0fedc1f96abecb33b51813c872d307f239fefd0f/> update generate_block to accept block_hash as a parameter
+ - <csr-id-63e964b29bcd091ecbae6dffe3d7acad3d160466/> reorder block hash setting to avoid race conditions
+
+### Refactor
+
+ - <csr-id-5e700a7cf08be8db9756a1f5ff9719c82aa91efb/> change inscription_id and inscription_byte_len from Option to required fields in API and update database structures
+
+### Test
+
+ - <csr-id-eb99d55fdf4570d67d9027ce55713250dc4d326f/> add unit test for Prague spec BLS precompiles inclusion
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 9 commits contributed to the release over the course of 7 calendar days.
+ - 12 days passed between releases.
+ - 8 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release brc20-prog v0.14.0 ([`8cc6e08`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/8cc6e089b1658d780608c0edacf2909f3503c50e))
+    - Change inscription_id and inscription_byte_len from Option to required fields in API and update database structures ([`5e700a7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/5e700a7cf08be8db9756a1f5ff9719c82aa91efb))
+    - Ensure pending transactions are committed, cleared, and reorganized in Brc20ProgDatabase ([`d06a19c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d06a19ce4b873e02a5151fea7a75a6e366dab8ee))
+    - Add unit test for Prague spec BLS precompiles inclusion ([`eb99d55`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/eb99d55fdf4570d67d9027ce55713250dc4d326f))
+    - Use the block height parameter to eth_call and eth_estimateGas ([`41d6c24`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/41d6c24dedbc0620e484d4ad8e85f7e90ec5f902))
+    - Allow "mainnet" and "bitcoin" to be used interchangeably ([`048a6b5`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/048a6b5e953bb6fbbd1a009dcda02e4135595971))
+    - Implement dynamic EVM spec selection based on block number and network ([`7354a7e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/7354a7ee0a1ef87b2faeccf51c91f38745b52c33))
+    - Update generate_block to accept block_hash as a parameter ([`0fedc1f`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/0fedc1f96abecb33b51813c872d307f239fefd0f))
+    - Reorder block hash setting to avoid race conditions ([`63e964b`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/63e964b29bcd091ecbae6dffe3d7acad3d160466))
+</details>
+
 ## v0.13.0 (2025-10-01)
 
 ### Bug Fixes
@@ -20,7 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 4 commits contributed to the release.
+ - 5 commits contributed to the release.
  - 1 day passed between releases.
  - 3 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -32,6 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release brc20-prog v0.13.0 ([`ad4971c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/ad4971c7705a9a5174c9c5093d494d5b36ae8670))
     - Remove BRC20 balance precompile ([`d5d74dc`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d5d74dc396b28fa20232e46a69f56a8a3ed1524d))
     - Revert version bump, this is automated now ([`af550d3`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/af550d39e12924cf1e5cf26b032fbf49318c2528))
     - Merge branch 'main' into remove-brc20-balance-precompile ([`48bf33c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/48bf33c20b74a76afbd6769739cda9094530935e))
@@ -321,11 +405,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - <csr-id-ffd7e2ea0ccb42840722e38489e43158659336d6/> Add a global values database to Brc20ProgDatabase and disallow multiple reorgs by storing a global maximum reorg height
  - <csr-id-a74ffad81aa965518922484709913b26f8378aae/> Refactor transaction handling by removing unnecessary fields, and simplify the code
    - Updated the `TxED` struct to use the new `Signature` struct, simplifying the transaction data structure.
-- Refactored `TxReceiptED` by removing unused fields and adjusting the encoding/decoding logic accordingly.
-- Modified the `BRC20ProgEngine` to utilize the new `Signature` struct when creating transactions.
-- Updated the RPC server to handle the new transaction receipt structure.
-- Adjusted tests to reflect changes in the transaction and receipt structures, ensuring proper validation of transaction results using "debug_traceTransaction".
-- Incremented database version to 8 to reflect schema changes.
 
 ### Bug Fixes
 
@@ -343,9 +422,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - <csr-id-fb28f3092294946c257d7b7aa5301fc42277e9a2/> Replace "DB Error" with a static error message and panic instead of returning an error, as it's not recoverable
  - <csr-id-4ab801b940a721c5ffd0126c70bcb9c4821fa1f8/> Couple of bug fixes for reorg handling on database
    - Use get_next_block_height method in DatabaseCommit methods to fix an off-by-one error in reorgs, which might incorrectly keep old values
-- Use stored values to create the cache for cache misses, otherwise reorgs might cause data loss if reorg happens on a value that hasn't been updated in a long time, and updated just before a reorg happens
-- Chore: bump rocksdb version to 0.24.0 (librocksdb was updated in this version)
-- Chore: bump brc20-prog version to 0.10.3
 
 ### Refactor
 
