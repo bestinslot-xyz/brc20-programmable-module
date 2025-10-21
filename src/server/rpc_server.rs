@@ -92,7 +92,7 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
+        inscription_id: String,
     ) -> RpcResult<TxReceiptED> {
         log_call();
 
@@ -110,7 +110,8 @@ impl Brc20ProgApiServer for RpcServer {
                 block_height,
                 hash.bytes,
                 inscription_id,
-                Some(u64::MAX),
+                u64::MAX,
+                [0u8; 32].into(), // Dummy op_return_tx_id
             )
             .map_err(wrap_rpc_error)
     }
@@ -124,7 +125,7 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
+        inscription_id: String,
     ) -> RpcResult<TxReceiptED> {
         log_call();
 
@@ -142,7 +143,8 @@ impl Brc20ProgApiServer for RpcServer {
                     .map_err(wrap_rpc_error)?,
                 hash.bytes,
                 inscription_id,
-                Some(u64::MAX),
+                u64::MAX,
+                [0u8; 32].into(), // Dummy op_return_tx_id
             )
             .map_err(wrap_rpc_error)
     }
@@ -152,10 +154,13 @@ impl Brc20ProgApiServer for RpcServer {
         log_call();
 
         self.engine
-            .read_contract(&load_brc20_balance_tx(
-                ticker_as_bytes(&ticker),
-                get_evm_address_from_pkscript(&pkscript).map_err(wrap_rpc_error)?,
-            ))
+            .read_contract(
+                &load_brc20_balance_tx(
+                    ticker_as_bytes(&ticker),
+                    get_evm_address_from_pkscript(&pkscript).map_err(wrap_rpc_error)?,
+                ),
+                None,
+            )
             .map(|receipt| {
                 format!(
                     "0x{:x}",
@@ -229,8 +234,9 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
-        inscription_byte_len: Option<u64>,
+        inscription_id: String,
+        inscription_byte_len: u64,
+        op_return_tx_id: B256ED,
     ) -> RpcResult<TxReceiptED> {
         log_call();
 
@@ -260,6 +266,7 @@ impl Brc20ProgApiServer for RpcServer {
                 hash.bytes,
                 inscription_id,
                 inscription_byte_len,
+                op_return_tx_id.bytes,
             )
             .map_err(wrap_rpc_error)
     }
@@ -275,8 +282,9 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
-        inscription_byte_len: Option<u64>,
+        inscription_id: String,
+        inscription_byte_len: u64,
+        op_return_tx_id: B256ED,
     ) -> RpcResult<Option<TxReceiptED>> {
         log_call();
 
@@ -315,6 +323,7 @@ impl Brc20ProgApiServer for RpcServer {
                 hash.bytes,
                 inscription_id,
                 inscription_byte_len,
+                op_return_tx_id.bytes,
             )
             .map(|receipt| Some(receipt))
             .map_err(wrap_rpc_error)
@@ -328,8 +337,9 @@ impl Brc20ProgApiServer for RpcServer {
         timestamp: u64,
         hash: B256ED,
         tx_idx: u64,
-        inscription_id: Option<String>,
-        inscription_byte_len: Option<u64>,
+        inscription_id: String,
+        inscription_byte_len: u64,
+        op_return_tx_id: B256ED,
     ) -> RpcResult<Vec<TxReceiptED>> {
         log_call();
 
@@ -350,6 +360,7 @@ impl Brc20ProgApiServer for RpcServer {
                 hash.bytes,
                 inscription_id,
                 inscription_byte_len,
+                op_return_tx_id.bytes,
             )
             .map_err(wrap_rpc_error)
     }
@@ -505,19 +516,30 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self), level = "error")]
-    async fn eth_call(&self, call: EthCall, _: Option<String>) -> RpcResult<String> {
+    async fn eth_call(&self, call: EthCall, block_height: Option<String>) -> RpcResult<String> {
         log_call();
         let Some(data) = call.data else {
             return Err(wrap_rpc_error_string("No data or input provided"));
         };
-        let receipt = self.engine.read_contract(&TxInfo::from_inscription(
-            call.from
-                .as_ref()
-                .map(|x| x.address)
-                .unwrap_or(*INVALID_ADDRESS),
-            call.to.as_ref().map(|x| x.address).into(),
-            data.value().unwrap_or_default().clone(),
-        ));
+        let block_height = if let Some(block_height) = block_height {
+            Some(
+                self.parse_block_number(&block_height)
+                    .map_err(wrap_rpc_error)?,
+            )
+        } else {
+            None
+        };
+        let receipt = self.engine.read_contract(
+            &TxInfo::from_inscription(
+                call.from
+                    .as_ref()
+                    .map(|x| x.address)
+                    .unwrap_or(*INVALID_ADDRESS),
+                call.to.as_ref().map(|x| x.address).into(),
+                data.value().unwrap_or_default().clone(),
+            ),
+            block_height,
+        );
         let Ok(result) = receipt else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
@@ -537,19 +559,34 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self), level = "error")]
-    async fn eth_estimate_gas(&self, call: EthCall, _: Option<String>) -> RpcResult<String> {
+    async fn eth_estimate_gas(
+        &self,
+        call: EthCall,
+        block_height: Option<String>,
+    ) -> RpcResult<String> {
         log_call();
         let Some(data) = call.data else {
             return Err(wrap_rpc_error_string("No data or input provided"));
         };
-        let receipt = self.engine.read_contract(&TxInfo::from_inscription(
-            call.from
-                .as_ref()
-                .map(|x| x.address)
-                .unwrap_or(*INVALID_ADDRESS),
-            call.to.as_ref().map(|x| x.address).into(),
-            data.value().unwrap_or_default().clone(),
-        ));
+        let block_height = if let Some(block_height) = block_height {
+            Some(
+                self.parse_block_number(&block_height)
+                    .map_err(wrap_rpc_error)?,
+            )
+        } else {
+            None
+        };
+        let receipt = self.engine.read_contract(
+            &TxInfo::from_inscription(
+                call.from
+                    .as_ref()
+                    .map(|x| x.address)
+                    .unwrap_or(*INVALID_ADDRESS),
+                call.to.as_ref().map(|x| x.address).into(),
+                data.value().unwrap_or_default().clone(),
+            ),
+            block_height,
+        );
         let Ok(result) = receipt else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
@@ -906,8 +943,9 @@ mod tests {
                 20,
                 [1; 32].into(),
                 0,
-                None,
-                Some(1000),
+                "inscription_id".to_string(),
+                1000,
+                [2; 32].into(),
             )
             .await
             .unwrap();

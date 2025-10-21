@@ -3,15 +3,13 @@ use revm::context::{BlockEnv, CfgEnv, Evm, TxEnv};
 use revm::context_interface::block::BlobExcessGasAndPrice;
 use revm::handler::instructions::EthInstructions;
 use revm::interpreter::interpreter::EthInterpreter;
-use revm::primitives::hardfork::SpecId;
 use revm::{Context, Journal, JournalEntry};
 use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 
 use crate::db::Brc20ProgDatabase;
+use crate::engine::hardforks::get_evm_spec;
 use crate::engine::precompiles::BRC20Precompiles;
 use crate::global::CONFIG;
-
-const CURRENT_SPEC: SpecId = SpecId::CANCUN;
 
 pub fn get_evm(
     block_number: u64,
@@ -19,22 +17,24 @@ pub fn get_evm(
     timestamp: u64,
     db: Brc20ProgDatabase,
     gas_limit: Option<u64>,
+    current_op_return_tx_id: B256,
 ) -> Evm<
     Context<BlockEnv, TxEnv, CfgEnv, Brc20ProgDatabase>,
     TracingInspector,
     EthInstructions<EthInterpreter, Context<BlockEnv, TxEnv, CfgEnv, Brc20ProgDatabase>>,
     BRC20Precompiles,
 > {
+    let evm_spec = get_evm_spec(block_number);
     let mut ctx: Context<
         BlockEnv,
         TxEnv,
         CfgEnv,
         Brc20ProgDatabase,
         Journal<Brc20ProgDatabase, JournalEntry>,
-    > = Context::new(db, CURRENT_SPEC);
+    > = Context::new(db, evm_spec);
 
     ctx.cfg.chain_id = CONFIG.read().chain_id.into();
-    ctx.cfg.spec = CURRENT_SPEC;
+    ctx.cfg.spec = evm_spec;
     ctx.cfg.limit_contract_code_size = Some(usize::MAX);
 
     ctx.block.number = block_number;
@@ -54,6 +54,6 @@ pub fn get_evm(
         ctx,
         TracingInspector::new(TracingInspectorConfig::none()),
         EthInstructions::new_mainnet(),
-        BRC20Precompiles::new(),
+        BRC20Precompiles::new(evm_spec.into(), current_op_return_tx_id),
     )
 }

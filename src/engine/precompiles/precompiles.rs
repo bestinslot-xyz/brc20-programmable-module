@@ -4,11 +4,12 @@ use alloy::primitives::{Address, Bytes};
 use revm::context::{Block, Cfg, ContextTr};
 use revm::handler::PrecompileProvider;
 use revm::interpreter::{Gas, InputsImpl, InstructionResult, InterpreterResult};
-use revm::precompile::Precompiles;
+use revm::precompile::{PrecompileSpecId, Precompiles};
+use revm::primitives::B256;
 
 use crate::engine::precompiles::{
     bip322_verify_precompile, btc_tx_details_precompile, get_locked_pkscript_precompile,
-    last_sat_location_precompile,
+    get_op_return_tx_id_precompile, last_sat_location_precompile,
 };
 
 lazy_static::lazy_static! {
@@ -16,23 +17,26 @@ lazy_static::lazy_static! {
     static ref BTC_TX_DETAILS_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fd".parse().expect("Invalid BTC transaction details precompile address");
     static ref LAST_SAT_LOCATION_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fc".parse().expect("Invalid last sat location precompile address");
     static ref GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fb".parse().expect("Invalid get locked pk script precompile address");
+    static ref GET_OP_RETURN_TX_ID_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fa".parse().expect("Invalid get op return tx id precompile address");
 }
 
 pub struct PrecompileCall {
     pub bytes: Bytes,
     pub gas_limit: u64,
     pub block_height: u64,
+    pub current_op_return_tx_id: B256,
 }
 
 pub struct BRC20Precompiles {
     pub eth_precompiles: &'static Precompiles,
     pub custom_precompiles: HashMap<Address, fn(&PrecompileCall) -> InterpreterResult>,
     pub all_addresses: HashSet<Address>,
+    pub op_return_tx_id: B256,
 }
 
 impl BRC20Precompiles {
-    pub fn new() -> Self {
-        let eth_precompiles = Precompiles::cancun();
+    pub fn new(precompile_spec: PrecompileSpecId, op_return_tx_id: B256) -> Self {
+        let eth_precompiles = Precompiles::new(precompile_spec);
         let mut all_addresses = eth_precompiles
             .addresses()
             .map(|x| x.clone())
@@ -57,11 +61,18 @@ impl BRC20Precompiles {
             *GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS,
             get_locked_pkscript_precompile,
         );
+        if precompile_spec >= PrecompileSpecId::PRAGUE {
+            custom_precompiles.insert(
+                *GET_OP_RETURN_TX_ID_PRECOMPILE_ADDRESS,
+                get_op_return_tx_id_precompile,
+            );
+        }
 
         Self {
             eth_precompiles,
             all_addresses,
             custom_precompiles,
+            op_return_tx_id,
         }
     }
 }
@@ -82,8 +93,8 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
         _: bool,
         gas_limit: u64,
     ) -> Result<Option<Self::Output>, String> {
-        if let Some(cancun_precompile) = self.eth_precompiles.get(address) {
-            match cancun_precompile(&inputs.input, gas_limit) {
+        if let Some(eth_precompile) = self.eth_precompiles.get(address) {
+            match eth_precompile(&inputs.input, gas_limit) {
                 Ok(output) => {
                     let mut gas = Gas::new(gas_limit);
                     if !gas.record_cost(output.gas_used) {
@@ -107,6 +118,7 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
                 bytes: inputs.input.clone(),
                 gas_limit,
                 block_height: ctx.block().number(),
+                current_op_return_tx_id: self.op_return_tx_id,
             })));
         } else {
             return Ok(None);
@@ -149,4 +161,43 @@ pub fn precompile_output(
     interpreter_result.result = revm::interpreter::InstructionResult::Stop;
     interpreter_result.output = output.into();
     interpreter_result
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn test_prague_spec_has_bls_precompiles() {
+        // A sanity test to ensure that the Prague spec includes the BLS precompiles.
+        let precompiles = BRC20Precompiles::new(PrecompileSpecId::PRAGUE, [0u8; 32].into());
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x000000000000000000000000000000000000000b").unwrap()));
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x000000000000000000000000000000000000000c").unwrap()));
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x000000000000000000000000000000000000000d").unwrap()));
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x000000000000000000000000000000000000000e").unwrap()));
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x000000000000000000000000000000000000000f").unwrap()));
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x0000000000000000000000000000000000000010").unwrap()));
+        assert!(precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x0000000000000000000000000000000000000011").unwrap()));
+
+        // Make sure it does not contain precompiles that are not part of the Prague spec
+        assert!(!precompiles
+            .all_addresses
+            .contains(&Address::from_str("0x0000000000000000000000000000000000000012").unwrap()));
+    }
 }
