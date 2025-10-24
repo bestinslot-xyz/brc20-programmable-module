@@ -352,6 +352,9 @@ impl BRC20ProgEngine {
     }
 
     pub fn get_info_from_raw_tx(&self, mut raw_tx: Vec<u8>) -> Result<TxInfo, Box<dyn Error>> {
+        let signed_tx = 
+            TxLegacy::rlp_decode_signed(&mut raw_tx.as_mut_slice().as_ref())
+                .map_err(|_| "Failed to decode signed legacy transaction")?;
         let (decoded_raw_tx, signature) =
             TxLegacy::rlp_decode_with_signature(&mut raw_tx.as_mut_slice().as_ref())
                 .map_err(|_| "Failed to decode legacy transaction")?;
@@ -366,11 +369,12 @@ impl BRC20ProgEngine {
 
         let signing_hash = keccak256(decoded_raw_tx.encoded_for_signing());
         let recovered_address = signature.recover_address_from_prehash(&signing_hash)?;
+        let tx_hash = signed_tx.hash().clone();
 
         Ok(TxInfo::from_raw_transaction(
             recovered_address,
             decoded_raw_tx,
-            signing_hash,
+            tx_hash,
             signature.v() as u8,
             signature.r(),
             signature.s(),
