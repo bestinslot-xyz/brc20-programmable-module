@@ -1,4 +1,7 @@
+
+#[cfg(feature = "server")]
 mod account_info_ed;
+#[cfg(feature = "server")]
 pub use account_info_ed::*;
 
 mod address_ed;
