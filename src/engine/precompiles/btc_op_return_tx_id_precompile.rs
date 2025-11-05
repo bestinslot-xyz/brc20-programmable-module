@@ -35,6 +35,8 @@ pub fn get_op_return_tx_id_precompile(call: &PrecompileCall) -> InterpreterResul
 
 #[cfg(test)]
 mod tests {
+    use revm::primitives::U256;
+
     use super::*;
 
     #[test]
@@ -43,7 +45,7 @@ mod tests {
         let result = get_op_return_tx_id_precompile(&PrecompileCall {
             bytes: Bytes::new(),
             gas_limit: 1000000,
-            block_height: 0,
+            block_height: U256::ZERO,
             current_op_return_tx_id: bytes.into(),
         });
 

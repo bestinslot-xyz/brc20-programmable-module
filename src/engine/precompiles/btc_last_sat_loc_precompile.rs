@@ -52,7 +52,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
         return precompile_error(interpreter_result, "Failed to get block info");
     };
 
-    if block_height > call.block_height as usize {
+    if U256::from(block_height) > call.block_height {
         return precompile_error(interpreter_result, "Transaction is in the future");
     }
 
@@ -185,7 +185,7 @@ mod tests {
         let result = last_sat_location_precompile(&PrecompileCall {
             bytes: data.into(),
             gas_limit: 1000000,
-            block_height: 0,
+            block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
         });
         let result = result;
@@ -237,7 +237,7 @@ mod tests {
         let result = last_sat_location_precompile(&PrecompileCall {
             bytes: data.into(),
             gas_limit: 1000000,
-            block_height: 0,
+            block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
         });
         let result = result;
@@ -292,7 +292,7 @@ mod tests {
         let result = last_sat_location_precompile(&PrecompileCall {
             bytes: data.into(),
             gas_limit: 1000000,
-            block_height: 0,
+            block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
         });
 
