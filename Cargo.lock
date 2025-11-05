@@ -1282,6 +1282,7 @@ dependencies = [
  "public-api",
  "rand 0.9.2",
  "revm",
+ "revm-bytecode",
  "revm-inspectors",
  "rlimit",
  "rocksdb",
@@ -3980,6 +3981,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f2b51c414b7e79edd4a0569d06e2c4c029f8b60e5f3ee3e2fa21dc6c3717ee3"
 dependencies = [
  "bitvec",
+ "paste",
  "phf",
  "revm-primitives",
  "serde",

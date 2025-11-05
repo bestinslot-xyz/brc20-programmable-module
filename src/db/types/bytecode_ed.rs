@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use revm::state::Bytecode;
+use revm_bytecode::Bytecode;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::db::types::{Decode, Encode};
