@@ -56,7 +56,7 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
         return precompile_error(interpreter_result, "Failed to get block info");
     };
 
-    if block_height > call.block_height as usize {
+    if U256::from(block_height) > call.block_height {
         return precompile_error(interpreter_result, "Transaction is in the future");
     }
 
@@ -157,7 +157,7 @@ mod tests {
         let response = btc_tx_details_precompile(&PrecompileCall {
             bytes: getTxDetailsCall::new((txid,)).abi_encode().into(),
             gas_limit: 1000000,
-            block_height: 240961,
+            block_height: U256::from(240961u64),
             current_op_return_tx_id: [0u8; 32].into(),
         });
 
@@ -207,7 +207,7 @@ mod tests {
         let response = btc_tx_details_precompile(&PrecompileCall {
             bytes: getTxDetailsCall::new((txid,)).abi_encode().into(),
             gas_limit: 1000000,
-            block_height: 240959,
+            block_height: U256::from(240959u64),
             current_op_return_tx_id: [0u8; 32].into(),
         });
 

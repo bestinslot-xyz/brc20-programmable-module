@@ -144,7 +144,7 @@ mod tests {
         let result = get_locked_pkscript_precompile(&PrecompileCall {
             bytes: bytes.into(),
             gas_limit: 100000,
-            block_height: 0,
+            block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
         });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
@@ -166,7 +166,7 @@ mod tests {
         let result = get_locked_pkscript_precompile(&PrecompileCall {
             bytes: bytes.into(),
             gas_limit: 100000,
-            block_height: 0,
+            block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
         });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
@@ -188,7 +188,7 @@ mod tests {
         let result = get_locked_pkscript_precompile(&PrecompileCall {
             bytes: bytes.into(),
             gas_limit: 100000,
-            block_height: 0,
+            block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
         });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
@@ -210,7 +210,7 @@ mod tests {
         let result = get_locked_pkscript_precompile(&PrecompileCall {
             bytes: bytes.into(),
             gas_limit: 100000,
-            block_height: 0,
+            block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
         });
         assert!(result.is_error());
@@ -228,7 +228,7 @@ mod tests {
         let result = get_locked_pkscript_precompile(&PrecompileCall {
             bytes: bytes.into(),
             gas_limit: 100000,
-            block_height: 0,
+            block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
         });
         assert!(result.is_error());
