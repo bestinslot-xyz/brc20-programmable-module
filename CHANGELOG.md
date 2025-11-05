@@ -5,11 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v0.15.2 (2025-11-05)
+## v0.15.3 (2025-11-05)
 
-### New Features
+### Bug Fixes
 
- - <csr-id-e765e287038b6a45aac9f50ef7d59e01fde85b69/> Add revm-bytecode dependency to avoid bringing the whole revm for non-server version and update imports
+ - <csr-id-0cdb5cabc4a5aee37445d22080f337ad956ee1b2/> Update public API (serde -> serde_core)
 
 ### Commit Statistics
 
@@ -26,6 +26,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Update public API (serde -> serde_core) ([`0cdb5ca`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/0cdb5cabc4a5aee37445d22080f337ad956ee1b2))
+</details>
+
+## v0.15.2 (2025-11-05)
+
+### New Features
+
+ - <csr-id-e765e287038b6a45aac9f50ef7d59e01fde85b69/> Add revm-bytecode dependency to avoid bringing the whole revm for non-server version and update imports
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release brc20-prog v0.15.2 ([`96df24e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/96df24ede4898720d9a8147910bf00d48e7212d7))
     - Add revm-bytecode dependency to avoid bringing the whole revm for non-server version and update imports ([`e765e28`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/e765e287038b6a45aac9f50ef7d59e01fde85b69))
 </details>
 
@@ -35,12 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-303738ef0a5f5389512d7f71f41e7d1a47a25b6b/> Update alloy to v1.1.0, revm to v31.0.0, remove revm_state and refactor accordingly
    - Updated dependencies in Cargo.toml to their latest versions, including:
-   - alloy to 1.1.0
-- revm to 31.0.0
-- serde to 1.0.228
-- tokio to 1.48.0
-- criterion to 0.7.0
-- tempfile to 3.23.0
+- alloy to 1.1.0
 
 ### Commit Statistics
 
@@ -62,7 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 <csr-unknown>
-Updated imports from revm_state to revm::state for consistency.Modified EVM execution logic to use new transaction handling methods.Adjusted precompile functions to utilize U256 for block height instead of u64 (following revm).Added tests to ensure correct behavior with updated block height handling.<csr-unknown/>
+revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0<csr-unknown/>
 
 ## v0.15.0 (2025-10-14)
 
@@ -90,9 +110,6 @@ Updated imports from revm_state to revm::state for consistency.Modified EVM exec
     - Release brc20-prog v0.15.0 ([`ff66def`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/ff66def9291cc0dd0583649d2e8f4104429e561e))
     - Enhance BRC20 precompiles with op_return_tx_id support (enabled after the prague upgrade) ([`887ec1c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/887ec1c8d69fe63b3dab107b4892a2ab8e2694e2))
 </details>
-
-<csr-unknown>
-Modified hardfork activation heights for mainnet and signet.Introduced get_op_return_tx_id_precompile to retrieve the op return transaction ID.Added gas cost for fetching the op return transaction ID.Updated RPC server methods to include op_return_tx_id parameter.Enhanced tests to validate behavior with and without op return transaction IDs.<csr-unknown/>
 
 ## v0.14.0 (2025-10-13)
 
