@@ -388,7 +388,7 @@ BRC2.0 has a set of precompiles that make it easier to work with bitcoin transac
  * @dev Get current Bitcoin transaction id being executed.
  */
 interface IBTC_CurrentTxid {
-    function getBtcTxId() external view returns (bytes32 txid);
+    function getTxId() external view returns (bytes32 txid);
 }
 ```
 
