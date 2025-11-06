@@ -24,9 +24,9 @@ contract BRC20_Prog {
     /**
      * @dev Get current Bitcoin transaction id in bytes32 format.
      */
-    function getBtcTxId() external view returns (bytes32 txid) {
+    function getTxId() external view returns (bytes32 txid) {
         (bool success, bytes memory data) = _current_txid_address.staticcall(
-            abi.encodeWithSignature("getBtcTxId()")
+            abi.encodeWithSignature("getTxId()")
         );
         require(success, "Failed to get current txid");
         return abi.decode(data, (bytes32));
