@@ -112,14 +112,15 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 **Parameters**:
 
-- from_pkscript (`string`): Bitcoin pkscript that created the deploy/call inscription
-- data (`string`): Call or deploy data for EVM, corresponds to the "d" (Data) field of a deploy inscription
-- base64_data (`string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a deploy inscription
-- timestamp (`int`): Current block timestamp
-- hash (`string`): Current block hash
-- tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
-- inscription_id (Optional `string`): Source inscription ID that triggered this transaction, will be recorded for easier contract address retrieval
-- inscription_byte_len (Optional `number`): Length of the insription content, used to determine the gas limit for this transaction
+- `from_pkscript` (`string`): Bitcoin pkscript that created the deploy/call inscription
+- `data` (Optional `string`): Call or deploy data for EVM, corresponds to the "d" (Data) field of a deploy inscription
+- `base64_data` (Optional `string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a deploy inscription
+- `timestamp` (`int`): Current block timestamp
+- `hash` (`string`): Current block hash
+- `tx_idx` (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
+- `inscription_id` (Optional `string`): Source inscription ID that triggered this transaction, will be recorded for easier contract address retrieval
+- `inscription_byte_len` (Optional `number`): Length of the insription content, used to determine the gas limit for this transaction
+- `op_return_tx_id` (Optional `string`): Bitcoin transaction ID that sends the inscription to OP_RETURN, used for the precompile
 
 **Returns**:
 
@@ -135,16 +136,17 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 **Parameters**:
 
-- from_pkscript (`string`): Bitcoin pkscript that created the deploy/call inscription
-- contract_address (`string`): Address of the contract to call, corresponds to the "c" (Contract Address) field of a call inscription
-- contract_inscription_id (`string`): Contract deployed by the inscription ID to call, corresponds to the "i" (Inscription ID) field of a call inscription
-- data (`string`): Call or deploy data for EVM, corresponds to the "d" (Data) field of a call inscription
-- base64_data (`string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a call inscription
-- timestamp (`int`): Current block timestamp
-- hash (`string`): Current block hash
-- tx_idx (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
-- inscription_id (Optional `string`): Inscription ID that triggered this transaction, will be recorded for easier transaction receipt retrieval
-- inscription_byte_len (Optional `number`): Length of the insription content, used to determine the gas limit for this transaction
+- `from_pkscript` (`string`): Bitcoin pkscript that created the deploy/call inscription
+- `contract_address` (Optional `string`): Address of the contract to call, corresponds to the "c" (Contract Address) field of a call inscription
+- `contract_inscription_id` (Optional `string`): Contract deployed by the inscription ID to call, corresponds to the "i" (Inscription ID) field of a call inscription
+- `data` (Optional `string`): Call or deploy data for EVM, corresponds to the "d" (Data) field of a call inscription
+- `base64_data` (Optional `string`): Call or deploy data for EVM, encoded in base64 with the compression prefix, corresponds to the "b" (Base64 Data) field of a call inscription
+- `timestamp` (`int`): Current block timestamp
+- `hash` (`string`): Current block hash
+- `tx_idx` (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction
+- `inscription_id` (Optional `string`): Inscription ID that triggered this transaction, will be recorded for easier transaction receipt retrieval
+- `inscription_byte_len` (Optional `number`): Length of the insription content, used to determine the gas limit for this transaction
+- `op_return_tx_id` (Optional `string`): Bitcoin transaction ID that sends the inscription to OP_RETURN, used for the precompile
 
 **Returns**:
 
@@ -162,13 +164,14 @@ BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usag
 
 **Parameters**:
 
-- `raw_tx_data` (`string`): Raw signed transaction data, encoded in hex format.
-- `base64_raw_tx_data` (`string`): Raw signed transaction data, encoded in base64 with the compression prefix.
+- `raw_tx_data` (Optional `string`): Raw signed transaction data, encoded in hex format.
+- `base64_raw_tx_data` (Optional `string`): Raw signed transaction data, encoded in base64 with the compression prefix.
 - `timestamp` (`int`): Current block timestamp.
 - `hash` (`string`): Current block hash.
 - `tx_idx` (`int`): Transaction index, starts from 0 every block, and needs to be incremented for every transaction.
 - `inscription_id` (Optional `string`): Inscription ID that triggered this transaction, will be recorded for easier transaction receipt retrieval.
 - `inscription_byte_len` (Optional `number`): Length of the inscription content, used to determine the gas limit for this transaction.
+- `op_return_tx_id` (Optional `string`): Bitcoin transaction ID that sends the inscription to OP_RETURN, used for the precompile
 
 **Returns**:
 
