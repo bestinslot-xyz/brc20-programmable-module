@@ -69,6 +69,10 @@ This needs to be enabled by setting `EVM_RECORD_TRACES` environment variable to 
 > [!NOTE]
 > Currently, only `debug_traceTransaction` method with a `callTracer` is supported.
 
+### txpool_content method
+
+BRC2.0 maintains a pending transaction pool for transactions that are sent out of order, and these can be retrieved using `txpool_content` method similar to Geth.
+
 ### brc20_* methods (for indexers)
 
 BRC2.0 implements following `brc20_*` JSON-RPC methods intended for indexer usage
