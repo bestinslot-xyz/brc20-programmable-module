@@ -559,6 +559,65 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self), level = "error")]
+    async fn eth_call_many(&self, calls: Vec<EthCall>, block_height: Option<String>) -> RpcResult<Vec<String>> {
+        log_call();
+        let block_height = if let Some(block_height) = block_height {
+            Some(
+                self.parse_block_number(&block_height)
+                    .map_err(wrap_rpc_error)?,
+            )
+        } else {
+            None
+        };
+
+        let mut txinfos = Vec::with_capacity(calls.len());
+        for call in &calls {
+            let Some(data) = &call.data else {
+                return Err(wrap_rpc_error_string("No data or input provided"));
+            };
+            txinfos.push(TxInfo::from_inscription(
+                call.from
+                    .as_ref()
+                    .map(|x| x.address)
+                    .unwrap_or(*INVALID_ADDRESS),
+                call.to.as_ref().map(|x| x.address).into(),
+                data.value().unwrap_or_default().clone(),
+            ));
+        }
+        println!("eth_call_many: prepared {} calls", txinfos.len());
+
+        let receipts = self.engine.read_contract_multi(
+            &txinfos,
+            block_height,
+        );
+        let Ok(results) = receipts else {
+            return Err(wrap_rpc_error_string_with_data(
+                3,
+                "Call failed",
+                "0x".into(),
+            ));
+        };
+
+        let mut outputs = Vec::with_capacity(results.len());
+        let mut result_idx = 0;
+        for result in results {
+            let data_string = result.output.unwrap_or(Bytes::new()).to_string();
+
+            if !result.status {
+                return Err(wrap_rpc_error_string_with_data(
+                    3,
+                    format!("Execution with index {} reverted: {}", result_idx, result.status_string).as_str(),
+                    data_string,
+                ));
+            }
+            outputs.push(data_string);
+            result_idx += 1;
+        }
+
+        Ok(outputs)
+    }
+
+    #[instrument(skip(self), level = "error")]
     async fn eth_estimate_gas(
         &self,
         call: EthCall,
@@ -603,6 +662,65 @@ impl Brc20ProgApiServer for RpcServer {
             ));
         }
         Ok(format!("0x{:x}", result.gas_used))
+    }
+
+    #[instrument(skip(self), level = "error")]
+    async fn eth_estimate_gas_many(&self, calls: Vec<EthCall>, block_height: Option<String>) -> RpcResult<Vec<String>> {
+        log_call();
+        let block_height = if let Some(block_height) = block_height {
+            Some(
+                self.parse_block_number(&block_height)
+                    .map_err(wrap_rpc_error)?,
+            )
+        } else {
+            None
+        };
+
+        let mut txinfos = Vec::with_capacity(calls.len());
+        for call in &calls {
+            let Some(data) = &call.data else {
+                return Err(wrap_rpc_error_string("No data or input provided"));
+            };
+            txinfos.push(TxInfo::from_inscription(
+                call.from
+                    .as_ref()
+                    .map(|x| x.address)
+                    .unwrap_or(*INVALID_ADDRESS),
+                call.to.as_ref().map(|x| x.address).into(),
+                data.value().unwrap_or_default().clone(),
+            ));
+        }
+
+        let receipts = self.engine.read_contract_multi(
+            &txinfos,
+            block_height,
+        );
+        let Ok(results) = receipts else {
+            return Err(wrap_rpc_error_string_with_data(
+                3,
+                "Call failed",
+                "0x".into(),
+            ));
+        };
+
+        let mut outputs = Vec::with_capacity(results.len());
+        let mut result_idx = 0;
+        for result in results {
+            let data_string = result.output.unwrap_or(Bytes::new()).to_string();
+            let gas_string = format!("0x{:x}", result.gas_used);
+
+            if !result.status {
+                return Err(wrap_rpc_error_string_with_data(
+                    3,
+                    format!("Execution with index {} reverted: {}", result_idx, result.status_string).as_str(),
+                    data_string,
+                ));
+            }
+            outputs.push(gas_string);
+            result_idx += 1;
+        }
+
+        Ok(outputs)
     }
 
     #[instrument(skip(self), level = "error")]
