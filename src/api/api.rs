@@ -219,10 +219,19 @@ pub trait Brc20ProgApi {
     #[method(name = "eth_call")]
     async fn eth_call(&self, eth_call: EthCall, block: Option<String>) -> RpcResult<String>;
 
+    /// Calls a contract with the given parameters for multiple calls
+    #[method(name = "eth_callMany")]
+    async fn eth_call_many(&self, eth_calls: Vec<EthCall>, block: Option<String>) -> RpcResult<Vec<String>>;
+
     /// Estimates the gas for the given transaction
     #[method(name = "eth_estimateGas")]
     async fn eth_estimate_gas(&self, eth_call: EthCall, block: Option<String>)
         -> RpcResult<String>;
+
+    /// Estimates the gas for the given transactions
+    #[method(name = "eth_estimateGasMany")]
+    async fn eth_estimate_gas_many(&self, eth_calls: Vec<EthCall>, block: Option<String>)
+        -> RpcResult<Vec<String>>;
 
     /// Get storage for the given contract and memory location
     #[method(name = "eth_getStorageAt")]

@@ -719,6 +719,76 @@ impl BRC20ProgEngine {
         })
     }
 
+    pub fn read_contract_multi(
+        &self,
+        tx_infos: &Vec<TxInfo>,
+        block_height: Option<u64>,
+    ) -> Result<Vec<ReadContractResult>, Box<dyn Error>> {
+        self.require_no_waiting_txes()?;
+
+        let block_number = if let Some(height) = block_height {
+            height
+        } else {
+            self.get_next_block_height()?
+        };
+
+        let timestamp = UNIX_EPOCH.elapsed().map(|x| x.as_secs())?;
+        let mut nonces = HashMap::new();
+        for tx_info in tx_infos {
+            let nonce = self.get_account_nonce(tx_info.from)?;
+            nonces.insert(tx_info.from, nonce);
+        }
+
+        // This isn't actually writing to the database, but the EVM context requires a mutable reference
+        let outputs = self.db.write_fn(|db| {
+            let db_moved = core::mem::take(&mut *db);
+            let mut evm = get_evm(
+                block_number,
+                B256::ZERO,
+                timestamp,
+                db_moved,
+                None,
+                [0u8; 32].into(),
+            );
+
+            let mut txes = Vec::new();
+            for tx_info in tx_infos {
+                println!("preparing tx...");
+                let nonce = *nonces.get(&tx_info.from).unwrap_or(&0);
+                nonces.insert(tx_info.from, nonce + 1);
+                println!("got nonce: {}", nonce);
+
+                evm.ctx().modify_tx(|tx| {
+                    tx.caller = tx_info.from;
+                    tx.kind = tx_info.to;
+                    tx.data = tx_info.data.clone();
+                    tx.nonce = nonce;
+                    tx.gas_limit = CONFIG.read().evm_call_gas_limit;
+                });
+                txes.push(evm.ctx().tx().clone());
+            }
+            let outputs = evm.transact_many(txes.iter().cloned())?;
+            println!("finished running txs...");
+
+            core::mem::swap(&mut *db, evm.ctx().db_mut());
+
+            Ok(outputs)
+        })?;
+        println!("got outputs...");
+
+        let mut results = Vec::new();
+        for output in outputs {
+            results.push(ReadContractResult {
+                status: output.is_success(),
+                status_string: format!("{:?}", output),
+                gas_used: output.gas_used().into(),
+                output: output.output().cloned(),
+            });
+        }
+
+        Ok(results)
+    }
+
     pub fn get_storage_at(
         &self,
         contract: Address,
