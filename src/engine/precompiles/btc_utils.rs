@@ -114,7 +114,7 @@ pub fn get_transaction_and_block_hash_with_overrides(
     if let Some(tx_hex) = btc_tx_hexes.get(txid) {
         let tx: Transaction = bitcoin::consensus::deserialize(&tx_hex.as_slice())
             .map_err(|_| "Failed to deserialize transaction from hex")?;
-        // Since we don't have block hash info in the override, return None
+        // Since we don't have block hash info in the override, return placeholder
         return Ok((tx, Some(*BLOCK_HASH_FUTURE_PLACEHOLDER)));
     }
     let bitcoin_txid = Txid::from_str(&hex::encode(txid.as_slice()).to_lowercase().as_str())
