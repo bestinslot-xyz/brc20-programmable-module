@@ -29,7 +29,7 @@ use crate::global::{
     SharedData, CONFIG, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_FUTURE_TRANSACTION_NONCES,
     MAX_REORG_HISTORY_SIZE,
 };
-use crate::types::AddressED;
+use crate::types::{AddressED, PrecompileData};
 
 pub struct BRC20ProgEngine {
     db: SharedData<Brc20ProgDatabase>,
@@ -427,6 +427,7 @@ impl BRC20ProgEngine {
                 db_moved,
                 None,
                 op_return_tx_id,
+                &None,
             );
 
             evm.ctx().modify_tx(|tx| {
@@ -695,6 +696,7 @@ impl BRC20ProgEngine {
                 db_moved,
                 None,
                 [0u8; 32].into(),
+                &None,
             );
 
             evm.ctx().modify_tx(|tx| {
@@ -723,6 +725,7 @@ impl BRC20ProgEngine {
         &self,
         tx_infos: &Vec<TxInfo>,
         block_height: Option<u64>,
+        precompile_data: Option<PrecompileData>,
     ) -> Result<Vec<ReadContractResult>, Box<dyn Error>> {
         self.require_no_waiting_txes()?;
 
@@ -749,14 +752,20 @@ impl BRC20ProgEngine {
                 db_moved,
                 None,
                 [0u8; 32].into(),
+                &precompile_data,
             );
 
-            let mut txes = Vec::new();
-            for tx_info in tx_infos {
-                println!("preparing tx...");
+            let mut outputs = Vec::new();
+            for idx in 0..tx_infos.len() {
+                let tx_info = &tx_infos[idx];
                 let nonce = *nonces.get(&tx_info.from).unwrap_or(&0);
                 nonces.insert(tx_info.from, nonce + 1);
-                println!("got nonce: {}", nonce);
+
+                evm.precompiles.op_return_tx_id = precompile_data
+                    .as_ref()
+                    .and_then(|data| data.op_return_tx_ids.get(idx).cloned())
+                    .unwrap_or([0u8; 32].into())
+                    .into();
 
                 evm.ctx().modify_tx(|tx| {
                     tx.caller = tx_info.from;
@@ -765,16 +774,14 @@ impl BRC20ProgEngine {
                     tx.nonce = nonce;
                     tx.gas_limit = CONFIG.read().evm_call_gas_limit;
                 });
-                txes.push(evm.ctx().tx().clone());
+                let tx = evm.ctx().tx().clone();
+                outputs.push(evm.transact_one(tx)?);
             }
-            let outputs = evm.transact_many(txes.iter().cloned())?;
-            println!("finished running txs...");
 
             core::mem::swap(&mut *db, evm.ctx().db_mut());
 
             Ok(outputs)
         })?;
-        println!("got outputs...");
 
         let mut results = Vec::new();
         for output in outputs {

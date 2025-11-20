@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::str::FromStr;
 use std::thread::sleep;
@@ -8,6 +9,8 @@ use bitcoin::{BlockHash, KnownHrp, Network, Transaction, Txid};
 use bitcoincore_rpc::jsonrpc::Error::Rpc;
 use bitcoincore_rpc::Error::JsonRpc;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
+use revm::primitives::Bytes;
+use zstd_safe::WriteBuf;
 
 use crate::global::{SharedData, CONFIG};
 
@@ -22,6 +25,8 @@ lazy_static::lazy_static! {
         );
         SharedData::new(Client::new(&CONFIG.read().bitcoin_rpc_url, auth).expect("Failed to create Bitcoin RPC client"))
     };
+
+    static ref BLOCK_HASH_FUTURE_PLACEHOLDER: BlockHash = BlockHash::from_str("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").unwrap();
 }
 
 pub fn update_bitcoin_client() {
@@ -102,9 +107,16 @@ pub fn validate_bitcoin_rpc_status() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn get_transaction_and_block_hash(
+pub fn get_transaction_and_block_hash_with_overrides(
     txid: &B256,
+    btc_tx_hexes: &HashMap<B256, Bytes>,
 ) -> Result<(Transaction, Option<BlockHash>), Box<dyn Error>> {
+    if let Some(tx_hex) = btc_tx_hexes.get(txid) {
+        let tx: Transaction = bitcoin::consensus::deserialize(&tx_hex.as_slice())
+            .map_err(|_| "Failed to deserialize transaction from hex")?;
+        // Since we don't have block hash info in the override, return None
+        return Ok((tx, Some(*BLOCK_HASH_FUTURE_PLACEHOLDER)));
+    }
     let bitcoin_txid = Txid::from_str(&hex::encode(txid.as_slice()).to_lowercase().as_str())
         .map_err(|_| "Invalid Txid")?;
     get_transaction_and_block_hash_with_retry(&bitcoin_txid, 5)
@@ -138,7 +150,15 @@ fn get_transaction_and_block_hash_with_retry(
     }
 }
 
-pub fn get_transaction(txid: &B256) -> Result<Transaction, Box<dyn Error>> {
+pub fn get_transaction_with_overrides(
+    txid: &B256,
+    btc_tx_hexes: &HashMap<B256, Bytes>,
+) -> Result<Transaction, Box<dyn Error>> {
+    if let Some(tx_hex) = btc_tx_hexes.get(txid) {
+        let tx: Transaction = bitcoin::consensus::deserialize(&tx_hex.as_slice())
+            .map_err(|_| "Failed to deserialize transaction from hex")?;
+        return Ok(tx);
+    }
     let bitcoin_txid = Txid::from_str(&hex::encode(txid.as_slice()).to_lowercase().as_str())
         .map_err(|_| "Invalid Txid")?;
     get_transaction_with_retry(&bitcoin_txid, 5)
@@ -170,6 +190,9 @@ fn get_transaction_with_retry(
 }
 
 pub fn get_block_height(block_hash: &BlockHash) -> Result<usize, Box<dyn Error>> {
+    if block_hash == &*BLOCK_HASH_FUTURE_PLACEHOLDER {
+        return Ok(0);
+    }
     get_block_height_with_retry(block_hash, 5)
 }
 
@@ -203,7 +226,10 @@ mod tests {
         }
 
         let txid_string = "4183fb733b9553ca8b93208c91dda18bee3d0b8510720b15d76d979af7fd9926";
-        let response = get_transaction_and_block_hash(&FixedBytes::from_hex(txid_string).unwrap());
+        let response = get_transaction_and_block_hash_with_overrides(
+            &FixedBytes::from_hex(txid_string).unwrap(),
+            &HashMap::new(),
+        );
         assert_eq!(response.unwrap().0.compute_txid().to_string(), txid_string);
     }
 }

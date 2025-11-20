@@ -65,6 +65,8 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use bitcoin::consensus::Encodable;
     use revm::primitives::U256;
 
@@ -103,6 +105,7 @@ mod tests {
             gas_limit: 1000000,
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
+            btc_tx_hexes_data: HashMap::new(),
         });
 
         assert!(result.is_ok());

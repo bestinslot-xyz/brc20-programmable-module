@@ -11,6 +11,7 @@ use crate::engine::precompiles::{
     bip322_verify_precompile, btc_tx_details_precompile, get_locked_pkscript_precompile,
     get_op_return_tx_id_precompile, last_sat_location_precompile,
 };
+use crate::types::PrecompileData;
 
 lazy_static::lazy_static! {
     static ref BIP322_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fe".parse().expect("Invalid BIP322 precompile address");
@@ -25,6 +26,7 @@ pub struct PrecompileCall {
     pub gas_limit: u64,
     pub block_height: U256,
     pub current_op_return_tx_id: B256,
+    pub btc_tx_hexes_data: HashMap<B256, Bytes>,
 }
 
 pub struct BRC20Precompiles {
@@ -32,10 +34,15 @@ pub struct BRC20Precompiles {
     pub custom_precompiles: HashMap<Address, fn(&PrecompileCall) -> InterpreterResult>,
     pub all_addresses: HashSet<Address>,
     pub op_return_tx_id: B256,
+    pub btc_tx_hexes_data: HashMap<B256, Bytes>,
 }
 
 impl BRC20Precompiles {
-    pub fn new(precompile_spec: PrecompileSpecId, op_return_tx_id: B256) -> Self {
+    pub fn new(
+        precompile_spec: PrecompileSpecId,
+        op_return_tx_id: B256,
+        precompile_data: &Option<PrecompileData>,
+    ) -> Self {
         let eth_precompiles = Precompiles::new(precompile_spec);
         let mut all_addresses = eth_precompiles
             .addresses()
@@ -68,11 +75,21 @@ impl BRC20Precompiles {
             );
         }
 
+        let btc_tx_hexes_data = if let Some(data) = precompile_data {
+            data.bitcoin_tx_hexes
+                .iter()
+                .map(|(k, v)| (k.bytes, v.value().unwrap_or_default()))
+                .collect()
+        } else {
+            HashMap::new()
+        };
+
         Self {
             eth_precompiles,
             all_addresses,
             custom_precompiles,
             op_return_tx_id,
+            btc_tx_hexes_data,
         }
     }
 }
@@ -85,11 +102,7 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
         true
     }
 
-    fn run(
-        &mut self,
-        ctx: &mut CTX,
-        inputs: &CallInputs,
-    ) -> Result<Option<Self::Output>, String> {
+    fn run(&mut self, ctx: &mut CTX, inputs: &CallInputs) -> Result<Option<Self::Output>, String> {
         if let Some(eth_precompile) = self.eth_precompiles.get(&inputs.target_address) {
             match eth_precompile.execute(&inputs.input.bytes(ctx), inputs.gas_limit) {
                 Ok(output) => {
@@ -110,12 +123,14 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
                 }
                 Err(e) => return Err(e.to_string()),
             }
-        } else if let Some(custom_precompile) = self.custom_precompiles.get(&inputs.target_address) {
+        } else if let Some(custom_precompile) = self.custom_precompiles.get(&inputs.target_address)
+        {
             return Ok(Some(custom_precompile(&PrecompileCall {
                 bytes: inputs.input.bytes(ctx),
                 gas_limit: inputs.gas_limit,
                 block_height: ctx.block().number(),
                 current_op_return_tx_id: self.op_return_tx_id,
+                btc_tx_hexes_data: self.btc_tx_hexes_data.clone(),
             })));
         } else {
             return Ok(None);
@@ -169,7 +184,7 @@ mod tests {
     #[test]
     fn test_prague_spec_has_bls_precompiles() {
         // A sanity test to ensure that the Prague spec includes the BLS precompiles.
-        let precompiles = BRC20Precompiles::new(PrecompileSpecId::PRAGUE, [0u8; 32].into());
+        let precompiles = BRC20Precompiles::new(PrecompileSpecId::PRAGUE, [0u8; 32].into(), &None);
         assert!(precompiles
             .all_addresses
             .contains(&Address::from_str("0x000000000000000000000000000000000000000b").unwrap()));

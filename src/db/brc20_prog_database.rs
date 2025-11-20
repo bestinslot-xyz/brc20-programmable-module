@@ -9,8 +9,8 @@ use alloy::primitives::{Address, Bloom, Bytes, FixedBytes, Log, B256, U256, U64}
 use revm::context::result::ExecutionResult;
 use revm::context::DBErrorMarker;
 use revm::primitives::map::DefaultHashBuilder;
-use revm::{Database as DatabaseTrait, DatabaseCommit};
 use revm::state::{Account, AccountInfo, Bytecode};
+use revm::{Database as DatabaseTrait, DatabaseCommit};
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use serde_either::SingleOrVec;
