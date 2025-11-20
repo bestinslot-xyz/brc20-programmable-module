@@ -4,7 +4,7 @@ use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
 use crate::engine::precompiles::btc_utils::{
-    get_block_height, get_transaction, get_transaction_and_block_hash,
+    get_block_height, get_transaction_and_block_hash_with_overrides, get_transaction_with_overrides,
 };
 use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 use crate::global::GAS_PER_BITCOIN_RPC_CALL;
@@ -40,7 +40,9 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
         return interpreter_result;
     }
 
-    let Ok((raw_tx_info, block_hash)) = get_transaction_and_block_hash(&txid) else {
+    let Ok((raw_tx_info, block_hash)) =
+        get_transaction_and_block_hash_with_overrides(&txid, &call.btc_tx_hexes_data)
+    else {
         return precompile_error(interpreter_result, "Failed to get transaction details");
     };
 
@@ -124,7 +126,9 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
 
         result_vin_vout = raw_tx_info.input[current_vin_index].previous_output.vout;
 
-        let Ok(vin_response) = get_transaction(&result_vin_txid) else {
+        let Ok(vin_response) =
+            get_transaction_with_overrides(&result_vin_txid, &call.btc_tx_hexes_data)
+        else {
             return precompile_error(interpreter_result, "Failed to get vin transaction details");
         };
         let Ok(current_vin) = vin_response.tx_out(result_vin_vout as usize) else {
@@ -157,6 +161,8 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use alloy::primitives::hex::FromHex;
 
     use super::*;
@@ -187,6 +193,7 @@ mod tests {
             gas_limit: 1000000,
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
+            btc_tx_hexes_data: HashMap::new(),
         });
         let result = result;
         let returns = getLastSatLocationCall::abi_decode_returns(&result.output).unwrap();
@@ -239,6 +246,7 @@ mod tests {
             gas_limit: 1000000,
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
+            btc_tx_hexes_data: HashMap::new(),
         });
         let result = result;
         let returns = getLastSatLocationCall::abi_decode_returns(&result.output).unwrap();
@@ -294,6 +302,7 @@ mod tests {
             gas_limit: 1000000,
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
+            btc_tx_hexes_data: HashMap::new(),
         });
 
         assert!(result.is_error());

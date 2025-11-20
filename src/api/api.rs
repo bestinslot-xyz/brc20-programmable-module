@@ -4,7 +4,7 @@ use alloy::primitives::keccak256;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 
-use crate::api::types::{Base64Bytes, EthCall, GetLogsFilter};
+use crate::api::types::{Base64Bytes, EthCall, GetLogsFilter, PrecompileData};
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
@@ -221,7 +221,12 @@ pub trait Brc20ProgApi {
 
     /// Calls a contract with the given parameters for multiple calls
     #[method(name = "eth_callMany")]
-    async fn eth_call_many(&self, eth_calls: Vec<EthCall>, block: Option<String>) -> RpcResult<Vec<String>>;
+    async fn eth_call_many(
+        &self,
+        eth_calls: Vec<EthCall>,
+        block: Option<String>,
+        precompile_data: Option<PrecompileData>,
+    ) -> RpcResult<Vec<String>>;
 
     /// Estimates the gas for the given transaction
     #[method(name = "eth_estimateGas")]
@@ -230,8 +235,12 @@ pub trait Brc20ProgApi {
 
     /// Estimates the gas for the given transactions
     #[method(name = "eth_estimateGasMany")]
-    async fn eth_estimate_gas_many(&self, eth_calls: Vec<EthCall>, block: Option<String>)
-        -> RpcResult<Vec<String>>;
+    async fn eth_estimate_gas_many(
+        &self,
+        eth_calls: Vec<EthCall>,
+        block: Option<String>,
+        precompile_data: Option<PrecompileData>,
+    ) -> RpcResult<Vec<String>>;
 
     /// Get storage for the given contract and memory location
     #[method(name = "eth_getStorageAt")]

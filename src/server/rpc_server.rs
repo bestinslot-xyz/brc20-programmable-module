@@ -28,7 +28,7 @@ use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
     wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
 };
-use crate::types::{Base64Bytes, RawBytes};
+use crate::types::{Base64Bytes, PrecompileData, RawBytes};
 use crate::Brc20ProgConfig;
 
 struct RpcServer {
@@ -559,7 +559,12 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self), level = "error")]
-    async fn eth_call_many(&self, calls: Vec<EthCall>, block_height: Option<String>) -> RpcResult<Vec<String>> {
+    async fn eth_call_many(
+        &self,
+        calls: Vec<EthCall>,
+        block_height: Option<String>,
+        precompile_data: Option<PrecompileData>,
+    ) -> RpcResult<Vec<String>> {
         log_call();
         let block_height = if let Some(block_height) = block_height {
             Some(
@@ -586,10 +591,9 @@ impl Brc20ProgApiServer for RpcServer {
         }
         println!("eth_call_many: prepared {} calls", txinfos.len());
 
-        let receipts = self.engine.read_contract_multi(
-            &txinfos,
-            block_height,
-        );
+        let receipts = self
+            .engine
+            .read_contract_multi(&txinfos, block_height, precompile_data);
         let Ok(results) = receipts else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
@@ -606,7 +610,11 @@ impl Brc20ProgApiServer for RpcServer {
             if !result.status {
                 return Err(wrap_rpc_error_string_with_data(
                     3,
-                    format!("Execution with index {} reverted: {}", result_idx, result.status_string).as_str(),
+                    format!(
+                        "Execution with index {} reverted: {}",
+                        result_idx, result.status_string
+                    )
+                    .as_str(),
                     data_string,
                 ));
             }
@@ -665,7 +673,12 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self), level = "error")]
-    async fn eth_estimate_gas_many(&self, calls: Vec<EthCall>, block_height: Option<String>) -> RpcResult<Vec<String>> {
+    async fn eth_estimate_gas_many(
+        &self,
+        calls: Vec<EthCall>,
+        block_height: Option<String>,
+        precompile_data: Option<PrecompileData>,
+    ) -> RpcResult<Vec<String>> {
         log_call();
         let block_height = if let Some(block_height) = block_height {
             Some(
@@ -691,10 +704,9 @@ impl Brc20ProgApiServer for RpcServer {
             ));
         }
 
-        let receipts = self.engine.read_contract_multi(
-            &txinfos,
-            block_height,
-        );
+        let receipts = self
+            .engine
+            .read_contract_multi(&txinfos, block_height, precompile_data);
         let Ok(results) = receipts else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
@@ -712,7 +724,11 @@ impl Brc20ProgApiServer for RpcServer {
             if !result.status {
                 return Err(wrap_rpc_error_string_with_data(
                     3,
-                    format!("Execution with index {} reverted: {}", result_idx, result.status_string).as_str(),
+                    format!(
+                        "Execution with index {} reverted: {}",
+                        result_idx, result.status_string
+                    )
+                    .as_str(),
                     data_string,
                 ));
             }
