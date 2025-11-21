@@ -3,9 +3,9 @@ use std::collections::{HashMap, HashSet};
 use alloy::primitives::{Address, Bytes};
 use revm::context::{Block, Cfg, ContextTr};
 use revm::handler::PrecompileProvider;
-use revm::interpreter::{Gas, InputsImpl, InstructionResult, InterpreterResult};
+use revm::interpreter::{CallInputs, Gas, InstructionResult, InterpreterResult};
 use revm::precompile::{PrecompileSpecId, Precompiles};
-use revm::primitives::B256;
+use revm::primitives::{B256, U256};
 
 use crate::engine::precompiles::{
     bip322_verify_precompile, btc_tx_details_precompile, get_locked_pkscript_precompile,
@@ -23,7 +23,7 @@ lazy_static::lazy_static! {
 pub struct PrecompileCall {
     pub bytes: Bytes,
     pub gas_limit: u64,
-    pub block_height: u64,
+    pub block_height: U256,
     pub current_op_return_tx_id: B256,
 }
 
@@ -88,15 +88,12 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
     fn run(
         &mut self,
         ctx: &mut CTX,
-        address: &Address,
-        inputs: &InputsImpl,
-        _: bool,
-        gas_limit: u64,
+        inputs: &CallInputs,
     ) -> Result<Option<Self::Output>, String> {
-        if let Some(eth_precompile) = self.eth_precompiles.get(address) {
-            match eth_precompile(&inputs.input, gas_limit) {
+        if let Some(eth_precompile) = self.eth_precompiles.get(&inputs.target_address) {
+            match eth_precompile.execute(&inputs.input.bytes(ctx), inputs.gas_limit) {
                 Ok(output) => {
-                    let mut gas = Gas::new(gas_limit);
+                    let mut gas = Gas::new(inputs.gas_limit);
                     if !gas.record_cost(output.gas_used) {
                         return Ok(Some(InterpreterResult::new(
                             InstructionResult::OutOfGas,
@@ -113,10 +110,10 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
                 }
                 Err(e) => return Err(e.to_string()),
             }
-        } else if let Some(custom_precompile) = self.custom_precompiles.get(address) {
+        } else if let Some(custom_precompile) = self.custom_precompiles.get(&inputs.target_address) {
             return Ok(Some(custom_precompile(&PrecompileCall {
-                bytes: inputs.input.clone(),
-                gas_limit,
+                bytes: inputs.input.bytes(ctx),
+                gas_limit: inputs.gas_limit,
                 block_height: ctx.block().number(),
                 current_op_return_tx_id: self.op_return_tx_id,
             })));

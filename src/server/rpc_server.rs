@@ -8,7 +8,7 @@ use jsonrpsee::core::middleware::RpcServiceBuilder;
 use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::server::{BatchRequestConfig, Server, ServerConfigBuilder, ServerHandle};
 use revm::primitives::TxKind;
-use revm_state::Bytecode;
+use revm::state::Bytecode;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;

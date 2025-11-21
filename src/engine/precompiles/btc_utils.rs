@@ -71,7 +71,6 @@ pub fn get_bitcoin_hrp() -> KnownHrp {
         Network::Testnet4 => KnownHrp::Testnets,
         Network::Signet => KnownHrp::Testnets,
         Network::Regtest => KnownHrp::Regtest,
-        _ => KnownHrp::Testnets,
     }
 }
 

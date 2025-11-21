@@ -15,20 +15,20 @@ pub fn brc20_prog::types::AddressED::from(address: alloy_primitives::bits::addre
 impl core::convert::TryFrom<&str> for brc20_prog::types::AddressED
 pub type brc20_prog::types::AddressED::Error = alloc::boxed::Box<dyn core::error::Error>
 pub fn brc20_prog::types::AddressED::try_from(value: &str) -> core::result::Result<Self, Self::Error>
-impl serde::ser::Serialize for brc20_prog::types::AddressED
-pub fn brc20_prog::types::AddressED::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
-impl<'de> serde::de::Deserialize<'de> for brc20_prog::types::AddressED
-pub fn brc20_prog::types::AddressED::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
+impl serde_core::ser::Serialize for brc20_prog::types::AddressED
+pub fn brc20_prog::types::AddressED::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for brc20_prog::types::AddressED
+pub fn brc20_prog::types::AddressED::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 pub struct brc20_prog::types::Base64Bytes(_)
 impl brc20_prog::types::Base64Bytes
 pub fn brc20_prog::types::Base64Bytes::empty() -> Self
 pub fn brc20_prog::types::Base64Bytes::from_bytes(bytes: alloy_primitives::bytes_::Bytes) -> core::result::Result<Self, alloc::boxed::Box<dyn core::error::Error>>
 pub fn brc20_prog::types::Base64Bytes::new(inner: alloc::string::String) -> Self
 pub fn brc20_prog::types::Base64Bytes::to_string(&self) -> alloc::string::String
-impl serde::ser::Serialize for brc20_prog::types::Base64Bytes
-pub fn brc20_prog::types::Base64Bytes::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
-impl<'de> serde::de::Deserialize<'de> for brc20_prog::types::Base64Bytes
-pub fn brc20_prog::types::Base64Bytes::deserialize<D>(deserializer: D) -> core::result::Result<brc20_prog::types::Base64Bytes, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
+impl serde_core::ser::Serialize for brc20_prog::types::Base64Bytes
+pub fn brc20_prog::types::Base64Bytes::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for brc20_prog::types::Base64Bytes
+pub fn brc20_prog::types::Base64Bytes::deserialize<D>(deserializer: D) -> core::result::Result<brc20_prog::types::Base64Bytes, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 pub struct brc20_prog::types::BlockResponseED
 pub brc20_prog::types::BlockResponseED::base_fee_per_gas: brc20_prog::types::U64ED
 pub brc20_prog::types::BlockResponseED::blob_gas_used: brc20_prog::types::U64ED
@@ -61,20 +61,20 @@ pub struct brc20_prog::types::BytecodeED
 pub brc20_prog::types::BytecodeED::bytecode: revm_bytecode::bytecode::Bytecode
 impl core::convert::From<revm_bytecode::bytecode::Bytecode> for brc20_prog::types::BytecodeED
 pub fn brc20_prog::types::BytecodeED::from(bytecode: revm_bytecode::bytecode::Bytecode) -> Self
-impl serde::ser::Serialize for brc20_prog::types::BytecodeED
-pub fn brc20_prog::types::BytecodeED::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
-impl<'de> serde::de::Deserialize<'de> for brc20_prog::types::BytecodeED
-pub fn brc20_prog::types::BytecodeED::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
+impl serde_core::ser::Serialize for brc20_prog::types::BytecodeED
+pub fn brc20_prog::types::BytecodeED::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for brc20_prog::types::BytecodeED
+pub fn brc20_prog::types::BytecodeED::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 pub struct brc20_prog::types::BytesED
 pub brc20_prog::types::BytesED::bytes: alloy_primitives::bytes_::Bytes
 impl core::convert::From<alloc::vec::Vec<u8>> for brc20_prog::types::BytesED
 pub fn brc20_prog::types::BytesED::from(value: alloc::vec::Vec<u8>) -> Self
 impl core::convert::From<alloy_primitives::bytes_::Bytes> for brc20_prog::types::BytesED
 pub fn brc20_prog::types::BytesED::from(bytes: alloy_primitives::bytes_::Bytes) -> Self
-impl serde::ser::Serialize for brc20_prog::types::BytesED
-pub fn brc20_prog::types::BytesED::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
-impl<'de> serde::de::Deserialize<'de> for brc20_prog::types::BytesED
-pub fn brc20_prog::types::BytesED::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
+impl serde_core::ser::Serialize for brc20_prog::types::BytesED
+pub fn brc20_prog::types::BytesED::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for brc20_prog::types::BytesED
+pub fn brc20_prog::types::BytesED::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 pub struct brc20_prog::types::EthCall
 pub brc20_prog::types::EthCall::data: core::option::Option<brc20_prog::types::RawBytes>
 pub brc20_prog::types::EthCall::from: core::option::Option<brc20_prog::types::AddressED>
@@ -85,8 +85,8 @@ pub struct brc20_prog::types::FixedBytesED<const N: usize>
 pub brc20_prog::types::FixedBytesED::bytes: alloy_primitives::bits::fixed::FixedBytes<N>
 impl<const N: usize> brc20_prog::types::FixedBytesED<N>
 pub fn brc20_prog::types::FixedBytesED<N>::new(bytes: alloy_primitives::bits::fixed::FixedBytes<N>) -> Self
-impl<'de, const N: usize> serde::de::Deserialize<'de> for brc20_prog::types::FixedBytesED<N>
-pub fn brc20_prog::types::FixedBytesED<N>::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
+impl<'de, const N: usize> serde_core::de::Deserialize<'de> for brc20_prog::types::FixedBytesED<N>
+pub fn brc20_prog::types::FixedBytesED<N>::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 impl<const N: usize> core::convert::From<[u8; N]> for brc20_prog::types::FixedBytesED<N>
 pub fn brc20_prog::types::FixedBytesED<N>::from(bytes: [u8; N]) -> Self
 impl<const N: usize> core::convert::From<alloy_primitives::bits::fixed::FixedBytes<N>> for brc20_prog::types::FixedBytesED<N>
@@ -96,8 +96,8 @@ pub fn alloy_primitives::bits::fixed::FixedBytes<N>::from(b_encode_decode: brc20
 impl<const N: usize> core::convert::TryFrom<&str> for brc20_prog::types::FixedBytesED<N>
 pub type brc20_prog::types::FixedBytesED<N>::Error = alloc::boxed::Box<dyn core::error::Error>
 pub fn brc20_prog::types::FixedBytesED<N>::try_from(hex_string: &str) -> core::result::Result<Self, Self::Error>
-impl<const N: usize> serde::ser::Serialize for brc20_prog::types::FixedBytesED<N>
-pub fn brc20_prog::types::FixedBytesED<N>::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
+impl<const N: usize> serde_core::ser::Serialize for brc20_prog::types::FixedBytesED<N>
+pub fn brc20_prog::types::FixedBytesED<N>::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
 pub struct brc20_prog::types::GetLogsFilter
 pub brc20_prog::types::GetLogsFilter::address: core::option::Option<brc20_prog::types::AddressED>
 pub brc20_prog::types::GetLogsFilter::from_block: core::option::Option<alloc::string::String>
@@ -118,10 +118,10 @@ pub fn brc20_prog::types::RawBytes::empty() -> Self
 pub fn brc20_prog::types::RawBytes::from_bytes(bytes: alloy_primitives::bytes_::Bytes) -> Self
 pub fn brc20_prog::types::RawBytes::new(inner: alloc::string::String) -> Self
 pub fn brc20_prog::types::RawBytes::to_string(&self) -> alloc::string::String
-impl serde::ser::Serialize for brc20_prog::types::RawBytes
-pub fn brc20_prog::types::RawBytes::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
-impl<'de> serde::de::Deserialize<'de> for brc20_prog::types::RawBytes
-pub fn brc20_prog::types::RawBytes::deserialize<D>(deserializer: D) -> core::result::Result<brc20_prog::types::RawBytes, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
+impl serde_core::ser::Serialize for brc20_prog::types::RawBytes
+pub fn brc20_prog::types::RawBytes::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for brc20_prog::types::RawBytes
+pub fn brc20_prog::types::RawBytes::deserialize<D>(deserializer: D) -> core::result::Result<brc20_prog::types::RawBytes, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 pub struct brc20_prog::types::TraceED
 pub brc20_prog::types::TraceED::calls: alloc::vec::Vec<brc20_prog::types::TraceED>
 pub brc20_prog::types::TraceED::error: core::option::Option<alloc::string::String>
@@ -175,8 +175,8 @@ impl<const BITS: usize, const LIMBS: usize> brc20_prog::types::UintED<BITS, LIMB
 pub fn brc20_prog::types::UintED<BITS, LIMBS>::is_zero(&self) -> bool
 pub fn brc20_prog::types::UintED<BITS, LIMBS>::new(uint: ruint::Uint<BITS, LIMBS>) -> Self
 pub fn brc20_prog::types::UintED<BITS, LIMBS>::zero() -> Self
-impl<'de, const BITS: usize, const LIMBS: usize> serde::de::Deserialize<'de> for brc20_prog::types::UintED<BITS, LIMBS>
-pub fn brc20_prog::types::UintED<BITS, LIMBS>::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde::de::Deserializer>::Error> where D: serde::de::Deserializer<'de>
+impl<'de, const BITS: usize, const LIMBS: usize> serde_core::de::Deserialize<'de> for brc20_prog::types::UintED<BITS, LIMBS>
+pub fn brc20_prog::types::UintED<BITS, LIMBS>::deserialize<D>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 impl<const BITS: usize, const LIMBS: usize> core::convert::From<ruint::Uint<BITS, LIMBS>> for brc20_prog::types::UintED<BITS, LIMBS>
 pub fn brc20_prog::types::UintED<BITS, LIMBS>::from(uint: ruint::Uint<BITS, LIMBS>) -> Self
 impl<const BITS: usize, const LIMBS: usize> core::convert::From<u128> for brc20_prog::types::UintED<BITS, LIMBS>
@@ -189,8 +189,8 @@ impl<const BITS: usize, const LIMBS: usize> core::convert::From<u8> for brc20_pr
 pub fn brc20_prog::types::UintED<BITS, LIMBS>::from(value: u8) -> Self
 impl<const BITS: usize, const LIMBS: usize> core::fmt::Display for brc20_prog::types::UintED<BITS, LIMBS>
 pub fn brc20_prog::types::UintED<BITS, LIMBS>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<const BITS: usize, const LIMBS: usize> serde::ser::Serialize for brc20_prog::types::UintED<BITS, LIMBS>
-pub fn brc20_prog::types::UintED<BITS, LIMBS>::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde::ser::Serializer>::Ok, <S as serde::ser::Serializer>::Error> where S: serde::ser::Serializer
+impl<const BITS: usize, const LIMBS: usize> serde_core::ser::Serialize for brc20_prog::types::UintED<BITS, LIMBS>
+pub fn brc20_prog::types::UintED<BITS, LIMBS>::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
 pub type brc20_prog::types::B2048ED = brc20_prog::types::FixedBytesED<256>
 pub type brc20_prog::types::B256ED = brc20_prog::types::FixedBytesED<32>
 pub type brc20_prog::types::U128ED = brc20_prog::types::UintED<128, 2>

@@ -59,6 +59,9 @@ async fn test_current_tx_id() -> Result<(), Box<dyn Error>> {
     // Mine some blocks to ensure we hit prague activation height
     client.brc20_mine(275000, 0).await?;
 
+    let block_number = client.eth_block_number().await?;
+    assert_eq!(block_number.as_str(), "0x43237"); // 275000 - 1 in hex
+
     let response = client
         .brc20_call(
             "aaaaabbbbccccddddeeeeffff00001111222233333".to_string(),

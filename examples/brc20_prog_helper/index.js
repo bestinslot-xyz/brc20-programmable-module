@@ -70,7 +70,7 @@ async function main() {
             p: "brc20-prog",
             op: "call",
             c: "REPLACE_THIS_WITH_CONTRACT_ADDRESS",
-            d: contract_factory.interface.encodeFunctionData("getBtcTxId", []),
+            d: contract_factory.interface.encodeFunctionData("getTxId", []),
         }
     ), function (_) { });
 
