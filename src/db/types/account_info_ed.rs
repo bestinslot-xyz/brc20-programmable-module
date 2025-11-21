@@ -1,6 +1,8 @@
+#![cfg(feature = "server")]
+
 use std::error::Error;
 
-use revm_state::AccountInfo;
+use revm::state::AccountInfo;
 use serde::{Deserialize, Serialize};
 
 use crate::db::types::{Decode, Encode, B256ED, U256ED, U64ED};

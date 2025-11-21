@@ -5,12 +5,12 @@ use std::error::Error;
 use std::fmt::Display;
 use std::path::Path;
 
-use alloy::primitives::map::foldhash::fast::RandomState;
 use alloy::primitives::{Address, Bloom, Bytes, FixedBytes, Log, B256, U256, U64};
 use revm::context::result::ExecutionResult;
 use revm::context::DBErrorMarker;
+use revm::primitives::map::DefaultHashBuilder;
 use revm::{Database as DatabaseTrait, DatabaseCommit};
-use revm_state::{Account, AccountInfo, Bytecode};
+use revm::state::{Account, AccountInfo, Bytecode};
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use serde_either::SingleOrVec;
@@ -1104,7 +1104,7 @@ impl DatabaseTrait for Brc20ProgDatabase {
 }
 
 impl DatabaseCommit for Brc20ProgDatabase {
-    fn commit(&mut self, changes: HashMap<Address, Account, RandomState>) {
+    fn commit(&mut self, changes: HashMap<Address, Account, DefaultHashBuilder>) {
         for (address, account) in changes {
             if !account.is_touched() {
                 continue;

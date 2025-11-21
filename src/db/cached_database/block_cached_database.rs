@@ -265,7 +265,7 @@ where
 #[cfg(test)]
 mod tests {
     use alloy::primitives::{Address, B256, U256};
-    use revm_state::AccountInfo;
+    use revm::state::AccountInfo;
     use tempfile::TempDir;
 
     use super::*;

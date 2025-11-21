@@ -66,6 +66,7 @@ pub fn bip322_verify_precompile(call: &PrecompileCall) -> InterpreterResult {
 #[cfg(test)]
 mod tests {
     use bitcoin::consensus::Encodable;
+    use revm::primitives::U256;
 
     use super::*;
 
@@ -100,7 +101,7 @@ mod tests {
         let result = bip322_verify_precompile(&PrecompileCall {
             bytes: Bytes::from_iter(bytes.iter()),
             gas_limit: 1000000,
-            block_height: 0,
+            block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
         });
 

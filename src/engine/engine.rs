@@ -437,9 +437,10 @@ impl BRC20ProgEngine {
                 tx.gas_limit = gas_limit;
             });
 
-            let output = evm.inspect_replay_commit();
+            let tx = evm.ctx().tx().clone();
+            let output = evm.inspect_tx_commit(tx);
 
-            core::mem::swap(&mut *db, &mut evm.ctx().db());
+            core::mem::swap(&mut *db, evm.ctx().db_mut());
 
             let cumulative_gas_used = self
                 .last_block_info
@@ -705,7 +706,7 @@ impl BRC20ProgEngine {
             });
 
             let output = evm.replay().map(|x| x.result);
-            core::mem::swap(&mut *db, &mut evm.ctx().db());
+            core::mem::swap(&mut *db, evm.ctx().db_mut());
 
             output.map_err(|e| e.into())
         })?;
