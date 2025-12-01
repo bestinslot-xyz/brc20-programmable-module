@@ -254,6 +254,11 @@ impl BRC20ProgEngine {
         }
 
         let tx_info = self.get_info_from_raw_tx(raw_tx.clone())?;
+        
+        let Some(tx_info) = tx_info else {
+            return Ok(Vec::new());
+        };
+
         let gas_limit = get_gas_limit(inscription_byte_len);
         let account_nonce = self.get_account_nonce(tx_info.from)?;
 
@@ -292,7 +297,7 @@ impl BRC20ProgEngine {
         let mut receipts = Vec::new();
         let receipt = self.add_tx_to_block(
             timestamp,
-            &self.get_info_from_raw_tx(raw_tx.clone())?,
+            &tx_info,
             tx_idx,
             block_number,
             block_hash,
@@ -351,30 +356,26 @@ impl BRC20ProgEngine {
         Ok(receipts)
     }
 
-    pub fn get_info_from_raw_tx(&self, mut raw_tx: Vec<u8>) -> Result<TxInfo, Box<dyn Error>> {
+    pub fn get_info_from_raw_tx(&self, mut raw_tx: Vec<u8>) -> Result<Option<TxInfo>, Box<dyn Error>> {
         let (decoded_raw_tx, signature) =
             TxLegacy::rlp_decode_with_signature(&mut raw_tx.as_mut_slice().as_ref())
                 .map_err(|_| "Failed to decode legacy transaction")?;
 
         if decoded_raw_tx.chain_id != Some(CONFIG.read().chain_id) {
-            return Err(format!(
-                "Invalid chain ID in raw transaction: {:?}",
-                decoded_raw_tx.chain_id
-            )
-            .into());
+            return Ok(None);
         }
 
         let signing_hash = keccak256(decoded_raw_tx.encoded_for_signing());
         let recovered_address = signature.recover_address_from_prehash(&signing_hash)?;
 
-        Ok(TxInfo::from_raw_transaction(
+        Ok(Some(TxInfo::from_raw_transaction(
             recovered_address,
             decoded_raw_tx,
             signing_hash,
             signature.v() as u8,
             signature.r(),
             signature.s(),
-        ))
+        )))
     }
 
     pub fn add_tx_to_block(
@@ -1417,7 +1418,7 @@ mod tests {
 
         let raw_tx = hex::decode("f875098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a764000084deadbeef8584a4866483a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83").unwrap();
 
-        let result = engine.get_info_from_raw_tx(raw_tx).unwrap();
+        let result = engine.get_info_from_raw_tx(raw_tx).unwrap().unwrap();
 
         assert_eq!(result.nonce, Some(9));
         assert_eq!(
