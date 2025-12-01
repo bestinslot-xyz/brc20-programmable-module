@@ -9,8 +9,8 @@ use alloy::primitives::{Address, Bloom, Bytes, FixedBytes, Log, B256, U256, U64}
 use revm::context::result::ExecutionResult;
 use revm::context::DBErrorMarker;
 use revm::primitives::map::DefaultHashBuilder;
-use revm::{Database as DatabaseTrait, DatabaseCommit};
 use revm::state::{Account, AccountInfo, Bytecode};
+use revm::{Database as DatabaseTrait, DatabaseCommit};
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use serde_either::SingleOrVec;
@@ -692,7 +692,7 @@ impl Brc20ProgDatabase {
                 .ok_or("Parent block is missing")?
         };
 
-        let tx_ids = self
+        let mut tx_ids = self
             .db_number_and_index_to_tx_hash
             .as_ref()
             .expect(DB_MUTEX_ERROR)
@@ -700,6 +700,8 @@ impl Brc20ProgDatabase {
                 &Self::get_number_and_index_key(block_number, 0).into(),
                 &Self::get_number_and_index_key(block_number + 1, 0).into(),
             )?;
+
+        tx_ids.sort_by(|a, b| a.0.cmp(&b.0));
 
         let leaves = tx_ids
             .iter()
