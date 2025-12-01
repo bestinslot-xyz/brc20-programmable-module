@@ -85,11 +85,7 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
         true
     }
 
-    fn run(
-        &mut self,
-        ctx: &mut CTX,
-        inputs: &CallInputs,
-    ) -> Result<Option<Self::Output>, String> {
+    fn run(&mut self, ctx: &mut CTX, inputs: &CallInputs) -> Result<Option<Self::Output>, String> {
         if let Some(eth_precompile) = self.eth_precompiles.get(&inputs.target_address) {
             match eth_precompile.execute(&inputs.input.bytes(ctx), inputs.gas_limit) {
                 Ok(output) => {
@@ -110,7 +106,8 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
                 }
                 Err(e) => return Err(e.to_string()),
             }
-        } else if let Some(custom_precompile) = self.custom_precompiles.get(&inputs.target_address) {
+        } else if let Some(custom_precompile) = self.custom_precompiles.get(&inputs.target_address)
+        {
             return Ok(Some(custom_precompile(&PrecompileCall {
                 bytes: inputs.input.bytes(ctx),
                 gas_limit: inputs.gas_limit,
