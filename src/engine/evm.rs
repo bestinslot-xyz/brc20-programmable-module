@@ -1,8 +1,8 @@
 use alloy::primitives::{B256, U256};
 use revm::context::{BlockEnv, CfgEnv, Evm, TxEnv};
 use revm::context_interface::block::BlobExcessGasAndPrice;
-use revm::handler::EthFrame;
 use revm::handler::instructions::EthInstructions;
+use revm::handler::EthFrame;
 use revm::interpreter::interpreter::EthInterpreter;
 use revm::{Context, Journal, JournalEntry};
 use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
