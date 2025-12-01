@@ -5,7 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.15.5 (2025-12-01)
+
+### Bug Fixes
+
+ - <csr-id-995d6fcb20c8abb499fe7ad7ba59c7d379df01f3/> Handle None case in get_info_from_raw_tx and update related logic, invalid chain ID shouldn't return error, and just ignore the transaction
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 1 commit contributed to the release.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Handle None case in get_info_from_raw_tx and update related logic, invalid chain ID shouldn't return error, and just ignore the transaction ([`995d6fc`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/995d6fcb20c8abb499fe7ad7ba59c7d379df01f3))
+</details>
+
 ## v0.15.4 (2025-12-01)
+
+<csr-id-d703fa1befd2b078c8a5a43a580442fb75929ca7/>
 
 ### Chore
 
@@ -25,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 5 commits contributed to the release.
+ - 6 commits contributed to the release.
  - 5 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -36,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release brc20-prog v0.15.4 ([`9fae28d`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/9fae28d1d960fefa060031f37a2bdf0cf28c23df))
     - Cargo fmt ([`d703fa1`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d703fa1befd2b078c8a5a43a580442fb75929ca7))
     - Sort transactions by index in Brc20ProgDatabase ([`5d42a47`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/5d42a4709f451dd651f7327269e3d1ee1adc8fce))
     - Add description for txpool_content method in README.md ([`6499438`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/6499438a4283a261bce0cc83cf4d4c2b9b952eec))
@@ -118,9 +145,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Release brc20-prog v0.15.1 ([`a7f58b7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/a7f58b7ccefe8815b53a7f3913b8319a096aad24))
     - Update alloy to v1.1.0, revm to v31.0.0, remove revm_state and refactor accordingly ([`303738e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/303738ef0a5f5389512d7f71f41e7d1a47a25b6b))
 </details>
-
-<csr-unknown>
-alloy to 1.1.0<csr-unknown/>
 
 ## v0.15.0 (2025-10-14)
 
