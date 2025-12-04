@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.15.6 (2025-12-04)
+
+### Chore
+
+ - <csr-id-f0042b04f388804f0c5edf413f625349fbb66c7a/> Update dependencies and add new packages
+   - Updated `alloy` to version 1.1.2 and related packages to their latest versions.
+   - Updated `hyper` to version 1.8.1 and `jsonrpsee` to version 0.26.0.
+   - Updated `revm` and related packages to their latest versions.
+   - Updated `criterion` and `insta` to their latest versions.
+   - Updated `tower-http`, `tracing`, and `tracing-subscriber` to their latest versions.
+   - Updated `test-utils` dependencies to match the main project.
+
+### Bug Fixes
+
+ - <csr-id-3ee6a869616eb9978f78dd9c266e47154e6b9cc9/> Add gas usage assertions in deploy_call, precompiles, and transact tests
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release.
+ - 2 days passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Update dependencies and add new packages ([`f0042b0`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/f0042b04f388804f0c5edf413f625349fbb66c7a))
+    - Add gas usage assertions in deploy_call, precompiles, and transact tests ([`3ee6a86`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/3ee6a869616eb9978f78dd9c266e47154e6b9cc9))
+</details>
+
 ## v0.15.5 (2025-12-01)
 
 ### Bug Fixes
@@ -15,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 1 commit contributed to the release.
+ - 2 commits contributed to the release.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -26,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release brc20-prog v0.15.5 ([`f4a3299`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/f4a32990d0927cc65d1844d4f8845db2f541c556))
     - Handle None case in get_info_from_raw_tx and update related logic, invalid chain ID shouldn't return error, and just ignore the transaction ([`995d6fc`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/995d6fcb20c8abb499fe7ad7ba59c7d379df01f3))
 </details>
 
