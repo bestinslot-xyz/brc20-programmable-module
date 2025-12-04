@@ -84,10 +84,15 @@ async fn test_transact() -> Result<(), Box<dyn Error>> {
 
     let trace = client
         .debug_trace_transaction(call_response.transaction_hash)
-        .await?;
+        .await?.unwrap();
 
     assert_eq!(
-        trace.unwrap().output.bytes,
+        trace.gas_used.uint,
+        U256::from(21440)
+    );
+
+    assert_eq!(
+        trace.output.bytes,
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
     );
 
