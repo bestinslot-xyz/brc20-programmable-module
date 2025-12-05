@@ -287,4 +287,36 @@ mod tests {
 
         assert_eq!(trace.get_created_contract(), Some([1; 20].into()));
     }
+
+    #[test]
+    fn test_opi_string() {
+        let trace = TraceED {
+            tx_type: "call".to_string(),
+            from: [0; 20].into(),
+            to: Some([1; 20].into()),
+            calls: vec![TraceED {
+                tx_type: "call".to_string(),
+                from: [2; 20].into(),
+                to: Some([3; 20].into()),
+                calls: vec![],
+                gas: U256::from(21000).into(),
+                gas_used: U256::from(21000).into(),
+                input: vec![0x60, 0x00].into(),
+                output: vec![0x00].into(),
+                value: U256::from(0).into(),
+                error: None,
+                revert_reason: None,
+            }],
+            gas: U256::from(21000).into(),
+            gas_used: U256::from(21001).into(),
+            input: vec![0x60, 0x00].into(),
+            output: vec![0x20].into(),
+            value: U256::from(0).into(),
+            error: None,
+            revert_reason: None,
+        };
+
+        let expected_opi = "CALL;0000000000000000000000000000000000000000;0101010101010101010101010101010101010101;21000;21001;6000;20;[CALL;0202020202020202020202020202020202020202;0303030303030303030303030303030303030303;21000;21000;6000;00;[]]";
+        assert_eq!(trace.get_opi_string(), expected_opi);
+    }
 }
