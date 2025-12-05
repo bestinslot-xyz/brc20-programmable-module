@@ -650,6 +650,24 @@ impl Brc20ProgApiServer for RpcServer {
     }
 
     #[instrument(skip(self), level = "error")]
+    async fn debug_get_block_trace_string(&self, block: String) -> RpcResult<Option<String>> {
+        log_call();
+        let block_number = self.parse_block_number(&block).map_err(wrap_rpc_error)?;
+        self.engine
+            .get_block_trace_string(block_number)
+            .map_err(wrap_rpc_error)
+    }
+
+    #[instrument(skip(self), level = "error")]
+    async fn debug_get_block_trace_hash(&self, block: String) -> RpcResult<Option<String>> {
+        log_call();
+        let block_number = self.parse_block_number(&block).map_err(wrap_rpc_error)?;
+        self.engine
+            .get_block_trace_hash(block_number)
+            .map_err(wrap_rpc_error)
+    }
+
+    #[instrument(skip(self), level = "error")]
     async fn eth_get_transaction_by_hash(&self, transaction: B256ED) -> RpcResult<Option<TxED>> {
         log_call();
         self.engine

@@ -8,7 +8,7 @@ use alloy::consensus::transaction::RlpEcdsaDecodableTx;
 use alloy::consensus::{SignableTransaction, TxLegacy};
 use alloy::primitives::{keccak256, Address, B256, U256};
 use alloy_rpc_types_trace::geth::CallConfig;
-use either::Either::Right;
+use either::Either::{Left, Right};
 use revm::context::ContextTr;
 use revm::handler::EvmTr;
 use revm::inspector::InspectorEvmTr;
@@ -254,7 +254,7 @@ impl BRC20ProgEngine {
         }
 
         let tx_info = self.get_info_from_raw_tx(raw_tx.clone())?;
-        
+
         let Some(tx_info) = tx_info else {
             return Ok(Vec::new());
         };
@@ -356,7 +356,10 @@ impl BRC20ProgEngine {
         Ok(receipts)
     }
 
-    pub fn get_info_from_raw_tx(&self, mut raw_tx: Vec<u8>) -> Result<Option<TxInfo>, Box<dyn Error>> {
+    pub fn get_info_from_raw_tx(
+        &self,
+        mut raw_tx: Vec<u8>,
+    ) -> Result<Option<TxInfo>, Box<dyn Error>> {
         let (decoded_raw_tx, signature) =
             TxLegacy::rlp_decode_with_signature(&mut raw_tx.as_mut_slice().as_ref())
                 .map_err(|_| "Failed to decode legacy transaction")?;
@@ -529,6 +532,42 @@ impl BRC20ProgEngine {
 
     pub fn get_trace(&self, tx_hash: B256) -> Result<Option<TraceED>, Box<dyn Error>> {
         self.db.read().get_tx_trace(tx_hash)
+    }
+
+    pub fn get_block_trace_hash(
+        &self,
+        block_number: u64,
+    ) -> Result<Option<String>, Box<dyn Error>> {
+        let Some(trace_hash_str) = self.get_block_trace_string(block_number)? else {
+            return Ok(None);
+        };
+        let digest = sha256::digest(trace_hash_str);
+        Ok(Some(digest))
+    }
+
+    pub fn get_block_trace_string(
+        &self,
+        block_number: u64,
+    ) -> Result<Option<String>, Box<dyn Error>> {
+        static TRACE_SEPARATOR: &str = "|";
+        self.db.read_fn(|db| {
+            let Some(block) = db.get_block(block_number)? else {
+                return Ok(None);
+            };
+            let Left(transactions) = block.transactions else {
+                return Ok(None);
+            };
+            let mut trace_hash_str = String::new();
+            for tx_hash in transactions {
+                if let Some(trace) = db.get_tx_trace(tx_hash.bytes)? {
+                    trace_hash_str.push_str(&trace.get_opi_string());
+                    trace_hash_str.push_str(TRACE_SEPARATOR);
+                }
+            }
+            Ok(Some(
+                trace_hash_str.trim_end_matches(TRACE_SEPARATOR).to_string(),
+            ))
+        })
     }
 
     pub fn get_transaction_count(

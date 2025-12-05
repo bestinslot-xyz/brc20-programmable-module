@@ -70,6 +70,33 @@ impl TraceED {
         }
         return None;
     }
+
+    pub(crate) fn get_opi_string(&self) -> String {
+        format!(
+            "{};{};{};{};{};{};{};[{}]",
+            self.tx_type.to_uppercase(), // CALL, CREATE, etc.
+            self.from
+                .address
+                .to_string()
+                .to_lowercase()
+                .trim_start_matches("0x"), // address string, non-checksummed, lowercase, no 0x
+            self.to.as_ref().map_or("".to_string(), |addr| addr
+                .address
+                .to_string()
+                .to_lowercase()
+                .trim_start_matches("0x")
+                .to_string()), // empty string if None, non-checksummed, lowercase, no 0x
+            self.gas,                    // base 10, no 0x
+            self.gas_used,               // base 10, no 0x
+            hex::encode(&self.input.bytes).to_lowercase(), // hex string, no 0x, lowercase
+            hex::encode(&self.output.bytes).to_lowercase(), // hex string, no 0x, lowercase
+            self.calls
+                .iter()
+                .map(|call| call.get_opi_string())
+                .collect::<Vec<String>>()
+                .join(","), // nested calls as OPI strings, comma-separated
+        )
+    }
 }
 
 #[cfg(feature = "server")]
