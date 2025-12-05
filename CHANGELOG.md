@@ -5,7 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.15.7 (2025-12-05)
+
+### New Features
+
+ - <csr-id-39f18e7cfc83cbb3c48455fe35f0fff1595d2aa6/> Add debug methods for block trace string retrieval
+
+### Test
+
+ - <csr-id-4d5c856b6819c3550be054a34435a6257245350c/> Update tests
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 4 commits contributed to the release.
+ - 1 day passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Update tests ([`4d5c856`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/4d5c856b6819c3550be054a34435a6257245350c))
+    - Add debug methods for block trace string retrieval ([`39f18e7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/39f18e7cfc83cbb3c48455fe35f0fff1595d2aa6))
+    - Reapply "chore: Update dependencies and add new packages" ([`08058e8`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/08058e8da3b830b17c93f0478a96d8e541aef0b6))
+    - Revert "chore: Update dependencies and add new packages" ([`af51836`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/af51836cf4e02a44a3616fa6244d5f43309854a0))
+</details>
+
 ## v0.15.6 (2025-12-04)
+
+<csr-id-f0042b04f388804f0c5edf413f625349fbb66c7a/>
 
 ### Chore
 
@@ -25,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 2 commits contributed to the release.
+ - 3 commits contributed to the release.
  - 2 days passed between releases.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -37,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release brc20-prog v0.15.6 ([`6bfbf80`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/6bfbf8093944d421f343fbd7b88cd81f1976fc1d))
     - Update dependencies and add new packages ([`f0042b0`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/f0042b04f388804f0c5edf413f625349fbb66c7a))
     - Add gas usage assertions in deploy_call, precompiles, and transact tests ([`3ee6a86`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/3ee6a869616eb9978f78dd9c266e47154e6b9cc9))
 </details>
