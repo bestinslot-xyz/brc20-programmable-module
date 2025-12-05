@@ -52,6 +52,7 @@ tower-http = { version = "0.6.7", features = [
 tracing = "0.1.43"
 tracing-subscriber = { version = "0.3.22", optional = true }
 zstd-safe = "7.2.4"
+sha256 = "1.6.0"
 
 [dev-dependencies]
 alloy-consensus = "1.1.0"

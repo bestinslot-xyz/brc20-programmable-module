@@ -25,6 +25,8 @@ lazy_static::lazy_static! {
         "brc20_reorg".to_string(),
         "brc20_commitToDatabase".to_string(),
         "brc20_clearCaches".to_string(),
+        "debug_getBlockTraceString".to_string(), // Expensive, indexer-only debug method
+        "debug_getBlockTraceHash".to_string(), // Expensive, indexer-only debug method
     ];
 }
 
@@ -242,6 +244,14 @@ pub trait Brc20ProgApi {
     /// Returns the trace for the given transaction hash
     #[method(name = "debug_traceTransaction")]
     async fn debug_trace_transaction(&self, transaction: B256ED) -> RpcResult<Option<TraceED>>;
+
+    /// Returns the block trace string for the given block number
+    #[method(name = "debug_getBlockTraceString")]
+    async fn debug_get_block_trace_string(&self, block: String) -> RpcResult<Option<String>>;
+
+    /// Returns the trace hash for the given block number
+    #[method(name = "debug_getBlockTraceHash")]
+    async fn debug_get_block_trace_hash(&self, block: String) -> RpcResult<Option<String>>;
 
     /// Returns the transaction by hash
     #[method(name = "eth_getTransactionByHash")]
