@@ -7,7 +7,7 @@ description = "Test utils for brc20-prog"
 
 [dependencies]
 brc20-prog = { path = "../", features = ["server"] }
-jsonrpsee = { version = "0.25.1", features = ["client"] }
-rust-embed = "8.7.2"
-tempfile = "3.20.0"
-tokio = "1.45.0"
+jsonrpsee = { version = "0.26.0", features = ["server", "client"] }
+rust-embed = "8.9.0"
+tempfile = "3.23.0"
+tokio = "1.48.0"
