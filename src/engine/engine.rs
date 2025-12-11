@@ -557,6 +557,15 @@ impl BRC20ProgEngine {
             let Left(transactions) = block.transactions else {
                 return Ok(None);
             };
+            // Sort by tx index (as they may be out of order)
+            let mut transactions = transactions;
+            transactions.sort_by_key(|tx_hash| {
+                db.get_tx_receipt(tx_hash.bytes)
+                    .ok()
+                    .flatten()
+                    .expect("Transaction in block not found in database")
+                    .transaction_index
+            });
             let mut trace_hash_str = String::new();
             for tx_hash in transactions {
                 if let Some(trace) = db.get_tx_trace(tx_hash.bytes)? {
