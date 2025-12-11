@@ -5,7 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.15.8 (2025-12-11)
+
+### New Features
+
+ - <csr-id-cf96ca1c546b973a6ce744749d2b6bb575049d58/> Sort transactions by index in block processing
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 1 commit contributed to the release.
+ - 5 days passed between releases.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Sort transactions by index in block processing ([`cf96ca1`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/cf96ca1c546b973a6ce744749d2b6bb575049d58))
+</details>
+
 ## v0.15.7 (2025-12-05)
+
+<csr-id-4d5c856b6819c3550be054a34435a6257245350c/>
 
 ### New Features
 
@@ -19,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 4 commits contributed to the release.
+ - 5 commits contributed to the release.
  - 1 day passed between releases.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -31,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release brc20-prog v0.15.7 ([`88b574a`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/88b574a3bc2a7aec279004b68dcee2cdba0bdbfd))
     - Update tests ([`4d5c856`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/4d5c856b6819c3550be054a34435a6257245350c))
     - Add debug methods for block trace string retrieval ([`39f18e7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/39f18e7cfc83cbb3c48455fe35f0fff1595d2aa6))
     - Reapply "chore: Update dependencies and add new packages" ([`08058e8`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/08058e8da3b830b17c93f0478a96d8e541aef0b6))
