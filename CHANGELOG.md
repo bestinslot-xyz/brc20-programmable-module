@@ -5,11 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v0.15.8 (2025-12-11)
+## v0.15.9 (2025-12-16)
 
 ### New Features
 
- - <csr-id-cf96ca1c546b973a6ce744749d2b6bb575049d58/> Sort transactions by index in block processing
+ - <csr-id-5df80c229fd343b1dc519c975f62dce487dccc7b/> Change tx hash computation to use RLP hash from a set block height
 
 ### Commit Statistics
 
@@ -27,6 +27,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Change tx hash computation to use RLP hash from a set block height ([`5df80c2`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/5df80c229fd343b1dc519c975f62dce487dccc7b))
+</details>
+
+## v0.15.8 (2025-12-11)
+
+### New Features
+
+ - <csr-id-cf96ca1c546b973a6ce744749d2b6bb575049d58/> Sort transactions by index in block processing
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release.
+ - 5 days passed between releases.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release brc20-prog v0.15.8 ([`54bb34c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/54bb34c1eaadb345397058f257901dad00b35b25))
     - Sort transactions by index in block processing ([`cf96ca1`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/cf96ca1c546b973a6ce744749d2b6bb575049d58))
 </details>
 
