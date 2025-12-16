@@ -20,6 +20,7 @@ use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_addres
 use crate::db::types::{BlockResponseED, BytecodeED, LogED, Signature, TraceED, TxED, TxReceiptED};
 use crate::db::Brc20ProgDatabase;
 use crate::engine::evm::get_evm;
+use crate::engine::hardforks::use_rlp_hash_for_tx_hash;
 use crate::engine::utils::{
     get_contract_address, get_gas_limit, get_inscription_byte_len, get_tx_hash, LastBlockInfo,
     TxInfo,
@@ -253,7 +254,8 @@ impl BRC20ProgEngine {
             block_hash = generate_block_hash(block_number);
         }
 
-        let tx_info = self.get_info_from_raw_tx(raw_tx.clone())?;
+        let tx_info =
+            self.get_info_from_raw_tx(raw_tx.clone(), use_rlp_hash_for_tx_hash(block_number))?;
 
         let Some(tx_info) = tx_info else {
             return Ok(Vec::new());
@@ -359,6 +361,7 @@ impl BRC20ProgEngine {
     pub fn get_info_from_raw_tx(
         &self,
         mut raw_tx: Vec<u8>,
+        use_rlp_hash: bool,
     ) -> Result<Option<TxInfo>, Box<dyn Error>> {
         let (decoded_raw_tx, signature) =
             TxLegacy::rlp_decode_with_signature(&mut raw_tx.as_mut_slice().as_ref())
@@ -371,10 +374,18 @@ impl BRC20ProgEngine {
         let signing_hash = keccak256(decoded_raw_tx.encoded_for_signing());
         let recovered_address = signature.recover_address_from_prehash(&signing_hash)?;
 
+        // Signing hash is not the tx hash (as it can collide), so compute the correct one
+        // This was an oversight in earlier versions
+        let tx_hash = if use_rlp_hash {
+            keccak256(&raw_tx)
+        } else {
+            signing_hash
+        };
+
         Ok(Some(TxInfo::from_raw_transaction(
             recovered_address,
             decoded_raw_tx,
-            signing_hash,
+            tx_hash,
             signature.v() as u8,
             signature.r(),
             signature.s(),
@@ -1466,7 +1477,7 @@ mod tests {
 
         let raw_tx = hex::decode("f875098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a764000084deadbeef8584a4866483a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83").unwrap();
 
-        let result = engine.get_info_from_raw_tx(raw_tx).unwrap().unwrap();
+        let result = engine.get_info_from_raw_tx(raw_tx, true).unwrap().unwrap();
 
         assert_eq!(result.nonce, Some(9));
         assert_eq!(
@@ -1478,5 +1489,43 @@ mod tests {
             "0x3535353535353535353535353535353535353535"
         );
         assert_eq!(result.data, vec![0xde, 0xad, 0xbe, 0xef]);
+    }
+
+    #[test]
+    fn test_decode_raw_tx_new_tx_hash() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+        CONFIG.write_fn_unchecked(|config| {
+            config.chain_id = 0x4252433230;
+        });
+
+        let raw_tx = hex::decode("f875098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a764000084deadbeef8584a4866483a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83").unwrap();
+
+        let result = engine.get_info_from_raw_tx(raw_tx, true).unwrap().unwrap();
+
+        assert_eq!(
+            hex::encode(result.pre_hash.unwrap().0),
+            "a868b98e61fc95116dd30d095930cb88eacdd2129c7596744cb36e645952ebfb"
+        );
+    }
+
+    #[test]
+    fn test_decode_raw_tx_old_tx_hash() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+        CONFIG.write_fn_unchecked(|config| {
+            config.chain_id = 0x4252433230;
+        });
+
+        let raw_tx = hex::decode("f875098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a764000084deadbeef8584a4866483a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83").unwrap();
+
+        let result = engine.get_info_from_raw_tx(raw_tx, false).unwrap().unwrap();
+
+        assert_eq!(
+            hex::encode(result.pre_hash.unwrap().0),
+            "e591d2cd4e58a3fa496324f525942ff9a03a4b07a77d9d6b31ca14728331aeee"
+        );
     }
 }
