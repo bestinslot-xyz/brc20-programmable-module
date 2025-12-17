@@ -35,6 +35,8 @@ pub fn get_op_return_tx_id_precompile(call: &PrecompileCall) -> InterpreterResul
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use revm::primitives::U256;
 
     use super::*;
@@ -47,6 +49,7 @@ mod tests {
             gas_limit: 1000000,
             block_height: U256::ZERO,
             current_op_return_tx_id: bytes.into(),
+            btc_tx_hexes_data: HashMap::new(),
         });
 
         assert!(result.is_ok());

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error;
 
 use alloy::primitives::hex::FromHex;
@@ -31,6 +32,17 @@ impl EthCall {
             data: Some(data),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Represents the data returned from a precompile execution.
+pub struct PrecompileData {
+    /// The transaction ID of the OP_RETURN transaction, a list of B256, one for each transaction.
+    #[serde(rename = "opReturnTxIds")]
+    pub op_return_tx_ids: Vec<B256ED>,
+    /// A mapping of Bitcoin transaction IDs (B256ED) to their raw hex bytes (RawBytes).
+    #[serde(rename = "bitcoinTxHexes")]
+    pub bitcoin_tx_hexes: HashMap<B256ED, RawBytes>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

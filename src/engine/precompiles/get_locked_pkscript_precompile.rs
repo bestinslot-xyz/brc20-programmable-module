@@ -130,6 +130,8 @@ fn build_lock_script(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
 
     #[test]
@@ -146,6 +148,7 @@ mod tests {
             gas_limit: 100000,
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
+            btc_tx_hexes_data: HashMap::new(),
         });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
         assert_eq!(
@@ -168,6 +171,7 @@ mod tests {
             gas_limit: 100000,
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
+            btc_tx_hexes_data: HashMap::new(),
         });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
         assert_eq!(
@@ -190,6 +194,7 @@ mod tests {
             gas_limit: 100000,
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
+            btc_tx_hexes_data: HashMap::new(),
         });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
         assert_eq!(
@@ -212,6 +217,7 @@ mod tests {
             gas_limit: 100000,
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
+            btc_tx_hexes_data: HashMap::new(),
         });
         assert!(result.is_error());
     }
@@ -230,6 +236,7 @@ mod tests {
             gas_limit: 100000,
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
+            btc_tx_hexes_data: HashMap::new(),
         });
         assert!(result.is_error());
     }
