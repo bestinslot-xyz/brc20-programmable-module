@@ -112,6 +112,9 @@ pub brc20_prog::types::LogED::log_index: brc20_prog::types::U64ED
 pub brc20_prog::types::LogED::topics: alloc::vec::Vec<brc20_prog::types::B256ED>
 pub brc20_prog::types::LogED::transaction_hash: brc20_prog::types::B256ED
 pub brc20_prog::types::LogED::transaction_index: brc20_prog::types::U64ED
+pub struct brc20_prog::types::PrecompileData
+pub brc20_prog::types::PrecompileData::bitcoin_tx_hexes: std::collections::hash::map::HashMap<brc20_prog::types::B256ED, brc20_prog::types::RawBytes>
+pub brc20_prog::types::PrecompileData::op_return_tx_ids: alloc::vec::Vec<brc20_prog::types::B256ED>
 pub struct brc20_prog::types::RawBytes(_)
 impl brc20_prog::types::RawBytes
 pub fn brc20_prog::types::RawBytes::empty() -> Self
@@ -247,8 +250,10 @@ pub fn brc20_prog::Brc20ProgApiClient::eth_accounts(&self) -> impl core::future:
 pub fn brc20_prog::Brc20ProgApiClient::eth_blob_base_fee(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::eth_block_number(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::eth_call(&self, eth_call: brc20_prog::types::EthCall, block: core::option::Option<alloc::string::String>) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::eth_call_many(&self, eth_calls: alloc::vec::Vec<brc20_prog::types::EthCall>, block: core::option::Option<alloc::string::String>, precompile_data: core::option::Option<brc20_prog::types::PrecompileData>) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<alloc::string::String>, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::eth_chain_id(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::eth_estimate_gas(&self, eth_call: brc20_prog::types::EthCall, block: core::option::Option<alloc::string::String>) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
+pub fn brc20_prog::Brc20ProgApiClient::eth_estimate_gas_many(&self, eth_calls: alloc::vec::Vec<brc20_prog::types::EthCall>, block: core::option::Option<alloc::string::String>, precompile_data: core::option::Option<brc20_prog::types::PrecompileData>) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<alloc::string::String>, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::eth_gas_price(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::eth_get_balance(&self, _address: brc20_prog::types::AddressED, _block: alloc::string::String) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::eth_get_block_by_hash(&self, block: brc20_prog::types::B256ED, is_full: core::option::Option<bool>) -> impl core::future::future::Future<Output = core::result::Result<brc20_prog::types::BlockResponseED, jsonrpsee_core::client::error::Error>> + core::marker::Send

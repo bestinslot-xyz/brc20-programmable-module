@@ -30,7 +30,7 @@ use crate::global::{
     SharedData, CONFIG, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_FUTURE_TRANSACTION_NONCES,
     MAX_REORG_HISTORY_SIZE,
 };
-use crate::types::AddressED;
+use crate::types::{AddressED, PrecompileData};
 
 pub struct BRC20ProgEngine {
     db: SharedData<Brc20ProgDatabase>,
@@ -442,6 +442,7 @@ impl BRC20ProgEngine {
                 db_moved,
                 None,
                 op_return_tx_id,
+                &None,
             );
 
             evm.ctx().modify_tx(|tx| {
@@ -755,6 +756,7 @@ impl BRC20ProgEngine {
                 db_moved,
                 None,
                 [0u8; 32].into(),
+                &None,
             );
 
             evm.ctx().modify_tx(|tx| {
@@ -777,6 +779,81 @@ impl BRC20ProgEngine {
             gas_used: output.gas_used().into(),
             output: output.output().cloned(),
         })
+    }
+
+    pub fn read_contract_multi(
+        &self,
+        tx_infos: &Vec<TxInfo>,
+        block_height: Option<u64>,
+        precompile_data: Option<PrecompileData>,
+    ) -> Result<Vec<ReadContractResult>, Box<dyn Error>> {
+        self.require_no_waiting_txes()?;
+
+        let block_number = if let Some(height) = block_height {
+            height
+        } else {
+            self.get_next_block_height()?
+        };
+
+        let timestamp = UNIX_EPOCH.elapsed().map(|x| x.as_secs())?;
+        let mut nonces = HashMap::new();
+        for tx_info in tx_infos {
+            let nonce = self.get_account_nonce(tx_info.from)?;
+            nonces.insert(tx_info.from, nonce);
+        }
+
+        // This isn't actually writing to the database, but the EVM context requires a mutable reference
+        let outputs = self.db.write_fn(|db| {
+            let db_moved = core::mem::take(&mut *db);
+            let mut evm = get_evm(
+                block_number,
+                B256::ZERO,
+                timestamp,
+                db_moved,
+                None,
+                [0u8; 32].into(),
+                &precompile_data,
+            );
+
+            let mut outputs = Vec::new();
+            for idx in 0..tx_infos.len() {
+                let tx_info = &tx_infos[idx];
+                let nonce = *nonces.get(&tx_info.from).unwrap_or(&0);
+                nonces.insert(tx_info.from, nonce + 1);
+
+                evm.precompiles.op_return_tx_id = precompile_data
+                    .as_ref()
+                    .and_then(|data| data.op_return_tx_ids.get(idx).cloned())
+                    .unwrap_or([0u8; 32].into())
+                    .into();
+
+                evm.ctx().modify_tx(|tx| {
+                    tx.caller = tx_info.from;
+                    tx.kind = tx_info.to;
+                    tx.data = tx_info.data.clone();
+                    tx.nonce = nonce;
+                    tx.gas_limit = CONFIG.read().evm_call_gas_limit;
+                });
+                let tx = evm.ctx().tx().clone();
+                outputs.push(evm.transact_one(tx)?);
+            }
+
+            core::mem::swap(&mut *db, evm.ctx().db_mut());
+
+            Ok(outputs)
+        })?;
+
+        let mut results = Vec::new();
+        for output in outputs {
+            results.push(ReadContractResult {
+                status: output.is_success(),
+                status_string: format!("{:?}", output),
+                gas_used: output.gas_used().into(),
+                output: output.output().cloned(),
+            });
+        }
+
+        Ok(results)
     }
 
     pub fn get_storage_at(
