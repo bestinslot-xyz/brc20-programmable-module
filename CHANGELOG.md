@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.15.10 (2025-12-17)
+
+### Chore
+
+ - <csr-id-b4042bcf3e9fd1deb5470a48492982d5a382c2bd/> Update API
+
+### New Features
+
+ - <csr-id-0ab266a7b5041dddd60ee7dcbea1ae883457d5e0/> Implement eth_callMany with precompile data injection
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release.
+ - 1 day passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Implement eth_callMany with precompile data injection ([`0ab266a`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/0ab266a7b5041dddd60ee7dcbea1ae883457d5e0))
+    - Update API ([`b4042bc`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/b4042bcf3e9fd1deb5470a48492982d5a382c2bd))
+</details>
+
 ## v0.15.9 (2025-12-16)
 
 ### New Features
@@ -15,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 1 commit contributed to the release.
+ - 2 commits contributed to the release.
  - 5 days passed between releases.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -27,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release brc20-prog v0.15.9 ([`151d5cf`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/151d5cf54b937148a4326440d159d89ef1d57459))
     - Change tx hash computation to use RLP hash from a set block height ([`5df80c2`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/5df80c229fd343b1dc519c975f62dce487dccc7b))
 </details>
 
@@ -163,6 +194,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-d703fa1befd2b078c8a5a43a580442fb75929ca7/> cargo fmt
 
+### New Features
+
+ - <csr-id-9dc342c19a17a2d7cdcf4d9350f027707b6527fe/> Add PrecompileData struct and update eth_callMany and eth_estimateGasMany methods to include precompile_data parameter
+
 ### Documentation
 
  - <csr-id-6499438a4283a261bce0cc83cf4d4c2b9b952eec/> Add description for txpool_content method in README.md
@@ -172,13 +207,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-5d42a4709f451dd651f7327269e3d1ee1adc8fce/> Sort transactions by index in Brc20ProgDatabase
  - <csr-id-19388a7c3f42cebc4bda9f271e6b2022c8d34657/> Rename getBtcTxId to getTxId for consistency in function naming
+ - <csr-id-774a85fccac6c1c5489210a430bc9fca764f4403/> Update comment to clarify placeholder usage for block hash in get_transaction_and_block_hash_with_overrides
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 6 commits contributed to the release.
- - 5 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 9 commits contributed to the release.
+ - 7 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -191,6 +227,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Release brc20-prog v0.15.4 ([`9fae28d`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/9fae28d1d960fefa060031f37a2bdf0cf28c23df))
     - Cargo fmt ([`d703fa1`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d703fa1befd2b078c8a5a43a580442fb75929ca7))
     - Sort transactions by index in Brc20ProgDatabase ([`5d42a47`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/5d42a4709f451dd651f7327269e3d1ee1adc8fce))
+    - Update comment to clarify placeholder usage for block hash in get_transaction_and_block_hash_with_overrides ([`774a85f`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/774a85fccac6c1c5489210a430bc9fca764f4403))
+    - Add PrecompileData struct and update eth_callMany and eth_estimateGasMany methods to include precompile_data parameter ([`9dc342c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/9dc342c19a17a2d7cdcf4d9350f027707b6527fe))
+    - Implemented eth_callMany and eth_estimateGasMany ([`c342c5d`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/c342c5d929364cc23f3383a34bbce90db821a7b6))
     - Add description for txpool_content method in README.md ([`6499438`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/6499438a4283a261bce0cc83cf4d4c2b9b952eec))
     - Update brc20_deploy, brc20_call, brc20_transact method parameters to include op_return_tx_id field ([`2d9c923`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/2d9c92345d52ffbce9e47fec7362a35d671a5885))
     - Rename getBtcTxId to getTxId for consistency in function naming ([`19388a7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/19388a7c3f42cebc4bda9f271e6b2022c8d34657))
