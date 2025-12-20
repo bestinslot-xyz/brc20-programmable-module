@@ -835,7 +835,15 @@ impl BRC20ProgEngine {
                     tx.gas_limit = CONFIG.read().evm_call_gas_limit;
                 });
                 let tx = evm.ctx().tx().clone();
-                outputs.push(evm.transact_one(tx)?);
+                let result = evm.transact_one(tx);
+                match result {
+                    Ok(output) => outputs.push(output),
+                    Err(e) => {
+                        // Clean up and return error
+                        core::mem::swap(&mut *db, evm.ctx().db_mut());
+                        return Err(e.into());
+                    }
+                }
             }
 
             core::mem::swap(&mut *db, evm.ctx().db_mut());
