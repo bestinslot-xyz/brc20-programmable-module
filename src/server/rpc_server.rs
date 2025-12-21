@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::collections::HashMap;
 use std::error::Error;
 use std::net::SocketAddr;
@@ -23,7 +24,7 @@ use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
 use crate::engine::{get_evm_address_from_pkscript, BRC20ProgEngine, TxInfo};
-use crate::global::{INVALID_ADDRESS, CONFIG};
+use crate::global::{CONFIG, GAS_PER_BYTE, INVALID_ADDRESS};
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
     wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
@@ -649,7 +650,7 @@ impl Brc20ProgApiServer for RpcServer {
         let mut lower_gas_limit = 21_000u64;
         let mut estimated_gas;
 
-        while lower_gas_limit < upper_gas_limit {
+        while lower_gas_limit + GAS_PER_BYTE < upper_gas_limit {
             estimated_gas = (lower_gas_limit + upper_gas_limit) / 2;
             let receipt = self.engine.read_contract(
                 &TxInfo::from_inscription(
@@ -669,7 +670,7 @@ impl Brc20ProgApiServer for RpcServer {
                 continue;
             };
             if result.status {
-                upper_gas_limit = estimated_gas;
+                upper_gas_limit = min(estimated_gas, result.gas_used * 2);
                 debug!("eth_estimate_gas: estimated gas sufficient: {}, used: {}", estimated_gas, result.gas_used);
             } else {
                 lower_gas_limit = estimated_gas + 1;
@@ -743,7 +744,7 @@ impl Brc20ProgApiServer for RpcServer {
         for i in 0..txinfos.len() {
             let mut upper_gas_limit = CONFIG.read().evm_call_gas_limit;
             let mut lower_gas_limit = 21_000u64;
-            while lower_gas_limit < upper_gas_limit {
+            while lower_gas_limit + GAS_PER_BYTE < upper_gas_limit {
                 estimated_gases[i] = (lower_gas_limit + upper_gas_limit) / 2;
 
                 let receipts = self
@@ -755,7 +756,7 @@ impl Brc20ProgApiServer for RpcServer {
                     continue;
                 };
                 if result[i].status {
-                    upper_gas_limit = estimated_gases[i];
+                    upper_gas_limit = min(estimated_gases[i], result[i].gas_used * 2);
                     debug!("eth_estimate_gas_many {}: estimated gas sufficient: {}, used: {}", i, estimated_gases[i], result[i].gas_used);
                 } else {
                     lower_gas_limit = estimated_gases[i] + 1;
