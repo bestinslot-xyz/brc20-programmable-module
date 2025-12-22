@@ -13,7 +13,7 @@ use revm::state::Bytecode;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
-use tracing::{info, debug, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
 use crate::api::types::{select_bytes, EthCall, GetLogsFilter};
 use crate::api::{Brc20ProgApiServer, INDEXER_METHODS};
@@ -594,9 +594,9 @@ impl Brc20ProgApiServer for RpcServer {
         }
         debug!("eth_call_many: prepared {} calls", txinfos.len());
 
-        let receipts = self
-            .engine
-            .read_contract_multi(&txinfos, block_height, precompile_data, None);
+        let receipts =
+            self.engine
+                .read_contract_multi(&txinfos, block_height, precompile_data, None);
         let Ok(results) = receipts else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
@@ -646,24 +646,42 @@ impl Brc20ProgApiServer for RpcServer {
         } else {
             None
         };
+
+        let tx_info = TxInfo::from_inscription(
+            call.from
+                .as_ref()
+                .map(|x| x.address)
+                .unwrap_or(*INVALID_ADDRESS),
+            call.to.as_ref().map(|x| x.address).into(),
+            data.value().unwrap_or_default().clone(),
+        );
+
+        let Ok(result) = self.engine.read_contract(&tx_info, block_height, None) else {
+            return Err(wrap_rpc_error_string_with_data(
+                3,
+                "Call failed",
+                "0x".into(),
+            ));
+        };
+
+        if !result.status {
+            let data_string = result.output.unwrap_or(Bytes::new()).to_string();
+            return Err(wrap_rpc_error_string_with_data(
+                3,
+                format!("Execution reverted: {}", result.status_string).as_str(),
+                data_string,
+            ));
+        }
+
         let mut upper_gas_limit = CONFIG.read().evm_call_gas_limit;
         let mut lower_gas_limit = 21_000u64;
         let mut estimated_gas;
 
         while lower_gas_limit + GAS_PER_BYTE < upper_gas_limit {
             estimated_gas = (lower_gas_limit + upper_gas_limit) / 2;
-            let receipt = self.engine.read_contract(
-                &TxInfo::from_inscription(
-                    call.from
-                        .as_ref()
-                        .map(|x| x.address)
-                        .unwrap_or(*INVALID_ADDRESS),
-                    call.to.as_ref().map(|x| x.address).into(),
-                    data.value().unwrap_or_default().clone(),
-                ),
-                block_height,
-                Some(estimated_gas),
-            );
+            let receipt = self
+                .engine
+                .read_contract(&tx_info, block_height, Some(estimated_gas));
             let Ok(result) = receipt else {
                 lower_gas_limit = estimated_gas + 1;
                 debug!("eth_estimate_gas: estimated gas too low: {}", estimated_gas);
@@ -671,7 +689,10 @@ impl Brc20ProgApiServer for RpcServer {
             };
             if result.status {
                 upper_gas_limit = estimated_gas;
-                debug!("eth_estimate_gas: estimated gas sufficient: {}, used: {}", estimated_gas, result.gas_used);
+                debug!(
+                    "eth_estimate_gas: estimated gas sufficient: {}, used: {}",
+                    estimated_gas, result.gas_used
+                );
             } else {
                 lower_gas_limit = estimated_gas + 1;
                 debug!("eth_estimate_gas: estimated gas too low: {}", estimated_gas);
@@ -680,17 +701,11 @@ impl Brc20ProgApiServer for RpcServer {
         estimated_gas = upper_gas_limit;
 
         let receipt = self.engine.read_contract(
-            &TxInfo::from_inscription(
-                call.from
-                    .as_ref()
-                    .map(|x| x.address)
-                    .unwrap_or(*INVALID_ADDRESS),
-                call.to.as_ref().map(|x| x.address).into(),
-                data.value().unwrap_or_default().clone(),
-            ),
+            &tx_info,
             block_height,
-            Some(estimated_gas)
+            Some(estimated_gas),
         );
+
         let Ok(result) = receipt else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
@@ -698,6 +713,7 @@ impl Brc20ProgApiServer for RpcServer {
                 "0x".into(),
             ));
         };
+
         let data_string = result.output.unwrap_or(Bytes::new()).to_string();
         if !result.status {
             return Err(wrap_rpc_error_string_with_data(
@@ -740,35 +756,79 @@ impl Brc20ProgApiServer for RpcServer {
                 data.value().unwrap_or_default().clone(),
             ));
         }
+
+        // First run to check if all calls can succeed with the max gas limit, to avoid
+        // unnecessary bisection for all calls.
+        let Ok(results) =
+            self.engine
+                .read_contract_multi(&txinfos, block_height, precompile_data.clone(), None)
+        else {
+            return Err(wrap_rpc_error_string_with_data(
+                3,
+                "Call failed",
+                "0x".into(),
+            ));
+        };
+
+        for (result_idx, result) in results.iter().enumerate() {
+            if !result.status {
+                return Err(wrap_rpc_error_string_with_data(
+                    3,
+                    format!(
+                        "Execution with index {} reverted: {}",
+                        result_idx, result.status_string
+                    )
+                    .as_str(),
+                    result.output.as_ref().unwrap_or(&Bytes::new()).to_string(),
+                ));
+            }
+        }
+
         let mut estimated_gases: Vec<u64> = vec![CONFIG.read().evm_call_gas_limit; txinfos.len()];
         for i in 0..txinfos.len() {
             let mut upper_gas_limit = CONFIG.read().evm_call_gas_limit;
             let mut lower_gas_limit = 21_000u64;
+
             while lower_gas_limit + GAS_PER_BYTE < upper_gas_limit {
                 estimated_gases[i] = (lower_gas_limit + upper_gas_limit) / 2;
 
-                let receipts = self
-                    .engine
-                    .read_contract_multi(&txinfos, block_height, precompile_data.clone(), Some(estimated_gases.as_ref()));
+                let receipts = self.engine.read_contract_multi(
+                    &txinfos,
+                    block_height,
+                    precompile_data.clone(),
+                    Some(estimated_gases.as_ref()),
+                );
                 let Ok(result) = receipts else {
                     lower_gas_limit = estimated_gases[i] + 1;
-                    debug!("eth_estimate_gas_many {}: estimated gas too low: {}", i, estimated_gases[i]);
+                    debug!(
+                        "eth_estimate_gas_many {}: estimated gas too low: {}",
+                        i, estimated_gases[i]
+                    );
                     continue;
                 };
                 if result[i].status {
                     upper_gas_limit = estimated_gases[i];
-                    debug!("eth_estimate_gas_many {}: estimated gas sufficient: {}, used: {}", i, estimated_gases[i], result[i].gas_used);
+                    debug!(
+                        "eth_estimate_gas_many {}: estimated gas sufficient: {}, used: {}",
+                        i, estimated_gases[i], result[i].gas_used
+                    );
                 } else {
                     lower_gas_limit = estimated_gases[i] + 1;
-                    debug!("eth_estimate_gas_many {}: estimated gas too low: {}", i, estimated_gases[i]);
+                    debug!(
+                        "eth_estimate_gas_many {}: estimated gas too low: {}",
+                        i, estimated_gases[i]
+                    );
                 }
             }
             estimated_gases[i] = upper_gas_limit;
         }
 
-        let receipts = self
-            .engine
-            .read_contract_multi(&txinfos, block_height, precompile_data, Some(estimated_gases.as_ref()));
+        let receipts = self.engine.read_contract_multi(
+            &txinfos,
+            block_height,
+            precompile_data,
+            Some(estimated_gases.as_ref()),
+        );
         let Ok(results) = receipts else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
