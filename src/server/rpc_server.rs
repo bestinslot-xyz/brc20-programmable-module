@@ -670,7 +670,7 @@ impl Brc20ProgApiServer for RpcServer {
                 continue;
             };
             if result.status {
-                upper_gas_limit = min(estimated_gas, result.gas_used * 2);
+                upper_gas_limit = estimated_gas;
                 debug!("eth_estimate_gas: estimated gas sufficient: {}, used: {}", estimated_gas, result.gas_used);
             } else {
                 lower_gas_limit = estimated_gas + 1;
@@ -756,7 +756,7 @@ impl Brc20ProgApiServer for RpcServer {
                     continue;
                 };
                 if result[i].status {
-                    upper_gas_limit = min(estimated_gases[i], result[i].gas_used * 2);
+                    upper_gas_limit = estimated_gases[i];
                     debug!("eth_estimate_gas_many {}: estimated gas sufficient: {}, used: {}", i, estimated_gases[i], result[i].gas_used);
                 } else {
                     lower_gas_limit = estimated_gases[i] + 1;
