@@ -734,6 +734,7 @@ impl BRC20ProgEngine {
         &self,
         tx_info: &TxInfo,
         block_height: Option<u64>,
+        gas_limit: Option<u64>,
     ) -> Result<ReadContractResult, Box<dyn Error>> {
         self.require_no_waiting_txes()?;
 
@@ -764,7 +765,7 @@ impl BRC20ProgEngine {
                 tx.kind = tx_info.to;
                 tx.data = tx_info.data.clone();
                 tx.nonce = nonce;
-                tx.gas_limit = CONFIG.read().evm_call_gas_limit;
+                tx.gas_limit = gas_limit.unwrap_or(CONFIG.read().evm_call_gas_limit);
             });
 
             let output = evm.replay().map(|x| x.result);
@@ -786,6 +787,7 @@ impl BRC20ProgEngine {
         tx_infos: &Vec<TxInfo>,
         block_height: Option<u64>,
         precompile_data: Option<PrecompileData>,
+        gas_limit: Option<&Vec<u64>>,
     ) -> Result<Vec<ReadContractResult>, Box<dyn Error>> {
         self.require_no_waiting_txes()?;
 
@@ -832,7 +834,7 @@ impl BRC20ProgEngine {
                     tx.kind = tx_info.to;
                     tx.data = tx_info.data.clone();
                     tx.nonce = nonce;
-                    tx.gas_limit = CONFIG.read().evm_call_gas_limit;
+                    tx.gas_limit = gas_limit.map_or(CONFIG.read().evm_call_gas_limit, |gl| gl.get(idx).cloned().unwrap_or(CONFIG.read().evm_call_gas_limit));
                 });
                 let tx = evm.ctx().tx().clone();
                 let result = evm.transact_one(tx);
