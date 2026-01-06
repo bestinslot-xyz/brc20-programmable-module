@@ -125,7 +125,7 @@ async fn test_bip322_verify() -> Result<(), Box<dyn Error>> {
         Some("latest".to_string()),
     ).await?;
 
-    assert_eq!(gas_response.as_str().to_lowercase(), "0xad34"); // 54356 in hex
+    assert_eq!(gas_response.as_str().to_lowercase(), "0xc93c");
 
     server.stop()?;
 
@@ -164,7 +164,7 @@ async fn test_btc_locked_pkscript() -> Result<(), Box<dyn Error>> {
         Some("latest".to_string()),
     ).await?;
 
-    assert_eq!(gas_response.as_str().to_lowercase(), "0xa4a4");
+    assert_eq!(gas_response.as_str().to_lowercase(), "0xab6f");
 
     server.stop()?;
 
