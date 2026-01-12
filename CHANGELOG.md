@@ -5,7 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.15.11 (2026-01-12)
+
+### New Features
+
+ - <csr-id-e514fa702efab5e5e6649a70aed2fce18ae5bd1f/> Enhance gas estimation logic with binary search adjustments
+ - <csr-id-fb2a26711eb019df968dc4be45e378747f8c57f1/> Add gas estimation with binary search for estimateGas and estimateGasMany
+
+### Bug Fixes
+
+ - <csr-id-66ea2725fdff575db41a21f2dcf0e713e3e2ff4b/> Update expected gas response values in test cases
+ - <csr-id-cd7e50972b9b4a01a4d0ddd15a80ed4d21bcbea9/> keep midpoint instead of gas_used * 2 as upper bound to cover some edge cases
+ - <csr-id-8f05677e441c3a198f8c42b93455942c5cd49b9c/> Clean up properly if transact_one(tx) returns an error
+ - <csr-id-cda1f7170c55aecfbaa7b0923374387d6b11b438/> Clean up properly if transact_one(tx) returns an error
+
+### Refactor
+
+ - <csr-id-f07023132712482b9c64101d26d1ee0eded94f95/> Do a first run on eth_estimateGasMany and eth_estimateGas for an early exit in case calls fail
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 8 commits contributed to the release.
+ - 19 days passed between releases.
+ - 7 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Merge pull request #3 from bestinslot-xyz/estimateGas-with-binary-search ([`0ee9cc4`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/0ee9cc4374d3bddbf9550dcc08bac9654c2774c0))
+    - Update expected gas response values in test cases ([`66ea272`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/66ea2725fdff575db41a21f2dcf0e713e3e2ff4b))
+    - Do a first run on eth_estimateGasMany and eth_estimateGas for an early exit in case calls fail ([`f070231`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/f07023132712482b9c64101d26d1ee0eded94f95))
+    - Keep midpoint instead of gas_used * 2 as upper bound to cover some edge cases ([`cd7e509`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/cd7e50972b9b4a01a4d0ddd15a80ed4d21bcbea9))
+    - Enhance gas estimation logic with binary search adjustments ([`e514fa7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/e514fa702efab5e5e6649a70aed2fce18ae5bd1f))
+    - Clean up properly if transact_one(tx) returns an error ([`8f05677`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/8f05677e441c3a198f8c42b93455942c5cd49b9c))
+    - Clean up properly if transact_one(tx) returns an error ([`cda1f71`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/cda1f7170c55aecfbaa7b0923374387d6b11b438))
+    - Add gas estimation with binary search for estimateGas and estimateGasMany ([`fb2a267`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/fb2a26711eb019df968dc4be45e378747f8c57f1))
+</details>
+
 ## v0.15.10 (2025-12-17)
+
+<csr-id-b4042bcf3e9fd1deb5470a48492982d5a382c2bd/>
 
 ### Chore
 
@@ -19,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 2 commits contributed to the release.
+ - 3 commits contributed to the release.
  - 1 day passed between releases.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -31,6 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release brc20-prog v0.15.10 ([`d6a9bf7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d6a9bf71fd49a43d38a63fb0aec892ace9469b50))
     - Implement eth_callMany with precompile data injection ([`0ab266a`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/0ab266a7b5041dddd60ee7dcbea1ae883457d5e0))
     - Update API ([`b4042bc`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/b4042bcf3e9fd1deb5470a48492982d5a382c2bd))
 </details>
