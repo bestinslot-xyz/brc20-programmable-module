@@ -11,6 +11,7 @@ use crate::db::Brc20ProgDatabase;
 use crate::engine::hardforks::get_evm_spec;
 use crate::engine::precompiles::BRC20Precompiles;
 use crate::global::CONFIG;
+use crate::types::PrecompileData;
 
 pub fn get_evm(
     block_number: u64,
@@ -19,6 +20,7 @@ pub fn get_evm(
     db: Brc20ProgDatabase,
     gas_limit: Option<u64>,
     current_op_return_tx_id: B256,
+    precompile_data: &Option<PrecompileData>,
 ) -> Evm<
     Context<BlockEnv, TxEnv, CfgEnv, Brc20ProgDatabase>,
     TracingInspector,
@@ -56,6 +58,6 @@ pub fn get_evm(
         ctx,
         TracingInspector::new(TracingInspectorConfig::none()),
         EthInstructions::new_mainnet(),
-        BRC20Precompiles::new(evm_spec.into(), current_op_return_tx_id),
+        BRC20Precompiles::new(evm_spec.into(), current_op_return_tx_id, precompile_data),
     )
 }
