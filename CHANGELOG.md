@@ -5,11 +5,245 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.15.11 (2026-01-12)
+
+### New Features
+
+ - <csr-id-e514fa702efab5e5e6649a70aed2fce18ae5bd1f/> Enhance gas estimation logic with binary search adjustments
+ - <csr-id-fb2a26711eb019df968dc4be45e378747f8c57f1/> Add gas estimation with binary search for estimateGas and estimateGasMany
+
+### Bug Fixes
+
+ - <csr-id-66ea2725fdff575db41a21f2dcf0e713e3e2ff4b/> Update expected gas response values in test cases
+ - <csr-id-cd7e50972b9b4a01a4d0ddd15a80ed4d21bcbea9/> keep midpoint instead of gas_used * 2 as upper bound to cover some edge cases
+ - <csr-id-8f05677e441c3a198f8c42b93455942c5cd49b9c/> Clean up properly if transact_one(tx) returns an error
+ - <csr-id-cda1f7170c55aecfbaa7b0923374387d6b11b438/> Clean up properly if transact_one(tx) returns an error
+
+### Refactor
+
+ - <csr-id-f07023132712482b9c64101d26d1ee0eded94f95/> Do a first run on eth_estimateGasMany and eth_estimateGas for an early exit in case calls fail
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 8 commits contributed to the release.
+ - 19 days passed between releases.
+ - 7 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Merge pull request #3 from bestinslot-xyz/estimateGas-with-binary-search ([`0ee9cc4`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/0ee9cc4374d3bddbf9550dcc08bac9654c2774c0))
+    - Update expected gas response values in test cases ([`66ea272`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/66ea2725fdff575db41a21f2dcf0e713e3e2ff4b))
+    - Do a first run on eth_estimateGasMany and eth_estimateGas for an early exit in case calls fail ([`f070231`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/f07023132712482b9c64101d26d1ee0eded94f95))
+    - Keep midpoint instead of gas_used * 2 as upper bound to cover some edge cases ([`cd7e509`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/cd7e50972b9b4a01a4d0ddd15a80ed4d21bcbea9))
+    - Enhance gas estimation logic with binary search adjustments ([`e514fa7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/e514fa702efab5e5e6649a70aed2fce18ae5bd1f))
+    - Clean up properly if transact_one(tx) returns an error ([`8f05677`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/8f05677e441c3a198f8c42b93455942c5cd49b9c))
+    - Clean up properly if transact_one(tx) returns an error ([`cda1f71`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/cda1f7170c55aecfbaa7b0923374387d6b11b438))
+    - Add gas estimation with binary search for estimateGas and estimateGasMany ([`fb2a267`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/fb2a26711eb019df968dc4be45e378747f8c57f1))
+</details>
+
+## v0.15.10 (2025-12-17)
+
+<csr-id-b4042bcf3e9fd1deb5470a48492982d5a382c2bd/>
+
+### Chore
+
+ - <csr-id-b4042bcf3e9fd1deb5470a48492982d5a382c2bd/> Update API
+
+### New Features
+
+ - <csr-id-0ab266a7b5041dddd60ee7dcbea1ae883457d5e0/> Implement eth_callMany with precompile data injection
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 3 commits contributed to the release.
+ - 1 day passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release brc20-prog v0.15.10 ([`d6a9bf7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d6a9bf71fd49a43d38a63fb0aec892ace9469b50))
+    - Implement eth_callMany with precompile data injection ([`0ab266a`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/0ab266a7b5041dddd60ee7dcbea1ae883457d5e0))
+    - Update API ([`b4042bc`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/b4042bcf3e9fd1deb5470a48492982d5a382c2bd))
+</details>
+
+## v0.15.9 (2025-12-16)
+
+### New Features
+
+ - <csr-id-5df80c229fd343b1dc519c975f62dce487dccc7b/> Change tx hash computation to use RLP hash from a set block height
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release.
+ - 5 days passed between releases.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release brc20-prog v0.15.9 ([`151d5cf`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/151d5cf54b937148a4326440d159d89ef1d57459))
+    - Change tx hash computation to use RLP hash from a set block height ([`5df80c2`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/5df80c229fd343b1dc519c975f62dce487dccc7b))
+</details>
+
+## v0.15.8 (2025-12-11)
+
+### New Features
+
+ - <csr-id-cf96ca1c546b973a6ce744749d2b6bb575049d58/> Sort transactions by index in block processing
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release.
+ - 5 days passed between releases.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release brc20-prog v0.15.8 ([`54bb34c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/54bb34c1eaadb345397058f257901dad00b35b25))
+    - Sort transactions by index in block processing ([`cf96ca1`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/cf96ca1c546b973a6ce744749d2b6bb575049d58))
+</details>
+
+## v0.15.7 (2025-12-05)
+
+<csr-id-4d5c856b6819c3550be054a34435a6257245350c/>
+
+### New Features
+
+ - <csr-id-39f18e7cfc83cbb3c48455fe35f0fff1595d2aa6/> Add debug methods for block trace string retrieval
+
+### Test
+
+ - <csr-id-4d5c856b6819c3550be054a34435a6257245350c/> Update tests
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 5 commits contributed to the release.
+ - 1 day passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release brc20-prog v0.15.7 ([`88b574a`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/88b574a3bc2a7aec279004b68dcee2cdba0bdbfd))
+    - Update tests ([`4d5c856`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/4d5c856b6819c3550be054a34435a6257245350c))
+    - Add debug methods for block trace string retrieval ([`39f18e7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/39f18e7cfc83cbb3c48455fe35f0fff1595d2aa6))
+    - Reapply "chore: Update dependencies and add new packages" ([`08058e8`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/08058e8da3b830b17c93f0478a96d8e541aef0b6))
+    - Revert "chore: Update dependencies and add new packages" ([`af51836`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/af51836cf4e02a44a3616fa6244d5f43309854a0))
+</details>
+
+## v0.15.6 (2025-12-04)
+
+<csr-id-f0042b04f388804f0c5edf413f625349fbb66c7a/>
+
+### Chore
+
+ - <csr-id-f0042b04f388804f0c5edf413f625349fbb66c7a/> Update dependencies and add new packages
+   - Updated `alloy` to version 1.1.2 and related packages to their latest versions.
+   - Updated `hyper` to version 1.8.1 and `jsonrpsee` to version 0.26.0.
+   - Updated `revm` and related packages to their latest versions.
+   - Updated `criterion` and `insta` to their latest versions.
+   - Updated `tower-http`, `tracing`, and `tracing-subscriber` to their latest versions.
+   - Updated `test-utils` dependencies to match the main project.
+
+### Bug Fixes
+
+ - <csr-id-3ee6a869616eb9978f78dd9c266e47154e6b9cc9/> Add gas usage assertions in deploy_call, precompiles, and transact tests
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 3 commits contributed to the release.
+ - 2 days passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release brc20-prog v0.15.6 ([`6bfbf80`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/6bfbf8093944d421f343fbd7b88cd81f1976fc1d))
+    - Update dependencies and add new packages ([`f0042b0`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/f0042b04f388804f0c5edf413f625349fbb66c7a))
+    - Add gas usage assertions in deploy_call, precompiles, and transact tests ([`3ee6a86`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/3ee6a869616eb9978f78dd9c266e47154e6b9cc9))
+</details>
+
+## v0.15.5 (2025-12-01)
+
+### Bug Fixes
+
+ - <csr-id-995d6fcb20c8abb499fe7ad7ba59c7d379df01f3/> Handle None case in get_info_from_raw_tx and update related logic, invalid chain ID shouldn't return error, and just ignore the transaction
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Release brc20-prog v0.15.5 ([`f4a3299`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/f4a32990d0927cc65d1844d4f8845db2f541c556))
+    - Handle None case in get_info_from_raw_tx and update related logic, invalid chain ID shouldn't return error, and just ignore the transaction ([`995d6fc`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/995d6fcb20c8abb499fe7ad7ba59c7d379df01f3))
+</details>
+
 ## v0.15.4 (2025-12-01)
+
+<csr-id-d703fa1befd2b078c8a5a43a580442fb75929ca7/>
 
 ### Chore
 
  - <csr-id-d703fa1befd2b078c8a5a43a580442fb75929ca7/> cargo fmt
+
+### New Features
+
+ - <csr-id-9dc342c19a17a2d7cdcf4d9350f027707b6527fe/> Add PrecompileData struct and update eth_callMany and eth_estimateGasMany methods to include precompile_data parameter
 
 ### Documentation
 
@@ -20,13 +254,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-5d42a4709f451dd651f7327269e3d1ee1adc8fce/> Sort transactions by index in Brc20ProgDatabase
  - <csr-id-19388a7c3f42cebc4bda9f271e6b2022c8d34657/> Rename getBtcTxId to getTxId for consistency in function naming
+ - <csr-id-774a85fccac6c1c5489210a430bc9fca764f4403/> Update comment to clarify placeholder usage for block hash in get_transaction_and_block_hash_with_overrides
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 5 commits contributed to the release.
- - 5 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 9 commits contributed to the release.
+ - 7 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
 ### Commit Details
@@ -36,8 +271,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release brc20-prog v0.15.4 ([`9fae28d`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/9fae28d1d960fefa060031f37a2bdf0cf28c23df))
     - Cargo fmt ([`d703fa1`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d703fa1befd2b078c8a5a43a580442fb75929ca7))
     - Sort transactions by index in Brc20ProgDatabase ([`5d42a47`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/5d42a4709f451dd651f7327269e3d1ee1adc8fce))
+    - Update comment to clarify placeholder usage for block hash in get_transaction_and_block_hash_with_overrides ([`774a85f`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/774a85fccac6c1c5489210a430bc9fca764f4403))
+    - Add PrecompileData struct and update eth_callMany and eth_estimateGasMany methods to include precompile_data parameter ([`9dc342c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/9dc342c19a17a2d7cdcf4d9350f027707b6527fe))
+    - Implemented eth_callMany and eth_estimateGasMany ([`c342c5d`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/c342c5d929364cc23f3383a34bbce90db821a7b6))
     - Add description for txpool_content method in README.md ([`6499438`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/6499438a4283a261bce0cc83cf4d4c2b9b952eec))
     - Update brc20_deploy, brc20_call, brc20_transact method parameters to include op_return_tx_id field ([`2d9c923`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/2d9c92345d52ffbce9e47fec7362a35d671a5885))
     - Rename getBtcTxId to getTxId for consistency in function naming ([`19388a7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/19388a7c3f42cebc4bda9f271e6b2022c8d34657))
@@ -118,9 +357,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Release brc20-prog v0.15.1 ([`a7f58b7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/a7f58b7ccefe8815b53a7f3913b8319a096aad24))
     - Update alloy to v1.1.0, revm to v31.0.0, remove revm_state and refactor accordingly ([`303738e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/303738ef0a5f5389512d7f71f41e7d1a47a25b6b))
 </details>
-
-<csr-unknown>
-alloy to 1.1.0<csr-unknown/>
 
 ## v0.15.0 (2025-10-14)
 

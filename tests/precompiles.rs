@@ -2,6 +2,7 @@ use std::error::Error;
 
 use brc20_prog::types::{EthCall, RawBytes};
 use brc20_prog::{Brc20ProgApiClient, Brc20ProgConfig};
+use revm::primitives::U256;
 use test_utils::{is_in_ci, load_file_as_eth_bytes, load_file_as_string, spawn_test_server};
 
 #[tokio::test]
@@ -84,6 +85,8 @@ async fn test_current_tx_id() -> Result<(), Box<dyn Error>> {
         .await?
         .unwrap();
 
+    assert_eq!(trace.gas_used.uint, U256::from(21044));
+
     assert_eq!(trace.output, [5u8; 32].to_vec().into());
 
     server.stop()?;
@@ -113,6 +116,17 @@ async fn test_bip322_verify() -> Result<(), Box<dyn Error>> {
         "0x0000000000000000000000000000000000000000000000000000000000000001"
     );
 
+    let gas_response = client.eth_estimate_gas(
+        EthCall::new(
+            Some([1u8; 20].into()),
+            Some(bip322_precompile.into()),
+            load_file_as_eth_bytes("bip322_verify_call_tx_data")?,
+        ),
+        Some("latest".to_string()),
+    ).await?;
+
+    assert_eq!(gas_response.as_str().to_lowercase(), "0xc93c");
+
     server.stop()?;
 
     Ok(())
@@ -140,6 +154,17 @@ async fn test_btc_locked_pkscript() -> Result<(), Box<dyn Error>> {
         response,
         load_file_as_string("btc_get_locked_pkscript_call_response")?
     );
+
+    let gas_response = client.eth_estimate_gas(
+        EthCall::new(
+            Some([1u8; 20].into()),
+            Some(btc_locked_pkscript_precompile.into()),
+            load_file_as_eth_bytes("btc_get_locked_pkscript_call_tx_data")?,
+        ),
+        Some("latest".to_string()),
+    ).await?;
+
+    assert_eq!(gas_response.as_str().to_lowercase(), "0xab6f");
 
     server.stop()?;
 
@@ -177,6 +202,17 @@ async fn verify_btc_last_sat_loc_signet() -> Result<(), Box<dyn Error>> {
         load_file_as_string("btc_last_sat_loc_signet_call_response")?
     );
 
+    let gas_response = client.eth_estimate_gas(
+        EthCall::new(
+            Some([1u8; 20].into()),
+            Some(btc_last_sat_loc_precompile.into()),
+            load_file_as_eth_bytes("btc_last_sat_loc_signet_call_tx_data")?,
+        ),
+        Some("latest".to_string()),
+    ).await?;
+
+    assert_eq!(gas_response.as_str().to_lowercase(), "0xc8a6c");
+
     server.stop()?;
     Ok(())
 }
@@ -185,6 +221,7 @@ async fn verify_btc_get_tx_details(
     envfile: &str,
     call_file: &str,
     response_file: &str,
+    gas: &str,
 ) -> Result<(), Box<dyn Error>> {
     if is_in_ci() {
         return Ok(());
@@ -213,6 +250,17 @@ async fn verify_btc_get_tx_details(
 
     assert_eq!(response, load_file_as_string(response_file)?);
 
+    let gas_response = client.eth_estimate_gas(
+        EthCall::new(
+            Some([1u8; 20].into()),
+            Some(btc_get_tx_details_precompile.into()),
+            load_file_as_eth_bytes(call_file)?,
+        ),
+        Some("latest".to_string()),
+    ).await?;
+
+    assert_eq!(gas_response.as_str().to_lowercase(), gas);
+
     server.stop()?;
     Ok(())
 }
@@ -229,6 +277,7 @@ async fn test_btc_rpc_precompiles_mainnet() -> Result<(), Box<dyn Error>> {
         ".env.mainnet",
         "btc_get_tx_details_mainnet_call_1_tx_data",
         "btc_get_tx_details_mainnet_call_1_response",
+        "0xc8948",
     )
     .await
     .expect("Failed to verify btc_get_tx_details mainnet call 1");
@@ -236,6 +285,7 @@ async fn test_btc_rpc_precompiles_mainnet() -> Result<(), Box<dyn Error>> {
         ".env.mainnet",
         "btc_get_tx_details_mainnet_call_2_tx_data",
         "btc_get_tx_details_mainnet_call_2_response",
+        "0x18be3c",
     )
     .await
     .expect("Failed to verify btc_get_tx_details mainnet call 2");
@@ -243,6 +293,7 @@ async fn test_btc_rpc_precompiles_mainnet() -> Result<(), Box<dyn Error>> {
         ".env.mainnet",
         "btc_get_tx_details_mainnet_call_3_tx_data",
         "btc_get_tx_details_mainnet_call_3_response",
+        "0x24f348",
     )
     .await
     .expect("Failed to verify btc_get_tx_details mainnet call 3");
@@ -260,6 +311,7 @@ async fn test_btc_rpc_precompiles_signet() -> Result<(), Box<dyn Error>> {
         ".env.signet",
         "btc_get_tx_details_signet_call_tx_data",
         "btc_get_tx_details_signet_call_response",
+        "0xc8948",
     )
     .await
     .expect("Failed to verify btc_get_tx_details signet call");

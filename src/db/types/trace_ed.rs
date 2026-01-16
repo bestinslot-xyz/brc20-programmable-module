@@ -70,6 +70,33 @@ impl TraceED {
         }
         return None;
     }
+
+    pub(crate) fn get_opi_string(&self) -> String {
+        format!(
+            "{};{};{};{};{};{};{};[{}]",
+            self.tx_type.to_uppercase(), // CALL, CREATE, etc.
+            self.from
+                .address
+                .to_string()
+                .to_lowercase()
+                .trim_start_matches("0x"), // address string, non-checksummed, lowercase, no 0x
+            self.to.as_ref().map_or("".to_string(), |addr| addr
+                .address
+                .to_string()
+                .to_lowercase()
+                .trim_start_matches("0x")
+                .to_string()), // empty string if None, non-checksummed, lowercase, no 0x
+            self.gas,                    // base 10, no 0x
+            self.gas_used,               // base 10, no 0x
+            hex::encode(&self.input.bytes).to_lowercase(), // hex string, no 0x, lowercase
+            hex::encode(&self.output.bytes).to_lowercase(), // hex string, no 0x, lowercase
+            self.calls
+                .iter()
+                .map(|call| call.get_opi_string())
+                .collect::<Vec<String>>()
+                .join(","), // nested calls as OPI strings, comma-separated
+        )
+    }
 }
 
 #[cfg(feature = "server")]
@@ -259,5 +286,37 @@ mod tests {
         };
 
         assert_eq!(trace.get_created_contract(), Some([1; 20].into()));
+    }
+
+    #[test]
+    fn test_opi_string() {
+        let trace = TraceED {
+            tx_type: "call".to_string(),
+            from: [0; 20].into(),
+            to: Some([1; 20].into()),
+            calls: vec![TraceED {
+                tx_type: "call".to_string(),
+                from: [2; 20].into(),
+                to: Some([3; 20].into()),
+                calls: vec![],
+                gas: U256::from(21000).into(),
+                gas_used: U256::from(21000).into(),
+                input: vec![0x60, 0x00].into(),
+                output: vec![0x00].into(),
+                value: U256::from(0).into(),
+                error: None,
+                revert_reason: None,
+            }],
+            gas: U256::from(21000).into(),
+            gas_used: U256::from(21001).into(),
+            input: vec![0x60, 0x00].into(),
+            output: vec![0x20].into(),
+            value: U256::from(0).into(),
+            error: None,
+            revert_reason: None,
+        };
+
+        let expected_opi = "CALL;0000000000000000000000000000000000000000;0101010101010101010101010101010101010101;21000;21001;6000;20;[CALL;0202020202020202020202020202020202020202;0303030303030303030303030303030303030303;21000;21000;6000;00;[]]";
+        assert_eq!(trace.get_opi_string(), expected_opi);
     }
 }

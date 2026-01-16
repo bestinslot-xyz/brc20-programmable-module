@@ -8,7 +8,7 @@ use alloy::consensus::transaction::RlpEcdsaDecodableTx;
 use alloy::consensus::{SignableTransaction, TxLegacy};
 use alloy::primitives::{keccak256, Address, B256, U256};
 use alloy_rpc_types_trace::geth::CallConfig;
-use either::Either::Right;
+use either::Either::{Left, Right};
 use revm::context::ContextTr;
 use revm::handler::EvmTr;
 use revm::inspector::InspectorEvmTr;
@@ -20,6 +20,7 @@ use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_addres
 use crate::db::types::{BlockResponseED, BytecodeED, LogED, Signature, TraceED, TxED, TxReceiptED};
 use crate::db::Brc20ProgDatabase;
 use crate::engine::evm::get_evm;
+use crate::engine::hardforks::use_rlp_hash_for_tx_hash;
 use crate::engine::utils::{
     get_contract_address, get_gas_limit, get_inscription_byte_len, get_tx_hash, LastBlockInfo,
     TxInfo,
@@ -29,7 +30,7 @@ use crate::global::{
     SharedData, CONFIG, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_FUTURE_TRANSACTION_NONCES,
     MAX_REORG_HISTORY_SIZE,
 };
-use crate::types::AddressED;
+use crate::types::{AddressED, PrecompileData};
 
 pub struct BRC20ProgEngine {
     db: SharedData<Brc20ProgDatabase>,
@@ -253,8 +254,9 @@ impl BRC20ProgEngine {
             block_hash = generate_block_hash(block_number);
         }
 
-        let tx_info = self.get_info_from_raw_tx(raw_tx.clone())?;
-        
+        let tx_info =
+            self.get_info_from_raw_tx(raw_tx.clone(), use_rlp_hash_for_tx_hash(block_number))?;
+
         let Some(tx_info) = tx_info else {
             return Ok(Vec::new());
         };
@@ -356,7 +358,11 @@ impl BRC20ProgEngine {
         Ok(receipts)
     }
 
-    pub fn get_info_from_raw_tx(&self, mut raw_tx: Vec<u8>) -> Result<Option<TxInfo>, Box<dyn Error>> {
+    pub fn get_info_from_raw_tx(
+        &self,
+        mut raw_tx: Vec<u8>,
+        use_rlp_hash: bool,
+    ) -> Result<Option<TxInfo>, Box<dyn Error>> {
         let (decoded_raw_tx, signature) =
             TxLegacy::rlp_decode_with_signature(&mut raw_tx.as_mut_slice().as_ref())
                 .map_err(|_| "Failed to decode legacy transaction")?;
@@ -368,10 +374,18 @@ impl BRC20ProgEngine {
         let signing_hash = keccak256(decoded_raw_tx.encoded_for_signing());
         let recovered_address = signature.recover_address_from_prehash(&signing_hash)?;
 
+        // Signing hash is not the tx hash (as it can collide), so compute the correct one
+        // This was an oversight in earlier versions
+        let tx_hash = if use_rlp_hash {
+            keccak256(&raw_tx)
+        } else {
+            signing_hash
+        };
+
         Ok(Some(TxInfo::from_raw_transaction(
             recovered_address,
             decoded_raw_tx,
-            signing_hash,
+            tx_hash,
             signature.v() as u8,
             signature.r(),
             signature.s(),
@@ -428,6 +442,7 @@ impl BRC20ProgEngine {
                 db_moved,
                 None,
                 op_return_tx_id,
+                &None,
             );
 
             evm.ctx().modify_tx(|tx| {
@@ -529,6 +544,51 @@ impl BRC20ProgEngine {
 
     pub fn get_trace(&self, tx_hash: B256) -> Result<Option<TraceED>, Box<dyn Error>> {
         self.db.read().get_tx_trace(tx_hash)
+    }
+
+    pub fn get_block_trace_hash(
+        &self,
+        block_number: u64,
+    ) -> Result<Option<String>, Box<dyn Error>> {
+        let Some(trace_hash_str) = self.get_block_trace_string(block_number)? else {
+            return Ok(None);
+        };
+        let digest = sha256::digest(trace_hash_str);
+        Ok(Some(digest))
+    }
+
+    pub fn get_block_trace_string(
+        &self,
+        block_number: u64,
+    ) -> Result<Option<String>, Box<dyn Error>> {
+        static TRACE_SEPARATOR: &str = "|";
+        self.db.read_fn(|db| {
+            let Some(block) = db.get_block(block_number)? else {
+                return Ok(None);
+            };
+            let Left(transactions) = block.transactions else {
+                return Ok(None);
+            };
+            // Sort by tx index (as they may be out of order)
+            let mut transactions = transactions;
+            transactions.sort_by_key(|tx_hash| {
+                db.get_tx_receipt(tx_hash.bytes)
+                    .ok()
+                    .flatten()
+                    .expect("Transaction in block not found in database")
+                    .transaction_index
+            });
+            let mut trace_hash_str = String::new();
+            for tx_hash in transactions {
+                if let Some(trace) = db.get_tx_trace(tx_hash.bytes)? {
+                    trace_hash_str.push_str(&trace.get_opi_string());
+                    trace_hash_str.push_str(TRACE_SEPARATOR);
+                }
+            }
+            Ok(Some(
+                trace_hash_str.trim_end_matches(TRACE_SEPARATOR).to_string(),
+            ))
+        })
     }
 
     pub fn get_transaction_count(
@@ -674,6 +734,7 @@ impl BRC20ProgEngine {
         &self,
         tx_info: &TxInfo,
         block_height: Option<u64>,
+        gas_limit: Option<u64>,
     ) -> Result<ReadContractResult, Box<dyn Error>> {
         self.require_no_waiting_txes()?;
 
@@ -696,6 +757,7 @@ impl BRC20ProgEngine {
                 db_moved,
                 None,
                 [0u8; 32].into(),
+                &None,
             );
 
             evm.ctx().modify_tx(|tx| {
@@ -703,7 +765,7 @@ impl BRC20ProgEngine {
                 tx.kind = tx_info.to;
                 tx.data = tx_info.data.clone();
                 tx.nonce = nonce;
-                tx.gas_limit = CONFIG.read().evm_call_gas_limit;
+                tx.gas_limit = gas_limit.unwrap_or(CONFIG.read().evm_call_gas_limit);
             });
 
             let output = evm.replay().map(|x| x.result);
@@ -718,6 +780,90 @@ impl BRC20ProgEngine {
             gas_used: output.gas_used().into(),
             output: output.output().cloned(),
         })
+    }
+
+    pub fn read_contract_multi(
+        &self,
+        tx_infos: &Vec<TxInfo>,
+        block_height: Option<u64>,
+        precompile_data: Option<PrecompileData>,
+        gas_limit: Option<&Vec<u64>>,
+    ) -> Result<Vec<ReadContractResult>, Box<dyn Error>> {
+        self.require_no_waiting_txes()?;
+
+        let block_number = if let Some(height) = block_height {
+            height
+        } else {
+            self.get_next_block_height()?
+        };
+
+        let timestamp = UNIX_EPOCH.elapsed().map(|x| x.as_secs())?;
+        let mut nonces = HashMap::new();
+        for tx_info in tx_infos {
+            let nonce = self.get_account_nonce(tx_info.from)?;
+            nonces.insert(tx_info.from, nonce);
+        }
+
+        // This isn't actually writing to the database, but the EVM context requires a mutable reference
+        let outputs = self.db.write_fn(|db| {
+            let db_moved = core::mem::take(&mut *db);
+            let mut evm = get_evm(
+                block_number,
+                B256::ZERO,
+                timestamp,
+                db_moved,
+                None,
+                [0u8; 32].into(),
+                &precompile_data,
+            );
+
+            let mut outputs = Vec::new();
+            for idx in 0..tx_infos.len() {
+                let tx_info = &tx_infos[idx];
+                let nonce = *nonces.get(&tx_info.from).unwrap_or(&0);
+                nonces.insert(tx_info.from, nonce + 1);
+
+                evm.precompiles.op_return_tx_id = precompile_data
+                    .as_ref()
+                    .and_then(|data| data.op_return_tx_ids.get(idx).cloned())
+                    .unwrap_or([0u8; 32].into())
+                    .into();
+
+                evm.ctx().modify_tx(|tx| {
+                    tx.caller = tx_info.from;
+                    tx.kind = tx_info.to;
+                    tx.data = tx_info.data.clone();
+                    tx.nonce = nonce;
+                    tx.gas_limit = gas_limit.map_or(CONFIG.read().evm_call_gas_limit, |gl| gl.get(idx).cloned().unwrap_or(CONFIG.read().evm_call_gas_limit));
+                });
+                let tx = evm.ctx().tx().clone();
+                let result = evm.transact_one(tx);
+                match result {
+                    Ok(output) => outputs.push(output),
+                    Err(e) => {
+                        // Clean up and return error
+                        core::mem::swap(&mut *db, evm.ctx().db_mut());
+                        return Err(e.into());
+                    }
+                }
+            }
+
+            core::mem::swap(&mut *db, evm.ctx().db_mut());
+
+            Ok(outputs)
+        })?;
+
+        let mut results = Vec::new();
+        for output in outputs {
+            results.push(ReadContractResult {
+                status: output.is_success(),
+                status_string: format!("{:?}", output),
+                gas_used: output.gas_used().into(),
+                output: output.output().cloned(),
+            });
+        }
+
+        Ok(results)
     }
 
     pub fn get_storage_at(
@@ -1418,7 +1564,7 @@ mod tests {
 
         let raw_tx = hex::decode("f875098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a764000084deadbeef8584a4866483a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83").unwrap();
 
-        let result = engine.get_info_from_raw_tx(raw_tx).unwrap().unwrap();
+        let result = engine.get_info_from_raw_tx(raw_tx, true).unwrap().unwrap();
 
         assert_eq!(result.nonce, Some(9));
         assert_eq!(
@@ -1430,5 +1576,43 @@ mod tests {
             "0x3535353535353535353535353535353535353535"
         );
         assert_eq!(result.data, vec![0xde, 0xad, 0xbe, 0xef]);
+    }
+
+    #[test]
+    fn test_decode_raw_tx_new_tx_hash() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+        CONFIG.write_fn_unchecked(|config| {
+            config.chain_id = 0x4252433230;
+        });
+
+        let raw_tx = hex::decode("f875098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a764000084deadbeef8584a4866483a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83").unwrap();
+
+        let result = engine.get_info_from_raw_tx(raw_tx, true).unwrap().unwrap();
+
+        assert_eq!(
+            hex::encode(result.pre_hash.unwrap().0),
+            "a868b98e61fc95116dd30d095930cb88eacdd2129c7596744cb36e645952ebfb"
+        );
+    }
+
+    #[test]
+    fn test_decode_raw_tx_old_tx_hash() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+        CONFIG.write_fn_unchecked(|config| {
+            config.chain_id = 0x4252433230;
+        });
+
+        let raw_tx = hex::decode("f875098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a764000084deadbeef8584a4866483a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83").unwrap();
+
+        let result = engine.get_info_from_raw_tx(raw_tx, false).unwrap().unwrap();
+
+        assert_eq!(
+            hex::encode(result.pre_hash.unwrap().0),
+            "e591d2cd4e58a3fa496324f525942ff9a03a4b07a77d9d6b31ca14728331aeee"
+        );
     }
 }

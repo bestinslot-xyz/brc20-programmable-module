@@ -1,9 +1,10 @@
 use std::error::Error;
 use std::str::FromStr;
 
-use alloy::primitives::Bytes;
+use alloy::primitives::{Bytes, U64};
 use brc20_prog::types::{Base64Bytes, RawBytes};
 use brc20_prog::Brc20ProgApiClient;
+use revm::primitives::U256;
 use test_utils::{load_file_as_string, spawn_test_server};
 
 #[tokio::test]
@@ -28,6 +29,8 @@ async fn test_deploy_call() -> Result<(), Box<dyn Error>> {
             [1; 32].into(),
         )
         .await?;
+
+    assert_eq!(deploy_response.gas_used.uint, U64::from(1793621));
 
     let contract_address = deploy_response.contract_address.unwrap();
 
@@ -54,10 +57,15 @@ async fn test_deploy_call() -> Result<(), Box<dyn Error>> {
 
     let trace = client
         .debug_trace_transaction(call_response.transaction_hash)
-        .await?;
+        .await?.unwrap();
 
     assert_eq!(
-        trace.unwrap().output.bytes,
+        trace.gas_used.uint,
+        U256::from(21440)
+    );
+
+    assert_eq!(
+        trace.output.bytes,
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
     );
 
@@ -118,10 +126,15 @@ async fn test_deploy_call_encoded() -> Result<(), Box<dyn Error>> {
 
     let trace = client
         .debug_trace_transaction(call_response.transaction_hash)
-        .await?;
+        .await?.unwrap();
 
     assert_eq!(
-        trace.unwrap().output.bytes,
+        trace.gas_used.uint,
+        U256::from(21440)
+    );
+
+    assert_eq!(
+        trace.output.bytes,
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_call_response")?).unwrap()
     );
     server.stop()?;

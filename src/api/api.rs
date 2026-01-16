@@ -4,7 +4,7 @@ use alloy::primitives::keccak256;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 
-use crate::api::types::{Base64Bytes, EthCall, GetLogsFilter};
+use crate::api::types::{Base64Bytes, EthCall, GetLogsFilter, PrecompileData};
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
@@ -25,6 +25,8 @@ lazy_static::lazy_static! {
         "brc20_reorg".to_string(),
         "brc20_commitToDatabase".to_string(),
         "brc20_clearCaches".to_string(),
+        "debug_getBlockTraceString".to_string(), // Expensive, indexer-only debug method
+        "debug_getBlockTraceHash".to_string(), // Expensive, indexer-only debug method
     ];
 }
 
@@ -219,10 +221,28 @@ pub trait Brc20ProgApi {
     #[method(name = "eth_call")]
     async fn eth_call(&self, eth_call: EthCall, block: Option<String>) -> RpcResult<String>;
 
+    /// Calls a contract with the given parameters for multiple calls
+    #[method(name = "eth_callMany")]
+    async fn eth_call_many(
+        &self,
+        eth_calls: Vec<EthCall>,
+        block: Option<String>,
+        precompile_data: Option<PrecompileData>,
+    ) -> RpcResult<Vec<String>>;
+
     /// Estimates the gas for the given transaction
     #[method(name = "eth_estimateGas")]
     async fn eth_estimate_gas(&self, eth_call: EthCall, block: Option<String>)
         -> RpcResult<String>;
+
+    /// Estimates the gas for the given transactions
+    #[method(name = "eth_estimateGasMany")]
+    async fn eth_estimate_gas_many(
+        &self,
+        eth_calls: Vec<EthCall>,
+        block: Option<String>,
+        precompile_data: Option<PrecompileData>,
+    ) -> RpcResult<Vec<String>>;
 
     /// Get storage for the given contract and memory location
     #[method(name = "eth_getStorageAt")]
@@ -242,6 +262,14 @@ pub trait Brc20ProgApi {
     /// Returns the trace for the given transaction hash
     #[method(name = "debug_traceTransaction")]
     async fn debug_trace_transaction(&self, transaction: B256ED) -> RpcResult<Option<TraceED>>;
+
+    /// Returns the block trace string for the given block number
+    #[method(name = "debug_getBlockTraceString")]
+    async fn debug_get_block_trace_string(&self, block: String) -> RpcResult<Option<String>>;
+
+    /// Returns the trace hash for the given block number
+    #[method(name = "debug_getBlockTraceHash")]
+    async fn debug_get_block_trace_hash(&self, block: String) -> RpcResult<Option<String>>;
 
     /// Returns the transaction by hash
     #[method(name = "eth_getTransactionByHash")]
