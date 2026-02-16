@@ -40,6 +40,7 @@ pub struct BRC20ProgEngine {
     block_finalised: Notify,
 }
 
+#[derive(Debug)]
 pub struct ReadContractResult {
     pub status: bool,
     pub status_string: String,
@@ -1032,9 +1033,11 @@ fn generate_block_hash(block_number: u64) -> B256 {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use alloy::primitives::B256;
     use revm::primitives::TxKind;
     use tempfile::TempDir;
+    use tokio::sync::OnceCell;
 
     use super::*;
     use crate::db::Brc20ProgDatabase;
@@ -1666,7 +1669,7 @@ mod tests {
     async fn test_mid_block_read_contract_then_finalise() {
         let temp_dir = TempDir::new().unwrap();
         let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
-        let engine = BRC20ProgEngine::new(db);
+        let engine = Arc::new(BRC20ProgEngine::new(db));
 
         let account = Address::from_slice([1; 20].as_ref());
         let tx_info = TxInfo::from_inscription(account, TxKind::Create, vec![].into());
@@ -1684,12 +1687,23 @@ mod tests {
             )
             .unwrap();
 
-        let read_result = engine.read_contract(&tx_info, Some(0), Some(1000000));
+        let engine_clone = engine.clone();
+        let read_result_finalised = Arc::new(OnceCell::new());
+        let read_result_finalised_clone = read_result_finalised.clone();
+        tokio::spawn(async move {
+            let read_result = engine_clone
+                .read_contract(&tx_info, Some(0), Some(1000000))
+                .await;
+            let result = read_result.map_err(|e| e.to_string());
+            read_result_finalised_clone.set(result).unwrap();
+        });
 
+        // Wait to ensure the read_contract call is waiting on the block to be finalised
+        tokio::time::sleep(Duration::from_millis(10)).await;
         engine.finalise_block(1622547800, 0, B256::ZERO, 1).unwrap();
 
-        let read_result_after_finalise = read_result.await;
-
-        assert!(read_result_after_finalise.is_ok());
+        // Wait to ensure the read_contract call has processed the block finalisation
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        assert!(read_result_finalised.get().unwrap().is_ok());
     }
 }
