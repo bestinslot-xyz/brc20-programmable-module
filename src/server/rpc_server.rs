@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::collections::HashMap;
 use std::error::Error;
 use std::net::SocketAddr;
@@ -162,7 +161,7 @@ impl Brc20ProgApiServer for RpcServer {
                 ),
                 None,
                 None,
-            )
+            ).await
             .map(|receipt| {
                 format!(
                     "0x{:x}",
@@ -542,7 +541,7 @@ impl Brc20ProgApiServer for RpcServer {
             ),
             block_height,
             None,
-        );
+        ).await;
         let Ok(result) = receipt else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
@@ -596,7 +595,7 @@ impl Brc20ProgApiServer for RpcServer {
 
         let receipts =
             self.engine
-                .read_contract_multi(&txinfos, block_height, precompile_data, None);
+                .read_contract_multi(&txinfos, block_height, precompile_data, None).await;
         let Ok(results) = receipts else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
@@ -656,7 +655,7 @@ impl Brc20ProgApiServer for RpcServer {
             data.value().unwrap_or_default().clone(),
         );
 
-        let Ok(result) = self.engine.read_contract(&tx_info, block_height, None) else {
+        let Ok(result) = self.engine.read_contract(&tx_info, block_height, None).await else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
                 "Call failed",
@@ -681,7 +680,8 @@ impl Brc20ProgApiServer for RpcServer {
             estimated_gas = (lower_gas_limit + upper_gas_limit) / 2;
             let receipt = self
                 .engine
-                .read_contract(&tx_info, block_height, Some(estimated_gas));
+                .read_contract(&tx_info, block_height, Some(estimated_gas))
+                .await;
             let Ok(result) = receipt else {
                 lower_gas_limit = estimated_gas + 1;
                 debug!("eth_estimate_gas: estimated gas too low: {}", estimated_gas);
@@ -704,7 +704,7 @@ impl Brc20ProgApiServer for RpcServer {
             &tx_info,
             block_height,
             Some(estimated_gas),
-        );
+        ).await;
 
         let Ok(result) = receipt else {
             return Err(wrap_rpc_error_string_with_data(
@@ -762,6 +762,7 @@ impl Brc20ProgApiServer for RpcServer {
         let Ok(results) =
             self.engine
                 .read_contract_multi(&txinfos, block_height, precompile_data.clone(), None)
+                .await
         else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
@@ -797,7 +798,7 @@ impl Brc20ProgApiServer for RpcServer {
                     block_height,
                     precompile_data.clone(),
                     Some(estimated_gases.as_ref()),
-                );
+                ).await;
                 let Ok(result) = receipts else {
                     lower_gas_limit = estimated_gases[i] + 1;
                     debug!(
@@ -828,7 +829,7 @@ impl Brc20ProgApiServer for RpcServer {
             block_height,
             precompile_data,
             Some(estimated_gases.as_ref()),
-        );
+        ).await;
         let Ok(results) = receipts else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
