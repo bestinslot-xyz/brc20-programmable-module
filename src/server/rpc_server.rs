@@ -161,7 +161,8 @@ impl Brc20ProgApiServer for RpcServer {
                 ),
                 None,
                 None,
-            ).await
+            )
+            .await
             .map(|receipt| {
                 format!(
                     "0x{:x}",
@@ -530,18 +531,21 @@ impl Brc20ProgApiServer for RpcServer {
         } else {
             None
         };
-        let receipt = self.engine.read_contract(
-            &TxInfo::from_inscription(
-                call.from
-                    .as_ref()
-                    .map(|x| x.address)
-                    .unwrap_or(*INVALID_ADDRESS),
-                call.to.as_ref().map(|x| x.address).into(),
-                data.value().unwrap_or_default().clone(),
-            ),
-            block_height,
-            None,
-        ).await;
+        let receipt = self
+            .engine
+            .read_contract(
+                &TxInfo::from_inscription(
+                    call.from
+                        .as_ref()
+                        .map(|x| x.address)
+                        .unwrap_or(*INVALID_ADDRESS),
+                    call.to.as_ref().map(|x| x.address).into(),
+                    data.value().unwrap_or_default().clone(),
+                ),
+                block_height,
+                None,
+            )
+            .await;
         let Ok(result) = receipt else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
@@ -593,9 +597,10 @@ impl Brc20ProgApiServer for RpcServer {
         }
         debug!("eth_call_many: prepared {} calls", txinfos.len());
 
-        let receipts =
-            self.engine
-                .read_contract_multi(&txinfos, block_height, precompile_data, None).await;
+        let receipts = self
+            .engine
+            .read_contract_multi(&txinfos, block_height, precompile_data, None)
+            .await;
         let Ok(results) = receipts else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
@@ -637,7 +642,7 @@ impl Brc20ProgApiServer for RpcServer {
         let Some(data) = call.data else {
             return Err(wrap_rpc_error_string("No data or input provided"));
         };
-        let block_height = if let Some(block_height) = block_height {
+        let start_block_height = if let Some(block_height) = block_height.clone() {
             Some(
                 self.parse_block_number(&block_height)
                     .map_err(wrap_rpc_error)?,
@@ -655,7 +660,11 @@ impl Brc20ProgApiServer for RpcServer {
             data.value().unwrap_or_default().clone(),
         );
 
-        let Ok(result) = self.engine.read_contract(&tx_info, block_height, None).await else {
+        let Ok(result) = self
+            .engine
+            .read_contract(&tx_info, start_block_height, None)
+            .await
+        else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
                 "Call failed",
@@ -680,7 +689,7 @@ impl Brc20ProgApiServer for RpcServer {
             estimated_gas = (lower_gas_limit + upper_gas_limit) / 2;
             let receipt = self
                 .engine
-                .read_contract(&tx_info, block_height, Some(estimated_gas))
+                .read_contract(&tx_info, start_block_height, Some(estimated_gas))
                 .await;
             let Ok(result) = receipt else {
                 lower_gas_limit = estimated_gas + 1;
@@ -700,11 +709,10 @@ impl Brc20ProgApiServer for RpcServer {
         }
         estimated_gas = upper_gas_limit;
 
-        let receipt = self.engine.read_contract(
-            &tx_info,
-            block_height,
-            Some(estimated_gas),
-        ).await;
+        let receipt = self
+            .engine
+            .read_contract(&tx_info, start_block_height, Some(estimated_gas))
+            .await;
 
         let Ok(result) = receipt else {
             return Err(wrap_rpc_error_string_with_data(
@@ -713,6 +721,27 @@ impl Brc20ProgApiServer for RpcServer {
                 "0x".into(),
             ));
         };
+
+        let end_block_height = if let Some(block_height) = block_height {
+            Some(
+                self.parse_block_number(&block_height)
+                    .map_err(wrap_rpc_error)?,
+            )
+        } else {
+            None
+        };
+
+        if start_block_height != end_block_height {
+            debug!(
+                "eth_estimate_gas: block height changed from {:?} to {:?} during estimation",
+                start_block_height, end_block_height
+            );
+            return Err(wrap_rpc_error_string_with_data(
+                3,
+                "Block height changed during estimation, please try again",
+                "0x".into(),
+            ));
+        }
 
         let data_string = result.output.unwrap_or(Bytes::new()).to_string();
         if !result.status {
@@ -733,7 +762,7 @@ impl Brc20ProgApiServer for RpcServer {
         precompile_data: Option<PrecompileData>,
     ) -> RpcResult<Vec<String>> {
         log_call();
-        let block_height = if let Some(block_height) = block_height {
+        let start_block_height = if let Some(block_height) = block_height.clone() {
             Some(
                 self.parse_block_number(&block_height)
                     .map_err(wrap_rpc_error)?,
@@ -759,10 +788,10 @@ impl Brc20ProgApiServer for RpcServer {
 
         // First run to check if all calls can succeed with the max gas limit, to avoid
         // unnecessary bisection for all calls.
-        let Ok(results) =
-            self.engine
-                .read_contract_multi(&txinfos, block_height, precompile_data.clone(), None)
-                .await
+        let Ok(results) = self
+            .engine
+            .read_contract_multi(&txinfos, start_block_height, precompile_data.clone(), None)
+            .await
         else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
@@ -793,12 +822,15 @@ impl Brc20ProgApiServer for RpcServer {
             while lower_gas_limit + GAS_PER_BYTE < upper_gas_limit {
                 estimated_gases[i] = (lower_gas_limit + upper_gas_limit) / 2;
 
-                let receipts = self.engine.read_contract_multi(
-                    &txinfos,
-                    block_height,
-                    precompile_data.clone(),
-                    Some(estimated_gases.as_ref()),
-                ).await;
+                let receipts = self
+                    .engine
+                    .read_contract_multi(
+                        &txinfos,
+                        start_block_height,
+                        precompile_data.clone(),
+                        Some(estimated_gases.as_ref()),
+                    )
+                    .await;
                 let Ok(result) = receipts else {
                     lower_gas_limit = estimated_gases[i] + 1;
                     debug!(
@@ -824,12 +856,15 @@ impl Brc20ProgApiServer for RpcServer {
             estimated_gases[i] = upper_gas_limit;
         }
 
-        let receipts = self.engine.read_contract_multi(
-            &txinfos,
-            block_height,
-            precompile_data,
-            Some(estimated_gases.as_ref()),
-        ).await;
+        let receipts = self
+            .engine
+            .read_contract_multi(
+                &txinfos,
+                start_block_height,
+                precompile_data,
+                Some(estimated_gases.as_ref()),
+            )
+            .await;
         let Ok(results) = receipts else {
             return Err(wrap_rpc_error_string_with_data(
                 3,
@@ -837,6 +872,27 @@ impl Brc20ProgApiServer for RpcServer {
                 "0x".into(),
             ));
         };
+
+        let end_block_height = if let Some(block_height) = block_height {
+            Some(
+                self.parse_block_number(&block_height)
+                    .map_err(wrap_rpc_error)?,
+            )
+        } else {
+            None
+        };
+
+        if start_block_height != end_block_height {
+            debug!(
+                "eth_estimate_gas: block height changed from {:?} to {:?} during estimation",
+                start_block_height, end_block_height
+            );
+            return Err(wrap_rpc_error_string_with_data(
+                3,
+                "Block height changed during estimation, please try again",
+                "0x".into(),
+            ));
+        }
 
         let mut result_idx = 0;
         for result in results {

@@ -940,6 +940,8 @@ impl BRC20ProgEngine {
         self.last_block_info.write_fn_unchecked(|last_block_info| {
             *last_block_info = LastBlockInfo::new();
         });
+        // Clearing caches will clear all waiting txes, so notify waiters to avoid them waiting indefinitely
+        self.block_finalised.notify_waiters();
 
         self.db.write_fn(|db| db.clear_caches())
     }
