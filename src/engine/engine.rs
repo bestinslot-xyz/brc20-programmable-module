@@ -15,6 +15,8 @@ use revm::inspector::InspectorEvmTr;
 use revm::primitives::Bytes;
 use revm::{ExecuteEvm, InspectCommitEvm};
 use serde_either::SingleOrVec;
+use tokio::sync::Notify;
+use tokio::time::timeout;
 
 use crate::brc20_controller::{load_brc20_deploy_tx, verify_brc20_contract_address};
 use crate::db::types::{BlockResponseED, BytecodeED, LogED, Signature, TraceED, TxED, TxReceiptED};
@@ -35,8 +37,10 @@ use crate::types::{AddressED, PrecompileData};
 pub struct BRC20ProgEngine {
     db: SharedData<Brc20ProgDatabase>,
     last_block_info: SharedData<LastBlockInfo>,
+    block_finalised: Notify,
 }
 
+#[derive(Debug)]
 pub struct ReadContractResult {
     pub status: bool,
     pub status_string: String,
@@ -49,6 +53,7 @@ impl BRC20ProgEngine {
         let engine = BRC20ProgEngine {
             db: SharedData::new(db),
             last_block_info: SharedData::new(LastBlockInfo::new()),
+            block_finalised: Notify::new(),
         };
 
         engine
@@ -727,16 +732,17 @@ impl BRC20ProgEngine {
             *last_block_info = LastBlockInfo::new();
         });
 
+        self.block_finalised.notify_waiters();
         Ok(())
     }
 
-    pub fn read_contract(
+    pub async fn read_contract(
         &self,
         tx_info: &TxInfo,
         block_height: Option<u64>,
         gas_limit: Option<u64>,
     ) -> Result<ReadContractResult, Box<dyn Error>> {
-        self.require_no_waiting_txes()?;
+        self.wait_for_no_waiting_txes().await?;
 
         let block_number = if let Some(height) = block_height {
             height
@@ -782,14 +788,14 @@ impl BRC20ProgEngine {
         })
     }
 
-    pub fn read_contract_multi(
+    pub async fn read_contract_multi(
         &self,
         tx_infos: &Vec<TxInfo>,
         block_height: Option<u64>,
         precompile_data: Option<PrecompileData>,
         gas_limit: Option<&Vec<u64>>,
     ) -> Result<Vec<ReadContractResult>, Box<dyn Error>> {
-        self.require_no_waiting_txes()?;
+        self.wait_for_no_waiting_txes().await?;
 
         let block_number = if let Some(height) = block_height {
             height
@@ -834,7 +840,11 @@ impl BRC20ProgEngine {
                     tx.kind = tx_info.to;
                     tx.data = tx_info.data.clone();
                     tx.nonce = nonce;
-                    tx.gas_limit = gas_limit.map_or(CONFIG.read().evm_call_gas_limit, |gl| gl.get(idx).cloned().unwrap_or(CONFIG.read().evm_call_gas_limit));
+                    tx.gas_limit = gas_limit.map_or(CONFIG.read().evm_call_gas_limit, |gl| {
+                        gl.get(idx)
+                            .cloned()
+                            .unwrap_or(CONFIG.read().evm_call_gas_limit)
+                    });
                 });
                 let tx = evm.ctx().tx().clone();
                 let result = evm.transact_one(tx);
@@ -930,6 +940,8 @@ impl BRC20ProgEngine {
         self.last_block_info.write_fn_unchecked(|last_block_info| {
             *last_block_info = LastBlockInfo::new();
         });
+        // Clearing caches will clear all waiting txes, so notify waiters to avoid them waiting indefinitely
+        self.block_finalised.notify_waiters();
 
         self.db.write_fn(|db| db.clear_caches())
     }
@@ -962,6 +974,16 @@ impl BRC20ProgEngine {
             return Err("There are waiting txes, either finalise the block or clear caches".into());
         }
         Ok(())
+    }
+
+    async fn wait_for_no_waiting_txes(&self) -> Result<(), Box<dyn Error>> {
+        if self.require_no_waiting_txes().is_ok() {
+            return Ok(());
+        }
+        let notified = self.block_finalised.notified();
+        timeout(Duration::from_secs(5), notified)
+            .await
+            .map_err(|_| "Timed out waiting for waiting txes to be processed, either finalise the block or clear caches".into())
     }
 
     fn validate_next_tx(
@@ -1013,9 +1035,11 @@ fn generate_block_hash(block_number: u64) -> B256 {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use alloy::primitives::B256;
     use revm::primitives::TxKind;
     use tempfile::TempDir;
+    use tokio::sync::OnceCell;
 
     use super::*;
     use crate::db::Brc20ProgDatabase;
@@ -1614,5 +1638,74 @@ mod tests {
             hex::encode(result.pre_hash.unwrap().0),
             "e591d2cd4e58a3fa496324f525942ff9a03a4b07a77d9d6b31ca14728331aeee"
         );
+    }
+
+    #[tokio::test]
+    async fn test_mid_block_read_contract() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let account = Address::from_slice([1; 20].as_ref());
+        let tx_info = TxInfo::from_inscription(account, TxKind::Create, vec![].into());
+
+        engine
+            .add_tx_to_block(
+                1622547800,
+                &tx_info,
+                0,
+                0,
+                B256::ZERO,
+                "test_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
+            )
+            .unwrap();
+
+        let read_result = engine.read_contract(&tx_info, Some(0), Some(1000000)).await;
+
+        assert!(read_result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_mid_block_read_contract_then_finalise() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = Arc::new(BRC20ProgEngine::new(db));
+
+        let account = Address::from_slice([1; 20].as_ref());
+        let tx_info = TxInfo::from_inscription(account, TxKind::Create, vec![].into());
+
+        engine
+            .add_tx_to_block(
+                1622547800,
+                &tx_info,
+                0,
+                0,
+                B256::ZERO,
+                "test_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
+            )
+            .unwrap();
+
+        let engine_clone = engine.clone();
+        let read_result_finalised = Arc::new(OnceCell::new());
+        let read_result_finalised_clone = read_result_finalised.clone();
+        tokio::spawn(async move {
+            let read_result = engine_clone
+                .read_contract(&tx_info, Some(0), Some(1000000))
+                .await;
+            let result = read_result.map_err(|e| e.to_string());
+            read_result_finalised_clone.set(result).unwrap();
+        });
+
+        // Wait to ensure the read_contract call is waiting on the block to be finalised
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        engine.finalise_block(1622547800, 0, B256::ZERO, 1).unwrap();
+
+        // Wait to ensure the read_contract call has processed the block finalisation
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        assert!(read_result_finalised.get().unwrap().is_ok());
     }
 }
