@@ -1,6 +1,6 @@
 [package]
 name = "brc20-prog"
-version = "0.15.12"
+version = "0.15.13"
 edition = "2021"
 license = "Apache-2.0"
 description = "BRC20 programmable module - Smart contract execution engine compatible with BRC20 standard"
