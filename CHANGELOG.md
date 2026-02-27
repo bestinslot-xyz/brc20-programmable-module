@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.15.13 (2026-02-27)
+
+### New Features
+
+ - <csr-id-53fb5986b8364946d54c3413d999686823ec0b47/> eth_call* and eth_estimateGas* methods now wait for block finalisation instead of failing when they are called mid-block
+   * feat: Wait for block finalisation on eth_call* methods
+   
+   * test: Update mid-block read contract test to wait for block finalisation
+   
+   * fix: Notify waiters when clearing caches to prevent indefinite waiting, and fail gas estimation if block height change during estimation
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 1 commit contributed to the release.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 1 unique issue was worked on: [#4](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/4)
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **[#4](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/4)**
+    - Eth_call* and eth_estimateGas* methods now wait for block finalisation instead of failing when they are called mid-block ([`53fb598`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/53fb5986b8364946d54c3413d999686823ec0b47))
+</details>
+
 ## v0.15.12 (2026-02-27)
 
 ### Bug Fixes
@@ -15,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 1 commit contributed to the release.
+ - 2 commits contributed to the release.
  - 46 days passed between releases.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -27,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release brc20-prog v0.15.12 ([`f34530b`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/f34530bda40b320785082637a3164bc4cf5a00b5))
     - Update eth_get_storage_at to return full length hex-encoded storage values ([`a565eb4`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/a565eb49632594d5ca488fc42421d408be8e13b1))
 </details>
 
