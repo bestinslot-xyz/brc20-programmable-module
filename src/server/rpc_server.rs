@@ -868,10 +868,11 @@ impl Brc20ProgApiServer for RpcServer {
     async fn eth_get_storage_at(&self, contract: AddressED, location: U256ED) -> RpcResult<String> {
         log_call();
         Ok(format!(
-            "0x{:x}",
-            self.engine
+            "0x{}",
+            hex::encode(self.engine
                 .get_storage_at(contract.address, location.uint)
                 .map_err(wrap_rpc_error)?
+                .to_be_bytes_vec())
         ))
     }
 
