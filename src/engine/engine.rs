@@ -314,8 +314,8 @@ impl BRC20ProgEngine {
         )?;
         receipts.push(receipt);
 
-        // Check if next nonce exists in the pending txes and execute it in the same block
-        let mut next_nonce = account_nonce + 1;
+        // Check if next account nonce exists in the pending txes and execute it in the same block
+        let mut next_nonce = self.get_account_nonce(tx_info.from)?;
         let mut next_tx_idx = tx_idx + 1;
         loop {
             // Loop instead of while to avoid holding the database read lock here
@@ -356,7 +356,7 @@ impl BRC20ProgEngine {
             self.db.write_fn(|db| {
                 db.remove_pending_tx(pending_tx.from.address, pending_tx.nonce.into())
             })?;
-            next_nonce += 1;
+            next_nonce = self.get_account_nonce(tx_info.from)?;
             next_tx_idx += 1;
         }
 
