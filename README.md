@@ -25,8 +25,8 @@ See [Indexer Integration Guide](#indexer-integration-guide) on how to integrate 
 
 For questions, comments and requests, use [the issues section](https://github.com/bestinslot-xyz/brc20-programmable-module/issues) or [Best in Slot discord server](https://discord.com/invite/6G8yPAcP3Z).
 
-> [!WARNING]
-> This module is not currently enabled on Bitcoin mainnet.
+> [!NOTE]
+> This module is enabled on Bitcoin mainnet.
 
 ## Usage
 
