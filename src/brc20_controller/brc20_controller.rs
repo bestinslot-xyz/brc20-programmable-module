@@ -75,3 +75,38 @@ pub fn verify_brc20_contract_address(address: &str) -> Result<(), String> {
     }
     Err("Invalid BRC20_Controller contract address".to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_verify_brc20_contract_address() {
+        // The canonical controller address is accepted.
+        assert!(verify_brc20_contract_address(&BRC20_CONTROLLER_ADDRESS.to_string()).is_ok());
+
+        // A different (but valid) address is rejected.
+        assert!(
+            verify_brc20_contract_address("0x000000000000000000000000000000000000dead").is_err()
+        );
+
+        // An unparseable string falls back to the zero address and is rejected.
+        assert!(verify_brc20_contract_address("not-an-address").is_err());
+    }
+
+    #[test]
+    fn test_decode_brc20_balance_result() {
+        // Missing data decodes to zero.
+        assert_eq!(decode_brc20_balance_result(None), U256::ZERO);
+
+        // A 32-byte ABI word decodes to its value.
+        let encoded = Bytes::from(U256::from(123_456u64).to_be_bytes::<32>().to_vec());
+        assert_eq!(decode_brc20_balance_result(Some(&encoded)), U256::from(123_456u64));
+
+        // Malformed (too short) data decodes to zero rather than panicking.
+        assert_eq!(
+            decode_brc20_balance_result(Some(&Bytes::from(vec![1, 2, 3]))),
+            U256::ZERO
+        );
+    }
+}
