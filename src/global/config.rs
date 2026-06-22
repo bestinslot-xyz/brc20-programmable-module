@@ -297,3 +297,106 @@ pub fn validate_config(config: &Brc20ProgConfig) -> Result<(), Box<dyn std::erro
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_config() -> Brc20ProgConfig {
+        Brc20ProgConfig::new(
+            "127.0.0.1:18545".to_string(), // rpc url
+            false,                          // enable auth
+            None,                           // user
+            None,                           // password
+            false,                          // record traces
+            1_000_000_000,                  // call gas limit
+            "http://localhost:38332".to_string(), // bitcoin rpc url
+            "user".to_string(),
+            "pass".to_string(),
+            "signet".to_string(), // network
+            CHAIN_ID_TESTNETS,
+            true, // fail_on_bitcoin_rpc_error
+            "target/db".to_string(),
+            10 * 1024 * 1024,
+            100 * 1024 * 1024,
+            50,
+        )
+    }
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn test_validate_config_accepts_valid() {
+        assert!(validate_config(&valid_config()).is_ok());
+    }
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn test_validate_config_rejects_auth_without_credentials() {
+        let mut config = valid_config();
+        config.brc20_prog_rpc_server_enable_auth = true;
+        config.brc20_prog_rpc_server_user = None;
+        config.brc20_prog_rpc_server_password = None;
+        assert!(validate_config(&config).is_err());
+
+        // User without password is still incomplete.
+        config.brc20_prog_rpc_server_user = Some("user".to_string());
+        assert!(validate_config(&config).is_err());
+
+        // Both present is accepted.
+        config.brc20_prog_rpc_server_password = Some("pass".to_string());
+        assert!(validate_config(&config).is_ok());
+    }
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn test_validate_config_rejects_empty_rpc_url() {
+        let mut config = valid_config();
+        config.brc20_prog_rpc_server_url = String::new();
+        assert!(validate_config(&config).is_err());
+    }
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn test_validate_config_bitcoin_url_only_required_when_failing_on_rpc_error() {
+        let mut config = valid_config();
+        config.bitcoin_rpc_url = String::new();
+
+        // Empty Bitcoin URL is fatal only when we fail on Bitcoin RPC errors.
+        config.fail_on_bitcoin_rpc_error = true;
+        assert!(validate_config(&config).is_err());
+
+        config.fail_on_bitcoin_rpc_error = false;
+        assert!(validate_config(&config).is_ok());
+    }
+
+    // These mutate process-global env vars; each test owns a distinct key and
+    // removes it afterwards, so parallel runs don't collide.
+    #[test]
+    fn test_from_env_selects_chain_id_by_network() {
+        let key = &*BITCOIN_RPC_NETWORK_KEY;
+
+        env::set_var(key, "bitcoin");
+        assert_eq!(Brc20ProgConfig::from_env().chain_id, CHAIN_ID);
+
+        env::set_var(key, "mainnet");
+        assert_eq!(Brc20ProgConfig::from_env().chain_id, CHAIN_ID);
+
+        env::set_var(key, "signet");
+        assert_eq!(Brc20ProgConfig::from_env().chain_id, CHAIN_ID_TESTNETS);
+
+        env::remove_var(key);
+    }
+
+    #[test]
+    fn test_from_env_falls_back_on_malformed_numeric() {
+        let key = &*EVM_CALL_GAS_LIMIT_KEY;
+
+        env::set_var(key, "not-a-number");
+        assert_eq!(
+            Brc20ProgConfig::from_env().evm_call_gas_limit,
+            *EVM_CALL_GAS_LIMIT
+        );
+
+        env::remove_var(key);
+    }
+}
