@@ -1099,8 +1099,9 @@ mod tests {
         let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
-        let _ = engine.initialise(B256::ZERO, 1622547800, 0);
-        engine.mine_blocks(5, 1622547800).unwrap();
+        // mine_blocks creates genesis + blocks deterministically, without the
+        // Bitcoin RPC validation that initialise() performs.
+        engine.mine_blocks(6, 1622547800).unwrap();
         assert_eq!(engine.get_latest_block_height().unwrap(), 5);
         assert!(engine.get_block_by_number(5, false).unwrap().is_some());
 
@@ -1117,8 +1118,7 @@ mod tests {
         let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
-        let _ = engine.initialise(B256::ZERO, 1622547800, 0);
-        engine.mine_blocks(3, 1622547800).unwrap();
+        engine.mine_blocks(4, 1622547800).unwrap();
 
         // Reorg to the current tip is a no-op and must not lose the tip.
         engine.reorg(3).unwrap();
@@ -1132,15 +1132,18 @@ mod tests {
         let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
-        let _ = engine.initialise(B256::ZERO, 1622547800, 0);
-        engine.mine_blocks(13, 1622547800).unwrap();
+        // Keep the tip far enough ahead to exercise the history-size bound,
+        // and derive targets from the constant so the test tracks its value.
+        let height = MAX_REORG_HISTORY_SIZE + 2;
+        engine.mine_blocks(height + 1, 1622547800).unwrap();
+        assert_eq!(engine.get_latest_block_height().unwrap(), height);
 
         // Cannot reorg to a block ahead of the current tip.
-        assert!(engine.reorg(20).is_err());
-        // Cannot reorg further back than MAX_REORG_HISTORY_SIZE (13 - 0 > 10).
-        assert!(engine.reorg(0).is_err());
+        assert!(engine.reorg(height + 1).is_err());
+        // Cannot reorg further back than MAX_REORG_HISTORY_SIZE.
+        assert!(engine.reorg(height - MAX_REORG_HISTORY_SIZE - 1).is_err());
         // The failed reorgs must not have mutated the chain.
-        assert_eq!(engine.get_latest_block_height().unwrap(), 13);
+        assert_eq!(engine.get_latest_block_height().unwrap(), height);
     }
 
     #[test]
@@ -1149,8 +1152,7 @@ mod tests {
         let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
-        let _ = engine.initialise(B256::ZERO, 1622547800, 0);
-        engine.mine_blocks(2, 1622547800).unwrap();
+        engine.mine_blocks(3, 1622547800).unwrap();
 
         engine.commit_to_db().unwrap();
 
@@ -1165,8 +1167,7 @@ mod tests {
         let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         let engine = BRC20ProgEngine::new(db);
 
-        let _ = engine.initialise(B256::ZERO, 1622547800, 0);
-        engine.mine_blocks(2, 1622547800).unwrap();
+        engine.mine_blocks(3, 1622547800).unwrap();
 
         // Once committed, dropping the caches must not lose finalised blocks.
         engine.commit_to_db().unwrap();
