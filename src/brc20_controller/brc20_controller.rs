@@ -104,9 +104,7 @@ mod tests {
         assert_eq!(decode_brc20_balance_result(Some(&encoded)), U256::from(123_456u64));
 
         // Malformed (too short) data decodes to zero rather than panicking.
-        assert_eq!(
-            decode_brc20_balance_result(Some(&Bytes::from(vec![1, 2, 3]))),
-            U256::ZERO
-        );
+        let malformed = Bytes::from(vec![1, 2, 3]);
+        assert_eq!(decode_brc20_balance_result(Some(&malformed)), U256::ZERO);
     }
 }

@@ -5,7 +5,8 @@ use revm::primitives::U256;
 use test_utils::spawn_test_server;
 
 fn balance_to_u256(balance: &str) -> U256 {
-    U256::from_str_radix(balance.trim_start_matches("0x"), 16).unwrap()
+    U256::from_str_radix(balance.trim_start_matches("0x"), 16)
+        .expect("brc20_balance should return a 0x-prefixed hex string")
 }
 
 /// Exercises the BRC20 token controller end to end: deposit credits a
@@ -19,8 +20,15 @@ async fn test_deposit_balance_withdraw_roundtrip() -> Result<(), Box<dyn Error>>
 
     // Deploy the BRC20_Controller. brc20_initialise also pings the Bitcoin RPC,
     // which is unreachable in tests; the controller is deployed and genesis is
-    // finalised before that check runs, so the resulting error is expected.
-    let _ = client.brc20_initialise([1u8; 32].into(), timestamp, 0).await;
+    // finalised before that check runs. Tolerate only that specific failure so
+    // an unrelated init regression still fails the test (and it may succeed
+    // outright where a Bitcoin RPC is configured).
+    if let Err(e) = client.brc20_initialise([1u8; 32].into(), timestamp, 0).await {
+        assert!(
+            e.to_string().contains("Bitcoin RPC"),
+            "brc20_initialise failed for an unexpected reason: {e}"
+        );
+    }
 
     // No deposits yet.
     let balance = client.brc20_balance(pkscript.clone(), ticker.clone()).await?;
