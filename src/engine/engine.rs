@@ -1144,6 +1144,39 @@ mod tests {
     }
 
     #[test]
+    fn test_commit_to_db() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let _ = engine.initialise(B256::ZERO, 1622547800, 0);
+        engine.mine_blocks(2, 1622547800).unwrap();
+
+        engine.commit_to_db().unwrap();
+
+        // Committed state stays readable.
+        assert_eq!(engine.get_latest_block_height().unwrap(), 2);
+        assert!(engine.get_block_by_number(2, false).unwrap().is_some());
+    }
+
+    #[test]
+    fn test_commit_then_clear_caches_preserves_data() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let _ = engine.initialise(B256::ZERO, 1622547800, 0);
+        engine.mine_blocks(2, 1622547800).unwrap();
+
+        // Once committed, dropping the caches must not lose finalised blocks.
+        engine.commit_to_db().unwrap();
+        engine.clear_caches().unwrap();
+
+        assert_eq!(engine.get_latest_block_height().unwrap(), 2);
+        assert!(engine.get_block_by_number(2, false).unwrap().is_some());
+    }
+
+    #[test]
     fn test_mine_blocks() {
         let temp_dir = TempDir::new().unwrap();
         let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
