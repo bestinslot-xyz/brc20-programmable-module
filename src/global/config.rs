@@ -302,6 +302,7 @@ pub fn validate_config(config: &Brc20ProgConfig) -> Result<(), Box<dyn std::erro
 mod tests {
     use super::*;
 
+    #[cfg(feature = "server")]
     fn valid_config() -> Brc20ProgConfig {
         Brc20ProgConfig::new(
             "127.0.0.1:18545".to_string(), // rpc url
@@ -369,13 +370,38 @@ mod tests {
         assert!(validate_config(&config).is_ok());
     }
 
-    // These mutate process-global env vars; each test owns a distinct key and
-    // removes it afterwards, so parallel runs don't collide.
+    // Restores a process-global env var to its previous value on drop, so these
+    // tests stay isolated and panic-safe (cleanup runs even if an assert fails).
+    struct EnvVarGuard {
+        key: String,
+        previous: Option<String>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &str, value: &str) -> Self {
+            let previous = env::var(key).ok();
+            env::set_var(key, value);
+            EnvVarGuard {
+                key: key.to_string(),
+                previous,
+            }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            match &self.previous {
+                Some(value) => env::set_var(&self.key, value),
+                None => env::remove_var(&self.key),
+            }
+        }
+    }
+
     #[test]
     fn test_from_env_selects_chain_id_by_network() {
         let key = &*BITCOIN_RPC_NETWORK_KEY;
-
-        env::set_var(key, "bitcoin");
+        // Guard captures the original value once; it is restored on drop.
+        let _guard = EnvVarGuard::set(key, "bitcoin");
         assert_eq!(Brc20ProgConfig::from_env().chain_id, CHAIN_ID);
 
         env::set_var(key, "mainnet");
@@ -383,20 +409,15 @@ mod tests {
 
         env::set_var(key, "signet");
         assert_eq!(Brc20ProgConfig::from_env().chain_id, CHAIN_ID_TESTNETS);
-
-        env::remove_var(key);
     }
 
     #[test]
     fn test_from_env_falls_back_on_malformed_numeric() {
         let key = &*EVM_CALL_GAS_LIMIT_KEY;
-
-        env::set_var(key, "not-a-number");
+        let _guard = EnvVarGuard::set(key, "not-a-number");
         assert_eq!(
             Brc20ProgConfig::from_env().evm_call_gas_limit,
             *EVM_CALL_GAS_LIMIT
         );
-
-        env::remove_var(key);
     }
 }
