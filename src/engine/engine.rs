@@ -1094,6 +1094,56 @@ mod tests {
     }
 
     #[test]
+    fn test_reorg() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let _ = engine.initialise(B256::ZERO, 1622547800, 0);
+        engine.mine_blocks(5, 1622547800).unwrap();
+        assert_eq!(engine.get_latest_block_height().unwrap(), 5);
+        assert!(engine.get_block_by_number(5, false).unwrap().is_some());
+
+        // Reorg back to block 2: every block above 2 is discarded.
+        engine.reorg(2).unwrap();
+        assert_eq!(engine.get_latest_block_height().unwrap(), 2);
+        assert!(engine.get_block_by_number(2, false).unwrap().is_some());
+        assert!(engine.get_block_by_number(3, false).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_reorg_to_current_height_is_noop() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let _ = engine.initialise(B256::ZERO, 1622547800, 0);
+        engine.mine_blocks(3, 1622547800).unwrap();
+
+        // Reorg to the current tip is a no-op and must not lose the tip.
+        engine.reorg(3).unwrap();
+        assert_eq!(engine.get_latest_block_height().unwrap(), 3);
+        assert!(engine.get_block_by_number(3, false).unwrap().is_some());
+    }
+
+    #[test]
+    fn test_reorg_rejects_invalid() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let _ = engine.initialise(B256::ZERO, 1622547800, 0);
+        engine.mine_blocks(13, 1622547800).unwrap();
+
+        // Cannot reorg to a block ahead of the current tip.
+        assert!(engine.reorg(20).is_err());
+        // Cannot reorg further back than MAX_REORG_HISTORY_SIZE (13 - 0 > 10).
+        assert!(engine.reorg(0).is_err());
+        // The failed reorgs must not have mutated the chain.
+        assert_eq!(engine.get_latest_block_height().unwrap(), 13);
+    }
+
+    #[test]
     fn test_mine_blocks() {
         let temp_dir = TempDir::new().unwrap();
         let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
