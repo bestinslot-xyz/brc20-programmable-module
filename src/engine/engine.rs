@@ -1094,6 +1094,90 @@ mod tests {
     }
 
     #[test]
+    fn test_reorg() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        // mine_blocks creates genesis + blocks deterministically, without the
+        // Bitcoin RPC validation that initialise() performs.
+        engine.mine_blocks(6, 1622547800).unwrap();
+        assert_eq!(engine.get_latest_block_height().unwrap(), 5);
+        assert!(engine.get_block_by_number(5, false).unwrap().is_some());
+
+        // Reorg back to block 2: every block above 2 is discarded.
+        engine.reorg(2).unwrap();
+        assert_eq!(engine.get_latest_block_height().unwrap(), 2);
+        assert!(engine.get_block_by_number(2, false).unwrap().is_some());
+        assert!(engine.get_block_by_number(3, false).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_reorg_to_current_height_is_noop() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        engine.mine_blocks(4, 1622547800).unwrap();
+
+        // Reorg to the current tip is a no-op and must not lose the tip.
+        engine.reorg(3).unwrap();
+        assert_eq!(engine.get_latest_block_height().unwrap(), 3);
+        assert!(engine.get_block_by_number(3, false).unwrap().is_some());
+    }
+
+    #[test]
+    fn test_reorg_rejects_invalid() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        // Keep the tip far enough ahead to exercise the history-size bound,
+        // and derive targets from the constant so the test tracks its value.
+        let height = MAX_REORG_HISTORY_SIZE + 2;
+        engine.mine_blocks(height + 1, 1622547800).unwrap();
+        assert_eq!(engine.get_latest_block_height().unwrap(), height);
+
+        // Cannot reorg to a block ahead of the current tip.
+        assert!(engine.reorg(height + 1).is_err());
+        // Cannot reorg further back than MAX_REORG_HISTORY_SIZE.
+        assert!(engine.reorg(height - MAX_REORG_HISTORY_SIZE - 1).is_err());
+        // The failed reorgs must not have mutated the chain.
+        assert_eq!(engine.get_latest_block_height().unwrap(), height);
+    }
+
+    #[test]
+    fn test_commit_to_db() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        engine.mine_blocks(3, 1622547800).unwrap();
+
+        engine.commit_to_db().unwrap();
+
+        // Committed state stays readable.
+        assert_eq!(engine.get_latest_block_height().unwrap(), 2);
+        assert!(engine.get_block_by_number(2, false).unwrap().is_some());
+    }
+
+    #[test]
+    fn test_commit_then_clear_caches_preserves_data() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        engine.mine_blocks(3, 1622547800).unwrap();
+
+        // Once committed, dropping the caches must not lose finalised blocks.
+        engine.commit_to_db().unwrap();
+        engine.clear_caches().unwrap();
+
+        assert_eq!(engine.get_latest_block_height().unwrap(), 2);
+        assert!(engine.get_block_by_number(2, false).unwrap().is_some());
+    }
+
+    #[test]
     fn test_mine_blocks() {
         let temp_dir = TempDir::new().unwrap();
         let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
