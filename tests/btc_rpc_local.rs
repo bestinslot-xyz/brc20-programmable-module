@@ -19,6 +19,10 @@ use test_utils::{load_file_as_eth_bytes, load_file_as_string, spawn_test_server}
 /// CI (where no Bitcoin node is reachable).
 #[tokio::test]
 async fn test_btc_get_tx_details_signet_live() -> Result<(), Box<dyn Error>> {
+    // Load signet RPC settings first so the opt-in flag can also live in the
+    // .env.signet file, not just the shell environment.
+    dotenvy::from_filename_override(".env.signet").ok();
+
     if env::var("BRC20_RUN_BTC_RPC_TESTS").ok().as_deref() != Some("1") {
         eprintln!(
             "skipping live BTC RPC test; set BRC20_RUN_BTC_RPC_TESTS=1 (and signet RPC env) to run"
@@ -26,33 +30,36 @@ async fn test_btc_get_tx_details_signet_live() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    // Load signet RPC settings if a .env.signet file is present.
-    dotenvy::from_filename_override(".env.signet").ok();
-
     let (server, client) = spawn_test_server(Default::default()).await;
 
-    let mut get_tx_details_precompile = [0u8; 20];
-    get_tx_details_precompile[19] = 0xfd;
+    // Run the fallible body separately so the server is always stopped, even if
+    // a step returns early with an error.
+    let result = async {
+        let mut get_tx_details_precompile = [0u8; 20];
+        get_tx_details_precompile[19] = 0xfd;
 
-    // Mine enough blocks for the referenced transaction to be treated as final.
-    client.brc20_mine(300000, 0).await?;
+        // Mine enough blocks for the referenced transaction to be treated as final.
+        client.brc20_mine(300000, 0).await?;
 
-    let response = client
-        .eth_call(
-            EthCall::new(
-                Some([1u8; 20].into()),
-                Some(get_tx_details_precompile.into()),
-                load_file_as_eth_bytes("btc_get_tx_details_signet_call_tx_data")?,
-            ),
-            Some("latest".to_string()),
-        )
-        .await?;
+        let response = client
+            .eth_call(
+                EthCall::new(
+                    Some([1u8; 20].into()),
+                    Some(get_tx_details_precompile.into()),
+                    load_file_as_eth_bytes("btc_get_tx_details_signet_call_tx_data")?,
+                ),
+                Some("latest".to_string()),
+            )
+            .await?;
 
-    assert_eq!(
-        response,
-        load_file_as_string("btc_get_tx_details_signet_call_response")?
-    );
+        assert_eq!(
+            response,
+            load_file_as_string("btc_get_tx_details_signet_call_response")?
+        );
+        Ok::<(), Box<dyn Error>>(())
+    }
+    .await;
 
     server.stop()?;
-    Ok(())
+    result
 }
