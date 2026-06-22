@@ -2,9 +2,10 @@ use std::error::Error;
 use std::str::FromStr;
 
 use alloy::primitives::Address;
-use brc20_prog::types::{AddressED, GetLogsFilter};
+use brc20_prog::types::{AddressED, B256ED, GetLogsFilter};
 use brc20_prog::Brc20ProgApiClient;
 use revm::primitives::U256;
+use serde_either::SingleOrVec;
 use test_utils::spawn_test_server;
 
 // Canonical BRC20_Controller address; mint emits Transfer logs from here.
@@ -20,11 +21,7 @@ fn filter(address: Option<&str>, from: Option<&str>, to: Option<&str>) -> GetLog
 }
 
 /// A deposit mints tokens via the controller, which emits a Transfer log.
-/// Verifies eth_getLogs filtering by address and by block range.
-///
-/// Topic filtering is not exercised here — building a topic filter needs
-/// serde_either::SingleOrVec, which isn't on the public API. Add a
-/// dev-dependency and a topic case if topic filtering ever needs coverage.
+/// Verifies eth_getLogs filtering by address, block range, and topic.
 #[tokio::test]
 async fn test_eth_get_logs_filtering() -> Result<(), Box<dyn Error>> {
     let (server, client) = spawn_test_server(Default::default()).await;
@@ -32,9 +29,15 @@ async fn test_eth_get_logs_filtering() -> Result<(), Box<dyn Error>> {
     let ticker = "TEST".to_string();
     let timestamp = 42;
 
-    // Deploy controller (initialise also pings the unreachable Bitcoin RPC; the
-    // controller is deployed before that check, so the error is expected).
-    let _ = client.brc20_initialise([1u8; 32].into(), timestamp, 0).await;
+    // Deploy controller. initialise also pings the unreachable Bitcoin RPC; the
+    // controller is deployed before that check. Tolerate only that specific
+    // failure so an unrelated init regression still fails the test.
+    if let Err(e) = client.brc20_initialise([1u8; 32].into(), timestamp, 0).await {
+        assert!(
+            e.to_string().contains("Bitcoin RPC"),
+            "brc20_initialise failed for an unexpected reason: {e}"
+        );
+    }
 
     // Deposit -> mint -> Transfer log, in block 1.
     client
@@ -80,6 +83,32 @@ async fn test_eth_get_logs_filtering() -> Result<(), Box<dyn Error>> {
         .eth_get_logs(filter(Some(CONTROLLER_ADDRESS), Some("0x2"), Some("0x4")))
         .await?;
     assert!(out_of_range.is_empty(), "range past block 1 must match none");
+
+    // Topic filtering: the event signature (topic0) of an emitted log matches,
+    // an arbitrary topic does not.
+    let topic0 = logs[0].topics[0].clone();
+    let by_topic = client
+        .eth_get_logs(GetLogsFilter {
+            from_block: None,
+            to_block: None,
+            address: None,
+            topics: Some(vec![SingleOrVec::Single(Some(topic0))]),
+        })
+        .await?;
+    assert!(!by_topic.is_empty(), "matching topic0 must return logs");
+
+    let by_wrong_topic = client
+        .eth_get_logs(GetLogsFilter {
+            from_block: None,
+            to_block: None,
+            address: None,
+            topics: Some(vec![SingleOrVec::Single(Some(B256ED::from([0xabu8; 32])))]),
+        })
+        .await?;
+    assert!(
+        by_wrong_topic.is_empty(),
+        "non-matching topic must return nothing"
+    );
 
     server.stop()?;
     Ok(())
