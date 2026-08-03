@@ -88,7 +88,7 @@ mod tests {
         let wif_private_key = "L3VFeEujGtevx9w18HD1fhRbCH67Az2dpCymeRE1SoPK6XQtaN2k";
         let wif_private_key = bitcoin::PrivateKey::from_wif(wif_private_key).unwrap();
 
-        let signature = bip322::sign_simple(&address, &message, wif_private_key).unwrap();
+        let signature = bip322::sign_simple(&address, &message, &[wif_private_key], None).unwrap();
 
         let mut signature_bytes = Vec::new();
         signature.consensus_encode(&mut signature_bytes).unwrap();
