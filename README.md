@@ -45,6 +45,22 @@ cargo run --release
 > 
 > Eg. `CC=/usr/bin/clang CXX=/usr/bin/clang++`. Clang llvm version must be the same as the one used by rust compiler. On the rust side you should use `RUSTFLAGS="-Clinker-plugin-lto -Clinker=clang -Clink-arg=-fuse-ld=lld"`.
 
+**Run with Docker:**
+
+A prebuilt image is published to Docker Hub as [`bestinslot/brc20-prog`](https://hub.docker.com/r/bestinslot/brc20-prog). Image tags track release versions (e.g. `bestinslot/brc20-prog:0.16.0`), with `latest` pointing at the newest release.
+
+```
+docker run --rm \
+  -p 18545:18545 \
+  -v brc20_prog_data:/var/lib/brc20-prog/data \
+  --env-file .env \
+  bestinslot/brc20-prog:latest
+```
+
+The image binds the JSON-RPC server to `0.0.0.0:18545` and stores its database under `/var/lib/brc20-prog/data` (mount a volume there to persist it). All other configuration is provided through environment variables — see [`env.sample`](env.sample) and the [Indexer Integration Guide](#indexer-integration-guide). Note that `BITCOIN_RPC_URL` must point at a Bitcoin RPC endpoint reachable from inside the container.
+
+To build the image from source instead, run `docker build -t brc20-prog .` from the repository root.
+
 ## Supported JSON-RPC methods
 
 BRC2.0 provides a JSON-RPC 2.0 server to interact with the indexers, and chain explorers at `localhost:18545`. `eth_*` methods are supported to provide information on blocks and transactions, while `brc20_*` methods are used for adding new transactions and blocks to run in the execution engine.

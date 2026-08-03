@@ -1,0 +1,21 @@
+# Build artifacts (rebuilt inside the image)
+/target
+**/target
+
+# Local databases and env
+/db/target
+test_db
+.env*
+
+# VCS and CI
+.git
+.github
+
+# Editor / OS cruft
+.DS_Store
+node_modules
+venv
+.venv
+
+# Docs and examples not needed for the build
+*.md
