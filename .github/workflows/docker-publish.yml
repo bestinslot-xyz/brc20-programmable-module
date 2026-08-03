@@ -42,11 +42,17 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE_NAME }}
+          # latest=auto (the default) tags `latest` on any non-prerelease
+          # semver tag push, and deliberately leaves it off prereleases
+          # (e.g. v1.2.3-rc.1). Don't gate latest on {{is_default_branch}}:
+          # this workflow only runs on tag pushes, where that expression is
+          # always false, so it would never apply latest.
+          flavor: |
+            latest=auto
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
         uses: docker/build-push-action@v6
