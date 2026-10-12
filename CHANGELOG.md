@@ -5,7 +5,160 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.16.1 (2026-10-12)
+
+### Bug Fixes
+
+ - <csr-id-46ebe8f39cc04431e9632014bd2b8213e33316a0/> Gate bip322 v0.0.11 verification rules by block height on mainnet
+   bip322 v0.0.11 accepts proofs that v0.0.10 rejects (short DER ECDSA
+   signatures, P2PKH, P2WSH/P2SH multisig). Mainnet blocks executed before
+   the v0.16.0 upgrade were verified with v0.0.10, so a fresh sync with
+   v0.16.0 produced different traces, first at block 913183 where a
+   P2SH-P2WPKH proof carries a 69-byte signature.
+   
+   The BIP322 precompile now verifies with the v0.0.10 rules below mainnet
+   height 960847 (first block indexed by v0.16.0 on the reference node) and
+   with bip322 v0.0.11 from that height on. The v0.0.10 verify path is
+   vendored as bip322_legacy since the crate version is yanked.
+
+### Other
+
+ - <csr-id-4c9e63e1d1311c9046b168bc860a73c4144ca62f/> drive latest tag via latest=auto, drop dead is_default_branch line
+   The `type=raw,value=latest,enable={{is_default_branch}}` line never fired:
+   docker-publish runs only on tag pushes, where {{is_default_branch}} is
+   always false. `latest` was actually emitted by metadata-action's default
+   `latest=auto` flavor on non-prerelease semver tags, so behavior was correct
+   but the line was misleading dead code (flagged in review of #10).
+   
+   Make it explicit with `flavor: latest=auto`, which also correctly keeps
+   `latest` off prerelease tags (e.g. v1.2.3-rc.1).
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release over the course of 70 calendar days.
+ - 70 days passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 2 unique issues were worked on: [#11](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/11), [#12](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/12)
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **[#11](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/11)**
+    - Drive latest tag via latest=auto, drop dead is_default_branch line ([`4c9e63e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/4c9e63e1d1311c9046b168bc860a73c4144ca62f))
+ * **[#12](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/12)**
+    - Gate bip322 v0.0.11 verification rules by block height on mainnet ([`46ebe8f`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/46ebe8f39cc04431e9632014bd2b8213e33316a0))
+</details>
+
 ## v0.16.0 (2026-08-03)
+
+<csr-id-b0d89c889b60ba9d795beb24f71366a874a2c951/>
+<csr-id-4b9eaf7329012eae0233b553b85ebcf069d04ae6/>
+<csr-id-970a4f5fdfe22a66f70e86cfd7f329cb4a98c1d0/>
+<csr-id-feed95e42977b71315d5b4e4789c82074ef3aaef/>
+<csr-id-bb3d7cd23dbb679265464b1143fec786332a6aba/>
+<csr-id-15b415064506ece80e623ca56723125d16fc29f2/>
+<csr-id-fdeb14ed7ae4b25f060ba938b51e6f7323d411b9/>
+<csr-id-f5619cb44f0bdf537cdb3ee06934eeefeb92b6d9/>
+<csr-id-2e6a84684a38b18f7aca7a3eb7d3780b62ba68a9/>
+<csr-id-e2deec2661cfc1c500f43ff356d8d25fca9afc89/>
+<csr-id-f9e87704b189773605876ab92b46bd374d474107/>
+<csr-id-d5edb5a9cbfeb2d094889ebbc9fe04e5686ee6c3/>
+<csr-id-8a163e075c13c78ecab560ef51e2c8dc1e1e3472/>
+<csr-id-495186d6cce4bf8ec92f4408d995bdcc1de8dc66/>
+<csr-id-4a894c6c04c7f01917fa614f51221ad3848bdb92/>
+<csr-id-3de713dc4c78562a7cb290bf292cde66d0642575/>
+<csr-id-492065ff749fd418983fb51eb4f1b54a80eb1dc7/>
+<csr-id-6fa1bf4e150151996a88af5310695a68fe33c11f/>
+<csr-id-0b0ae25ebc1308475b19d0b72967acd5b69b88fa/>
+<csr-id-2ffeb5b5f2c5046b85d463fc9eb46ee51cb791d3/>
+<csr-id-c38c7b06ad3a2067872e64071f9362d00eefc4be/>
+<csr-id-c9178ef3b704b02404b6b30477d4e01f5f54339c/>
+<csr-id-f268486b9584f377395fbbc940a12783505af471/>
+<csr-id-834e75c56bd35c27fdd439837f3c3392f3f55560/>
+<csr-id-d00d3c2771628c06dec713fc6c6cd18c0f326ca9/>
+<csr-id-3c088b9a8e328e344c81df24a30f4835ca7ebb08/>
+<csr-id-ce01730b9951c1ca3cfe01e331b65a54c2b3af07/>
+<csr-id-7347175402e12c2a9413a98a26ab09c466ae86e3/>
+<csr-id-5a85fd8596f0513ae78927ec3578375a3ff02edd/>
+<csr-id-663c929ae910af58eb32788f8f3620d22c29bc14/>
+<csr-id-b1d3f3a2f973e94acad4cc1a5d241fed50f4058f/>
+<csr-id-68dfbed0c7dc9e30d4b2dc93d57d176419f12762/>
+<csr-id-74341ad293809caae1583bc7835d8c2a7e097b13/>
+<csr-id-c57ac662947c524bcda68a1c456b227d6980a431/>
+<csr-id-0ffa6304546d3103ef94ac653104847c1273d348/>
+<csr-id-32162127551206dd663df412d4fdd5ff8b3a2246/>
+<csr-id-0ae78d41a0688a76b363eca883b28b8456c7f6c3/>
+<csr-id-c0051151b20ab1002b9e90287b6ac3cd0f7ed431/>
+<csr-id-cec0ccb7de02ba0e3ab76c1bcb41daedd8a5a516/>
+<csr-id-f537928db53a9581b4321edca7dff67703ffb473/>
+<csr-id-4d98b447a20d2cb0060e2da66924f20536bdcac9/>
+<csr-id-45b1f50610a1d26f1f035fc0a481542ffea88d8e/>
+<csr-id-ceb5be8416a21165ab3df9f1073aa47d5e154fc0/>
+<csr-id-90862fbb3ba4e7c5a08b65ac3967e25a71628445/>
+<csr-id-6a93ee05efab15719cf7547461be3996834c80e5/>
+<csr-id-8c401a9b1c1b2ffce878a04b6ccc06849a189271/>
+<csr-id-1b8f1f5a6b63490636fd66c3c47c99137b1b2d67/>
+<csr-id-7977ab01c9e77e632b7e706d1e65afbd48783d0c/>
+<csr-id-be926645f55fb2f2b53351fc1ee7006ab405ba49/>
+<csr-id-0c8fcca035b00524e1a471ce34e6d89a6ba9276f/>
+<csr-id-795598b52862a308b83628f10358765b8c55e354/>
+<csr-id-4cf9d212069459292af08297aa100fa9c3fc616a/>
+<csr-id-d1968eed7ec8dab87f52c590524107e1d1d1906b/>
+<csr-id-3163cd4f42e4ba5c5e3e66719101e9ae809b5402/>
+<csr-id-3bd0d87ad463857150a4e0a9f1df92f68d8818e3/>
+<csr-id-8d5d7b8a280ce7d744a448a332fb3f48cc08a823/>
+<csr-id-7e22c4554510615cf46bdaa2fe2830e686eeee48/>
+<csr-id-41daefdd27df528f496bc14fbaa6f7470ddfe578/>
+<csr-id-42efe3e72360a946974daabf3d46fdb497887b24/>
+<csr-id-6bcbe483599ad3a6eb6d459927e5fa9ff2da4309/>
+<csr-id-efc0083fca2c77cebb4cbef05ebfe4f1cd61dcb8/>
+<csr-id-bf970685dd9d5e0e5698cdd358adb641a74a492f/>
+<csr-id-26f7b5f16e23912dd3458c27e4d7aa31e6f1d93c/>
+<csr-id-5181b9c28c5fd07033977bbd5da1a3c86401df4a/>
+<csr-id-1a5ae117cade1814280651f8b9438215b91b4953/>
+<csr-id-843c4646b73ed3e7f66064a06fa816eed401df58/>
+<csr-id-75d6a133af28a90fceaf9e9a43a83b463b96c71e/>
+<csr-id-f1570b4da72e1bcd8ba00a271b5c56d3e2b16cee/>
+<csr-id-4cff9941c50e43fea647630f81834644234a1465/>
+<csr-id-add636a06c7accbdecd2c6375a0b5c5bcde01492/>
+<csr-id-1ae91676a99b5c5733276dfdd4776e229c3ed34b/>
+<csr-id-15e16503608425a7d9af0ba0752a171f9c11e1c0/>
+<csr-id-8c19cd08292bf568d3209c72f2fa160262e95063/>
+<csr-id-f2f18c4bcd1dd654d8a67d4c0ba9cab587e7f2c6/>
+<csr-id-c4efb097b7a55b973632faf1b09c6252f292ccfc/>
+<csr-id-912dfefc8d93a0ad39d1d788acc93083a0907f8d/>
+<csr-id-fb475d44cbed75d3254061e25cf0ff6fde238e88/>
+<csr-id-4045ddbfa1c736529daa6f2fc79ba9482716f0df/>
+<csr-id-c02d3714fc22b376d0a1913f7f5806f65618de53/>
+<csr-id-67f5b48efbf985abdb2138442c3deae2b71c88da/>
+<csr-id-1ca98dcd0c689200218c297c38cec2d4ce29c3c3/>
+<csr-id-ac703fd54431b45f481e401129b648a0f3561d0f/>
+<csr-id-48a52bd4f4db178f9095958ad6b0576158225709/>
+<csr-id-0eae24b7bd1b6c742853822adacd89a6c2793f8e/>
+<csr-id-e99469e09cfebb59fb6cbd4b113c147b1eec5c1c/>
+<csr-id-234d87431db12d60464dce099fbe22deaf079dec/>
+<csr-id-2dc9d3a795e089783949c5943082f67726d88262/>
+<csr-id-b6446739a51fa5c440209dd7687299ed939ff911/>
+<csr-id-ca651492a512c47ebc8345851cd9118d76465ec1/>
+<csr-id-3e9e395c7bac26cb3a747cb2fc35d2bb1586eec8/>
+<csr-id-b46ec70af7120595c547a032772c7f656e5594bf/>
+<csr-id-4472824b035db9c6822cf06fe4fb2bed824548e3/>
+<csr-id-3af32341c61b424b28838c26765c31a1188cb006/>
+<csr-id-34b6d4188ad8f9b5581b74ffbb87d563adc3ae35/>
+<csr-id-c37b2ef18f4bf9c6263d0a95d086d52cf6a6bdb4/>
+<csr-id-fb09f2751ad1c46d89c93545eb2fab83dac72dd1/>
+<csr-id-d40c627fe60c2d8da9d57497801dab26977afa91/>
+<csr-id-a8ceb606d3456a24221b1345ad329596944888cf/>
+<csr-id-2166b8bc70d1c5eeb6b3bdf34d6437fbb16c42f0/>
+<csr-id-b4ea3f2f9f7ec6e855fd087da84b2e128142ac62/>
+<csr-id-3a82185ae1ee37bbd072db2f2d45d979bf7c8d02/>
+<csr-id-1e8c50cdba837afada7c1f2ea7345507686ff2d7/>
+<csr-id-541d41c7c3e1c104364c2f24e250f2a8eb6da45f/>
 
 ### Chore
 
@@ -48,107 +201,151 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Features
 
+<csr-id-8d7378828b9a897da415825edf5cb0e1d44845ca/>
+<csr-id-c99264adc38f835af524bc1653a4e36af9f2ae60/>
+<csr-id-a3b5e0b6246b0a02c68befab79a3fb7f40996ca0/>
+<csr-id-cd803cceca8cf411838270a72c36a589e66664c5/>
+<csr-id-508174591e52e23f746feb13f2622f86b931c5bd/>
+<csr-id-831b9b604631f37838206fb1931eed33b8aae0a8/>
+<csr-id-9fcaaff1e53ac7575c569ca321447ae5cc1b574c/>
+<csr-id-4550e0eff6aa70d3cfa39ba7b378e2eccf5cd7e8/>
+<csr-id-e36845347bd58ed8eb5b3448c5d05ce01edabc26/>
+<csr-id-ca2b8647be71df9ed2bae0f0318c14c8c1b050bf/>
+<csr-id-5a4019ca24d982d12e2c7c96e64d313ea8410b27/>
+<csr-id-ad4bb4b6c903c9911dba0e118bb01c0eb8d139e0/>
+<csr-id-f2e7d2791fd6acd9b360a2dea3d1c1898c4e5cb9/>
+<csr-id-a15371e4737bb0b90fa6e9f8c401233dfe068fcf/>
+<csr-id-29fbf41684a93dd86c0e71cf1a63a78e84af6d8d/>
+<csr-id-a575638e8fd2e0d510ad2c8854e7b469a5401429/>
+<csr-id-af4cea8e78254bb21a6cd28221a231c76db41626/>
+<csr-id-443887a631eb1b67eb8c72d189fe63a9323070cd/>
+<csr-id-4727a3378ab471e70db5d3ad4af25eee5583233b/>
+<csr-id-a6dba4b05c2a3e905462104c8ca40dec9d172178/>
+<csr-id-2222ed3240697ed3a40deec004a135a6b6ef071f/>
+<csr-id-69af83effd6c6931d1e52eef6c29d297e3c6d026/>
+<csr-id-8e835b8be3ffd9407759d1315dbc8bae003f8d08/>
+<csr-id-b27ea7c72a864e0febec413b25e03376099f81f6/>
+<csr-id-bbab3bfe343afb171cfb3aedae5a9f1f2e88cb57/>
+<csr-id-3f7d34653a2719602b2290a710b98125e17ca87c/>
+<csr-id-b1753a6a41d82177ba13338a320e6c323a1f3134/>
+<csr-id-417fb86602b76e502f0d65cfb4332358e9010be5/>
+<csr-id-fe23eb3e01bf6eef40ce253a2861ea3863b31f9d/>
+<csr-id-e697503ac501249fac67d6e440d52dfef9f87add/>
+<csr-id-7e0fb6fe2327866ff0802ebab058033b84a9e8f0/>
+<csr-id-7f38574d482b9e33cd2cd40439b854a4f0e6abc0/>
+<csr-id-1408102192951ba007c62352a92fb9ac6ba0b040/>
+<csr-id-752f5f04083e163aa047756979c5130528abc14c/>
+<csr-id-2b5311f795784b4e0382313e3bcf19a0a3f8d109/>
+<csr-id-4b36434cac54d7548fe5e8af8b87ee65b70f8cd7/>
+<csr-id-180b24e9ca16500d239f19c9c0749c9eeda0de3a/>
+<csr-id-ee9d7b786052253cd9ecfdc413fbec425a06a789/>
+<csr-id-73784c2dee9571e1fec735684b77911d59ec3aae/>
+<csr-id-401fb70a2d46aaf96f5b52906e466ab16c30cf0c/>
+<csr-id-c2f23df1d127f6268d804b778e30a14274b97572/>
+<csr-id-654c8e282cd18e7b459e940e879902a10281f3a9/>
+<csr-id-1324f623bd9593c9e2b2a8e8a0e6b3ef66b0b484/>
+<csr-id-0e96a89cbe90f63fd9fc7b56bb22dba2bfd2ba00/>
+<csr-id-97b2d6623c187a2889c06ac9c00a45d49f9a6142/>
+<csr-id-ea2bd18608aa9d430996d56aa2ffc803b5f4db51/>
+<csr-id-000db4966fec5593798b50b0b19829a665ca2e18/>
+<csr-id-d17c4f651213e2c0cb9fac829021352fa4b1f43f/>
+<csr-id-d8d93bb628e863e3b4fc629a100b1c900c7dac8d/>
+<csr-id-6e58ca17a66ad7dffd8540b3cdfb7bc76391f959/>
+<csr-id-b0a754c1f0341e7fc569a942cfb9cd8e56d227fb/>
+<csr-id-f7e2a7bdf5054d951d2b08d6cfe97f51ee0dde79/>
+<csr-id-eb03c031f83b85693173b789f0e0bfced0c3aaae/>
+<csr-id-fd9d875ba40a6038a25d225a2604aeb63b0ad41d/>
+
  - <csr-id-f29eadb206452bf0ce43ac831a109289e04ed3e1/> eth_call* and eth_estimateGas* methods now wait for block finalisation instead of failing when they are called mid-block
    * feat: Wait for block finalisation on eth_call* methods
-   
-   * test: Update mid-block read contract test to wait for block finalisation
-   
-   * fix: Notify waiters when clearing caches to prevent indefinite waiting, and fail gas estimation if block height change during estimation
- - <csr-id-8d7378828b9a897da415825edf5cb0e1d44845ca/> Enhance gas estimation logic with binary search adjustments
- - <csr-id-c99264adc38f835af524bc1653a4e36af9f2ae60/> Add gas estimation with binary search for estimateGas and estimateGasMany
- - <csr-id-a3b5e0b6246b0a02c68befab79a3fb7f40996ca0/> Implement eth_callMany with precompile data injection
- - <csr-id-cd803cceca8cf411838270a72c36a589e66664c5/> Change tx hash computation to use RLP hash from a set block height
- - <csr-id-508174591e52e23f746feb13f2622f86b931c5bd/> Sort transactions by index in block processing
- - <csr-id-831b9b604631f37838206fb1931eed33b8aae0a8/> Add debug methods for block trace string retrieval
- - <csr-id-9fcaaff1e53ac7575c569ca321447ae5cc1b574c/> Add PrecompileData struct and update eth_callMany and eth_estimateGasMany methods to include precompile_data parameter
- - <csr-id-4550e0eff6aa70d3cfa39ba7b378e2eccf5cd7e8/> Add revm-bytecode dependency to avoid bringing the whole revm for non-server version and update imports
- - <csr-id-e36845347bd58ed8eb5b3448c5d05ce01edabc26/> Update alloy to v1.1.0, revm to v31.0.0, remove revm_state and refactor accordingly
-   - Updated dependencies in Cargo.toml to their latest versions, including:
+* test: Update mid-block read contract test to wait for block finalisation
+* fix: Notify waiters when clearing caches to prevent indefinite waiting, and fail gas estimation if block height change during estimation
+- Updated dependencies in Cargo.toml to their latest versions, including:
      - alloy to 1.1.0
      - revm to 31.0.0
      - serde to 1.0.228
      - tokio to 1.48.0
      - criterion to 0.7.0
      - tempfile to 3.23.0
-   - Updated imports from revm_state to revm::state for consistency.
-   - Modified EVM execution logic to use new transaction handling methods.
-   - Adjusted precompile functions to utilize U256 for block height instead of u64 (following revm).
-   - Added tests to ensure correct behavior with updated block height handling.
- - <csr-id-ca2b8647be71df9ed2bae0f0318c14c8c1b050bf/> Enhance BRC20 precompiles with op_return_tx_id support (enabled after the prague upgrade)
-   - Updated `get_evm` to accept `current_op_return_tx_id` and pass it to `BRC20Precompiles`.
-   - Modified hardfork activation heights for mainnet and signet.
-   - Introduced `get_op_return_tx_id_precompile` to retrieve the op return transaction ID.
-   - Added gas cost for fetching the op return transaction ID.
-   - Updated RPC server methods to include `op_return_tx_id` parameter.
-   - Enhanced tests to validate behavior with and without op return transaction IDs.
- - <csr-id-5a4019ca24d982d12e2c7c96e64d313ea8410b27/> use the block height parameter to eth_call and eth_estimateGas
- - <csr-id-ad4bb4b6c903c9911dba0e118bb01c0eb8d139e0/> implement dynamic EVM spec selection based on block number and network
- - <csr-id-f2e7d2791fd6acd9b360a2dea3d1c1898c4e5cb9/> enhance error handling for eth_call and eth_estimateGas with status codes and detailed messages in RPC server
- - <csr-id-a15371e4737bb0b90fa6e9f8c401233dfe068fcf/> Implement web3_ api in Brc20ProgApi
- - <csr-id-29fbf41684a93dd86c0e71cf1a63a78e84af6d8d/> Add a global values database to Brc20ProgDatabase and disallow multiple reorgs by storing a global maximum reorg height
- - <csr-id-a575638e8fd2e0d510ad2c8854e7b469a5401429/> Refactor transaction handling by removing unnecessary fields, and simplify the code
-   - Updated the `TxED` struct to use the new `Signature` struct, simplifying the transaction data structure.
-   - Refactored `TxReceiptED` by removing unused fields and adjusting the encoding/decoding logic accordingly.
-   - Modified the `BRC20ProgEngine` to utilize the new `Signature` struct when creating transactions.
-   - Updated the RPC server to handle the new transaction receipt structure.
-   - Adjusted tests to reflect changes in the transaction and receipt structures, ensuring proper validation of transaction results using "debug_traceTransaction".
-   - Incremented database version to 8 to reflect schema changes.
- - <csr-id-af4cea8e78254bb21a6cd28221a231c76db41626/> Add brc20_transact method for sending raw signed transactions and update parameter names
- - <csr-id-443887a631eb1b67eb8c72d189fe63a9323070cd/> Add debug_getRaw* methods in the API and update version to 0.10.0
- - <csr-id-4727a3378ab471e70db5d3ad4af25eee5583233b/> Add "brc20_transact" method to indexer methods list
- - <csr-id-a6dba4b05c2a3e905462104c8ca40dec9d172178/> Store and serve v,r,s fields from raw signed transactions, bump version to 0.9.0
- - <csr-id-2222ed3240697ed3a40deec004a135a6b6ef071f/> Enhance BRC2.0 with pending transaction management
-   - Added a new database structure to handle pending transactions, allowing for efficient retrieval and management of transactions by account and nonce.
-   - Implemented methods to set, get, remove, and clear pending transactions, ensuring transactions can be processed in order.
-   - Updated BlockCachedDatabase to support new operations for managing key-value pairs, and removals.
-   - Modified BRC20ProgEngine to handle pending transactions during block processing, ensuring that transactions are executed in the correct order.
-   - Updated RPC server to expose new endpoints for querying pending transactions.
-   - Added comprehensive tests to validate the new transaction handling logic, including scenarios for out-of-order transactions and transaction expiration.
- - <csr-id-69af83effd6c6931d1e52eef6c29d297e3c6d026/> Support using RawBytes and Base64Bytes types together in BRC2.0 API
-   - Updated the BRC20ProgEngine to include a TODO for handling future nonces.
-   - Replaced EthBytes and InscriptionBytes with RawBytes and Base64Bytes in the API types.
-   - Modified the RPC server to accommodate the new data types for deploy and call methods.
-   - Added tests to validate the new encoded data handling for transactions and calls.
- - <csr-id-8e835b8be3ffd9407759d1315dbc8bae003f8d08/> Add brc20_transact endpoint to handle signed evm transactions, currently disabled via config
- - <csr-id-b27ea7c72a864e0febec413b25e03376099f81f6/> Gate server-side features under "server" feature, this reduces client compilation time
-   - Removed redundant input field from `EthCall`
-   - Moved `main.rs` in a separate binary setup with the "server" feature required
-   - eth_getTransactionCount now correctly returns the account nonce
-   - Bumped version to 0.7.0
- - <csr-id-bbab3bfe343afb171cfb3aedae5a9f1f2e88cb57/> Implement TryFrom trait for AddressED and FixedBytesED, add is_zero method to UintED
- - <csr-id-3f7d34653a2719602b2290a710b98125e17ca87c/> Implement TryFrom trait for AddressED and FixedBytesED, add is_zero method to UintED
- - <csr-id-b1753a6a41d82177ba13338a320e6c323a1f3134/> Add EVM call gas limit configuration
- - <csr-id-417fb86602b76e502f0d65cfb4332358e9010be5/> Reduce GitHub Actions stack size to 2MB, move long responses in precompile tests into assets
- - <csr-id-fe23eb3e01bf6eef40ce253a2861ea3863b31f9d/> Implement some precompile tests in rust
- - <csr-id-e697503ac501249fac67d6e440d52dfef9f87add/> Add zstd compression support with 1MB buffer size, reorganise some internal variables
- - <csr-id-7e0fb6fe2327866ff0802ebab058033b84a9e8f0/> Increase block gas limit to 4MB (block size) * 12K (gas per byte)
- - <csr-id-7f38574d482b9e33cd2cd40439b854a4f0e6abc0/> Add functionality to retrieve inscription ID by contract address, bump db version to 2
- - <csr-id-1408102192951ba007c62352a92fb9ac6ba0b040/> Handle nada encoding in inscription data (not activated until compression activation height is set)
- - <csr-id-752f5f04083e163aa047756979c5130528abc14c/> Add PROTOCOL_VERSION to configuration and database validation
- - <csr-id-2b5311f795784b4e0382313e3bcf19a0a3f8d109/> Update environment variable name for BITCOIN_RPC_NETWORK, and use a denylist for RPC method auth
- - <csr-id-4b36434cac54d7548fe5e8af8b87ee65b70f8cd7/> Add dotenv support and update dependencies
- - <csr-id-180b24e9ca16500d239f19c9c0749c9eeda0de3a/> Validate bitcoin network using bitcoin rpc
- - <csr-id-ee9d7b786052253cd9ecfdc413fbec425a06a789/> Add EVM_RECORD_TRACES to env sample
- - <csr-id-73784c2dee9571e1fec735684b77911d59ec3aae/> Add an environment variable to toggle trace recording
- - <csr-id-401fb70a2d46aaf96f5b52906e466ab16c30cf0c/> Refactor contract call methods to redirect invalid transactions to 0xdead
- - <csr-id-c2f23df1d127f6268d804b778e30a14274b97572/> Add inscription_id field to TxED and implement API method to retrieve it
- - <csr-id-654c8e282cd18e7b459e940e879902a10281f3a9/> Upgrade Solidity compiler to version 0.8.28 and update related dependencies
- - <csr-id-1324f623bd9593c9e2b2a8e8a0e6b3ef66b0b484/> Enable optimizer and update output file generation in BRC20_Controller contract
- - <csr-id-0e96a89cbe90f63fd9fc7b56bb22dba2bfd2ba00/> Add a js script for BRC20_Controller contract to fix solc version
-   BytecodeED doesn't return trailing zeroes anymore when serialised
- - <csr-id-97b2d6623c187a2889c06ac9c00a45d49f9a6142/> Implement HTTP Basic Authentication middleware for RPC server, it allows all methods that start with eth_*, and rejects everything else if the request is unauthenticated
- - <csr-id-ea2bd18608aa9d430996d56aa2ffc803b5f4db51/> Add basic HTTP authentication support to the brc20_prog RPC server
- - <csr-id-000db4966fec5593798b50b0b19829a665ca2e18/> Add data_or_input method to EthCall for improved data handling
- - <csr-id-d17c4f651213e2c0cb9fac829021352fa4b1f43f/> Ignore transactions that happen in the future in tx details precompile
-   Use a PrecompileCall struct to pass parameters to precompiles
- - <csr-id-d8d93bb628e863e3b4fc629a100b1c900c7dac8d/> change ticker parameter type to Bytes in transaction loading functions and add ticker_as_bytes utility function
- - <csr-id-6e58ca17a66ad7dffd8540b3cdfb7bc76391f959/> include assigned gas limit in txes
- - <csr-id-b0a754c1f0341e7fc569a942cfb9cd8e56d227fb/> verify new blocks don't already exist in the database, and generate new hashes for new blocks with hashes 0x00..00
- - <csr-id-f7e2a7bdf5054d951d2b08d6cfe97f51ee0dde79/> add gas_price and syncing methods to Brc20ProgApi (to enhance explorer compatibility)
- - <csr-id-eb03c031f83b85693173b789f0e0bfced0c3aaae/> Add transfer tx for sample erc20 contract
- - <csr-id-fd9d875ba40a6038a25d225a2604aeb63b0ad41d/> Add an ERC20 contract example
+- revm to 31.0.0
+- serde to 1.0.228
+- tokio to 1.48.0
+- criterion to 0.7.0
+- tempfile to 3.23.0
+- Updated `get_evm` to accept `current_op_return_tx_id` and pass it to `BRC20Precompiles`.
+- Modified hardfork activation heights for mainnet and signet.
+- Introduced `get_op_return_tx_id_precompile` to retrieve the op return transaction ID.
+- Added gas cost for fetching the op return transaction ID.
+- Updated RPC server methods to include `op_return_tx_id` parameter.
+- Enhanced tests to validate behavior with and without op return transaction IDs.
+- Updated the `TxED` struct to use the new `Signature` struct, simplifying the transaction data structure.
+- Refactored `TxReceiptED` by removing unused fields and adjusting the encoding/decoding logic accordingly.
+- Modified the `BRC20ProgEngine` to utilize the new `Signature` struct when creating transactions.
+- Updated the RPC server to handle the new transaction receipt structure.
+- Adjusted tests to reflect changes in the transaction and receipt structures, ensuring proper validation of transaction results using "debug_traceTransaction".
+- Incremented database version to 8 to reflect schema changes.
+- Added a new database structure to handle pending transactions, allowing for efficient retrieval and management of transactions by account and nonce.
+- Implemented methods to set, get, remove, and clear pending transactions, ensuring transactions can be processed in order.
+- Updated BlockCachedDatabase to support new operations for managing key-value pairs, and removals.
+- Modified BRC20ProgEngine to handle pending transactions during block processing, ensuring that transactions are executed in the correct order.
+- Updated RPC server to expose new endpoints for querying pending transactions.
+- Added comprehensive tests to validate the new transaction handling logic, including scenarios for out-of-order transactions and transaction expiration.
+- Updated the BRC20ProgEngine to include a TODO for handling future nonces.
+- Replaced EthBytes and InscriptionBytes with RawBytes and Base64Bytes in the API types.
+- Modified the RPC server to accommodate the new data types for deploy and call methods.
+- Added tests to validate the new encoded data handling for transactions and calls.
+- Removed redundant input field from `EthCall`
+- Moved `main.rs` in a separate binary setup with the "server" feature required
+- eth_getTransactionCount now correctly returns the account nonce
+- Bumped version to 0.7.0
 
 ### Bug Fixes
+
+<csr-id-fa00152f808aac0efa78ca9b5341772c997cd3a3/>
+<csr-id-e0c605adaa08f043375fe769266e865d3d30139b/>
+<csr-id-4c6521b6d5d1c4d1121a6b59afde39be4dee0be6/>
+<csr-id-ce4d985887280d0b82ce753643b11a870feb6300/>
+<csr-id-a502861740265f47c16151455a6c238bec772ec3/>
+<csr-id-53c126da6e25e06e11baa9ee56c491243ad47e42/>
+<csr-id-b4715160611dcb7d9a30eeb53661f51f3558571a/>
+<csr-id-85bc09e2b466b1a703fdaf0fae8c60396915ac7a/>
+<csr-id-b0ab81e0976404338a101b9128c2c8dcb9e21061/>
+<csr-id-90c5477443dae4cbc5430cbf57b77c08412d07a4/>
+<csr-id-4884c89c216c88a2849f72720d44e4b425c17989/>
+<csr-id-93026918f09b5f3f5561183bdd231c6f3ea7aad8/>
+<csr-id-78aad64571cb7bf8730d283b86530d8139cfc241/>
+<csr-id-eab61361dd7cb73aafc36e6498703f2851dcc8aa/>
+<csr-id-b8ec391975910cd83d4b1c9d87d4315840b04ec7/>
+<csr-id-846099bf4e941abcc37177d9250e04344ecac2c5/>
+<csr-id-49b03e4c0564f195d311e439b501077196d72d3c/>
+<csr-id-25550c2bcf34f50731f1d16499909b32684ed3ea/>
+<csr-id-753be5a770a7f2497a67de3b4da95cb97228dd87/>
+<csr-id-1eee9df5682cb19454d45ee1c5ee43fbc5832d1c/>
+<csr-id-98bb8ffa89b09929aab08d43ea771523f340f011/>
+<csr-id-b5f82f0716d7ee3a3588eef1a132ef36875e28ef/>
+<csr-id-4df9d976d42b7894dc52bb56850ae75cf5a0c25e/>
+<csr-id-a462db4a4df63f5465a9ed48ad12c357cf0c7027/>
+<csr-id-c7f75c87a4370cfb9afdd3da518d5a8f8892539f/>
+<csr-id-7cfc17b10315a19f6b09edeed4621423f67162ea/>
+<csr-id-391139c6c3ff02efcb029befa82c54a8370f6eb9/>
+<csr-id-ae96ee4b209d45ab1b0ddf7422fba081cda81e76/>
+<csr-id-a5ef831d20cb19145c9c847f42f930d8eff88e46/>
+<csr-id-19b4d147c4143e278744e47681ae6ada486b735e/>
+<csr-id-96f0012238e70a6197f77f5a858cd0266a9f4a4b/>
+<csr-id-35125ede4e7d1ba716c29dd5d7c18a182566154a/>
+<csr-id-829efa531ee062b3149e9a85f3fc4aac34ccd0cb/>
+<csr-id-c2317a22aff1f61e3507e48e7f91e90f4547f0bc/>
+<csr-id-c2cb4834fa8aeb80ec384573f2f8fe55cab41fbf/>
+<csr-id-5e9bf0f04fc3662f914c788cbaa6f4ba5deca2d0/>
+<csr-id-66495a5c9cb72db613765e3e8abcefafddd966ae/>
+<csr-id-1a56564a185f301dceb4bcb2c8fe82eb5dd9a8b8/>
+<csr-id-dd53a43ad2b938ed3d19c3842d9edbcc2f222963/>
+<csr-id-657a99b18db4041802e19c76e118270016b18f37/>
+<csr-id-bbd9669f3163af5932dccb9dab81e3fc0fd1671a/>
+<csr-id-17aa2a93f5059f62b4fc590e11433dde712425ca/>
+<csr-id-19032982d0af197ea6aefd64f710c9888696aa81/>
+<csr-id-09d4de4b3e5986c7732e60cc4d794cf4eac61344/>
+<csr-id-5c0b892a5acc399cdd85ba59e2e2b98f94d5672b/>
 
  - <csr-id-befe688ca35255a78264e55018a64283144dae2c/> update nonce retrieval to use get_account_nonce for pending transactions
  - <csr-id-8b248c929f36cdfb3ae403e68ae01eb66884c4f2/> Update eth_get_storage_at to return full length hex-encoded storage values
@@ -197,56 +394,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - <csr-id-f221717beefa9de50df5eac62ae6c390c0c195e6/> Replace "DB Error" with a static error message and panic instead of returning an error, as it's not recoverable
  - <csr-id-3d156588df34b9b79aaca65414411aeda1acd349/> Couple of bug fixes for reorg handling on database
    - Use get_next_block_height method in DatabaseCommit methods to fix an off-by-one error in reorgs, which might incorrectly keep old values
-   - Use stored values to create the cache for cache misses, otherwise reorgs might cause data loss if reorg happens on a value that hasn't been updated in a long time, and updated just before a reorg happens
-   
-   - Chore: bump rocksdb version to 0.24.0 (librocksdb was updated in this version)
-   - Chore: bump brc20-prog version to 0.10.3
- - <csr-id-fa00152f808aac0efa78ca9b5341772c997cd3a3/> Bump version to 0.10.2 for brc20-prog
- - <csr-id-e0c605adaa08f043375fe769266e865d3d30139b/> Refactor Bitcoin RPC validation logic and remove unnecessary checks
- - <csr-id-4c6521b6d5d1c4d1121a6b59afde39be4dee0be6/> Clarify initialization process for BRC20_Controller and empty block handling in README
- - <csr-id-ce4d985887280d0b82ce753643b11a870feb6300/> Bump version to 0.10.1 and ensure raw_block_ed module is conditionally compiled
- - <csr-id-a502861740265f47c16151455a6c238bec772ec3/> Update Discord (badge was broken) and add Telegram link to README
- - <csr-id-53c126da6e25e06e11baa9ee56c491243ad47e42/> Prefix hex-encoded strings with "0x" in RawBlock methods
- - <csr-id-b4715160611dcb7d9a30eeb53661f51f3558571a/> Correct comment formatting for RawBytes struct documentation
- - <csr-id-85bc09e2b466b1a703fdaf0fae8c60396915ac7a/> Handle extra padding in base64 decoding for inscription data
- - <csr-id-b0ab81e0976404338a101b9128c2c8dcb9e21061/> Correctly increment transaction index in pending transaction execution
- - <csr-id-90c5477443dae4cbc5430cbf57b77c08412d07a4/> Update DB_VERSION to 5 in configuration
- - <csr-id-4884c89c216c88a2849f72720d44e4b425c17989/> Update ecrecover call to use adjusted v value and remove ignore from tests
- - <csr-id-93026918f09b5f3f5561183bdd231c6f3ea7aad8/> Ignore raw tx tests as they fail to recover the correct address at the moment
- - <csr-id-78aad64571cb7bf8730d283b86530d8139cfc241/> Remove conditional flags for some imports
- - <csr-id-eab61361dd7cb73aafc36e6498703f2851dcc8aa/> Remove optional flag from nada and zstd-safe dependencies, as clients can use these to generate encoded data
- - <csr-id-b8ec391975910cd83d4b1c9d87d4315840b04ec7/> Rename db.rs > brc20_prog_database.rs
- - <csr-id-846099bf4e941abcc37177d9250e04344ecac2c5/> Update LastBlockInfo to track total processing time
- - <csr-id-49b03e4c0564f195d311e439b501077196d72d3c/> Reduce gas usage from 100k to 20k for bip322 precompile
- - <csr-id-25550c2bcf34f50731f1d16499909b32684ed3ea/> Check if the transaction is in the future in last sat location precompile
- - <csr-id-753be5a770a7f2497a67de3b4da95cb97228dd87/> Readjust stack size to 4MB in GitHub Actions workflow (again)
- - <csr-id-1eee9df5682cb19454d45ee1c5ee43fbc5832d1c/> Update alloy-sol-types dependency version to 1.1.0
- - <csr-id-98bb8ffa89b09929aab08d43ea771523f340f011/> Update result field name from resultBytes to output in transaction receipt
- - <csr-id-b5f82f0716d7ee3a3588eef1a132ef36875e28ef/> Remove unused import of E from std::f32::consts
- - <csr-id-4df9d976d42b7894dc52bb56850ae75cf5a0c25e/> Return an error if block range is too large for eth_getLogs
- - <csr-id-a462db4a4df63f5465a9ed48ad12c357cf0c7027/> Better eth_getLogs topic and address handling
- - <csr-id-c7f75c87a4370cfb9afdd3da518d5a8f8892539f/> Remove unused rust-embed feature "include-exclude"
- - <csr-id-7cfc17b10315a19f6b09edeed4621423f67162ea/> Use dotenvy instead of unmainained dotenv, avoid embedding the source for brc20_controller contract to reduce binary size
- - <csr-id-391139c6c3ff02efcb029befa82c54a8370f6eb9/> Simplify assertions in tests for AccountInfoED conversions
- - <csr-id-ae96ee4b209d45ab1b0ddf7422fba081cda81e76/> Serialize block nonce to full hex length
- - <csr-id-a5ef831d20cb19145c9c847f42f930d8eff88e46/> Make authorisation logic exclusive to brc20_ methods, and fix TraceED encoding
- - <csr-id-19b4d147c4143e278744e47681ae6ada486b735e/> Simplify serialization and encoding of BytecodeED by using original_bytes
- - <csr-id-96f0012238e70a6197f77f5a858cd0266a9f4a4b/> Return BytecodeED from eth_getCode, so it gets serialised without the trailing zeroes
- - <csr-id-35125ede4e7d1ba716c29dd5d7c18a182566154a/> Handle missing contract addresses by using Address::ZERO in Brc20ProgApiServer
-   This way, receipts for invalid inscriptions are also recorded in the chain
- - <csr-id-829efa531ee062b3149e9a85f3fc4aac34ccd0cb/> Move Id import to tests
- - <csr-id-c2317a22aff1f61e3507e48e7f91e90f4547f0bc/> Return correct ID ffrom RpcAuthAllowEth
- - <csr-id-c2cb4834fa8aeb80ec384573f2f8fe55cab41fbf/> Fix HttpNonBlockingAuth for allow_all(...)
- - <csr-id-5e9bf0f04fc3662f914c788cbaa6f4ba5deca2d0/> update BRC20 locked pkscript precompile result for integration tests
- - <csr-id-66495a5c9cb72db613765e3e8abcefafddd966ae/> Include data in returned error instance for eth_call and eth_estimateGas
- - <csr-id-1a56564a185f301dceb4bcb2c8fe82eb5dd9a8b8/> prevent deadlock in get_block_by_hash by releasing the mutex after accessing it
- - <csr-id-dd53a43ad2b938ed3d19c3842d9edbcc2f222963/> rename block_hash field to blockHash for consistency in serialization
- - <csr-id-657a99b18db4041802e19c76e118270016b18f37/> convert contract bytecode using to_string to add the 0x prefix
- - <csr-id-bbd9669f3163af5932dccb9dab81e3fc0fd1671a/> rename block_hash field for serialization
- - <csr-id-17aa2a93f5059f62b4fc590e11433dde712425ca/> mine_blocks genesis block count
- - <csr-id-19032982d0af197ea6aefd64f710c9888696aa81/> Update import path for ERC20 contract in BobCoin.sol
- - <csr-id-09d4de4b3e5986c7732e60cc4d794cf4eac61344/> Show float numbers in test_generator.py
- - <csr-id-5c0b892a5acc399cdd85ba59e2e2b98f94d5672b/> Make get_range end key comparison exclusive
+- Use stored values to create the cache for cache misses, otherwise reorgs might cause data loss if reorg happens on a value that hasn't been updated in a long time, and updated just before a reorg happens
+- Chore: bump rocksdb version to 0.24.0 (librocksdb was updated in this version)
+- Chore: bump brc20-prog version to 0.10.3
 
 ### Other
 
@@ -392,9 +542,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 460 commits contributed to the release.
+ - 462 commits contributed to the release.
  - 260 commits were understood as [conventional](https://www.conventionalcommits.org).
- - 6 unique issues were worked on: [#4](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/4), [#5](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/5), [#6](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/6), [#7](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/7), [#8](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/8), [#9](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/9)
+ - 7 unique issues were worked on: [#10](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/10), [#4](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/4), [#5](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/5), [#6](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/6), [#7](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/7), [#8](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/8), [#9](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/9)
 
 ### Commit Details
 
@@ -402,6 +552,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <details><summary>view details</summary>
 
+ * **[#10](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/10)**
+    - Add Dockerfile and Docker Hub publish workflow ([`d5ecfbf`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d5ecfbf97089fb7a01c6353d12b59e3c60dd884f))
  * **[#4](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/4)**
     - Eth_call* and eth_estimateGas* methods now wait for block finalisation instead of failing when they are called mid-block ([`f29eadb`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/f29eadb206452bf0ce43ac831a109289e04ed3e1))
  * **[#5](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/5)**
@@ -415,6 +567,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * **[#9](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/9)**
     - Opt-in live signet getTxDetails precompile test ([`e99469e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/e99469e09cfebb59fb6cbd4b113c147b1eec5c1c))
  * **Uncategorized**
+    - Release brc20-prog v0.16.0 ([`8c61541`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/8c61541e46620fd00c800e2255a2a662c4d41aee))
     - Update dependencies and tests for bip322 ([`b0d89c8`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/b0d89c889b60ba9d795beb24f71366a874a2c951))
     - Update warning note for Bitcoin mainnet status ([`1afb8e2`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/1afb8e29829deaa3bae9f21537efa1a5195680af))
     - Update nonce retrieval to use get_account_nonce for pending transactions ([`befe688`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/befe688ca35255a78264e55018a64283144dae2c))
@@ -870,6 +1023,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Added cache with mutexes ([`504828c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/504828cd4f89c0f586ff4e6ca2eaa341402ee7a9))
     - Initial commit, no reorg protection, only code memory cache ([`8a3494e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/8a3494ec688e84374f9d6217072d244def32e773))
 </details>
+
+<csr-unknown>
+ Enhance gas estimation logic with binary search adjustments Add gas estimation with binary search for estimateGas and estimateGasMany Implement eth_callMany with precompile data injection Change tx hash computation to use RLP hash from a set block height Sort transactions by index in block processing Add debug methods for block trace string retrieval Add PrecompileData struct and update eth_callMany and eth_estimateGasMany methods to include precompile_data parameter Add revm-bytecode dependency to avoid bringing the whole revm for non-server version and update imports Update alloy to v1.1.0, revm to v31.0.0, remove revm_state and refactor accordinglyUpdated imports from revm_state to revm::state for consistency.Modified EVM execution logic to use new transaction handling methods.Adjusted precompile functions to utilize U256 for block height instead of u64 (following revm).Added tests to ensure correct behavior with updated block height handling. Enhance BRC20 precompiles with op_return_tx_id support (enabled after the prague upgrade) use the block height parameter to eth_call and eth_estimateGas implement dynamic EVM spec selection based on block number and network enhance error handling for eth_call and eth_estimateGas with status codes and detailed messages in RPC server Implement web3_ api in Brc20ProgApi Add a global values database to Brc20ProgDatabase and disallow multiple reorgs by storing a global maximum reorg height Refactor transaction handling by removing unnecessary fields, and simplify the code Add brc20_transact method for sending raw signed transactions and update parameter names Add debug_getRaw* methods in the API and update version to 0.10.0 Add “brc20_transact” method to indexer methods list Store and serve v,r,s fields from raw signed transactions, bump version to 0.9.0 Enhance BRC2.0 with pending transaction management Support using RawBytes and Base64Bytes types together in BRC2.0 API Add brc20_transact endpoint to handle signed evm transactions, currently disabled via config Gate server-side features under “server” feature, this reduces client compilation time Implement TryFrom trait for AddressED and FixedBytesED, add is_zero method to UintED Implement TryFrom trait for AddressED and FixedBytesED, add is_zero method to UintED Add EVM call gas limit configuration Reduce GitHub Actions stack size to 2MB, move long responses in precompile tests into assets Implement some precompile tests in rust Add zstd compression support with 1MB buffer size, reorganise some internal variables Increase block gas limit to 4MB (block size) * 12K (gas per byte) Add functionality to retrieve inscription ID by contract address, bump db version to 2 Handle nada encoding in inscription data (not activated until compression activation height is set) Add PROTOCOL_VERSION to configuration and database validation Update environment variable name for BITCOIN_RPC_NETWORK, and use a denylist for RPC method auth Add dotenv support and update dependencies Validate bitcoin network using bitcoin rpc Add EVM_RECORD_TRACES to env sample Add an environment variable to toggle trace recording Refactor contract call methods to redirect invalid transactions to 0xdead Add inscription_id field to TxED and implement API method to retrieve it Upgrade Solidity compiler to version 0.8.28 and update related dependencies Enable optimizer and update output file generation in BRC20_Controller contract Add a js script for BRC20_Controller contract to fix solc versionBytecodeED doesn’t return trailing zeroes anymore when serialised Implement HTTP Basic Authentication middleware for RPC server, it allows all methods that start with eth_*, and rejects everything else if the request is unauthenticated Add basic HTTP authentication support to the brc20_prog RPC server Add data_or_input method to EthCall for improved data handling Ignore transactions that happen in the future in tx details precompileUse a PrecompileCall struct to pass parameters to precompiles change ticker parameter type to Bytes in transaction loading functions and add ticker_as_bytes utility function include assigned gas limit in txes verify new blocks don’t already exist in the database, and generate new hashes for new blocks with hashes 0x00..00 add gas_price and syncing methods to Brc20ProgApi (to enhance explorer compatibility) Add transfer tx for sample erc20 contract Add an ERC20 contract example Bump version to 0.10.2 for brc20-prog Refactor Bitcoin RPC validation logic and remove unnecessary checks Clarify initialization process for BRC20_Controller and empty block handling in README Bump version to 0.10.1 and ensure raw_block_ed module is conditionally compiled Update Discord (badge was broken) and add Telegram link to README Prefix hex-encoded strings with “0x” in RawBlock methods Correct comment formatting for RawBytes struct documentation Handle extra padding in base64 decoding for inscription data Correctly increment transaction index in pending transaction execution Update DB_VERSION to 5 in configuration Update ecrecover call to use adjusted v value and remove ignore from tests Ignore raw tx tests as they fail to recover the correct address at the moment Remove conditional flags for some imports Remove optional flag from nada and zstd-safe dependencies, as clients can use these to generate encoded data Rename db.rs > brc20_prog_database.rs Update LastBlockInfo to track total processing time Reduce gas usage from 100k to 20k for bip322 precompile Check if the transaction is in the future in last sat location precompile Readjust stack size to 4MB in GitHub Actions workflow (again) Update alloy-sol-types dependency version to 1.1.0 Update result field name from resultBytes to output in transaction receipt Remove unused import of E from std::f32::consts Return an error if block range is too large for eth_getLogs Better eth_getLogs topic and address handling Remove unused rust-embed feature “include-exclude” Use dotenvy instead of unmainained dotenv, avoid embedding the source for brc20_controller contract to reduce binary size Simplify assertions in tests for AccountInfoED conversions Serialize block nonce to full hex length Make authorisation logic exclusive to brc20_ methods, and fix TraceED encoding Simplify serialization and encoding of BytecodeED by using original_bytes Return BytecodeED from eth_getCode, so it gets serialised without the trailing zeroes Handle missing contract addresses by using Address::ZERO in Brc20ProgApiServerThis way, receipts for invalid inscriptions are also recorded in the chain Move Id import to tests Return correct ID ffrom RpcAuthAllowEth Fix HttpNonBlockingAuth for allow_all(…) update BRC20 locked pkscript precompile result for integration tests Include data in returned error instance for eth_call and eth_estimateGas prevent deadlock in get_block_by_hash by releasing the mutex after accessing it rename block_hash field to blockHash for consistency in serialization convert contract bytecode using to_string to add the 0x prefix rename block_hash field for serialization mine_blocks genesis block count Update import path for ERC20 contract in BobCoin.sol Show float numbers in test_generator.py Make get_range end key comparison exclusive<csr-unknown/>
 
 ## v0.15.13 (2026-02-27)
 
