@@ -1,3 +1,4 @@
+mod bip322_legacy;
 mod bip322_verify_precompile;
 pub use bip322_verify_precompile::bip322_verify_precompile;
 
