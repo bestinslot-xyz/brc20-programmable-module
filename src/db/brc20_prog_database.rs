@@ -22,7 +22,7 @@ use crate::db::types::{
     TxED, TxReceiptED, B256ED, U128ED, U256ED, U512ED, U64ED,
 };
 use crate::global::database::ConfigDatabase;
-use crate::global::{MAX_FUTURE_TRANSACTION_BLOCKS, MAX_REORG_HISTORY_SIZE};
+use crate::global::{CONFIG, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_REORG_HISTORY_SIZE};
 
 static DB_MUTEX_ERROR: &str = "Database mutex error";
 
@@ -251,13 +251,14 @@ impl Brc20ProgDatabase {
         let block_number_from = block_number_from.unwrap_or(latest_block_number);
         let block_number_to = block_number_to.unwrap_or(block_number_from);
 
-        // Limit the number of blocks to be fetched
-        // DB is under a lock here and if this takes too long, it will block other threads
-        //
-        // TODO: This is a temporary solution, we can potentially avoid using a mutex for reads
-        // TODO: Also, test this, maybe it's not that slow?
-        if block_number_to - block_number_from > 5 {
-            return Err("Block range is too large, please limit it to 5 blocks".into());
+        // The DB lock is held for the whole scan, so the span is capped (GET_LOGS_MAX_BLOCKS).
+        let max_blocks = CONFIG.read().get_logs_max_blocks;
+        if block_number_to.saturating_sub(block_number_from) >= max_blocks {
+            return Err(format!(
+                "Block range is too large, please limit it to {} blocks",
+                max_blocks
+            )
+            .into());
         }
 
         let mut logs = Vec::new();
@@ -1305,6 +1306,22 @@ mod tests {
             )
             .unwrap()
         );
+    }
+
+    #[test]
+    fn test_get_logs_respects_configured_block_cap() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+
+        CONFIG.write_fn_unchecked(|config| config.get_logs_max_blocks = 6);
+        assert!(db.get_logs(Some(0), Some(5), None, None).is_ok());
+        assert!(db.get_logs(Some(0), Some(6), None, None).is_err());
+
+        CONFIG.write_fn_unchecked(|config| config.get_logs_max_blocks = 500);
+        assert!(db.get_logs(Some(0), Some(499), None, None).is_ok());
+        assert!(db.get_logs(Some(0), Some(500), None, None).is_err());
+
+        CONFIG.write_fn_unchecked(|config| config.get_logs_max_blocks = 6);
     }
 
     #[test]

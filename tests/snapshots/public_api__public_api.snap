@@ -216,6 +216,7 @@ pub brc20_prog::Brc20ProgConfig::db_path: alloc::string::String
 pub brc20_prog::Brc20ProgConfig::evm_call_gas_limit: u64
 pub brc20_prog::Brc20ProgConfig::evm_record_traces: bool
 pub brc20_prog::Brc20ProgConfig::fail_on_bitcoin_rpc_error: bool
+pub brc20_prog::Brc20ProgConfig::get_logs_max_blocks: u64
 pub brc20_prog::Brc20ProgConfig::max_request_size: u32
 pub brc20_prog::Brc20ProgConfig::max_response_size: u32
 impl brc20_prog::Brc20ProgConfig
