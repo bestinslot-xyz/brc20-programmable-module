@@ -50,6 +50,9 @@ lazy_static::lazy_static! {
     static ref BATCH_REQUEST_LIMIT_KEY: String = "BATCH_REQUEST_LIMIT".to_string();
     static ref BATCH_REQUEST_LIMIT_DEFAULT: u32 = 50; // 50 requests
 
+    static ref GET_LOGS_MAX_BLOCKS_KEY: String = "GET_LOGS_MAX_BLOCKS".to_string();
+    static ref GET_LOGS_MAX_BLOCKS_DEFAULT: u64 = 6;
+
     pub static ref CARGO_PKG_VERSION: String = {
         let version = env!("CARGO_PKG_VERSION");
         if version.is_empty() {
@@ -135,6 +138,8 @@ pub struct Brc20ProgConfig {
     pub max_response_size: u32,
     /// Batch request limit (0 for unlimited)
     pub batch_request_limit: u32,
+    /// Maximum number of blocks a single eth_getLogs call may span (inclusive)
+    pub get_logs_max_blocks: u64,
 }
 
 impl Default for Brc20ProgConfig {
@@ -199,6 +204,7 @@ impl Brc20ProgConfig {
             max_request_size,
             max_response_size,
             batch_request_limit,
+            get_logs_max_blocks: *GET_LOGS_MAX_BLOCKS_DEFAULT,
         }
     }
 
@@ -222,6 +228,7 @@ impl Brc20ProgConfig {
     /// * `MAX_REQUEST_SIZE` - Max request size in bytes (Default: 10MB)
     /// * `MAX_RESPONSE_SIZE` - Max response size in bytes (Default: 100MB)
     /// * `BATCH_REQUEST_LIMIT` - Batch request limit (0 for unlimited) (Default: 50)
+    /// * `GET_LOGS_MAX_BLOCKS` - Maximum blocks per eth_getLogs call (Default: 6)
     /// # Returns
     /// A new instance of `Brc20ProgConfig` with the configuration values read from environment variables.
     pub fn from_env() -> Self {
@@ -270,6 +277,11 @@ impl Brc20ProgConfig {
             batch_request_limit: env::var(&*BATCH_REQUEST_LIMIT_KEY)
                 .map(|x| x.parse::<u32>().unwrap_or(*BATCH_REQUEST_LIMIT_DEFAULT))
                 .unwrap_or(*BATCH_REQUEST_LIMIT_DEFAULT),
+            get_logs_max_blocks: env::var(&*GET_LOGS_MAX_BLOCKS_KEY)
+                .ok()
+                .and_then(|x| x.parse::<u64>().ok())
+                .filter(|x| *x > 0)
+                .unwrap_or(*GET_LOGS_MAX_BLOCKS_DEFAULT),
         }
     }
 }
