@@ -10,7 +10,6 @@ use bitcoincore_rpc::jsonrpc::Error::Rpc;
 use bitcoincore_rpc::Error::JsonRpc;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use revm::primitives::Bytes;
-use zstd_safe::WriteBuf;
 
 use crate::global::{SharedData, CONFIG};
 
@@ -112,7 +111,7 @@ pub fn get_transaction_and_block_hash_with_overrides(
     btc_tx_hexes: &HashMap<B256, Bytes>,
 ) -> Result<(Transaction, Option<BlockHash>), Box<dyn Error>> {
     if let Some(tx_hex) = btc_tx_hexes.get(txid) {
-        let tx: Transaction = bitcoin::consensus::deserialize(&tx_hex.as_slice())
+        let tx: Transaction = bitcoin::consensus::deserialize(tx_hex)
             .map_err(|_| "Failed to deserialize transaction from hex")?;
         // Since we don't have block hash info in the override, return placeholder
         return Ok((tx, Some(*BLOCK_HASH_FUTURE_PLACEHOLDER)));
@@ -155,7 +154,7 @@ pub fn get_transaction_with_overrides(
     btc_tx_hexes: &HashMap<B256, Bytes>,
 ) -> Result<Transaction, Box<dyn Error>> {
     if let Some(tx_hex) = btc_tx_hexes.get(txid) {
-        let tx: Transaction = bitcoin::consensus::deserialize(&tx_hex.as_slice())
+        let tx: Transaction = bitcoin::consensus::deserialize(tx_hex)
             .map_err(|_| "Failed to deserialize transaction from hex")?;
         return Ok(tx);
     }
