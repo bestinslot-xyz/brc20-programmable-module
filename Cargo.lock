@@ -1298,7 +1298,7 @@ dependencies = [
 
 [[package]]
 name = "brc20-prog"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "alloy",
  "alloy-consensus",

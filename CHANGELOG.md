@@ -5,7 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.16.2 (2026-10-15)
+
+### New Features
+
+ - <csr-id-3dada205675cbb5ce521ddf1d6a97c07e1807169/> configurable eth_getLogs block cap (GET_LOGS_MAX_BLOCKS, default 6)
+   Adds the GET_LOGS_MAX_BLOCKS env var and Brc20ProgConfig::get_logs_max_blocks
+   field: the number of blocks one eth_getLogs call may span, inclusive. The
+   default of 6 keeps the previous behavior; 0 or an unparsable value falls back
+   to the default.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 1 commit contributed to the release.
+ - 2 days passed between releases.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 1 unique issue was worked on: [#13](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/13)
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **[#13](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/13)**
+    - Configurable eth_getLogs block cap (GET_LOGS_MAX_BLOCKS, default 6) ([`3dada20`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/3dada205675cbb5ce521ddf1d6a97c07e1807169))
+</details>
+
 ## v0.16.1 (2026-10-12)
+
+<csr-id-4c9e63e1d1311c9046b168bc860a73c4144ca62f/>
 
 ### Bug Fixes
 
@@ -37,7 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 2 commits contributed to the release over the course of 70 calendar days.
+ - 3 commits contributed to the release over the course of 70 calendar days.
  - 70 days passed between releases.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 2 unique issues were worked on: [#11](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/11), [#12](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/12)
@@ -52,6 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Drive latest tag via latest=auto, drop dead is_default_branch line ([`4c9e63e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/4c9e63e1d1311c9046b168bc860a73c4144ca62f))
  * **[#12](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/12)**
     - Gate bip322 v0.0.11 verification rules by block height on mainnet ([`46ebe8f`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/46ebe8f39cc04431e9632014bd2b8213e33316a0))
+ * **Uncategorized**
+    - Release brc20-prog v0.16.1 ([`8ae880a`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/8ae880a8994a76c920c76f9a137529bd4487dedb))
 </details>
 
 ## v0.16.0 (2026-08-03)
@@ -267,37 +300,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      - tokio to 1.48.0
      - criterion to 0.7.0
      - tempfile to 3.23.0
-- revm to 31.0.0
-- serde to 1.0.228
-- tokio to 1.48.0
-- criterion to 0.7.0
-- tempfile to 3.23.0
-- Updated `get_evm` to accept `current_op_return_tx_id` and pass it to `BRC20Precompiles`.
-- Modified hardfork activation heights for mainnet and signet.
-- Introduced `get_op_return_tx_id_precompile` to retrieve the op return transaction ID.
-- Added gas cost for fetching the op return transaction ID.
-- Updated RPC server methods to include `op_return_tx_id` parameter.
-- Enhanced tests to validate behavior with and without op return transaction IDs.
-- Updated the `TxED` struct to use the new `Signature` struct, simplifying the transaction data structure.
-- Refactored `TxReceiptED` by removing unused fields and adjusting the encoding/decoding logic accordingly.
-- Modified the `BRC20ProgEngine` to utilize the new `Signature` struct when creating transactions.
-- Updated the RPC server to handle the new transaction receipt structure.
-- Adjusted tests to reflect changes in the transaction and receipt structures, ensuring proper validation of transaction results using "debug_traceTransaction".
-- Incremented database version to 8 to reflect schema changes.
-- Added a new database structure to handle pending transactions, allowing for efficient retrieval and management of transactions by account and nonce.
-- Implemented methods to set, get, remove, and clear pending transactions, ensuring transactions can be processed in order.
-- Updated BlockCachedDatabase to support new operations for managing key-value pairs, and removals.
-- Modified BRC20ProgEngine to handle pending transactions during block processing, ensuring that transactions are executed in the correct order.
-- Updated RPC server to expose new endpoints for querying pending transactions.
-- Added comprehensive tests to validate the new transaction handling logic, including scenarios for out-of-order transactions and transaction expiration.
-- Updated the BRC20ProgEngine to include a TODO for handling future nonces.
-- Replaced EthBytes and InscriptionBytes with RawBytes and Base64Bytes in the API types.
-- Modified the RPC server to accommodate the new data types for deploy and call methods.
-- Added tests to validate the new encoded data handling for transactions and calls.
-- Removed redundant input field from `EthCall`
-- Moved `main.rs` in a separate binary setup with the "server" feature required
-- eth_getTransactionCount now correctly returns the account nonce
-- Bumped version to 0.7.0
+   - revm to 31.0.0
+   - serde to 1.0.228
+   - tokio to 1.48.0
+   - criterion to 0.7.0
+   - tempfile to 3.23.0
 
 ### Bug Fixes
 
@@ -394,9 +401,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - <csr-id-f221717beefa9de50df5eac62ae6c390c0c195e6/> Replace "DB Error" with a static error message and panic instead of returning an error, as it's not recoverable
  - <csr-id-3d156588df34b9b79aaca65414411aeda1acd349/> Couple of bug fixes for reorg handling on database
    - Use get_next_block_height method in DatabaseCommit methods to fix an off-by-one error in reorgs, which might incorrectly keep old values
-- Use stored values to create the cache for cache misses, otherwise reorgs might cause data loss if reorg happens on a value that hasn't been updated in a long time, and updated just before a reorg happens
-- Chore: bump rocksdb version to 0.24.0 (librocksdb was updated in this version)
-- Chore: bump brc20-prog version to 0.10.3
 
 ### Other
 
@@ -1025,7 +1029,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 <csr-unknown>
- Enhance gas estimation logic with binary search adjustments Add gas estimation with binary search for estimateGas and estimateGasMany Implement eth_callMany with precompile data injection Change tx hash computation to use RLP hash from a set block height Sort transactions by index in block processing Add debug methods for block trace string retrieval Add PrecompileData struct and update eth_callMany and eth_estimateGasMany methods to include precompile_data parameter Add revm-bytecode dependency to avoid bringing the whole revm for non-server version and update imports Update alloy to v1.1.0, revm to v31.0.0, remove revm_state and refactor accordinglyUpdated imports from revm_state to revm::state for consistency.Modified EVM execution logic to use new transaction handling methods.Adjusted precompile functions to utilize U256 for block height instead of u64 (following revm).Added tests to ensure correct behavior with updated block height handling. Enhance BRC20 precompiles with op_return_tx_id support (enabled after the prague upgrade) use the block height parameter to eth_call and eth_estimateGas implement dynamic EVM spec selection based on block number and network enhance error handling for eth_call and eth_estimateGas with status codes and detailed messages in RPC server Implement web3_ api in Brc20ProgApi Add a global values database to Brc20ProgDatabase and disallow multiple reorgs by storing a global maximum reorg height Refactor transaction handling by removing unnecessary fields, and simplify the code Add brc20_transact method for sending raw signed transactions and update parameter names Add debug_getRaw* methods in the API and update version to 0.10.0 Add “brc20_transact” method to indexer methods list Store and serve v,r,s fields from raw signed transactions, bump version to 0.9.0 Enhance BRC2.0 with pending transaction management Support using RawBytes and Base64Bytes types together in BRC2.0 API Add brc20_transact endpoint to handle signed evm transactions, currently disabled via config Gate server-side features under “server” feature, this reduces client compilation time Implement TryFrom trait for AddressED and FixedBytesED, add is_zero method to UintED Implement TryFrom trait for AddressED and FixedBytesED, add is_zero method to UintED Add EVM call gas limit configuration Reduce GitHub Actions stack size to 2MB, move long responses in precompile tests into assets Implement some precompile tests in rust Add zstd compression support with 1MB buffer size, reorganise some internal variables Increase block gas limit to 4MB (block size) * 12K (gas per byte) Add functionality to retrieve inscription ID by contract address, bump db version to 2 Handle nada encoding in inscription data (not activated until compression activation height is set) Add PROTOCOL_VERSION to configuration and database validation Update environment variable name for BITCOIN_RPC_NETWORK, and use a denylist for RPC method auth Add dotenv support and update dependencies Validate bitcoin network using bitcoin rpc Add EVM_RECORD_TRACES to env sample Add an environment variable to toggle trace recording Refactor contract call methods to redirect invalid transactions to 0xdead Add inscription_id field to TxED and implement API method to retrieve it Upgrade Solidity compiler to version 0.8.28 and update related dependencies Enable optimizer and update output file generation in BRC20_Controller contract Add a js script for BRC20_Controller contract to fix solc versionBytecodeED doesn’t return trailing zeroes anymore when serialised Implement HTTP Basic Authentication middleware for RPC server, it allows all methods that start with eth_*, and rejects everything else if the request is unauthenticated Add basic HTTP authentication support to the brc20_prog RPC server Add data_or_input method to EthCall for improved data handling Ignore transactions that happen in the future in tx details precompileUse a PrecompileCall struct to pass parameters to precompiles change ticker parameter type to Bytes in transaction loading functions and add ticker_as_bytes utility function include assigned gas limit in txes verify new blocks don’t already exist in the database, and generate new hashes for new blocks with hashes 0x00..00 add gas_price and syncing methods to Brc20ProgApi (to enhance explorer compatibility) Add transfer tx for sample erc20 contract Add an ERC20 contract example Bump version to 0.10.2 for brc20-prog Refactor Bitcoin RPC validation logic and remove unnecessary checks Clarify initialization process for BRC20_Controller and empty block handling in README Bump version to 0.10.1 and ensure raw_block_ed module is conditionally compiled Update Discord (badge was broken) and add Telegram link to README Prefix hex-encoded strings with “0x” in RawBlock methods Correct comment formatting for RawBytes struct documentation Handle extra padding in base64 decoding for inscription data Correctly increment transaction index in pending transaction execution Update DB_VERSION to 5 in configuration Update ecrecover call to use adjusted v value and remove ignore from tests Ignore raw tx tests as they fail to recover the correct address at the moment Remove conditional flags for some imports Remove optional flag from nada and zstd-safe dependencies, as clients can use these to generate encoded data Rename db.rs > brc20_prog_database.rs Update LastBlockInfo to track total processing time Reduce gas usage from 100k to 20k for bip322 precompile Check if the transaction is in the future in last sat location precompile Readjust stack size to 4MB in GitHub Actions workflow (again) Update alloy-sol-types dependency version to 1.1.0 Update result field name from resultBytes to output in transaction receipt Remove unused import of E from std::f32::consts Return an error if block range is too large for eth_getLogs Better eth_getLogs topic and address handling Remove unused rust-embed feature “include-exclude” Use dotenvy instead of unmainained dotenv, avoid embedding the source for brc20_controller contract to reduce binary size Simplify assertions in tests for AccountInfoED conversions Serialize block nonce to full hex length Make authorisation logic exclusive to brc20_ methods, and fix TraceED encoding Simplify serialization and encoding of BytecodeED by using original_bytes Return BytecodeED from eth_getCode, so it gets serialised without the trailing zeroes Handle missing contract addresses by using Address::ZERO in Brc20ProgApiServerThis way, receipts for invalid inscriptions are also recorded in the chain Move Id import to tests Return correct ID ffrom RpcAuthAllowEth Fix HttpNonBlockingAuth for allow_all(…) update BRC20 locked pkscript precompile result for integration tests Include data in returned error instance for eth_call and eth_estimateGas prevent deadlock in get_block_by_hash by releasing the mutex after accessing it rename block_hash field to blockHash for consistency in serialization convert contract bytecode using to_string to add the 0x prefix rename block_hash field for serialization mine_blocks genesis block count Update import path for ERC20 contract in BobCoin.sol Show float numbers in test_generator.py Make get_range end key comparison exclusive<csr-unknown/>
+revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0Updated get_evm to accept current_op_return_tx_id and pass it to BRC20Precompiles.Modified hardfork activation heights for mainnet and signet.Introduced get_op_return_tx_id_precompile to retrieve the op return transaction ID.Added gas cost for fetching the op return transaction ID.Updated RPC server methods to include op_return_tx_id parameter.Enhanced tests to validate behavior with and without op return transaction IDs.Updated the TxED struct to use the new Signature struct, simplifying the transaction data structure.Refactored TxReceiptED by removing unused fields and adjusting the encoding/decoding logic accordingly.Modified the BRC20ProgEngine to utilize the new Signature struct when creating transactions.Updated the RPC server to handle the new transaction receipt structure.Adjusted tests to reflect changes in the transaction and receipt structures, ensuring proper validation of transaction results using “debug_traceTransaction”.Incremented database version to 8 to reflect schema changes.Added a new database structure to handle pending transactions, allowing for efficient retrieval and management of transactions by account and nonce.Implemented methods to set, get, remove, and clear pending transactions, ensuring transactions can be processed in order.Updated BlockCachedDatabase to support new operations for managing key-value pairs, and removals.Modified BRC20ProgEngine to handle pending transactions during block processing, ensuring that transactions are executed in the correct order.Updated RPC server to expose new endpoints for querying pending transactions.Added comprehensive tests to validate the new transaction handling logic, including scenarios for out-of-order transactions and transaction expiration.Updated the BRC20ProgEngine to include a TODO for handling future nonces.Replaced EthBytes and InscriptionBytes with RawBytes and Base64Bytes in the API types.Modified the RPC server to accommodate the new data types for deploy and call methods.Added tests to validate the new encoded data handling for transactions and calls.Removed redundant input field from EthCallMoved main.rs in a separate binary setup with the “server” feature requiredeth_getTransactionCount now correctly returns the account nonceBumped version to 0.7.0Use stored values to create the cache for cache misses, otherwise reorgs might cause data loss if reorg happens on a value that hasn’t been updated in a long time, and updated just before a reorg happensChore: bump rocksdb version to 0.24.0 (librocksdb was updated in this version)Chore: bump brc20-prog version to 0.10.3<csr-unknown/>
 
 ## v0.15.13 (2026-02-27)
 
