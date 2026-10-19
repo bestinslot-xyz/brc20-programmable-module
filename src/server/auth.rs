@@ -173,7 +173,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::future::Future;
-    use std::usize;
 
     use jsonrpsee::core::middleware::{Batch, Notification};
     use jsonrpsee::server::HttpBody;
