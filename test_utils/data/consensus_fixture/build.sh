@@ -109,6 +109,7 @@ calldata_sink="0x$(zeros 2048)$(printf '01%.0s' {1..2048})"
     echo "ethPrecompiles $(cast calldata 'precompileBatch(address[],bytes[],uint256)' "$(join "${eth_targets[@]}")" "$(join "${eth_inputs[@]}")" 1000000)"
     echo "brc20Precompiles $(cast calldata 'precompileBatch(address[],bytes[],uint256)' "$(join "${brc20_targets[@]}")" "$(join "${brc20_inputs[@]}")" 1000000)"
     echo "unknownSelector 0xdeadbeef"
+    echo "precompileCallKinds $(cast calldata 'precompileCallKinds()')"
     for entry in "${edge_cases[@]}"; do
         read -r label target input gas <<<"$entry"
         echo "precompileEdge:$label $(cast calldata 'callPrecompile(address,bytes,uint256)' "$target" "$input" "$gas")"

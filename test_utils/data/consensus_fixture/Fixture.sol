@@ -332,6 +332,31 @@ contract Fixture {
         emit Probe(bytes32(uint256(uint160(target))), used, keccak256(abi.encode(ok, out)));
     }
 
+    // Precompiles reached through CALL, DELEGATECALL and CALLCODE. The engine resolves
+    // precompiles by target address, so the delegated forms run the (empty) code at the
+    // precompile address instead of the precompile.
+    function precompileCallKinds() external {
+        bytes memory input = hex"616263";
+        bytes memory bip322Selector = hex"de8f50a1";
+        bytes32 acc;
+        (bool ok, bytes memory out) = address(2).call(input);
+        acc = keccak256(abi.encode(acc, ok, out));
+        (ok, out) = address(2).delegatecall(input);
+        acc = keccak256(abi.encode(acc, ok, out));
+        (ok, out) = address(0xfe).delegatecall(bip322Selector);
+        acc = keccak256(abi.encode(acc, ok, out));
+        (ok, out) = address(0xfa).delegatecall("");
+        acc = keccak256(abi.encode(acc, ok, out));
+        bool callcodeOk;
+        bytes32 callcodeOut;
+        assembly {
+            callcodeOk := callcode(gas(), 2, 0, add(input, 32), mload(input), 0, 32)
+            callcodeOut := mload(0)
+        }
+        acc = keccak256(abi.encode(acc, callcodeOk, callcodeOut));
+        probe("precompileCallKinds", acc);
+    }
+
     function precompileBatch(address[] calldata targets, bytes[] calldata inputs, uint256 gasLimit) external {
         for (uint256 i = 0; i < targets.length; i++) {
             callPrecompile(targets[i], inputs[i], gasLimit);

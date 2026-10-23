@@ -289,6 +289,7 @@ impl Runner {
             "ethPrecompiles",
             "brc20Precompiles",
             "unknownSelector",
+            "precompileCallKinds",
         ] {
             self.call(label, &fixture).await;
         }
@@ -306,6 +307,20 @@ impl Runner {
         let storage_ops = self.calls["storageOps"].clone();
         self.call_raw("storageOpsByInscriptionId", None, Some(deploy_inscription), storage_ops)
             .await;
+        // Transactions sent straight to a precompile, succeeding and failing.
+        let mut sha256 = [0u8; 20];
+        sha256[19] = 0x02;
+        self.call_raw("topLevelSha256", Some(sha256.into()), None, "0x616263".to_string())
+            .await;
+        let mut point_evaluation = [0u8; 20];
+        point_evaluation[19] = 0x0a;
+        self.call_raw(
+            "topLevelPointEvaluationZeros",
+            Some(point_evaluation.into()),
+            None,
+            format!("0x{}", "00".repeat(192)),
+        )
+        .await;
         self.call_raw(
             "callToEmptyAccount",
             Some([0x77u8; 20].into()),
