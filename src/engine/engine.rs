@@ -24,8 +24,8 @@ use crate::db::Brc20ProgDatabase;
 use crate::engine::evm::get_evm;
 use crate::engine::hardforks::use_rlp_hash_for_tx_hash;
 use crate::engine::utils::{
-    get_contract_address, get_gas_limit, get_inscription_byte_len, get_tx_hash, LastBlockInfo,
-    TxInfo,
+    get_contract_address, get_gas_limit, get_inscription_byte_len, get_tx_hash, get_tx_logs,
+    LastBlockInfo, TxInfo,
 };
 use crate::engine::validate_bitcoin_rpc_status;
 use crate::global::{
@@ -467,7 +467,7 @@ impl BRC20ProgEngine {
                 .last_block_info
                 .read()
                 .gas_used
-                .checked_add(output.as_ref().map(|o| o.gas_used()).unwrap_or(0))
+                .checked_add(output.as_ref().map(|o| o.tx_gas_used()).unwrap_or(0))
                 .unwrap_or(self.last_block_info.read().gas_used);
 
             let traces: TraceED = evm
@@ -478,7 +478,7 @@ impl BRC20ProgEngine {
                         only_top_call: Some(false),
                         with_log: Some(true),
                     },
-                    output.as_ref().map(|o| o.gas_used()).unwrap_or(0),
+                    output.as_ref().map(|o| o.tx_gas_used()).unwrap_or(0),
                 )
                 .into();
 
@@ -521,10 +521,10 @@ impl BRC20ProgEngine {
                 last_block_info.waiting_tx_count += 1;
                 last_block_info.gas_used = last_block_info
                     .gas_used
-                    .checked_add(output.as_ref().map(|o| o.gas_used()).unwrap_or(0))
+                    .checked_add(output.as_ref().map(|o| o.tx_gas_used()).unwrap_or(0))
                     .unwrap_or(last_block_info.gas_used);
                 last_block_info.log_index +=
-                    output.as_ref().map(|o| o.logs()).unwrap_or(&[]).len() as u64;
+                    output.as_ref().map(get_tx_logs).unwrap_or(&[]).len() as u64;
                 last_block_info.total_processing_time = Some(
                     (last_block_info.start_time.elapsed() - processing_start_time)
                         + last_block_info
@@ -783,7 +783,7 @@ impl BRC20ProgEngine {
         Ok(ReadContractResult {
             status: output.is_success(),
             status_string: format!("{:?}", output),
-            gas_used: output.gas_used().into(),
+            gas_used: output.tx_gas_used().into(),
             output: output.output().cloned(),
         })
     }
@@ -868,7 +868,7 @@ impl BRC20ProgEngine {
             results.push(ReadContractResult {
                 status: output.is_success(),
                 status_string: format!("{:?}", output),
-                gas_used: output.gas_used().into(),
+                gas_used: output.tx_gas_used().into(),
                 output: output.output().cloned(),
             });
         }

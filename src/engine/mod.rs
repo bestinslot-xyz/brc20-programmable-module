@@ -8,4 +8,5 @@ mod utils;
 
 pub use engine::BRC20ProgEngine;
 pub use precompiles::validate_bitcoin_rpc_status;
+pub(crate) use utils::get_tx_logs;
 pub use utils::{get_evm_address_from_pkscript, TxInfo};

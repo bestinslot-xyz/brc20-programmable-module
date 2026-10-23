@@ -49,6 +49,8 @@ impl RawBlock {
                     excess_blob_gas: Some(block.excess_blob_gas.into()),
                     parent_beacon_block_root: Some(B256::ZERO),
                     requests_hash: Some(B256::ZERO),
+                    block_access_list_hash: None,
+                    slot_number: None,
                 },
                 body: BlockBody {
                     transactions: transactions
@@ -154,5 +156,31 @@ impl Decode for RawBlock {
         }
 
         Ok((RawBlock { block, receipts }, offset))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Raw blocks are persisted as RLP. testdata/raw_block_alloy1.txt holds a block (first line)
+    /// and its receipts (remaining lines) as written by alloy 1.x, with signed legacy transactions
+    /// and receipts carrying logs. They must decode and re-encode byte for byte.
+    #[test]
+    fn test_raw_block_written_by_alloy1_roundtrips() {
+        let mut lines = include_str!("testdata/raw_block_alloy1.txt").lines();
+        let raw_block = lines.next().unwrap().to_string();
+        let raw_receipts: Vec<String> = lines.map(str::to_string).collect();
+        assert!(raw_receipts.len() > 1);
+
+        let mut stored = Vec::new();
+        Encode::encode(&raw_block, &mut stored);
+        Encode::encode(&raw_receipts, &mut stored);
+
+        let decoded = RawBlock::decode_vec(&stored).unwrap();
+        assert_eq!(decoded.raw_block(), raw_block);
+        assert_eq!(decoded.raw_receipts(), raw_receipts);
+        assert!(decoded.block.header.block_access_list_hash.is_none());
+        assert!(decoded.block.header.slot_number.is_none());
     }
 }

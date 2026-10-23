@@ -219,7 +219,7 @@ mod tests {
             btc_tx_hexes_data: HashMap::new(),
         });
 
-        assert!(response.is_error());
+        assert!(response.is_halt());
     }
 
     #[test]

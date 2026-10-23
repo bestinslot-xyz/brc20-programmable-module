@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use alloy::primitives::{Bytes, U256};
 use alloy_consensus::TxLegacy;
-use alloy_network::{EthereumWallet, TransactionBuilder};
+use alloy_network::{EthereumWallet, NetworkTransactionBuilder, TransactionBuilder};
 use alloy_rpc_types_eth::TransactionRequest;
 use alloy_signer_local::PrivateKeySigner;
 use brc20_prog::types::{Base64Bytes, RawBytes};

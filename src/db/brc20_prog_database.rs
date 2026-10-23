@@ -1,6 +1,5 @@
 #![cfg(feature = "server")]
 
-use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
 use std::path::Path;
@@ -8,8 +7,7 @@ use std::path::Path;
 use alloy::primitives::{Address, Bloom, Bytes, FixedBytes, Log, B256, U256, U64};
 use revm::context::result::ExecutionResult;
 use revm::context::DBErrorMarker;
-use revm::primitives::map::DefaultHashBuilder;
-use revm::state::{Account, AccountInfo, Bytecode};
+use revm::state::{AccountInfo, Bytecode, EvmState};
 use revm::{Database as DatabaseTrait, DatabaseCommit};
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -17,6 +15,7 @@ use serde_either::SingleOrVec;
 
 use crate::db::cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 use crate::db::database::BlockDatabase;
+use crate::engine::get_tx_logs;
 use crate::db::types::{
     AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, RawBlock, Signature, TraceED,
     TxED, TxReceiptED, B256ED, U128ED, U256ED, U512ED, U64ED,
@@ -483,8 +482,8 @@ impl Brc20ProgDatabase {
             tx_hash.into(),
             tx_idx.into(),
             output.as_ref().map(|o| o.is_success()).unwrap_or(false),
-            &output.as_ref().map(|o| o.logs()).unwrap_or(&[]).to_vec(),
-            output.as_ref().map(|o| o.gas_used()).unwrap_or(0).into(),
+            &output.as_ref().map(get_tx_logs).unwrap_or(&[]).to_vec(),
+            output.as_ref().map(|o| o.tx_gas_used()).unwrap_or(0).into(),
             cumulative_gas_used.into(),
             start_log_index.into(),
         )?;
@@ -1048,8 +1047,15 @@ impl Brc20ProgDatabase {
     }
 }
 
+/// Database error handed to revm, which requires it to be `Send + Sync`, so it keeps the message.
 #[derive(Debug)]
-pub struct DBError(Box<dyn Error>);
+pub struct DBError(String);
+
+impl From<Box<dyn Error>> for DBError {
+    fn from(error: Box<dyn Error>) -> Self {
+        DBError(error.to_string())
+    }
+}
 
 impl DBErrorMarker for DBError {}
 
@@ -1059,11 +1065,7 @@ impl Display for DBError {
     }
 }
 
-impl Error for DBError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        Some(&*self.0)
-    }
-}
+impl Error for DBError {}
 
 impl DatabaseTrait for Brc20ProgDatabase {
     type Error = DBError;
@@ -1081,33 +1083,33 @@ impl DatabaseTrait for Brc20ProgDatabase {
                     account_info
                 })
             })
-            .map_err(|x| DBError(x))
+            .map_err(DBError::from)
     }
 
     /// Get account code by its hash.
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
         self.get_code(code_hash)
             .map(|x| x.map(|x| x.bytecode).unwrap_or(Bytecode::new()))
-            .map_err(|x| DBError(x))
+            .map_err(DBError::from)
     }
 
     /// Get storage value of address at index.
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         self.get_account_memory(address, index)
             .map(|x| x.map(|x| x.uint).unwrap_or(U256::ZERO))
-            .map_err(|x| DBError(x))
+            .map_err(DBError::from)
     }
 
     /// Get block hash by block number.
     fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
         self.get_block_hash(number)
             .map(|x| x.unwrap_or(B256::ZERO))
-            .map_err(|x| DBError(x))
+            .map_err(DBError::from)
     }
 }
 
 impl DatabaseCommit for Brc20ProgDatabase {
-    fn commit(&mut self, changes: HashMap<Address, Account, DefaultHashBuilder>) {
+    fn commit(&mut self, changes: EvmState) {
         for (address, account) in changes {
             if !account.is_touched() {
                 continue;
@@ -1140,7 +1142,7 @@ impl DatabaseCommit for Brc20ProgDatabase {
 #[cfg(test)]
 mod tests {
     use alloy::primitives::LogData;
-    use revm::context::result::{Output, SuccessReason};
+    use revm::context::result::{Output, ResultGas, SuccessReason};
     use tempfile::TempDir;
 
     use super::*;
@@ -1157,6 +1159,7 @@ mod tests {
             nonce: 4,
             code_hash,
             code: Some(bytecode.clone()),
+            ..Default::default()
         };
 
         let mem_loc = U256::from(6);
@@ -1228,8 +1231,7 @@ mod tests {
         let tx_idx = 7;
         let output = ExecutionResult::Success {
             reason: SuccessReason::Return,
-            gas_used: 10,
-            gas_refunded: 0,
+            gas: ResultGas::default().with_total_gas_spent(10),
             logs: Vec::new(),
             output: Output::Call(vec![11u8; 32].into()),
         };
@@ -1300,7 +1302,7 @@ mod tests {
                 tx_idx.into(),
                 output.is_success(),
                 &output.logs().to_vec(),
-                output.gas_used().into(),
+                output.tx_gas_used().into(),
                 cumulative_gas_used.into(),
                 start_log_index.into(),
             )
@@ -1337,8 +1339,7 @@ mod tests {
         let tx_idx = 7;
         let output = ExecutionResult::Success {
             reason: SuccessReason::Return,
-            gas_used: 10,
-            gas_refunded: 0,
+            gas: ResultGas::default().with_total_gas_spent(10),
             logs: vec![
                 Log::<LogData>::new(
                     contract_address,

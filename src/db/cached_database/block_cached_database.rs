@@ -290,6 +290,7 @@ mod tests {
             nonce: 1,
             code_hash: [1; 32].into(),
             code: None,
+            ..Default::default()
         }
         .into();
         let address_ed: AddressED = address.into();
@@ -326,6 +327,7 @@ mod tests {
             nonce: 1,
             code_hash: [1; 32].into(),
             code: None,
+            ..Default::default()
         }
         .into();
         let _ = db.set(1, &address.into(), account_info_ed.clone());
@@ -378,6 +380,7 @@ mod tests {
             nonce: 1,
             code_hash: [1; 32].into(),
             code: None,
+            ..Default::default()
         }
         .into();
         let address_ed: AddressED = address.into();
@@ -420,6 +423,7 @@ mod tests {
                     nonce: i + 1,
                     code_hash: [1; 32].into(),
                     code: None,
+                    ..Default::default()
                 }
                 .into(),
             );
@@ -459,6 +463,7 @@ mod tests {
                 nonce: 10,
                 code_hash: [1; 32].into(),
                 code: None,
+                ..Default::default()
             }
             .into(),
         )
@@ -480,6 +485,7 @@ mod tests {
                 nonce: 22,
                 code_hash: [1; 32].into(),
                 code: None,
+                ..Default::default()
             }
             .into(),
         )

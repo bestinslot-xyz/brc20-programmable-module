@@ -56,8 +56,10 @@ pub fn get_evm(
 
     Evm::new_with_inspector(
         ctx,
-        TracingInspector::new(TracingInspectorConfig::none()),
-        EthInstructions::new_mainnet(),
+        // Call inputs are part of the block trace hash.
+        TracingInspector::new(TracingInspectorConfig::none().set_record_inputs(true)),
+        // The static gas table is fixed at construction, so it must follow the block's spec.
+        EthInstructions::new_mainnet_with_spec(evm_spec),
         BRC20Precompiles::new(evm_spec.into(), current_op_return_tx_id, precompile_data),
     )
 }

@@ -219,7 +219,7 @@ mod tests {
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: HashMap::new(),
         });
-        assert!(result.is_error());
+        assert!(result.is_halt());
     }
 
     #[test]
@@ -238,6 +238,6 @@ mod tests {
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: HashMap::new(),
         });
-        assert!(result.is_error());
+        assert!(result.is_halt());
     }
 }

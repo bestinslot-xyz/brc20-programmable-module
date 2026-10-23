@@ -1,11 +1,11 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use alloy::primitives::{Address, Bytes};
 use revm::context::{Block, Cfg, ContextTr};
 use revm::handler::PrecompileProvider;
 use revm::interpreter::{CallInputs, Gas, InstructionResult, InterpreterResult};
-use revm::precompile::{PrecompileSpecId, Precompiles};
-use revm::primitives::{B256, U256};
+use revm::precompile::{PrecompileSpecId, PrecompileStatus, Precompiles};
+use revm::primitives::{AddressSet, B256, U256};
 
 use crate::engine::precompiles::{
     bip322_verify_precompile, btc_tx_details_precompile, get_locked_pkscript_precompile,
@@ -32,7 +32,7 @@ pub struct PrecompileCall {
 pub struct BRC20Precompiles {
     pub eth_precompiles: &'static Precompiles,
     pub custom_precompiles: HashMap<Address, fn(&PrecompileCall) -> InterpreterResult>,
-    pub all_addresses: HashSet<Address>,
+    pub all_addresses: AddressSet,
     pub op_return_tx_id: B256,
     pub btc_tx_hexes_data: HashMap<B256, Bytes>,
 }
@@ -44,10 +44,7 @@ impl BRC20Precompiles {
         precompile_data: &Option<PrecompileData>,
     ) -> Self {
         let eth_precompiles = Precompiles::new(precompile_spec);
-        let mut all_addresses = eth_precompiles
-            .addresses()
-            .map(|x| x.clone())
-            .collect::<HashSet<Address>>();
+        let mut all_addresses = eth_precompiles.addresses_set().clone();
         all_addresses.insert(*BIP322_PRECOMPILE_ADDRESS);
         all_addresses.insert(*BTC_TX_DETAILS_PRECOMPILE_ADDRESS);
         all_addresses.insert(*LAST_SAT_LOCATION_PRECOMPILE_ADDRESS);
@@ -104,24 +101,29 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
 
     fn run(&mut self, ctx: &mut CTX, inputs: &CallInputs) -> Result<Option<Self::Output>, String> {
         if let Some(eth_precompile) = self.eth_precompiles.get(&inputs.target_address) {
-            match eth_precompile.execute(&inputs.input.bytes(ctx), inputs.gas_limit) {
-                Ok(output) => {
-                    let mut gas = Gas::new(inputs.gas_limit);
-                    if !gas.record_cost(output.gas_used) {
-                        return Ok(Some(InterpreterResult::new(
-                            InstructionResult::OutOfGas,
-                            Bytes::new(),
-                            gas,
-                        )));
-                    } else {
-                        return Ok(Some(InterpreterResult::new(
-                            InstructionResult::Stop,
-                            output.bytes,
-                            gas,
-                        )));
-                    }
-                }
-                Err(e) => return Err(e.to_string()),
+            let output = eth_precompile
+                .execute(&inputs.input.bytes(ctx), inputs.gas_limit, inputs.reservoir)
+                .map_err(|e| e.to_string())?;
+            // Any unsuccessful Ethereum precompile call, including out of gas, aborts the whole
+            // transaction. This is consensus behaviour, so it must not become a failed subcall.
+            match &output.status {
+                PrecompileStatus::Success => {}
+                PrecompileStatus::Halt(reason) => return Err(reason.to_string()),
+                PrecompileStatus::Revert => return Err("precompile reverted".to_string()),
+            }
+            let mut gas = Gas::new(inputs.gas_limit);
+            if !gas.record_regular_cost(output.gas_used) {
+                return Ok(Some(InterpreterResult::new(
+                    InstructionResult::OutOfGas,
+                    Bytes::new(),
+                    gas,
+                )));
+            } else {
+                return Ok(Some(InterpreterResult::new(
+                    InstructionResult::Stop,
+                    output.bytes,
+                    gas,
+                )));
             }
         } else if let Some(custom_precompile) = self.custom_precompiles.get(&inputs.target_address)
         {
@@ -137,8 +139,8 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
         }
     }
 
-    fn warm_addresses(&self) -> Box<impl Iterator<Item = Address>> {
-        Box::new(self.all_addresses.iter().cloned())
+    fn warm_addresses(&self) -> &AddressSet {
+        &self.all_addresses
     }
 
     fn contains(&self, address: &Address) -> bool {
@@ -148,7 +150,7 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
 
 /// Records a `gas` cost and fails the instruction if it would exceed the available gas.
 pub fn use_gas(interpreter_result: &mut InterpreterResult, gas: u64) -> bool {
-    if !interpreter_result.gas.record_cost(gas) {
+    if !interpreter_result.gas.record_regular_cost(gas) {
         interpreter_result.result = revm::interpreter::InstructionResult::OutOfGas;
         return false;
     }

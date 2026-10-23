@@ -6,10 +6,10 @@ license = "Apache-2.0"
 description = "BRC20 programmable module - Smart contract execution engine compatible with BRC20 standard"
 homepage = "https://docs.brc20.build"
 repository = "https://github.com/bestinslot-xyz/brc20-programmable-module"
-rust-version = "1.91.0"
+rust-version = "1.94.1"
 
 [dependencies]
-alloy = { version = "1.1.2", features = [
+alloy = { version = "2.5.0", features = [
     "consensus",
     "eips",
     "network",
@@ -18,9 +18,9 @@ alloy = { version = "1.1.2", features = [
     "signers",
     "sol-types",
 ] }
-alloy-rlp = "0.3.12"
-alloy-rpc-types-trace = "1.1.2"
-alloy-sol-types = "1.0.9"
+alloy-rlp = "0.3.16"
+alloy-rpc-types-trace = "2.5.0"
+alloy-sol-types = "1.7.3"
 base64 = "0.23.1"
 # Verification rules are consensus: a new bip322 release needs an activation height (see engine/hardforks.rs).
 bip322 = { version = "0.0.11", optional = true }
@@ -33,9 +33,9 @@ hyper = { version = "1.8.1", optional = true }
 jsonrpsee = { version = "0.26.0", features = ["server", "client", "macros"] }
 lazy_static = "1.5.0"
 nada = "0.2.2"
-revm = { version = "33.1.0", default-features = false, optional = true }
-revm-inspectors = { version = "0.33.0", optional = true }
-revm-bytecode = "7.1.0"
+revm = { version = "43.0.3", default-features = false, optional = true }
+revm-inspectors = { version = "0.44.3", optional = true }
+revm-bytecode = "43.0.0"
 rlimit = { version = "0.11.0", optional = true }
 rocksdb = { version = "0.25.0", optional = true }
 rs_merkle = { version = "1.4.2", optional = true }
@@ -56,11 +56,11 @@ zstd-safe = "8.2.0"
 sha256 = "1.6.0"
 
 [dev-dependencies]
-alloy-consensus = "1.1.0"
-alloy-network = "1.1.0"
-alloy-rpc-types-eth = "1.1.0"
-alloy-signer = "1.0.9"
-alloy-signer-local = "1.0.9"
+alloy-consensus = "2.5.0"
+alloy-network = "2.5.0"
+alloy-rpc-types-eth = "2.5.0"
+alloy-signer = "2.5.0"
+alloy-signer-local = "2.5.0"
 criterion = "0.8.0"
 insta = "1.44.3"
 public-api = "0.52.2"

@@ -206,7 +206,7 @@ mod tests {
             returns.new_pkscript,
         );
 
-        assert_eq!(result.gas.spent(), 200000);
+        assert_eq!(result.gas.total_gas_spent(), 200000);
 
         assert_eq!(
             returns,
@@ -259,7 +259,7 @@ mod tests {
             returns.new_pkscript,
         );
 
-        assert_eq!(result.gas.spent(), 400000);
+        assert_eq!(result.gas.total_gas_spent(), 400000);
 
         assert_eq!(
             returns,
@@ -305,6 +305,6 @@ mod tests {
             btc_tx_hexes_data: HashMap::new(),
         });
 
-        assert!(result.is_error());
+        assert!(result.is_halt());
     }
 }

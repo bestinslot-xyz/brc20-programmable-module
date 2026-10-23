@@ -1,5 +1,6 @@
 ---
 source: tests/consensus_fixture_mainnet.rs
+assertion_line: 19
 expression: report
 ---
 ======== block 1 (mainnet cancun) ========
@@ -1416,7 +1417,7 @@ trace: {
       "input": "0x6080604052348015600e575f5ffd5b5060405160da38038060da833981016040819052602991602f565b5f556045565b5f60208284031215603e575f5ffd5b5051919050565b608a8060505f395ff3fe6080604052348015600e575f5ffd5b50600436106030575f3560e01c80633fa4f24514603457806383197ef014604d575b5f5ffd5b603b5f5481565b60405190815260200160405180910390f35b605233ff5b00fea2646970667358221220af85be4297e9b4dc49a9c9532e990b38b3537685e0c280c677e2e0153bb0c84264736f6c634300081c00330000000000000000000000000000000000000000000000000000000000000002",
       "output": "0x",
       "value": "0x0",
-      "error": "CreateCollision"
+      "error": "contract address collision"
     }
   ],
   "gas": "0xb6c82c",
@@ -1625,7 +1626,7 @@ trace: {
       "input": "0xb84de8a9",
       "output": "0x",
       "value": "0x0",
-      "error": "OutOfOffset"
+      "error": "return data out of bounds"
     },
     {
       "type": "CALL",
@@ -3281,7 +3282,7 @@ trace: {
       "input": "0x",
       "output": "0x",
       "value": "0x0",
-      "error": "NotActivated"
+      "error": "invalid opcode"
     },
     {
       "type": "CREATE",
@@ -5277,7 +5278,7 @@ trace: {
       "input": "0xb84de8a9",
       "output": "0x",
       "value": "0x0",
-      "error": "OutOfOffset"
+      "error": "return data out of bounds"
     },
     {
       "type": "CALL",

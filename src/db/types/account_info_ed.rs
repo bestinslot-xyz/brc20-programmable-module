@@ -37,6 +37,7 @@ impl Into<AccountInfo> for AccountInfoED {
             nonce: self.nonce.into(),
             code_hash: self.code_hash.into(),
             code: None,
+            ..Default::default()
         }
     }
 }
@@ -81,6 +82,7 @@ mod tests {
             nonce: 1,
             code_hash: [1; 32].into(),
             code: None,
+            ..Default::default()
         }
         .into();
         let bytes = account_info.encode_vec();

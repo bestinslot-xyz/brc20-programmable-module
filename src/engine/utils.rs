@@ -2,7 +2,7 @@ use std::error::Error;
 use std::time::{Duration, Instant};
 
 use alloy::consensus::TxLegacy;
-use alloy::primitives::{keccak256, Address, Bytes, B256, U256};
+use alloy::primitives::{keccak256, Address, Bytes, Log, B256, U256};
 use revm::context::result::{ExecutionResult, Output};
 use revm::primitives::TxKind;
 
@@ -152,24 +152,21 @@ pub fn get_evm_address_from_pkscript(pkscript: &str) -> Result<Address, Box<dyn 
 
 pub fn get_contract_address(result: &ExecutionResult) -> Option<Address> {
     match result {
-        ExecutionResult::Success {
-            gas_used: _,
-            gas_refunded: _,
-            logs: _,
-            output,
-            reason: _,
-        } => match output {
+        ExecutionResult::Success { output, .. } => match output {
             Output::Call(_) => None,
             Output::Create(_, addr) => *addr,
         },
-        ExecutionResult::Revert {
-            gas_used: _,
-            output: _,
-        } => None,
-        ExecutionResult::Halt {
-            gas_used: _,
-            reason: _,
-        } => None,
+        ExecutionResult::Revert { .. } => None,
+        ExecutionResult::Halt { .. } => None,
+    }
+}
+
+/// Logs a transaction contributes to its receipt and to the block's log index.
+/// Only successful transactions emit logs.
+pub fn get_tx_logs(result: &ExecutionResult) -> &[Log] {
+    match result {
+        ExecutionResult::Success { logs, .. } => logs,
+        ExecutionResult::Revert { .. } | ExecutionResult::Halt { .. } => &[],
     }
 }
 
