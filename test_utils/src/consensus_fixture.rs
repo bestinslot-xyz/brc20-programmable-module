@@ -340,13 +340,25 @@ impl Runner {
             writeln!(out, "trace_hash: {}", trace_hash.unwrap_or_default()).unwrap();
             let header = self
                 .client
-                .eth_get_block_by_number(tag, Some(false))
+                .eth_get_block_by_number(tag.clone(), Some(false))
                 .await
                 .expect("block");
             // mineTimestamp is wall-clock processing time, not chain data.
             let mut header = serde_json::to_value(&header).expect("serializable");
             header.as_object_mut().expect("block object").remove("mineTimestamp");
             writeln!(out, "block: {}", to_json(&header)).unwrap();
+            let raw_header = self.client.debug_get_raw_header(tag.clone()).await.expect("raw header");
+            writeln!(out, "raw_header: {}", raw_header.unwrap_or_default()).unwrap();
+            // The raw block lists transactions in storage iteration order, which varies between
+            // runs, so only the header and the individual receipt encodings are pinned.
+            let mut raw_receipts = self
+                .client
+                .debug_get_raw_receipts(tag.clone())
+                .await
+                .expect("raw receipts")
+                .unwrap_or_default();
+            raw_receipts.sort();
+            writeln!(out, "raw_receipts (sorted): {}", to_json(&raw_receipts)).unwrap();
             for rejected in &block.rejected {
                 writeln!(out, "rejected: {rejected}").unwrap();
             }
