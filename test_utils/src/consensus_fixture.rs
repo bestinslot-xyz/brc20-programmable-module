@@ -72,7 +72,9 @@ fn byte_len(label: &str) -> u64 {
     match label {
         "deploy" => 20_000,
         "failures" => 5_000,
-        "ethPrecompiles" | "brc20Precompiles" | "bigRuntime" | "bigInitcode" | "calldataSink" => 20_000,
+        "ethPrecompiles" | "brc20Precompiles" | "bigRuntime" | "bigInitcode" | "calldataSink" => {
+            20_000
+        }
         "burnTop" | "logThenBurn" => 100,
         _ => DEFAULT_BYTE_LEN,
     }
@@ -115,7 +117,11 @@ impl Runner {
     async fn end_block(&mut self) {
         let block = self.current.take().expect("open block");
         self.client
-            .brc20_finalise_block(timestamp(block.number), block_hash(block.number).into(), self.tx_idx)
+            .brc20_finalise_block(
+                timestamp(block.number),
+                block_hash(block.number).into(),
+                self.tx_idx,
+            )
             .await
             .expect("finalise block");
         self.blocks.push(block);
@@ -159,7 +165,9 @@ impl Runner {
             .client
             .brc20_deploy(
                 PKSCRIPT.to_string(),
-                Some(RawBytes::new(load_file_as_string("consensus_fixture/fixture_deploy_tx_data").unwrap())),
+                Some(RawBytes::new(
+                    load_file_as_string("consensus_fixture/fixture_deploy_tx_data").unwrap(),
+                )),
                 None,
                 ts,
                 hash.into(),
@@ -170,12 +178,21 @@ impl Runner {
             )
             .await
             .expect("deploy");
-        let address = receipt.contract_address.clone().expect("deployed contract address");
+        let address = receipt
+            .contract_address
+            .clone()
+            .expect("deployed contract address");
         self.record(label, vec![receipt]);
         address
     }
 
-    async fn call_raw(&mut self, label: &str, to: Option<AddressED>, inscription: Option<String>, data: String) {
+    async fn call_raw(
+        &mut self,
+        label: &str,
+        to: Option<AddressED>,
+        inscription: Option<String>,
+        data: String,
+    ) {
         let (ts, hash, idx, inscription_id) = self.block_ctx();
         let result = self
             .client
@@ -200,7 +217,11 @@ impl Runner {
     }
 
     async fn call(&mut self, label: &str, to: &AddressED) {
-        let data = self.calls.get(label).unwrap_or_else(|| panic!("unknown call {label}")).clone();
+        let data = self
+            .calls
+            .get(label)
+            .unwrap_or_else(|| panic!("unknown call {label}"))
+            .clone();
         self.call_raw(label, Some(to.clone()), None, data).await;
     }
 
@@ -229,7 +250,15 @@ impl Runner {
         let (ts, hash, idx, inscription_id) = self.block_ctx();
         let receipt = self
             .client
-            .brc20_deposit(PKSCRIPT.to_string(), TICKER.to_string(), amount(value), ts, hash.into(), idx, inscription_id)
+            .brc20_deposit(
+                PKSCRIPT.to_string(),
+                TICKER.to_string(),
+                amount(value),
+                ts,
+                hash.into(),
+                idx,
+                inscription_id,
+            )
             .await
             .expect("deposit");
         self.record(label, vec![receipt]);
@@ -239,7 +268,15 @@ impl Runner {
         let (ts, hash, idx, inscription_id) = self.block_ctx();
         let result = self
             .client
-            .brc20_withdraw(PKSCRIPT.to_string(), TICKER.to_string(), amount(value), ts, hash.into(), idx, inscription_id)
+            .brc20_withdraw(
+                PKSCRIPT.to_string(),
+                TICKER.to_string(),
+                amount(value),
+                ts,
+                hash.into(),
+                idx,
+                inscription_id,
+            )
             .await;
         match result {
             Ok(receipt) => self.record(label, vec![receipt]),
@@ -263,7 +300,15 @@ impl Runner {
         self.begin_block(era.name).await;
         let fixture = self.deploy("deploy").await;
         let deploy_inscription = format!("fixturei{}", self.inscription_counter);
-        for label in ["storageOps", "transientOps", "memoryOps", "logOps", "nested", "callKinds", "createOps"] {
+        for label in [
+            "storageOps",
+            "transientOps",
+            "memoryOps",
+            "logOps",
+            "nested",
+            "callKinds",
+            "createOps",
+        ] {
             self.call(label, &fixture).await;
         }
         self.deposit("deposit", 1_000).await;
@@ -311,13 +356,23 @@ impl Runner {
             self.call(&label, &fixture).await;
         }
         let storage_ops = self.calls["storageOps"].clone();
-        self.call_raw("storageOpsByInscriptionId", None, Some(deploy_inscription), storage_ops)
-            .await;
+        self.call_raw(
+            "storageOpsByInscriptionId",
+            None,
+            Some(deploy_inscription),
+            storage_ops,
+        )
+        .await;
         // Transactions sent straight to a precompile, succeeding and failing.
         let mut sha256 = [0u8; 20];
         sha256[19] = 0x02;
-        self.call_raw("topLevelSha256", Some(sha256.into()), None, "0x616263".to_string())
-            .await;
+        self.call_raw(
+            "topLevelSha256",
+            Some(sha256.into()),
+            None,
+            "0x616263".to_string(),
+        )
+        .await;
         let mut point_evaluation = [0u8; 20];
         point_evaluation[19] = 0x0a;
         self.call_raw(
@@ -352,7 +407,12 @@ impl Runner {
         let mut out = String::new();
         for block in &self.blocks {
             let tag = format!("0x{:x}", block.number);
-            writeln!(out, "======== block {} ({}) ========", block.number, block.era).unwrap();
+            writeln!(
+                out,
+                "======== block {} ({}) ========",
+                block.number, block.era
+            )
+            .unwrap();
             let trace_hash = self
                 .client
                 .debug_get_block_trace_hash(tag.clone())
@@ -366,9 +426,16 @@ impl Runner {
                 .expect("block");
             // mineTimestamp is wall-clock processing time, not chain data.
             let mut header = serde_json::to_value(&header).expect("serializable");
-            header.as_object_mut().expect("block object").remove("mineTimestamp");
+            header
+                .as_object_mut()
+                .expect("block object")
+                .remove("mineTimestamp");
             writeln!(out, "block: {}", to_json(&header)).unwrap();
-            let raw_header = self.client.debug_get_raw_header(tag.clone()).await.expect("raw header");
+            let raw_header = self
+                .client
+                .debug_get_raw_header(tag.clone())
+                .await
+                .expect("raw header");
             writeln!(out, "raw_header: {}", raw_header.unwrap_or_default()).unwrap();
             // The raw block lists transactions in storage iteration order, which varies between
             // runs, so only the header and the individual receipt encodings are pinned.
@@ -427,13 +494,21 @@ pub async fn run_consensus_fixture(spec: FixtureSpec) -> String {
 
     // brc20_initialise deploys the BRC20 controller and finalises genesis, then pings the
     // Bitcoin RPC, which is unreachable in tests. Tolerate only that failure.
-    if let Err(e) = client.brc20_initialise(block_hash(0).into(), timestamp(0), 0).await {
-        assert!(e.to_string().contains("Bitcoin RPC"), "brc20_initialise failed: {e}");
+    if let Err(e) = client
+        .brc20_initialise(block_hash(0).into(), timestamp(0), 0)
+        .await
+    {
+        assert!(
+            e.to_string().contains("Bitcoin RPC"),
+            "brc20_initialise failed: {e}"
+        );
     }
 
     let mut runner = Runner {
         client,
-        calls: parse_pairs("consensus_fixture/fixture_calls").into_iter().collect(),
+        calls: parse_pairs("consensus_fixture/fixture_calls")
+            .into_iter()
+            .collect(),
         blocks: Vec::new(),
         current: None,
         tx_idx: 0,

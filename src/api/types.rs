@@ -335,7 +335,11 @@ mod tests {
             let (name, data) = line.split_once(' ').unwrap_or((line, ""));
             let outcome = std::panic::catch_unwind(|| decode_bytes_from_inscription_data(data));
             let rendered = match outcome {
-                Ok(Some(bytes)) => format!("{} bytes, sha256 {}", bytes.len(), sha256::digest(bytes.as_ref())),
+                Ok(Some(bytes)) => format!(
+                    "{} bytes, sha256 {}",
+                    bytes.len(),
+                    sha256::digest(bytes.as_ref())
+                ),
                 Ok(None) => "rejected".to_string(),
                 Err(_) => "panic".to_string(),
             };
