@@ -21,7 +21,8 @@ alloy = { version = "1.1.2", features = [
 alloy-rlp = "0.3.12"
 alloy-rpc-types-trace = "1.1.2"
 alloy-sol-types = "1.0.9"
-base64 = "0.22.1"
+base64 = "0.23.1"
+# Verification rules are consensus: a new bip322 release needs an activation height (see engine/hardforks.rs).
 bip322 = { version = "0.0.11", optional = true }
 bitcoin = { version = "0.32.7", optional = true }
 bitcoincore-rpc = { version = "0.19.0", optional = true }
@@ -35,8 +36,8 @@ nada = "0.2.2"
 revm = { version = "33.1.0", default-features = false, optional = true }
 revm-inspectors = { version = "0.33.0", optional = true }
 revm-bytecode = "7.1.0"
-rlimit = { version = "0.10.2", optional = true }
-rocksdb = { version = "0.24.0", optional = true }
+rlimit = { version = "0.11.0", optional = true }
+rocksdb = { version = "0.25.0", optional = true }
 rs_merkle = { version = "1.4.2", optional = true }
 rust-embed = { version = "8.9.0", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
@@ -44,14 +45,14 @@ serde_either = "0.2.1"
 serde_json = "1.0.145"
 tokio = { version = "1.48.0", optional = true }
 tower = { version = "0.5.2", optional = true }
-tower-http = { version = "0.6.7", features = [
+tower-http = { version = "0.7.1", features = [
     "cors",
     "trace",
     "auth",
 ], optional = true }
 tracing = "0.1.43"
 tracing-subscriber = { version = "0.3.22", optional = true }
-zstd-safe = "7.2.4"
+zstd-safe = "8.2.0"
 sha256 = "1.6.0"
 
 [dev-dependencies]
@@ -62,9 +63,9 @@ alloy-signer = "1.0.9"
 alloy-signer-local = "1.0.9"
 criterion = "0.8.0"
 insta = "1.44.3"
-public-api = "0.50.1"
-rand = "0.9.2"
-rustdoc-json = "0.9.7"
+public-api = "0.52.2"
+rand = "0.10.3"
+rustdoc-json = "0.9.10"
 rustup-toolchain = "0.1.10"
 tempfile = "3.23.0"
 test-utils = { path = "test_utils" }
