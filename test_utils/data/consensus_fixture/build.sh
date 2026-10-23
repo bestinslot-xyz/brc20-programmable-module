@@ -114,6 +114,14 @@ calldata_sink="0x$(zeros 2048)$(printf '01%.0s' {1..2048})"
     echo "brc20Precompiles $(cast calldata 'precompileBatch(address[],bytes[],uint256)' "$(join "${brc20_targets[@]}")" "$(join "${brc20_inputs[@]}")" 1000000)"
     echo "unknownSelector 0xdeadbeef"
     echo "precompileCallKinds $(cast calldata 'precompileCallKinds()')"
+    echo "probeDestroyedChild $(cast calldata 'probeDestroyedChild()')"
+    # Five PUSH1 1 for stack arguments, the opcode under test, then STOP. CLZ (Osaka),
+    # DUPN/SWAPN/EXCHANGE (Amsterdam) and EOF opcodes must stay invalid; the rest are active.
+    runtimes=()
+    for op in 1e e6 e7 e8 d0 d1 e0 e1 ec ee f8 f9 fb 5f 49 4a 5e; do
+        runtimes+=("0x60016001600160016001${op}00")
+    done
+    echo "opcodeProbe $(cast calldata 'runOpcodes(bytes[])' "$(join "${runtimes[@]}")")"
     for entry in "${edge_cases[@]}"; do
         read -r label target input gas <<<"$entry"
         echo "precompileEdge:$label $(cast calldata 'callPrecompile(address,bytes,uint256)' "$target" "$input" "$gas")"

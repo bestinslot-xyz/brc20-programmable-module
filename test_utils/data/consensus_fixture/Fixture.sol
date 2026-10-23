@@ -57,6 +57,7 @@ contract Fixture {
     mapping(uint256 => uint256) public slots;
     Helper public helper;
     Child public lastChild;
+    Child public destroyedChild;
 
     constructor() {
         helper = new Helper();
@@ -176,6 +177,7 @@ contract Fixture {
     // SELFDESTRUCT in the creating transaction (EIP-6780 full removal).
     function createAndDestroy() external {
         Child c = new Child(4);
+        destroyedChild = c;
         c.destroy();
         uint256 size;
         assembly {
@@ -193,6 +195,38 @@ contract Fixture {
             size := extcodesize(c)
         }
         probe("destroyLater", bytes32(size));
+    }
+
+    // State of the child created and self-destructed in an earlier transaction.
+    function probeDestroyedChild() external {
+        address c = address(destroyedChild);
+        uint256 size;
+        bytes32 codeHash;
+        assembly {
+            size := extcodesize(c)
+            codeHash := extcodehash(c)
+        }
+        (bool ok, bytes memory out) = c.staticcall(abi.encodeWithSignature("value()"));
+        probe("destroyedChild", keccak256(abi.encode(size, codeHash, ok, out)));
+    }
+
+    // Deploys each runtime and calls it with a fixed gas budget. Opcodes from forks after the
+    // block's spec must behave as invalid opcodes.
+    function runOpcodes(bytes[] calldata runtimes) external {
+        for (uint256 i = 0; i < runtimes.length; i++) {
+            bytes memory runtime = runtimes[i];
+            // forge-lint: disable-next-line(unsafe-typecast)
+            uint16 len = uint16(runtime.length);
+            // PUSH2 len, PUSH1 12, PUSH0, CODECOPY, PUSH2 len, PUSH0, RETURN, then the runtime
+            bytes memory init = abi.encodePacked(hex"61", len, hex"600c5f3961", len, hex"5ff3", runtime);
+            address target;
+            assembly {
+                target := create(0, add(init, 32), mload(init))
+            }
+            uint256 before = gasleft();
+            (bool ok, ) = target.call{gas: 100_000}("");
+            emit Probe(bytes32(i), before - gasleft(), bytes32(uint256(ok ? 1 : 0)));
+        }
     }
 
     // Failing subcalls inside a successful transaction.

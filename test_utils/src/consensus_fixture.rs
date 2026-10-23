@@ -275,6 +275,7 @@ impl Runner {
             "bigRuntime",
             "bigInitcode",
             "createAndDestroy",
+            "probeDestroyedChild",
             "destroyLast",
             "createOps",
             "createOpsSecondSalt",
@@ -294,6 +295,7 @@ impl Runner {
             "brc20Precompiles",
             "unknownSelector",
             "precompileCallKinds",
+            "opcodeProbe",
         ] {
             self.call(label, &fixture).await;
         }
