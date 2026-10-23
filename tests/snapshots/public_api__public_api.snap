@@ -207,6 +207,7 @@ pub brc20_prog::Brc20ProgConfig::bitcoin_rpc_network: alloc::string::String
 pub brc20_prog::Brc20ProgConfig::bitcoin_rpc_password: alloc::string::String
 pub brc20_prog::Brc20ProgConfig::bitcoin_rpc_url: alloc::string::String
 pub brc20_prog::Brc20ProgConfig::bitcoin_rpc_user: alloc::string::String
+pub brc20_prog::Brc20ProgConfig::brc20_prog_admin_rpc_server_url: core::option::Option<alloc::string::String>
 pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_enable_auth: bool
 pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_password: core::option::Option<alloc::string::String>
 pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_url: alloc::string::String

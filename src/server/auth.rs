@@ -19,35 +19,62 @@ impl Default for Authorized {
     }
 }
 
-/// A middleware that checks for HTTP Basic Authentication.
-/// It uses the `rpc_username` and `rpc_password` to create a Basic Auth header.
-/// If the request contains the correct Basic Auth header, it adds an `Authorized`
-/// extension to the request.
+#[derive(Clone)]
+enum AuthMode {
+    /// Every request is authorized.
+    AllowAll,
+    /// Requests carrying this exact `Authorization` header are authorized.
+    Basic(String),
+    /// No request is authorized.
+    DenyAll,
+}
+
+/// A middleware that marks requests as authorized by adding an `Authorized` extension.
 ///
-/// It never rejects requests, it just adds the `Authorized` extension if the header is present and correct.
+/// Depending on its mode it authorizes every request, requests with the correct
+/// HTTP Basic Auth header, or no request at all.
+///
+/// It never rejects requests, it just adds the `Authorized` extension when the mode allows it.
 #[derive(Clone)]
 pub struct HttpNonBlockingAuth {
-    header: Option<String>,
-    allow_all: bool,
+    mode: AuthMode,
 }
 
 impl HttpNonBlockingAuth {
     pub fn allow() -> Self {
         Self {
-            header: None,
-            allow_all: true,
+            mode: AuthMode::AllowAll,
+        }
+    }
+
+    pub fn deny() -> Self {
+        Self {
+            mode: AuthMode::DenyAll,
         }
     }
 
     pub fn new(rpc_username: &String, rpc_password: &String) -> Self {
         Self {
-            header: Some(format!(
+            mode: AuthMode::Basic(format!(
                 "Basic {}",
                 BASE64_STANDARD
                     .encode(format!("{}:{}", rpc_username, rpc_password).as_bytes())
                     .to_string()
             )),
-            allow_all: false,
+        }
+    }
+
+    fn is_authorized<B>(&self, request: &hyper::Request<B>) -> bool {
+        match &self.mode {
+            AuthMode::AllowAll => true,
+            AuthMode::DenyAll => false,
+            AuthMode::Basic(expected) => {
+                request
+                    .headers()
+                    .get("Authorization")
+                    .and_then(|header| header.to_str().ok())
+                    == Some(expected.as_str())
+            }
         }
     }
 }
@@ -59,13 +86,7 @@ impl<B> ValidateRequest<B> for HttpNonBlockingAuth {
         &mut self,
         request: &mut hyper::Request<B>,
     ) -> Result<(), hyper::Response<Self::ResponseBody>> {
-        if self.allow_all
-            || request
-                .headers()
-                .get("Authorization")
-                .and_then(|header| header.to_str().ok())
-                == self.header.as_deref()
-        {
+        if self.is_authorized(request) {
             request.extensions_mut().insert(Authorized::default());
         }
 
@@ -342,5 +363,37 @@ mod tests {
 
         assert!(request.extensions().get::<Authorized>().is_some());
         assert!(rpc_request.extensions.get::<Authorized>().is_some());
+    }
+
+    #[tokio::test]
+    async fn test_deny_all_rejects_correct_credentials() {
+        let mut auth = HttpNonBlockingAuth::deny();
+        let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
+        let mut request = hyper::Request::builder()
+            .header("Authorization", "Basic dXNlcjpwYXNzd29yZA==")
+            .body(HttpBody::empty())
+            .unwrap();
+
+        assert!(auth.validate(&mut request).is_ok());
+        assert!(request.extensions().get::<Authorized>().is_none());
+
+        let mut brc20_request =
+            jsonrpsee::types::Request::owned("brc20_hello".into(), None, Id::Number(1));
+        brc20_request.extensions = request.extensions().clone();
+        assert!(validator.call(brc20_request).await.is_error());
+
+        let mut eth_request =
+            jsonrpsee::types::Request::owned("eth_blockNumber".into(), None, Id::Number(1));
+        eth_request.extensions = request.extensions().clone();
+        assert!(validator.call(eth_request).await.is_success());
+    }
+
+    #[tokio::test]
+    async fn test_deny_all_without_header() {
+        let mut auth = HttpNonBlockingAuth::deny();
+        let mut request = hyper::Request::builder().body(HttpBody::empty()).unwrap();
+
+        assert!(auth.validate(&mut request).is_ok());
+        assert!(request.extensions().get::<Authorized>().is_none());
     }
 }

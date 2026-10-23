@@ -23,6 +23,8 @@ lazy_static::lazy_static! {
     static ref BRC20_PROG_RPC_SERVER_URL_KEY: String = "BRC20_PROG_RPC_SERVER_URL".to_string();
     static ref BRC20_PROG_RPC_SERVER_URL_DEFAULT: String = "127.0.0.1:18545".to_string();
 
+    static ref BRC20_PROG_ADMIN_RPC_SERVER_URL_KEY: String = "BRC20_PROG_ADMIN_RPC_SERVER_URL".to_string();
+
     static ref FAIL_ON_BITCOIN_RPC_ERROR_KEY: String = "FAIL_ON_BITCOIN_RPC_ERROR".to_string();
     static ref FAIL_ON_BITCOIN_RPC_ERROR_DEFAULT: bool = true;
 
@@ -103,6 +105,10 @@ pub const CALLDATA_LIMIT: usize = 1024 * 1024; // 1MB
 pub struct Brc20ProgConfig {
     /// The URL of the BRC20 Prog RPC server
     pub brc20_prog_rpc_server_url: String,
+    /// The URL of the admin RPC server, which serves the indexer methods.
+    /// When set, the public server rejects indexer methods regardless of authentication.
+    /// When unset, a single server serves every method and authentication gates the indexer methods.
+    pub brc20_prog_admin_rpc_server_url: Option<String>,
     /// Whether to enable authentication for the BRC20 Prog RPC server
     pub brc20_prog_rpc_server_enable_auth: bool,
     /// The username for the BRC20 Prog RPC server, if authentication is enabled
@@ -189,6 +195,7 @@ impl Brc20ProgConfig {
     ) -> Self {
         Self {
             brc20_prog_rpc_server_url,
+            brc20_prog_admin_rpc_server_url: None,
             brc20_prog_rpc_server_enable_auth,
             brc20_prog_rpc_server_user,
             brc20_prog_rpc_server_password,
@@ -215,6 +222,7 @@ impl Brc20ProgConfig {
     /// List of environment variables read:
     /// * `BRC20_PROG_DB_PATH` - The path to the database folder (Default: "target/db")
     /// * `BRC20_PROG_RPC_SERVER_URL` - The URL of the BRC20 Prog RPC server (Default: "127.0.0.1:18545")
+    /// * `BRC20_PROG_ADMIN_RPC_SERVER_URL` - The URL of the admin RPC server that serves the indexer methods (Default: unset, single server)
     /// * `BRC20_PROG_RPC_SERVER_ENABLE_AUTH` - Whether to enable authentication for the BRC20 Prog RPC server (Default: false)
     /// * `BRC20_PROG_RPC_SERVER_USER` - The username for the BRC20 Prog RPC server, if authentication is enabled
     /// * `BRC20_PROG_RPC_SERVER_PASSWORD` - The password for the BRC20 Prog RPC server, if authentication is enabled
@@ -244,6 +252,9 @@ impl Brc20ProgConfig {
         Self {
             brc20_prog_rpc_server_url: env::var(&*BRC20_PROG_RPC_SERVER_URL_KEY)
                 .unwrap_or(BRC20_PROG_RPC_SERVER_URL_DEFAULT.clone()),
+            brc20_prog_admin_rpc_server_url: env::var(&*BRC20_PROG_ADMIN_RPC_SERVER_URL_KEY)
+                .ok()
+                .filter(|x| !x.is_empty()),
             brc20_prog_rpc_server_enable_auth: env::var(&*BRC20_PROG_RPC_SERVER_ENABLE_AUTH_KEY)
                 .map(|x| x == "true")
                 .unwrap_or(*BRC20_PROG_RPC_SERVER_ENABLE_AUTH_DEFAULT),
@@ -297,6 +308,15 @@ pub fn validate_config(config: &Brc20ProgConfig) -> Result<(), Box<dyn std::erro
 
     if config.brc20_prog_rpc_server_url.is_empty() {
         return Err("RPC server URL is empty".into());
+    }
+
+    if let Some(admin_url) = &config.brc20_prog_admin_rpc_server_url {
+        if admin_url.parse::<std::net::SocketAddr>().is_err() {
+            return Err("Admin RPC server URL is not a valid socket address".into());
+        }
+        if *admin_url == config.brc20_prog_rpc_server_url {
+            return Err("Admin RPC server URL must differ from the public RPC server URL".into());
+        }
     }
 
     if config.bitcoin_rpc_url.is_empty() && config.fail_on_bitcoin_rpc_error {
@@ -365,6 +385,21 @@ mod tests {
     fn test_validate_config_rejects_empty_rpc_url() {
         let mut config = valid_config();
         config.brc20_prog_rpc_server_url = String::new();
+        assert!(validate_config(&config).is_err());
+    }
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn test_validate_config_admin_url() {
+        let mut config = valid_config();
+
+        config.brc20_prog_admin_rpc_server_url = Some("127.0.0.1:18546".to_string());
+        assert!(validate_config(&config).is_ok());
+
+        config.brc20_prog_admin_rpc_server_url = Some("not-an-address".to_string());
+        assert!(validate_config(&config).is_err());
+
+        config.brc20_prog_admin_rpc_server_url = Some(config.brc20_prog_rpc_server_url.clone());
         assert!(validate_config(&config).is_err());
     }
 

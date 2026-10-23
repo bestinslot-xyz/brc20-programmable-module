@@ -703,6 +703,28 @@ BRC20_PROG_RPC_SERVER_PASSWORD="<PASSWORD>"
 > [!CAUTION]
 > This uses basic auth, so make sure authenticated calls are made through HTTPS or a secure tunnel if the server is exposed to the internet, otherwise credentials can be intercepted.
 
+### Admin RPC server
+
+The indexer methods (`brc20_mine`, `brc20_deploy`, `brc20_call`, `brc20_transact`, `brc20_deposit`, `brc20_withdraw`, `brc20_initialise`, `brc20_finaliseBlock`, `brc20_reorg`, `brc20_commitToDatabase`, `brc20_clearCaches`, `debug_getBlockTraceString`, `debug_getBlockTraceHash`) can be served on a separate listener:
+
+```bash
+BRC20_PROG_ADMIN_RPC_SERVER_URL=127.0.0.1:18546
+```
+
+When it is set:
+
+- `BRC20_PROG_RPC_SERVER_URL` serves every other method, and rejects the indexer methods for every caller, including callers with valid credentials.
+- `BRC20_PROG_ADMIN_RPC_SERVER_URL` serves every method. Authentication settings apply to it as above, as a second layer.
+
+Access to the admin listener is controlled by where it binds and who can reach that address, so keep it off the public internet:
+
+- **Bare metal:** bind it to `127.0.0.1` and block the port in the firewall.
+- **Docker, indexer in another container:** bind it to `0.0.0.0:18546` inside the container and don't publish the port. Containers on the same Docker network can reach it.
+- **Docker, indexer on the host:** publish it to the host loopback only, e.g. `127.0.0.1:18546:18546`.
+- **Reverse proxy:** proxy only the public port, never the admin port.
+
+The server logs a warning at startup when the admin listener binds to a non-loopback address. When `BRC20_PROG_ADMIN_RPC_SERVER_URL` is unset, a single listener serves every method and authentication gates the indexer methods.
+
 ### Indexer Checklist
 
 - [ ] Set environment variables, check [env.sample](env.sample) for a list
