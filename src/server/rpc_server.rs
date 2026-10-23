@@ -6,7 +6,10 @@ use alloy::primitives::Bytes;
 use hyper::Method;
 use jsonrpsee::core::middleware::RpcServiceBuilder;
 use jsonrpsee::core::{async_trait, RpcResult};
-use jsonrpsee::server::{BatchRequestConfig, Server, ServerConfigBuilder, ServerHandle};
+use jsonrpsee::server::{
+    stop_channel, BatchRequestConfig, Server, ServerConfigBuilder, ServerHandle,
+};
+use jsonrpsee::Methods;
 use revm::primitives::TxKind;
 use revm::state::Bytecode;
 use tower::ServiceBuilder;
@@ -1108,43 +1111,120 @@ impl Brc20ProgApiServer for RpcServer {
     }
 }
 
+/// Starts the JSON-RPC server.
+///
+/// Without an admin URL, a single listener serves every method and authentication gates the
+/// indexer methods. With an admin URL, the public listener rejects the indexer methods for every
+/// caller, and the admin listener serves every method behind the configured authentication.
+/// The returned handle controls both listeners.
 pub async fn start_rpc_server(
     engine: BRC20ProgEngine,
     config: Brc20ProgConfig,
 ) -> Result<ServerHandle, Box<dyn Error>> {
-    let cors = CorsLayer::new()
-        // Allow `POST` when accessing the resource
-        .allow_methods([Method::POST])
-        // Allow requests from any origin
-        .allow_origin(Any)
-        .allow_headers([hyper::header::CONTENT_TYPE]);
-
-    let http_middleware =
-        ServiceBuilder::new()
-            .layer(cors)
-            .layer(ValidateRequestHeaderLayer::custom(
-                if !config.brc20_prog_rpc_server_enable_auth {
-                    HttpNonBlockingAuth::allow()
-                } else {
-                    let Some(rpc_username) = config.brc20_prog_rpc_server_user else {
-                        return Err(
+    let auth = if !config.brc20_prog_rpc_server_enable_auth {
+        HttpNonBlockingAuth::allow()
+    } else {
+        let Some(rpc_username) = &config.brc20_prog_rpc_server_user else {
+            return Err(
                 "RPC username environment variable is required when authentication is enabled"
                     .into(),
             );
-                    };
-                    let Some(rpc_password) = config.brc20_prog_rpc_server_password else {
-                        return Err(
+        };
+        let Some(rpc_password) = &config.brc20_prog_rpc_server_password else {
+            return Err(
                 "RPC password environment variable is required when authentication is enabled"
                     .into(),
             );
-                    };
-                    HttpNonBlockingAuth::new(&rpc_username, &rpc_password)
-                },
-            ));
+        };
+        HttpNonBlockingAuth::new(rpc_username, rpc_password)
+    };
+    let module: Methods = RpcServer { engine }.into_rpc().into();
+
+    let Some(admin_url) = &config.brc20_prog_admin_rpc_server_url else {
+        return start_listener(
+            &config,
+            &config.brc20_prog_rpc_server_url,
+            auth,
+            true,
+            module,
+        )
+        .await;
+    };
+
+    let admin_address = admin_url.parse::<SocketAddr>()?;
+    if !admin_address.ip().is_loopback() {
+        warn!(
+            "Admin RPC server listens on non-loopback address {}, restrict access to it with a firewall or private network",
+            admin_address
+        );
+    }
+
+    let public_handle = start_listener(
+        &config,
+        &config.brc20_prog_rpc_server_url,
+        HttpNonBlockingAuth::deny(),
+        true,
+        module.clone(),
+    )
+    .await?;
+    let admin_handle = match start_listener(&config, admin_url, auth, false, module).await {
+        Ok(handle) => handle,
+        Err(error) => {
+            let _ = public_handle.stop();
+            return Err(error);
+        }
+    };
+    info!(
+        "Public RPC server listening on {}, admin RPC server listening on {}",
+        config.brc20_prog_rpc_server_url, admin_url
+    );
+
+    Ok(join_server_handles(public_handle, admin_handle))
+}
+
+/// Returns a handle that stops both servers, and reports stopped once both have stopped.
+fn join_server_handles(first: ServerHandle, second: ServerHandle) -> ServerHandle {
+    let (stop_handle, joined_handle) = stop_channel();
+    tokio::spawn(async move {
+        // Holding a stop handle keeps the joined handle running until both servers have stopped.
+        let _running = stop_handle.clone();
+        stop_handle.shutdown().await;
+        let _ = first.stop();
+        let _ = second.stop();
+        first.stopped().await;
+        second.stopped().await;
+    });
+    joined_handle
+}
+
+/// Starts one listener serving `module` on `url`.
+///
+/// `auth` decides which requests count as authorized for the indexer methods.
+/// `allow_cross_origin` lets browsers on any origin call the listener.
+async fn start_listener(
+    config: &Brc20ProgConfig,
+    url: &str,
+    auth: HttpNonBlockingAuth,
+    allow_cross_origin: bool,
+    module: Methods,
+) -> Result<ServerHandle, Box<dyn Error>> {
+    let cors = if allow_cross_origin {
+        CorsLayer::new()
+            // Allow `POST` when accessing the resource
+            .allow_methods([Method::POST])
+            // Allow requests from any origin
+            .allow_origin(Any)
+            .allow_headers([hyper::header::CONTENT_TYPE])
+    } else {
+        CorsLayer::new()
+    };
+
+    let http_middleware = ServiceBuilder::new()
+        .layer(cors)
+        .layer(ValidateRequestHeaderLayer::custom(auth));
     let rpc_middleware = RpcServiceBuilder::new()
         .rpc_logger(1024)
         .layer_fn(|service| RpcAuthMiddleware::new(service, &*INDEXER_METHODS));
-    let module = RpcServer { engine }.into_rpc();
 
     let handle = Server::builder()
         .set_config(
@@ -1160,7 +1240,7 @@ pub async fn start_rpc_server(
         )
         .set_http_middleware(http_middleware)
         .set_rpc_middleware(rpc_middleware)
-        .build(config.brc20_prog_rpc_server_url.parse::<SocketAddr>()?)
+        .build(url.parse::<SocketAddr>()?)
         .await?
         .start(module);
 

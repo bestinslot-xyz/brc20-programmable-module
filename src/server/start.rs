@@ -29,6 +29,9 @@ use crate::server::rpc_server::start_rpc_server;
 /// * brc20_commitToDatabase
 /// * brc20_clearCaches
 ///
+/// If `brc20_prog_admin_rpc_server_url` is set, these methods are served only on the admin listener,
+/// and the public listener rejects them for every caller. The returned handle controls both listeners.
+///
 /// # Errors
 ///
 /// This function will return an error if:

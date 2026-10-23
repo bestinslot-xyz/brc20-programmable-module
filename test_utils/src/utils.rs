@@ -13,7 +13,7 @@ use tokio::runtime::Runtime;
 #[folder = "data"]
 struct TxAssets;
 
-fn get_free_port() -> u16 {
+pub fn get_free_port() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap(); // 0 = ask OS for free port
     let port = listener.local_addr().unwrap().port();
     port
