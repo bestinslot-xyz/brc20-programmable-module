@@ -1,0 +1,30 @@
+---
+source: src/api/types.rs
+expression: report
+---
+raw_short: 5 bytes, sha256 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+raw_flag_only: 0 bytes, sha256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+raw_padded: 4 bytes, sha256 d827e9f36b788841b9e6cc22711185edbfbc17c5836b6292fe0fed85d18608b8
+raw_padding_then_garbage: 4 bytes, sha256 d827e9f36b788841b9e6cc22711185edbfbc17c5836b6292fe0fed85d18608b8
+raw_noncanonical_trailing_bits: rejected
+raw_whitespace: rejected
+raw_url_safe_alphabet: rejected
+raw_invalid_length: rejected
+raw_only_padding: panic
+empty: panic
+unknown_method: rejected
+zstd_with_size: 208 bytes, sha256 744c8589c09263e51d5ab3b88545b02439b690f76937f80b2cd9f954a786dcaf
+zstd_no_size: 208 bytes, sha256 744c8589c09263e51d5ab3b88545b02439b690f76937f80b2cd9f954a786dcaf
+zstd_checksum: 208 bytes, sha256 744c8589c09263e51d5ab3b88545b02439b690f76937f80b2cd9f954a786dcaf
+zstd_checksum_mismatch: rejected
+zstd_two_frames: 220 bytes, sha256 90f207c73226c20d5a661e9b0855bc7fd5f823f207e3754298f5bc191a2d00b3
+zstd_skippable_then_frame: 208 bytes, sha256 744c8589c09263e51d5ab3b88545b02439b690f76937f80b2cd9f954a786dcaf
+zstd_only_skippable: 0 bytes, sha256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+zstd_truncated: rejected
+zstd_long_window: 208 bytes, sha256 744c8589c09263e51d5ab3b88545b02439b690f76937f80b2cd9f954a786dcaf
+zstd_over_limit_with_size: rejected
+zstd_over_limit_no_size: rejected
+zstd_at_limit: 1048576 bytes, sha256 ee78cd29d3a534713b36e6ff6fa3668c8a8f851a542d5eb2401c25ca4e057d02
+zstd_one_over_limit: rejected
+zstd_dictionary_id_flag: rejected
+zstd_legacy_v07_magic: rejected

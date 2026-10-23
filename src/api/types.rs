@@ -323,6 +323,27 @@ mod tests {
         function transfer(address receiver, bytes ticker, uint256 amount);
     }
 
+    /// Pins the outcome of every payload in testdata/inscription_corpus.txt. Inscription data
+    /// decides transaction calldata, so a changed outcome (for example from a base64 or zstd
+    /// upgrade) is a consensus change. Regenerate the corpus with testdata/gen_inscription_corpus.py.
+    #[test]
+    #[cfg(feature = "server")]
+    fn test_inscription_data_corpus() {
+        let corpus = include_str!("testdata/inscription_corpus.txt");
+        let mut report = String::new();
+        for line in corpus.lines() {
+            let (name, data) = line.split_once(' ').unwrap_or((line, ""));
+            let outcome = std::panic::catch_unwind(|| decode_bytes_from_inscription_data(data));
+            let rendered = match outcome {
+                Ok(Some(bytes)) => format!("{} bytes, sha256 {}", bytes.len(), sha256::digest(bytes.as_ref())),
+                Ok(None) => "rejected".to_string(),
+                Err(_) => "panic".to_string(),
+            };
+            report.push_str(&format!("{name}: {rendered}\n"));
+        }
+        insta::assert_snapshot!(report);
+    }
+
     #[test]
     fn test_calldata_base64_roundtrip() {
         let address: &str = "0xdead09C7d1621C9D49EdD5c070933b500ac5beef";
