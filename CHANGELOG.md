@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.16.3 (2026-10-23)
+
+### New Features
+
+ - <csr-id-7dd66d1767e93f5864287249b364209f2ad3714a/> serve indexer methods on a separate admin listener (BRC20_PROG_ADMIN_RPC_SERVER_URL)
+   Adds the BRC20_PROG_ADMIN_RPC_SERVER_URL env var and Brc20ProgConfig::brc20_prog_admin_rpc_server_url field. When set, the public listener rejects the indexer methods for every caller, including callers with valid credentials, and the admin listener serves every method behind the configured authentication. When unset, a single listener serves every method as before.
+   
+   The admin listener disallows cross-origin requests and logs a warning when bound to a non-loopback address. start() returns one ServerHandle that stops both listeners.
+
+### Bug Fixes
+
+ - <csr-id-abf894759f53568f08279e2123f2274ba8246e7b/> bump yanked keccak to 0.1.6 and clear build warnings
+   Remove the unused zstd_safe::WriteBuf import whose as_slice collided
+   with a future std method, and the deprecated std::usize import.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release over the course of 3 calendar days.
+ - 7 days passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 2 unique issues were worked on: [#14](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/14), [#15](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/15)
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **[#14](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/14)**
+    - Bump yanked keccak to 0.1.6 and clear build warnings ([`abf8947`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/abf894759f53568f08279e2123f2274ba8246e7b))
+ * **[#15](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/15)**
+    - Serve indexer methods on a separate admin listener (BRC20_PROG_ADMIN_RPC_SERVER_URL) ([`7dd66d1`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/7dd66d1767e93f5864287249b364209f2ad3714a))
+</details>
+
 ## v0.16.2 (2026-10-15)
 
 ### New Features
@@ -19,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 1 commit contributed to the release.
+ - 2 commits contributed to the release.
  - 2 days passed between releases.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 1 unique issue was worked on: [#13](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/13)
@@ -32,6 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  * **[#13](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/13)**
     - Configurable eth_getLogs block cap (GET_LOGS_MAX_BLOCKS, default 6) ([`3dada20`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/3dada205675cbb5ce521ddf1d6a97c07e1807169))
+ * **Uncategorized**
+    - Release brc20-prog v0.16.2 ([`b6af9fa`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/b6af9fac0717e723f32e0549358d075234626625))
 </details>
 
 ## v0.16.1 (2026-10-12)
@@ -305,6 +343,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - tokio to 1.48.0
    - criterion to 0.7.0
    - tempfile to 3.23.0
+   - revm to 31.0.0
+   - serde to 1.0.228
+   - tokio to 1.48.0
+   - criterion to 0.7.0
+   - tempfile to 3.23.0
+ - revm to 31.0.0
+ - serde to 1.0.228
+ - tokio to 1.48.0
+ - criterion to 0.7.0
+ - tempfile to 3.23.0
 
 ### Bug Fixes
 
@@ -1027,9 +1075,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Added cache with mutexes ([`504828c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/504828cd4f89c0f586ff4e6ca2eaa341402ee7a9))
     - Initial commit, no reorg protection, only code memory cache ([`8a3494e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/8a3494ec688e84374f9d6217072d244def32e773))
 </details>
-
-<csr-unknown>
-revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0Updated get_evm to accept current_op_return_tx_id and pass it to BRC20Precompiles.Modified hardfork activation heights for mainnet and signet.Introduced get_op_return_tx_id_precompile to retrieve the op return transaction ID.Added gas cost for fetching the op return transaction ID.Updated RPC server methods to include op_return_tx_id parameter.Enhanced tests to validate behavior with and without op return transaction IDs.Updated the TxED struct to use the new Signature struct, simplifying the transaction data structure.Refactored TxReceiptED by removing unused fields and adjusting the encoding/decoding logic accordingly.Modified the BRC20ProgEngine to utilize the new Signature struct when creating transactions.Updated the RPC server to handle the new transaction receipt structure.Adjusted tests to reflect changes in the transaction and receipt structures, ensuring proper validation of transaction results using “debug_traceTransaction”.Incremented database version to 8 to reflect schema changes.Added a new database structure to handle pending transactions, allowing for efficient retrieval and management of transactions by account and nonce.Implemented methods to set, get, remove, and clear pending transactions, ensuring transactions can be processed in order.Updated BlockCachedDatabase to support new operations for managing key-value pairs, and removals.Modified BRC20ProgEngine to handle pending transactions during block processing, ensuring that transactions are executed in the correct order.Updated RPC server to expose new endpoints for querying pending transactions.Added comprehensive tests to validate the new transaction handling logic, including scenarios for out-of-order transactions and transaction expiration.Updated the BRC20ProgEngine to include a TODO for handling future nonces.Replaced EthBytes and InscriptionBytes with RawBytes and Base64Bytes in the API types.Modified the RPC server to accommodate the new data types for deploy and call methods.Added tests to validate the new encoded data handling for transactions and calls.Removed redundant input field from EthCallMoved main.rs in a separate binary setup with the “server” feature requiredeth_getTransactionCount now correctly returns the account nonceBumped version to 0.7.0Use stored values to create the cache for cache misses, otherwise reorgs might cause data loss if reorg happens on a value that hasn’t been updated in a long time, and updated just before a reorg happensChore: bump rocksdb version to 0.24.0 (librocksdb was updated in this version)Chore: bump brc20-prog version to 0.10.3<csr-unknown/>
 
 ## v0.15.13 (2026-02-27)
 
