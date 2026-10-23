@@ -73,7 +73,7 @@ fn byte_len(label: &str) -> u64 {
         "deploy" => 20_000,
         "failures" => 5_000,
         "ethPrecompiles" | "brc20Precompiles" | "bigRuntime" | "bigInitcode" | "calldataSink" => 20_000,
-        "burnTop" => 100,
+        "burnTop" | "logThenBurn" => 100,
         _ => DEFAULT_BYTE_LEN,
     }
 }
@@ -283,6 +283,10 @@ impl Runner {
             "revertTopString",
             "invalidTop",
             "burnTop",
+            "logThenRevert",
+            "logThenInvalid",
+            "logThenBurn",
+            "nestedLogRevert",
             "mathOps",
             "envOps",
             "calldataSink",

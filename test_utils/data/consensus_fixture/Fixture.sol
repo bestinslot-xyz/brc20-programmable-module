@@ -278,6 +278,29 @@ contract Fixture {
         while (true) {}
     }
 
+    // Logs emitted before a failure are discarded with the failing frame.
+    function logThenRevert() public {
+        probe("beforeRevert", 0);
+        revert CustomError(2, "after log");
+    }
+
+    function logThenInvalid() external {
+        probe("beforeInvalid", 0);
+        assembly {
+            invalid()
+        }
+    }
+
+    function logThenBurn() external {
+        probe("beforeBurn", 0);
+        while (true) {}
+    }
+
+    function nestedLogRevert() external {
+        try this.logThenRevert() {} catch {}
+        probe("afterNestedRevert", 0);
+    }
+
     // Arithmetic and bitwise opcodes with dynamic gas (EXP) and edge operands.
     function mathOps(uint256 x) external returns (uint256 r) {
         assembly {
