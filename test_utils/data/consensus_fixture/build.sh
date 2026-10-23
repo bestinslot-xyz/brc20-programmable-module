@@ -57,17 +57,23 @@ add 0x0000000000000000000000000000000000000010 "$(zeros 64)"
 add 0x0000000000000000000000000000000000000011 "$(zeros 128)"
 add 0x0000000000000000000000000000000000000100 "$(zeros 160)"
 
-rejected=(
-    "pointEvaluationZeros 0x000000000000000000000000000000000000000a 0x$(zeros 192)"
-    "blake2fShortInput 0x0000000000000000000000000000000000000009 0x00"
-    "bnAddPointNotOnCurve 0x0000000000000000000000000000000000000006 0x$(word 1)$(word 3)$(word 1)$(word 2)"
-    "bnPairingBadLength 0x0000000000000000000000000000000000000008 0x00"
-    "blsG1AddEmpty 0x000000000000000000000000000000000000000b 0x"
-    "blsG1MsmEmpty 0x000000000000000000000000000000000000000c 0x"
-    "blsG2AddEmpty 0x000000000000000000000000000000000000000d 0x"
-    "blsG2MsmEmpty 0x000000000000000000000000000000000000000e 0x"
-    "blsPairingEmpty 0x000000000000000000000000000000000000000f 0x"
-    "blsMapFpToG1BadLength 0x0000000000000000000000000000000000000010 0x00"
+# Rejected inputs, out-of-gas calls and fork-gated limits, one transaction each:
+# label, target, input, gas forwarded to the precompile.
+modexp_over_7823="$(word 1)$(word 1)$(word 1025)03"01"$(printf 'ff%.0s' {1..1025})"
+edge_cases=(
+    "pointEvaluationZeros 0x000000000000000000000000000000000000000a 0x$(zeros 192) 1000000"
+    "blake2fShortInput 0x0000000000000000000000000000000000000009 0x00 1000000"
+    "bnAddPointNotOnCurve 0x0000000000000000000000000000000000000006 0x$(word 1)$(word 3)$(word 1)$(word 2) 1000000"
+    "bnPairingBadLength 0x0000000000000000000000000000000000000008 0x00 1000000"
+    "blsG1AddEmpty 0x000000000000000000000000000000000000000b 0x 1000000"
+    "blsG1MsmEmpty 0x000000000000000000000000000000000000000c 0x 1000000"
+    "blsG2AddEmpty 0x000000000000000000000000000000000000000d 0x 1000000"
+    "blsG2MsmEmpty 0x000000000000000000000000000000000000000e 0x 1000000"
+    "blsPairingEmpty 0x000000000000000000000000000000000000000f 0x 1000000"
+    "blsMapFpToG1BadLength 0x0000000000000000000000000000000000000010 0x00 1000000"
+    "ecrecoverOutOfGas 0x0000000000000000000000000000000000000001 0x$ecrecover 2999"
+    "sha256OutOfGas 0x0000000000000000000000000000000000000002 0x616263 10"
+    "modexpAbove7823Limit 0x0000000000000000000000000000000000000005 0x$modexp_over_7823 1000000"
 )
 
 brc20_targets=() brc20_inputs=()
@@ -103,9 +109,9 @@ calldata_sink="0x$(zeros 2048)$(printf '01%.0s' {1..2048})"
     echo "ethPrecompiles $(cast calldata 'precompileBatch(address[],bytes[],uint256)' "$(join "${eth_targets[@]}")" "$(join "${eth_inputs[@]}")" 1000000)"
     echo "brc20Precompiles $(cast calldata 'precompileBatch(address[],bytes[],uint256)' "$(join "${brc20_targets[@]}")" "$(join "${brc20_inputs[@]}")" 1000000)"
     echo "unknownSelector 0xdeadbeef"
-    for entry in "${rejected[@]}"; do
-        read -r label target input <<<"$entry"
-        echo "precompileRejects:$label $(cast calldata 'callPrecompile(address,bytes,uint256)' "$target" "$input" 1000000)"
+    for entry in "${edge_cases[@]}"; do
+        read -r label target input gas <<<"$entry"
+        echo "precompileEdge:$label $(cast calldata 'callPrecompile(address,bytes,uint256)' "$target" "$input" "$gas")"
     done
 } > fixture_calls
 

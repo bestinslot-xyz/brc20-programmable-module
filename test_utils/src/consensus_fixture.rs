@@ -292,15 +292,15 @@ impl Runner {
         ] {
             self.call(label, &fixture).await;
         }
-        // A rejected Ethereum precompile input aborts the whole transaction, one each.
-        let mut rejects: Vec<String> = self
+        // A failing Ethereum precompile call aborts the whole transaction, so edge cases run one each.
+        let mut edge_cases: Vec<String> = self
             .calls
             .keys()
-            .filter(|label| label.starts_with("precompileRejects:"))
+            .filter(|label| label.starts_with("precompileEdge:"))
             .cloned()
             .collect();
-        rejects.sort();
-        for label in rejects {
+        edge_cases.sort();
+        for label in edge_cases {
             self.call(&label, &fixture).await;
         }
         let storage_ops = self.calls["storageOps"].clone();
