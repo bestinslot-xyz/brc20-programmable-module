@@ -1,14 +1,9 @@
 use std::error::Error;
-use std::path::Path;
 
 use jsonrpsee::server::ServerHandle;
-use tracing::info;
 
-use crate::db::Brc20ProgDatabase;
-use crate::engine::BRC20ProgEngine;
-use crate::global::database::validate_config_database;
-use crate::global::{validate_config, Brc20ProgConfig, CONFIG};
-use crate::server::rpc_server::start_rpc_server;
+use crate::global::Brc20ProgConfig;
+use crate::server::rpc_server::{start_rpc_server, Brc20Prog};
 
 /// Starts the BRC20 programmable module server.
 ///
@@ -75,14 +70,5 @@ use crate::server::rpc_server::start_rpc_server;
 /// Only one instance of the server should be started in a single process. Configuration is shared so this
 /// might cause issues if multiple instances are started in the same process.
 pub async fn start(config: Brc20ProgConfig) -> Result<ServerHandle, Box<dyn Error>> {
-    CONFIG.write_fn_unchecked(|value| {
-        *value = config.clone();
-    });
-
-    validate_config_database(&config)?;
-    validate_config(&config)?;
-
-    let engine = BRC20ProgEngine::new(Brc20ProgDatabase::new(&Path::new(&config.db_path))?);
-    info!("Latest block number: {}", engine.get_latest_block_height()?);
-    start_rpc_server(engine, config).await
+    start_rpc_server(Brc20Prog::open(config)?).await
 }
