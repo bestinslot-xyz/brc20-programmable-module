@@ -41,8 +41,9 @@ pub fn use_rlp_hash_for_tx_hash(block_number: u64) -> bool {
 }
 
 // bip322 v0.0.11 accepts short DER signatures, P2PKH and multisig proofs that v0.0.10 rejects.
-// Mainnet blocks below this height are verified with the v0.0.10 rules, reindexing not required.
+// Blocks below these heights are verified with the v0.0.10 rules, reindexing not required.
 const BIP322_V0_0_11_ACTIVATION_HEIGHT_MAINNET: u64 = 960_847; // 3 Aug 2026
+const BIP322_V0_0_11_ACTIVATION_HEIGHT_SIGNET: u64 = 328_057; // 26 Oct 2026
 
 pub fn use_bip322_v0_0_11(block_number: u64) -> bool {
     bip322_v0_0_11_active(get_bitcoin_network(), block_number)
@@ -51,6 +52,7 @@ pub fn use_bip322_v0_0_11(block_number: u64) -> bool {
 fn bip322_v0_0_11_active(network: Network, block_number: u64) -> bool {
     match network {
         Network::Bitcoin => block_number >= BIP322_V0_0_11_ACTIVATION_HEIGHT_MAINNET,
+        Network::Signet => block_number >= BIP322_V0_0_11_ACTIVATION_HEIGHT_SIGNET,
         _ => true,
     }
 }
@@ -64,7 +66,9 @@ mod tests {
         assert!(!bip322_v0_0_11_active(Network::Bitcoin, 913_183));
         assert!(!bip322_v0_0_11_active(Network::Bitcoin, 960_846));
         assert!(bip322_v0_0_11_active(Network::Bitcoin, 960_847));
-        assert!(bip322_v0_0_11_active(Network::Signet, 0));
+        assert!(!bip322_v0_0_11_active(Network::Signet, 267_703));
+        assert!(!bip322_v0_0_11_active(Network::Signet, 328_056));
+        assert!(bip322_v0_0_11_active(Network::Signet, 328_057));
         assert!(bip322_v0_0_11_active(Network::Regtest, 0));
     }
 }
