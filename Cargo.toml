@@ -75,7 +75,11 @@ name = "precompiles"
 harness = false
 
 [[bench]]
-name = "btc_precompiles"
+name = "btc_precompiles_mainnet"
+harness = false
+
+[[bench]]
+name = "btc_precompiles_signet"
 harness = false
 
 [features]

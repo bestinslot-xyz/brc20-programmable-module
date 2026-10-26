@@ -5680,6 +5680,7 @@ name = "test-utils"
 version = "0.0.0"
 dependencies = [
  "brc20-prog",
+ "dotenvy",
  "jsonrpsee",
  "rust-embed",
  "serde",
