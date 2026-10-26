@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::net::SocketAddr;
+use std::path::Path;
+use std::sync::Arc;
 
 use alloy::primitives::Bytes;
 use hyper::Method;
@@ -25,8 +27,10 @@ use crate::brc20_controller::{
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
+use crate::db::Brc20ProgDatabase;
 use crate::engine::{get_evm_address_from_pkscript, BRC20ProgEngine, TxInfo};
-use crate::global::{CONFIG, GAS_PER_BYTE, INVALID_ADDRESS};
+use crate::global::database::validate_config_database;
+use crate::global::{validate_config, CONFIG, GAS_PER_BYTE, INVALID_ADDRESS};
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
     wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
@@ -34,11 +38,58 @@ use crate::server::error::{
 use crate::types::{Base64Bytes, PrecompileData, RawBytes};
 use crate::Brc20ProgConfig;
 
-struct RpcServer {
-    engine: BRC20ProgEngine,
+/// A BRC20 programmable module opened in this process.
+///
+/// Every JSON-RPC method is an async method of [`Brc20ProgApiServer`], so an indexer running in the
+/// same process calls them directly, without HTTP or JSON. Clones share one engine: a clone serving
+/// JSON-RPC sees every change made through another.
+///
+/// Configuration is process-wide, so open one instance per process.
+#[derive(Clone)]
+pub struct Brc20Prog {
+    engine: Arc<BRC20ProgEngine>,
+    config: Arc<Brc20ProgConfig>,
 }
 
-impl RpcServer {
+impl Brc20Prog {
+    /// Opens the database at `config.db_path` and makes `config` the process-wide configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid, or the database cannot be opened or was
+    /// written by an incompatible version.
+    pub fn open(config: Brc20ProgConfig) -> Result<Self, Box<dyn Error>> {
+        CONFIG.write_fn_unchecked(|value| {
+            *value = config.clone();
+        });
+
+        validate_config_database(&config)?;
+        validate_config(&config)?;
+
+        let engine = BRC20ProgEngine::new(Brc20ProgDatabase::new(Path::new(&config.db_path))?);
+        info!("Latest block number: {}", engine.get_latest_block_height()?);
+        Ok(Self {
+            engine: Arc::new(engine),
+            config: Arc::new(config),
+        })
+    }
+
+    /// Starts a JSON-RPC listener on `brc20_prog_rpc_server_url` that serves this instance.
+    ///
+    /// The listener rejects the indexer methods for every caller, since the process that opened
+    /// the instance drives them by calling [`Brc20ProgApiServer`] directly. It allows requests from
+    /// any origin.
+    pub async fn start_public_rpc_server(&self) -> Result<ServerHandle, Box<dyn Error>> {
+        start_listener(
+            &self.config,
+            &self.config.brc20_prog_rpc_server_url,
+            HttpNonBlockingAuth::deny(),
+            true,
+            self.clone().into_rpc().into(),
+        )
+        .await
+    }
+
     fn parse_block_number(&self, number: &str) -> Result<u64, Box<dyn Error>> {
         if number == "latest" || number == "safe" || number == "finalized" {
             self.engine.get_latest_block_height()
@@ -77,7 +128,7 @@ fn log_call() {
 }
 
 #[async_trait]
-impl Brc20ProgApiServer for RpcServer {
+impl Brc20ProgApiServer for Brc20Prog {
     #[instrument(skip(self), level = "error")]
     async fn brc20_mine(&self, block_count: u64, timestamp: u64) -> RpcResult<()> {
         log_call();
@@ -1111,16 +1162,14 @@ impl Brc20ProgApiServer for RpcServer {
     }
 }
 
-/// Starts the JSON-RPC server.
+/// Starts the JSON-RPC server for `prog`.
 ///
 /// Without an admin URL, a single listener serves every method and authentication gates the
 /// indexer methods. With an admin URL, the public listener rejects the indexer methods for every
 /// caller, and the admin listener serves every method behind the configured authentication.
 /// The returned handle controls both listeners.
-pub async fn start_rpc_server(
-    engine: BRC20ProgEngine,
-    config: Brc20ProgConfig,
-) -> Result<ServerHandle, Box<dyn Error>> {
+pub async fn start_rpc_server(prog: Brc20Prog) -> Result<ServerHandle, Box<dyn Error>> {
+    let config = prog.config.clone();
     let auth = if !config.brc20_prog_rpc_server_enable_auth {
         HttpNonBlockingAuth::allow()
     } else {
@@ -1138,7 +1187,7 @@ pub async fn start_rpc_server(
         };
         HttpNonBlockingAuth::new(rpc_username, rpc_password)
     };
-    let module: Methods = RpcServer { engine }.into_rpc().into();
+    let module: Methods = prog.into_rpc().into();
 
     let Some(admin_url) = &config.brc20_prog_admin_rpc_server_url else {
         return start_listener(
@@ -1258,14 +1307,13 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::db::Brc20ProgDatabase;
-    use crate::engine::BRC20ProgEngine;
 
-    fn create_test_server() -> RpcServer {
+    fn create_test_server() -> Brc20Prog {
         let temp_dir = TempDir::new().unwrap();
         let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
-        RpcServer {
-            engine: BRC20ProgEngine::new(db),
+        Brc20Prog {
+            engine: Arc::new(BRC20ProgEngine::new(db)),
+            config: Arc::new(Brc20ProgConfig::default()),
         }
     }
 
