@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.16.4 (2026-10-26)
+
+### Bug Fixes
+
+ - <csr-id-1b11be6e2a911315059bc9901cd324de683737ee/> gate bip322 v0.0.11 by block height on signet
+   Signet blocks were verified with the v0.0.11 rules from height 0, so
+   re-indexing signet produced trace hashes that differ from the ones the
+   network reported with the v0.0.10 rules (first at block 267703). Signet
+   now switches to v0.0.11 at 328057, the block after the current tip, so
+   all reported signet history is reproduced unchanged.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 1 commit contributed to the release.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 1 unique issue was worked on: [#20](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/20)
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **[#20](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/20)**
+    - Gate bip322 v0.0.11 by block height on signet ([`1b11be6`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/1b11be6e2a911315059bc9901cd324de683737ee))
+</details>
+
 ## v0.16.3 (2026-10-23)
 
 ### New Features
@@ -24,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 2 commits contributed to the release over the course of 3 calendar days.
+ - 3 commits contributed to the release over the course of 3 calendar days.
  - 7 days passed between releases.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 2 unique issues were worked on: [#14](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/14), [#15](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/15)
@@ -39,6 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Bump yanked keccak to 0.1.6 and clear build warnings ([`abf8947`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/abf894759f53568f08279e2123f2274ba8246e7b))
  * **[#15](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/15)**
     - Serve indexer methods on a separate admin listener (BRC20_PROG_ADMIN_RPC_SERVER_URL) ([`7dd66d1`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/7dd66d1767e93f5864287249b364209f2ad3714a))
+ * **Uncategorized**
+    - Release brc20-prog v0.16.3 ([`47d4ae4`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/47d4ae42fec53d753bc77ed48870be0f01f1cf4c))
 </details>
 
 ## v0.16.2 (2026-10-15)
@@ -348,6 +379,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - tokio to 1.48.0
    - criterion to 0.7.0
    - tempfile to 3.23.0
+   - revm to 31.0.0
+   - serde to 1.0.228
+   - tokio to 1.48.0
+   - criterion to 0.7.0
+   - tempfile to 3.23.0
+ - revm to 31.0.0
+ - serde to 1.0.228
+ - tokio to 1.48.0
+ - criterion to 0.7.0
+ - tempfile to 3.23.0
  - revm to 31.0.0
  - serde to 1.0.228
  - tokio to 1.48.0
@@ -1075,6 +1116,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Added cache with mutexes ([`504828c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/504828cd4f89c0f586ff4e6ca2eaa341402ee7a9))
     - Initial commit, no reorg protection, only code memory cache ([`8a3494e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/8a3494ec688e84374f9d6217072d244def32e773))
 </details>
+
+<csr-unknown>
+revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0<csr-unknown/>
 
 ## v0.15.13 (2026-02-27)
 
