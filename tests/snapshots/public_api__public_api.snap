@@ -204,6 +204,7 @@ pub type brc20_prog::types::U8ED = brc20_prog::types::UintED<8, 1>
 pub struct brc20_prog::Brc20Prog
 impl brc20_prog::Brc20Prog
 pub fn brc20_prog::Brc20Prog::open(brc20_prog::Brc20ProgConfig) -> core::result::Result<Self, alloc::boxed::Box<dyn core::error::Error>>
+pub fn brc20_prog::Brc20Prog::open_with_bitcoin_rpc(brc20_prog::Brc20ProgConfig, alloc::rcs::arc::Arc<dyn brc20_prog::BitcoinRpc>) -> core::result::Result<Self, alloc::boxed::Box<dyn core::error::Error>>
 pub async fn brc20_prog::Brc20Prog::start_public_rpc_server(&self) -> core::result::Result<jsonrpsee_server::future::ServerHandle, alloc::boxed::Box<dyn core::error::Error>>
 impl brc20_prog::Brc20ProgApiServer for brc20_prog::Brc20Prog
 pub fn brc20_prog::Brc20Prog::brc20_balance<'life0, 'async_trait>(&'life0 self, alloc::string::String, alloc::string::String) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = jsonrpsee_core::RpcResult<alloc::string::String>> + core::marker::Send + 'async_trait)>> where Self: 'async_trait, 'life0: 'async_trait
@@ -286,6 +287,11 @@ pub fn brc20_prog::Brc20ProgConfig::from_env() -> Self
 pub fn brc20_prog::Brc20ProgConfig::new(alloc::string::String, bool, core::option::Option<alloc::string::String>, core::option::Option<alloc::string::String>, bool, u64, alloc::string::String, alloc::string::String, alloc::string::String, alloc::string::String, u64, bool, alloc::string::String, u32, u32, u32) -> Self
 impl core::default::Default for brc20_prog::Brc20ProgConfig
 pub fn brc20_prog::Brc20ProgConfig::default() -> Self
+pub trait brc20_prog::BitcoinRpc: core::marker::Send + core::marker::Sync
+pub fn brc20_prog::BitcoinRpc::get_block_height(&self, &bitcoin::blockdata::block::BlockHash) -> core::result::Result<usize, brc20_prog::BitcoinRpcError>
+pub fn brc20_prog::BitcoinRpc::get_transaction(&self, &bitcoin::blockdata::transaction::Txid) -> core::result::Result<core::option::Option<bitcoin::blockdata::transaction::Transaction>, brc20_prog::BitcoinRpcError>
+pub fn brc20_prog::BitcoinRpc::get_transaction_with_block_hash(&self, &bitcoin::blockdata::transaction::Txid) -> core::result::Result<core::option::Option<(bitcoin::blockdata::transaction::Transaction, core::option::Option<bitcoin::blockdata::block::BlockHash>)>, brc20_prog::BitcoinRpcError>
+pub fn brc20_prog::BitcoinRpc::network(&self) -> core::result::Result<bitcoin::network::Network, brc20_prog::BitcoinRpcError>
 pub trait brc20_prog::Brc20ProgApiClient: jsonrpsee_core::client::ClientT
 pub fn brc20_prog::Brc20ProgApiClient::brc20_balance(&self, alloc::string::String, alloc::string::String) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, jsonrpsee_core::client::error::Error>> + core::marker::Send
 pub fn brc20_prog::Brc20ProgApiClient::brc20_call(&self, alloc::string::String, core::option::Option<brc20_prog::types::AddressED>, core::option::Option<alloc::string::String>, core::option::Option<brc20_prog::types::RawBytes>, core::option::Option<brc20_prog::types::Base64Bytes>, u64, brc20_prog::types::B256ED, u64, alloc::string::String, u64, brc20_prog::types::B256ED) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<brc20_prog::types::TxReceiptED>, jsonrpsee_core::client::error::Error>> + core::marker::Send
@@ -513,3 +519,4 @@ pub fn brc20_prog::Brc20Prog::txpool_content_from<'life0, 'async_trait>(&'life0 
 pub fn brc20_prog::Brc20Prog::web3_client_version(&self) -> jsonrpsee_core::RpcResult<alloc::string::String>
 pub fn brc20_prog::Brc20Prog::web3_sha3<'life0, 'async_trait>(&'life0 self, brc20_prog::types::RawBytes) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = jsonrpsee_core::RpcResult<alloc::string::String>> + core::marker::Send + 'async_trait)>> where Self: 'async_trait, 'life0: 'async_trait
 pub async fn brc20_prog::start(brc20_prog::Brc20ProgConfig) -> core::result::Result<jsonrpsee_server::future::ServerHandle, alloc::boxed::Box<dyn core::error::Error>>
+pub type brc20_prog::BitcoinRpcError = alloc::boxed::Box<(dyn core::error::Error + core::marker::Send + core::marker::Sync)>

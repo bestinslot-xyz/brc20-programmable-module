@@ -17,5 +17,8 @@ pub use btc_op_return_tx_id_precompile::get_op_return_tx_id_precompile;
 mod precompiles;
 pub use precompiles::*;
 
+mod bitcoin_rpc;
+pub use bitcoin_rpc::{BitcoinRpc, BitcoinRpcError};
+
 mod btc_utils;
-pub use btc_utils::{get_bitcoin_network, validate_bitcoin_rpc_status};
+pub use btc_utils::{get_bitcoin_network, set_bitcoin_rpc, validate_bitcoin_rpc_status};
