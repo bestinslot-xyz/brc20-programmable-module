@@ -253,7 +253,8 @@ pub fn decode_bytes_from_inscription_data(mut inscription_data: &str) -> Option<
     // 0x00 = uncompressed
     // 0x01 = nada
     // 0x02 = zstd
-    match base64_decoded[0] {
+    // An empty payload has no compression byte and is rejected
+    match *base64_decoded.first()? {
         0x00 => {
             // Uncompressed
             if base64_decoded.len() > CALLDATA_LIMIT {
@@ -333,19 +334,24 @@ mod tests {
         let mut report = String::new();
         for line in corpus.lines() {
             let (name, data) = line.split_once(' ').unwrap_or((line, ""));
-            let outcome = std::panic::catch_unwind(|| decode_bytes_from_inscription_data(data));
-            let rendered = match outcome {
-                Ok(Some(bytes)) => format!(
+            let rendered = match decode_bytes_from_inscription_data(data) {
+                Some(bytes) => format!(
                     "{} bytes, sha256 {}",
                     bytes.len(),
                     sha256::digest(bytes.as_ref())
                 ),
-                Ok(None) => "rejected".to_string(),
-                Err(_) => "panic".to_string(),
+                None => "rejected".to_string(),
             };
             report.push_str(&format!("{name}: {rendered}\n"));
         }
         insta::assert_snapshot!(report);
+    }
+
+    #[test]
+    #[cfg(feature = "server")]
+    fn test_empty_inscription_data_is_rejected() {
+        assert_eq!(decode_bytes_from_inscription_data(""), None);
+        assert_eq!(decode_bytes_from_inscription_data("="), None);
     }
 
     #[test]

@@ -10,8 +10,8 @@ raw_noncanonical_trailing_bits: rejected
 raw_whitespace: rejected
 raw_url_safe_alphabet: rejected
 raw_invalid_length: rejected
-raw_only_padding: panic
-empty: panic
+raw_only_padding: rejected
+empty: rejected
 unknown_method: rejected
 zstd_with_size: 208 bytes, sha256 744c8589c09263e51d5ab3b88545b02439b690f76937f80b2cd9f954a786dcaf
 zstd_no_size: 208 bytes, sha256 744c8589c09263e51d5ab3b88545b02439b690f76937f80b2cd9f954a786dcaf
