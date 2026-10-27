@@ -18,8 +18,9 @@
 //! withdrawing tokens, it also includes methods for interacting with the underlying EVM, such as
 //! getting block information, transaction information, and logs.
 //!
-//! Refer to [README](https://github.com/bestinslot-xyz/brc20-programmable-module/blob/main/README.md)
-//! for more details on JSON-RPC methods and their usage.
+//! Refer to the [indexer methods](https://github.com/bestinslot-xyz/brc20-programmable-module/blob/main/docs/indexer-api.md)
+//! and [Ethereum methods](https://github.com/bestinslot-xyz/brc20-programmable-module/blob/main/docs/eth-api.md)
+//! references for more details on JSON-RPC methods and their usage.
 //!
 //! # Example
 //!
