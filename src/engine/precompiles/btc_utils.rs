@@ -1,31 +1,51 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
 use alloy::primitives::B256;
 use bitcoin::{BlockHash, KnownHrp, Network, Transaction, Txid};
-use bitcoincore_rpc::jsonrpc::Error::Rpc;
-use bitcoincore_rpc::Error::JsonRpc;
-use bitcoincore_rpc::{Auth, Client, RpcApi};
 use revm::primitives::Bytes;
 
+use crate::engine::precompiles::bitcoin_rpc::{BitcoinCoreRpc, BitcoinRpc, BitcoinRpcError};
 use crate::global::{SharedData, CONFIG};
 
 lazy_static::lazy_static! {
     static ref BITCOIN_RPC_URL: SharedData<String> = SharedData::new(Default::default());
     static ref BITCOIN_RPC_USER: SharedData<String> = SharedData::new(Default::default());
     static ref BITCOIN_RPC_PASSWORD: SharedData<String> = SharedData::new(Default::default());
-    static ref BTC_CLIENT: SharedData<Client> = {
-        let auth = Auth::UserPass(
-            CONFIG.read().bitcoin_rpc_user.clone(),
-            CONFIG.read().bitcoin_rpc_password.clone(),
-        );
-        SharedData::new(Client::new(&CONFIG.read().bitcoin_rpc_url, auth).expect("Failed to create Bitcoin RPC client"))
-    };
+    static ref BTC_CLIENT: SharedData<Arc<BitcoinCoreRpc>> = SharedData::new(Arc::new(new_core_client()));
+
+    /// Caller-supplied source that replaces BTC_CLIENT while set
+    static ref INJECTED_BITCOIN_RPC: SharedData<Option<Arc<dyn BitcoinRpc>>> = SharedData::new(None);
 
     static ref BLOCK_HASH_FUTURE_PLACEHOLDER: BlockHash = BlockHash::from_str("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").unwrap();
+}
+
+const BITCOIN_RPC_RETRIES: u32 = 5;
+
+fn new_core_client() -> BitcoinCoreRpc {
+    let config = CONFIG.read();
+    BitcoinCoreRpc::new(
+        &config.bitcoin_rpc_url,
+        config.bitcoin_rpc_user.clone(),
+        config.bitcoin_rpc_password.clone(),
+    )
+}
+
+/// Makes `rpc` the source of Bitcoin data for this process, or restores the Bitcoin Core client
+/// built from the config when `None`.
+pub fn set_bitcoin_rpc(rpc: Option<Arc<dyn BitcoinRpc>>) {
+    INJECTED_BITCOIN_RPC.write_fn_unchecked(|value| *value = rpc);
+}
+
+fn bitcoin_rpc() -> Arc<dyn BitcoinRpc> {
+    if let Some(rpc) = INJECTED_BITCOIN_RPC.read().as_ref() {
+        return rpc.clone();
+    }
+    BTC_CLIENT.read().clone()
 }
 
 pub fn update_bitcoin_client() {
@@ -45,13 +65,8 @@ pub fn update_bitcoin_client() {
         BITCOIN_RPC_PASSWORD.write_fn_unchecked(|password| {
             *password = CONFIG.read().bitcoin_rpc_password.clone();
         });
-        let auth = Auth::UserPass(
-            CONFIG.read().bitcoin_rpc_user.clone(),
-            CONFIG.read().bitcoin_rpc_password.clone(),
-        );
         BTC_CLIENT.write_fn_unchecked(|client| {
-            *client = Client::new(&CONFIG.read().bitcoin_rpc_url, auth)
-                .expect("Failed to create Bitcoin RPC client");
+            *client = Arc::new(new_core_client());
         });
     }
 }
@@ -79,31 +94,58 @@ pub fn get_bitcoin_hrp() -> KnownHrp {
 }
 
 pub fn validate_bitcoin_rpc_status() -> Result<(), Box<dyn Error>> {
-    if CONFIG.read().bitcoin_rpc_url.is_empty() {
+    let injected = INJECTED_BITCOIN_RPC.read().clone();
+    if injected.is_none() && CONFIG.read().bitcoin_rpc_url.is_empty() {
         return Err("Please configure BITCOIN_RPC_URL".into());
     }
     if CONFIG.read().bitcoin_rpc_network.is_empty() {
         return Err("Please configure BITCOIN_RPC_NETWORK".into());
     }
 
-    // Update the client if the config has changed
-    update_bitcoin_client();
-    let info = BTC_CLIENT.read().get_blockchain_info();
+    let rpc = match injected {
+        Some(rpc) => rpc,
+        None => {
+            // Update the client if the config has changed
+            update_bitcoin_client();
+            bitcoin_rpc()
+        }
+    };
 
-    let Ok(info) = info else {
+    let Ok(network) = rpc.network() else {
         return Err("Bitcoin RPC unreachable.".into());
     };
 
-    if info.chain != get_bitcoin_network() {
+    if network != get_bitcoin_network() {
         return Err(format!(
             "Bitcoin RPC network mismatch. Expected: {:?}, got: {:?}",
             get_bitcoin_network(),
-            info.chain
+            network
         )
         .into());
     }
 
     Ok(())
+}
+
+/// Runs `lookup` against the current source, retrying transient errors and panicking once the
+/// retries run out, so an unreachable source never changes an execution result.
+fn with_retry<T>(lookup: impl Fn(&dyn BitcoinRpc) -> Result<T, BitcoinRpcError>) -> T {
+    let rpc = bitcoin_rpc();
+    let mut retries_left = BITCOIN_RPC_RETRIES;
+    loop {
+        match lookup(rpc.as_ref()) {
+            Ok(value) => return value,
+            Err(_) if retries_left > 0 => {
+                retries_left -= 1;
+                sleep(Duration::from_secs(1));
+            }
+            Err(error) => panic!("Bitcoin RPC unreachable. Response: {:?}", error),
+        }
+    }
+}
+
+fn parse_txid(txid: &B256) -> Result<Txid, Box<dyn Error>> {
+    Txid::from_str(&hex::encode(txid.as_slice())).map_err(|_| "Invalid Txid".into())
 }
 
 pub fn get_transaction_and_block_hash_with_overrides(
@@ -116,37 +158,9 @@ pub fn get_transaction_and_block_hash_with_overrides(
         // Since we don't have block hash info in the override, return placeholder
         return Ok((tx, Some(*BLOCK_HASH_FUTURE_PLACEHOLDER)));
     }
-    let bitcoin_txid = Txid::from_str(&hex::encode(txid.as_slice()).to_lowercase().as_str())
-        .map_err(|_| "Invalid Txid")?;
-    get_transaction_and_block_hash_with_retry(&bitcoin_txid, 5)
-}
-
-fn get_transaction_and_block_hash_with_retry(
-    txid: &Txid,
-    retries_left: u32,
-) -> Result<(Transaction, Option<BlockHash>), Box<dyn Error>> {
-    match BTC_CLIENT.read().get_raw_transaction_info(&txid, None) {
-        Ok(result) => match result.transaction() {
-            Ok(tx) => Ok((tx.clone(), result.blockhash)),
-            Err(_) => Err("Unable to decode transaction".into()),
-        },
-        Err(error) => {
-            // Error code -5 is "RPC_INVALID_ADDRESS_OR_KEY", which means the txid is not found
-            if let JsonRpc(Rpc(ref rpc_error)) = error {
-                if rpc_error.code == -5 {
-                    // Transaction not found, return error
-                    return Err(format!("Tx not found. Txid: {:?}", txid).into());
-                }
-            }
-            // Other error, retry
-            if retries_left > 0 {
-                sleep(Duration::from_secs(1));
-                get_transaction_and_block_hash_with_retry(txid, retries_left - 1)
-            } else {
-                panic!("Bitcoin RPC unreachable. Response: {:?}", error);
-            }
-        }
-    }
+    let bitcoin_txid = parse_txid(txid)?;
+    with_retry(|rpc| rpc.get_transaction_with_block_hash(&bitcoin_txid))
+        .ok_or_else(|| format!("Tx not found. Txid: {:?}", bitcoin_txid).into())
 }
 
 pub fn get_transaction_with_overrides(
@@ -158,57 +172,16 @@ pub fn get_transaction_with_overrides(
             .map_err(|_| "Failed to deserialize transaction from hex")?;
         return Ok(tx);
     }
-    let bitcoin_txid = Txid::from_str(&hex::encode(txid.as_slice()).to_lowercase().as_str())
-        .map_err(|_| "Invalid Txid")?;
-    get_transaction_with_retry(&bitcoin_txid, 5)
-}
-
-fn get_transaction_with_retry(
-    txid: &Txid,
-    retries_left: u32,
-) -> Result<Transaction, Box<dyn Error>> {
-    match BTC_CLIENT.read().get_raw_transaction(&txid, None) {
-        Ok(result) => Ok(result),
-        Err(error) => {
-            // Error code -5 is "RPC_INVALID_ADDRESS_OR_KEY", which means the txid is not found
-            if let JsonRpc(Rpc(ref rpc_error)) = error {
-                if rpc_error.code == -5 {
-                    // Transaction not found, return error
-                    return Err(format!("Tx not found. Txid: {:?}", txid).into());
-                }
-            }
-            // Other error, retry
-            if retries_left > 0 {
-                sleep(Duration::from_secs(1));
-                get_transaction_with_retry(txid, retries_left - 1)
-            } else {
-                panic!("Bitcoin RPC unreachable. Response: {:?}", error);
-            }
-        }
-    }
+    let bitcoin_txid = parse_txid(txid)?;
+    with_retry(|rpc| rpc.get_transaction(&bitcoin_txid))
+        .ok_or_else(|| format!("Tx not found. Txid: {:?}", bitcoin_txid).into())
 }
 
 pub fn get_block_height(block_hash: &BlockHash) -> Result<usize, Box<dyn Error>> {
     if block_hash == &*BLOCK_HASH_FUTURE_PLACEHOLDER {
         return Ok(0);
     }
-    get_block_height_with_retry(block_hash, 5)
-}
-
-fn get_block_height_with_retry(
-    block_hash: &BlockHash,
-    retries_left: u32,
-) -> Result<usize, Box<dyn Error>> {
-    match BTC_CLIENT.read().get_block_header_info(&block_hash) {
-        Ok(response) => return Ok(response.height),
-        Err(error) => {
-            if retries_left > 0 {
-                sleep(Duration::from_secs(1));
-                return get_block_height_with_retry(block_hash, retries_left - 1);
-            }
-            panic!("Bitcoin RPC unreachable. Response: {:?}", error);
-        }
-    };
+    Ok(with_retry(|rpc| rpc.get_block_height(block_hash)))
 }
 
 #[cfg(test)]

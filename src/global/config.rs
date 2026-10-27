@@ -319,12 +319,21 @@ pub fn validate_config(config: &Brc20ProgConfig) -> Result<(), Box<dyn std::erro
         }
     }
 
-    if config.bitcoin_rpc_url.is_empty() && config.fail_on_bitcoin_rpc_error {
-        return Err("Bitcoin RPC URL is empty".into());
-    }
-
     if config.bitcoin_rpc_network.is_empty() && config.fail_on_bitcoin_rpc_error {
         return Err("Bitcoin RPC network is empty".into());
+    }
+
+    Ok(())
+}
+
+/// Checks the settings the built-in Bitcoin Core client needs. An injected
+/// [`BitcoinRpc`](crate::BitcoinRpc) source does not use them.
+#[cfg(feature = "server")]
+pub fn validate_bitcoin_core_config(
+    config: &Brc20ProgConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if config.bitcoin_rpc_url.is_empty() && config.fail_on_bitcoin_rpc_error {
+        return Err("Bitcoin RPC URL is empty".into());
     }
 
     Ok(())
@@ -411,10 +420,11 @@ mod tests {
 
         // Empty Bitcoin URL is fatal only when we fail on Bitcoin RPC errors.
         config.fail_on_bitcoin_rpc_error = true;
-        assert!(validate_config(&config).is_err());
+        assert!(validate_config(&config).is_ok());
+        assert!(validate_bitcoin_core_config(&config).is_err());
 
         config.fail_on_bitcoin_rpc_error = false;
-        assert!(validate_config(&config).is_ok());
+        assert!(validate_bitcoin_core_config(&config).is_ok());
     }
 
     // Restores a process-global env var to its previous value on drop, so these

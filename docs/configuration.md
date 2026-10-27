@@ -28,7 +28,7 @@ Precompiled contracts require the Bitcoin RPC variables to work properly, otherw
 
 Boolean variables are enabled by the value `true`. A numeric variable that fails to parse falls back to its default.
 
-`Brc20Prog::open`, which the server runs at startup, rejects a configuration where auth is enabled without both a username and a password, where `BRC20_PROG_RPC_SERVER_URL` is empty, or where `BRC20_PROG_ADMIN_RPC_SERVER_URL` is not a socket address or equals `BRC20_PROG_RPC_SERVER_URL`. With `FAIL_ON_BITCOIN_RPC_ERROR=true`, it also rejects an empty `BITCOIN_RPC_URL` or `BITCOIN_RPC_NETWORK`.
+`Brc20Prog::open`, which the server runs at startup, rejects a configuration where auth is enabled without both a username and a password, where `BRC20_PROG_RPC_SERVER_URL` is empty, or where `BRC20_PROG_ADMIN_RPC_SERVER_URL` is not a socket address or equals `BRC20_PROG_RPC_SERVER_URL`. With `FAIL_ON_BITCOIN_RPC_ERROR=true`, it also rejects an empty `BITCOIN_RPC_URL` or `BITCOIN_RPC_NETWORK`. `Brc20Prog::open_with_bitcoin_rpc` does not use `BITCOIN_RPC_URL`, so it accepts an empty one.
 
 ## Command-line options
 

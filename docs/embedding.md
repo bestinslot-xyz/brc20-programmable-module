@@ -20,4 +20,20 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 The configuration is process-wide, so open one instance per process.
 
+## Supplying Bitcoin data
+
+The Bitcoin precompiles look up transactions and block heights through a Bitcoin Core node at `BITCOIN_RPC_URL`. An indexer that already has this data can implement the `BitcoinRpc` trait and open the module with `Brc20Prog::open_with_bitcoin_rpc`, which serves the lookups in process. `BITCOIN_RPC_NETWORK` still selects the network, and `brc20_initialise` checks it against `BitcoinRpc::network`.
+
+```rust
+use std::sync::Arc;
+
+use brc20_prog::{BitcoinRpc, Brc20Prog, Brc20ProgConfig};
+
+fn open(source: Arc<dyn BitcoinRpc>) -> Result<Brc20Prog, Box<dyn std::error::Error>> {
+    Brc20Prog::open_with_bitcoin_rpc(Brc20ProgConfig::from_env(), source)
+}
+```
+
+Answers feed consensus, so they must be the same on every node for a given chain state. Return `Ok(None)` for a transaction that does not exist: the precompile call fails. Return `Err` for a lookup that cannot be answered right now: the module retries it five times, one second apart, and then panics, so an outage stops the indexer rather than producing a different result. The methods run synchronously inside EVM execution, on the thread that called the `Brc20ProgApiServer` method. An implementation backed by async code can bridge with `tokio::task::block_in_place` on a multi-threaded runtime, and must not wait on a lock that the indexer holds across that call.
+
 `Brc20ProgConfig::from_env` reads the environment variables listed in [Configuration](configuration.md). The methods are documented in [Indexer JSON-RPC methods](indexer-api.md) and [Ethereum JSON-RPC methods](eth-api.md), and the order to call them in is described in [Indexer integration](indexer-integration.md).

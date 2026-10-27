@@ -28,9 +28,13 @@ use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
 use crate::db::Brc20ProgDatabase;
-use crate::engine::{get_evm_address_from_pkscript, BRC20ProgEngine, TxInfo};
+use crate::engine::{
+    get_evm_address_from_pkscript, set_bitcoin_rpc, BRC20ProgEngine, BitcoinRpc, TxInfo,
+};
 use crate::global::database::validate_config_database;
-use crate::global::{validate_config, CONFIG, GAS_PER_BYTE, INVALID_ADDRESS};
+use crate::global::{
+    validate_bitcoin_core_config, validate_config, CONFIG, GAS_PER_BYTE, INVALID_ADDRESS,
+};
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
     wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
@@ -59,9 +63,35 @@ impl Brc20Prog {
     /// Returns an error if the configuration is invalid, or the database cannot be opened or was
     /// written by an incompatible version.
     pub fn open(config: Brc20ProgConfig) -> Result<Self, Box<dyn Error>> {
+        validate_bitcoin_core_config(&config)?;
+        Self::open_with_source(config, None)
+    }
+
+    /// Opens the database like [`Brc20Prog::open`], and makes `bitcoin_rpc` the process-wide source
+    /// of Bitcoin data for the Bitcoin precompiles.
+    ///
+    /// The `bitcoin_rpc_url`, `bitcoin_rpc_user` and `bitcoin_rpc_password` settings are unused;
+    /// `bitcoin_rpc_network` still selects the network.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid, or the database cannot be opened or was
+    /// written by an incompatible version.
+    pub fn open_with_bitcoin_rpc(
+        config: Brc20ProgConfig,
+        bitcoin_rpc: Arc<dyn BitcoinRpc>,
+    ) -> Result<Self, Box<dyn Error>> {
+        Self::open_with_source(config, Some(bitcoin_rpc))
+    }
+
+    fn open_with_source(
+        config: Brc20ProgConfig,
+        bitcoin_rpc: Option<Arc<dyn BitcoinRpc>>,
+    ) -> Result<Self, Box<dyn Error>> {
         CONFIG.write_fn_unchecked(|value| {
             *value = config.clone();
         });
+        set_bitcoin_rpc(bitcoin_rpc);
 
         validate_config_database(&config)?;
         validate_config(&config)?;

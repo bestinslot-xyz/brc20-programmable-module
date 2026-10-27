@@ -64,4 +64,7 @@ pub mod types {
 pub use api::Brc20ProgApiServer;
 #[cfg(feature = "server")]
 #[cfg_attr(docsrs, doc(cfg(feature = "server")))]
+pub use engine::{BitcoinRpc, BitcoinRpcError};
+#[cfg(feature = "server")]
+#[cfg_attr(docsrs, doc(cfg(feature = "server")))]
 pub use server::{start, Brc20Prog};
