@@ -5,6 +5,211 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.16.5 (2026-10-27)
+
+### Chore
+
+ - <csr-id-f930fc57c86f3eaa11366f9b496295797f976372/> bump non-EVM dependencies to their latest majors
+   base64 0.23, zstd-safe 8 (libzstd stays 1.5.7), rocksdb 0.25 (RocksDB 11.8),
+   rlimit 0.11, tower-http 0.7, public-api 0.52, rustdoc-json 0.9.10, rand 0.10.
+   The consensus fixtures and the inscription decoding corpus are unchanged.
+   
+   public-api 0.52 renders signatures without parameter names and lists the
+   jsonrpsee-generated client methods under TypeJsonRpseeInternal; the API itself
+   is unchanged.
+   
+   bip322 stays at 0.0.11: 0.0.12 enforces LOW_S, adds variant prefixes and an
+   inconclusive outcome, so adopting it needs its own activation height.
+ - <csr-id-b6c8bef08f88fae99fe189bed88ef9e045d22e10/> update dependencies within their semver ranges
+   cargo update: alloy 1.1 -> 1.8, alloy-core 1.4 -> 1.7, revm-inspectors
+   0.33.0 -> 0.33.2, bitcoin 0.32.7 -> 0.32.102, blst 0.3.17, c-kzg 2.1.8,
+   aurora-engine-modexp 1.3, jsonrpsee 0.26.1, serde_json 1.0.154 and
+   transitive crates. alloy 1.8 requires rustc 1.91, so rust-version and the
+   Docker builder image move to 1.91.
+   
+   Consensus fixtures and the inscription corpus are unchanged.
+
+### Documentation
+
+ - <csr-id-4c013176eb55996a3ea4227b2084421216005d88/> split the README into docs/ pages, add Differences from Ethereum
+   * docs: split the README into focused pages and document differences from Ethereum
+   
+   The README keeps the description, quick start (build, Docker), a
+   configuration pointer, a documentation index and the license. The
+   detailed material lives under docs/:
+   
+   - configuration.md: environment variables, CLI options, authorization,
+     admin RPC server
+   - indexer-integration.md: inscriptions, initialisation, indexing loop,
+     checklist
+   - indexer-api.md: brc20_* method reference
+   - eth-api.md: eth_*, debug_* and txpool_content
+   - embedding.md: running the module in-process through Brc20Prog
+   - precompiles.md: BIP322 and Bitcoin precompiles
+   - testing.md: consensus fixtures, inscription corpus, public API
+     snapshot, Bitcoin RPC tests and benches
+   - differences-from-ethereum.md: the four consensus differences from
+     Ethereum and the activation heights in engine/hardforks.rs
+   
+   The crate docs link to the JSON-RPC references in docs/.
+
+### New Features
+
+ - <csr-id-c2cdfe98524ef2e88bca21ced4c9e6cd102a46a7/> upgrade to revm 43, revm-inspectors 0.44 and alloy 2
+   revm 33 -> 43, revm-inspectors 0.33 -> 0.44, revm-bytecode 7 -> 43,
+   alloy 1.8 -> 2.5. alloy 2 requires rustc 1.94.1, so rust-version and the
+   Docker builder image move to 1.94.
+   
+   Every block trace hash, receipt, gas figure, log, bloom and raw header/receipt
+   encoding in the consensus fixtures is unchanged. Keeping it that way needed:
+   
+   - Precompiles: revm 43 reports rejected inputs and out-of-gas as a Halt status
+     instead of an error. BRC20Precompiles maps any non-success status back to an
+     error, so a failing Ethereum precompile call still aborts the transaction.
+   - Tracing: revm-inspectors 0.44 only records call input when record_inputs is
+     set. The input is part of the trace string, so it is enabled.
+   - Instructions: the static gas table is fixed when EthInstructions is built.
+     It is now built for the block's spec rather than revm's default (OSAKA).
+   - Logs: Revert and Halt results now carry logs. Receipts and the block log
+     index take logs from successful results only, as before.
+   
+   New alloy header fields (block_access_list_hash, slot_number) stay None; a raw
+   block written by alloy 1.x round-trips byte for byte (new unit test).
+   
+   debug_traceTransaction reports some frame errors in revm's display form
+   ("contract address collision" for CreateCollision, "return data out of
+   bounds" for OutOfOffset, "invalid opcode" for NotActivated). The error field
+   is not part of the trace hash.
+ - <csr-id-c550274239bd758e4710d6cd0b480335c0502de5/> embed the module in an indexer's process with Brc20Prog
+   Brc20Prog opens the database and exposes every JSON-RPC method as an async method of Brc20ProgApiServer, so an indexer written in Rust calls the module directly instead of over HTTP and JSON. Clones share one engine; start_public_rpc_server serves the same instance to other clients and rejects the indexer methods for every caller. start() opens a Brc20Prog and serves it as before.
+
+### Bug Fixes
+
+ - <csr-id-c5242a4bbd2fc83eb65170e85118102a32176748/> return range query results in key order
+ - <csr-id-8ce5e4f53986d187b3210d1d1530676b74ebd26a/> reject empty inscription payloads instead of panicking
+   decode_bytes_from_inscription_data read the compression byte without a
+   length check, so a payload of "" or "=" indexed an empty buffer and
+   panicked. With panic = 'abort' in release builds this killed the node.
+   An empty decoded buffer returns None, like any other undecodable payload.
+   
+   The inscription corpus snapshot records the empty and raw_only_padding
+   cases as rejected, and a focused unit test covers "" and "=".
+
+### Style
+
+ - <csr-id-91e0519f76dcdf00cad25d7d9fb844157bcf9ff0/> rustfmt the consensus fixture and inscription corpus test
+
+### Test
+
+ - <csr-id-c4ee12940d1ba6a2022fb36c86188f5f80310dd7/> regenerate the public API snapshot on top of Brc20Prog
+   public-api 0.52 renders signatures without parameter names and lists
+   default trait methods on impls, so the Brc20Prog server methods with
+   default bodies now appear. The API is unchanged.
+ - <csr-id-b31ec9ccfa6d9c7c8b3f509379177e38f9992e38/> run each Bitcoin RPC network in its own binary, refresh expected gas
+   The Bitcoin RPC client is process-wide and only rebuilt when the RPC status
+   is validated, so loading .env.signet after .env.mainnet in one process kept
+   the mainnet client and the signet precompile calls failed. The mainnet and
+   signet tests now live in tests/btc_rpc_{mainnet,signet}.rs with shared
+   helpers in test_utils, and the bench is split into
+   btc_precompiles_{mainnet,signet}. Moving them out of tests/precompiles.rs
+   also stops them reloading CONFIG under the signet precompile tests there.
+   
+   Expected gas values were stale; the old and new dependency sets both
+   estimate 0xc8b36, 0x18c463 and 0x24fd91 for the mainnet calls and 0xc8b36
+   for both signet calls.
+ - <csr-id-5ac1b9f6c671a6beb9d826a675d9eb3787d207e7/> pin a newer nightly for the public API snapshot
+   public-api's MINIMUM_NIGHTLY_RUST_VERSION (nightly-2025-11-22) is older than
+   the rustc 1.94.1 that alloy 2 requires. nightly-2026-10-01 builds the crate
+   and its rustdoc JSON still parses; the snapshot is unchanged.
+ - <csr-id-ad6a6caef8a4adccf9ead3e4e0dcc7f8c4b471cf/> pin inactive opcodes and post-selfdestruct state
+   opcodeProbe deploys runtimes using CLZ, DUPN/SWAPN/EXCHANGE and EOF opcodes,
+   which must stay invalid under CANCUN and PRAGUE, next to active controls
+   (PUSH0, BLOBHASH, BLOBBASEFEE, MCOPY). probeDestroyedChild reads a contract
+   created and self-destructed in an earlier transaction: the engine keeps its
+   code and storage, and the fixture pins that.
+ - <csr-id-0bef1d7cca5204ac4ba529373c68cccb13e5532a/> cover logs emitted before top-level and nested failures
+   Receipts of reverted, invalid and out-of-gas transactions carry no logs, and
+   a reverted subcall's logs are dropped while the caller's survive. The fixture
+   now pins all four.
+ - <csr-id-cd21cb389d61fd8fc7fc700d9c741f30cb4bae3a/> cover precompiles reached by DELEGATECALL/CALLCODE and top-level calls
+   The engine resolves precompiles by target address, so DELEGATECALL and
+   CALLCODE to a precompile run the empty code at that address. The fixture now
+   pins that, plus transactions sent straight to sha256 and to the point
+   evaluation precompile with a rejected input.
+ - <csr-id-d3f8f5c33a288d7a55e68ce14dd34a82b998ceaf/> cover precompile out-of-gas and the EIP-7823 modexp limit
+   Adds ecrecover and sha256 calls with too little gas, and a modexp with a
+   1025-byte modulus, as separate fixture transactions. Like a rejected input, a
+   precompile running out of gas aborts the whole transaction (status 0, no gas
+   used). The modexp succeeds: EIP-7823 is an Osaka rule and stays off under
+   PRAGUE. The per-transaction precompile cases are now labelled precompileEdge.
+ - <csr-id-878dba55ba080ecd9d093bc007a666df283789e7/> pin raw header and receipt RLP in the consensus fixture
+   The fixture now also records debug_getRawHeader and the debug_getRawReceipts
+   encodings per block. Receipts are sorted because the raw block lists
+   transactions in storage iteration order, which varies between runs; the raw
+   block itself is left out for the same reason.
+ - <csr-id-ecdeb17fcafbfc10a5594eb6c4eeaef902bbdb09/> pin inscription data decoding over a base64/nada/zstd corpus
+   Inscription payloads decide transaction calldata, so their decoding is
+   consensus. test_inscription_data_corpus snapshots the outcome of
+   src/api/testdata/inscription_corpus.txt: canonical and non-canonical base64,
+   padding variants, zstd frames with and without content size, checksums,
+   skippable and concatenated frames, the 1 MB limit, dictionary and legacy
+   headers. The corpus records the current behaviour as-is, including the panic
+   on empty payloads.
+ - <csr-id-4fb06c727782e47c94f6891a4d4ad9e41de2e836/> consensus fixture pinning gas, traces, receipts and trace hashes
+   Adds tests/consensus_fixture_{signet,mainnet}.rs, which drive a fixed workload
+   (test_utils/data/consensus_fixture/Fixture.sol plus pre-signed legacy txs) through
+   the engine and snapshot every block's trace hash, receipts, logs, blooms and full
+   call traces with insta. Signet covers CANCUN, the PRAGUE activation and RLP tx
+   hashes; mainnet covers CANCUN with signing-hash tx hashes.
+   
+   The workload covers SSTORE/transient/memory/log opcodes, nested and failing
+   frames, CREATE/CREATE2 collisions, oversized code, SELFDESTRUCT, EIP-7623
+   calldata floor, every Ethereum and BRC20 precompile (including rejected inputs,
+   which abort the whole transaction), BRC20 deposit/withdraw, and brc20_transact
+   with nonce gaps, a high-s signature, a wrong chain id and malformed bytes.
+   
+   Inputs are pre-encoded by build.sh so the workload does not depend on the
+   crates under test. Any snapshot diff is a consensus change.
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 18 commits contributed to the release.
+ - 18 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 4 unique issues were worked on: [#21](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/21), [#22](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/22), [#23](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/23), [#24](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/24)
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **[#21](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/21)**
+    - Embed the module in an indexer's process with Brc20Prog ([`c550274`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/c550274239bd758e4710d6cd0b480335c0502de5))
+ * **[#22](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/22)**
+    - Reject empty inscription payloads instead of panicking ([`8ce5e4f`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/8ce5e4f53986d187b3210d1d1530676b74ebd26a))
+ * **[#23](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/23)**
+    - Split the README into docs/ pages, add Differences from Ethereum ([`4c01317`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/4c013176eb55996a3ea4227b2084421216005d88))
+ * **[#24](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/24)**
+    - Return range query results in key order ([`c5242a4`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/c5242a4bbd2fc83eb65170e85118102a32176748))
+ * **Uncategorized**
+    - Regenerate the public API snapshot on top of Brc20Prog ([`c4ee129`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/c4ee12940d1ba6a2022fb36c86188f5f80310dd7))
+    - Run each Bitcoin RPC network in its own binary, refresh expected gas ([`b31ec9c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/b31ec9ccfa6d9c7c8b3f509379177e38f9992e38))
+    - Pin a newer nightly for the public API snapshot ([`5ac1b9f`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/5ac1b9f6c671a6beb9d826a675d9eb3787d207e7))
+    - Upgrade to revm 43, revm-inspectors 0.44 and alloy 2 ([`c2cdfe9`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/c2cdfe98524ef2e88bca21ced4c9e6cd102a46a7))
+    - Rustfmt the consensus fixture and inscription corpus test ([`91e0519`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/91e0519f76dcdf00cad25d7d9fb844157bcf9ff0))
+    - Pin inactive opcodes and post-selfdestruct state ([`ad6a6ca`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/ad6a6caef8a4adccf9ead3e4e0dcc7f8c4b471cf))
+    - Cover logs emitted before top-level and nested failures ([`0bef1d7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/0bef1d7cca5204ac4ba529373c68cccb13e5532a))
+    - Cover precompiles reached by DELEGATECALL/CALLCODE and top-level calls ([`cd21cb3`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/cd21cb389d61fd8fc7fc700d9c741f30cb4bae3a))
+    - Cover precompile out-of-gas and the EIP-7823 modexp limit ([`d3f8f5c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d3f8f5c33a288d7a55e68ce14dd34a82b998ceaf))
+    - Pin raw header and receipt RLP in the consensus fixture ([`878dba5`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/878dba55ba080ecd9d093bc007a666df283789e7))
+    - Bump non-EVM dependencies to their latest majors ([`f930fc5`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/f930fc57c86f3eaa11366f9b496295797f976372))
+    - Update dependencies within their semver ranges ([`b6c8bef`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/b6c8bef08f88fae99fe189bed88ef9e045d22e10))
+    - Pin inscription data decoding over a base64/nada/zstd corpus ([`ecdeb17`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/ecdeb17fcafbfc10a5594eb6c4eeaef902bbdb09))
+    - Consensus fixture pinning gas, traces, receipts and trace hashes ([`4fb06c7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/4fb06c727782e47c94f6891a4d4ad9e41de2e836))
+</details>
+
 ## v0.16.4 (2026-10-26)
 
 ### Bug Fixes
@@ -20,7 +225,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 1 commit contributed to the release.
+ - 2 commits contributed to the release.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 1 unique issue was worked on: [#20](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/20)
 
@@ -32,6 +237,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  * **[#20](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/20)**
     - Gate bip322 v0.0.11 by block height on signet ([`1b11be6`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/1b11be6e2a911315059bc9901cd324de683737ee))
+ * **Uncategorized**
+    - Release brc20-prog v0.16.4 ([`b12986e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/b12986e3fc522868c5df2fa17af76100ec308b3c))
 </details>
 
 ## v0.16.3 (2026-10-23)
@@ -384,6 +591,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - tokio to 1.48.0
    - criterion to 0.7.0
    - tempfile to 3.23.0
+   - revm to 31.0.0
+   - serde to 1.0.228
+   - tokio to 1.48.0
+   - criterion to 0.7.0
+   - tempfile to 3.23.0
+ - revm to 31.0.0
+ - serde to 1.0.228
+ - tokio to 1.48.0
+ - criterion to 0.7.0
+ - tempfile to 3.23.0
  - revm to 31.0.0
  - serde to 1.0.228
  - tokio to 1.48.0
@@ -1118,7 +1335,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 <csr-unknown>
-revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0<csr-unknown/>
+revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0<csr-unknown/>
 
 ## v0.15.13 (2026-02-27)
 
