@@ -23,7 +23,7 @@ Both call `run_consensus_fixture` in `test_utils/src/consensus_fixture.rs`. It s
 2. A block of failure and limit cases: large runtime and initcode, self-destruct, reverts and invalid opcodes, logs in failing frames, math and environment opcodes, Ethereum and BRC2.0 precompiles, precompile call kinds, an opcode probe for opcodes from later forks, one transaction per precompile edge case (`precompileEdge:*`), calls straight to a precompile and to an empty account, and two `brc20_withdraw` calls, one above the balance.
 3. A block of pre-signed `brc20_transact` transactions: a nonce gap that is queued and filled, a high-s signature, a wrong chain id and malformed data.
 
-It then renders one text report: per block the trace hash, the block header, the raw header, the sorted raw receipts and any rejected submissions, per transaction the receipt and the `callTracer` trace, and the final `brc20_balance`. The report is the insta snapshot in `tests/snapshots/consensus_fixture_{mainnet,signet}__*.snap`.
+It then renders one text report: per block the trace hash, the block header, the raw header, the raw block, the raw receipts in transaction order and any rejected submissions, per transaction the receipt and the `callTracer` trace, and the final `brc20_balance`. The report is the insta snapshot in `tests/snapshots/consensus_fixture_{mainnet,signet}__*.snap`.
 
 **A snapshot diff in a consensus fixture means a consensus change.** Blocks already on chain would execute differently, so the change needs an activation height (see [Hardforks and activation heights](differences-from-ethereum.md#hardforks-and-activation-heights)) or is a bug.
 
