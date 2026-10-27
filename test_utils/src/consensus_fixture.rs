@@ -437,16 +437,19 @@ impl Runner {
                 .await
                 .expect("raw header");
             writeln!(out, "raw_header: {}", raw_header.unwrap_or_default()).unwrap();
-            // The raw block lists transactions in storage iteration order, which varies between
-            // runs, so only the header and the individual receipt encodings are pinned.
-            let mut raw_receipts = self
+            let raw_block = self
+                .client
+                .debug_get_raw_block(tag.clone())
+                .await
+                .expect("raw block");
+            writeln!(out, "raw_block: {}", raw_block.unwrap_or_default()).unwrap();
+            let raw_receipts = self
                 .client
                 .debug_get_raw_receipts(tag.clone())
                 .await
                 .expect("raw receipts")
                 .unwrap_or_default();
-            raw_receipts.sort();
-            writeln!(out, "raw_receipts (sorted): {}", to_json(&raw_receipts)).unwrap();
+            writeln!(out, "raw_receipts: {}", to_json(&raw_receipts)).unwrap();
             for rejected in &block.rejected {
                 writeln!(out, "rejected: {rejected}").unwrap();
             }

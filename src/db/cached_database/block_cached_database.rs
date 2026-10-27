@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::error::Error;
 use std::hash::Hash;
 use std::path::Path;
@@ -80,15 +80,15 @@ where
 
     /// Get the range of values between start_key and end_key
     ///
-    /// It returns a list of key-value pairs between start_key and end_key
+    /// It returns a list of key-value pairs between start_key and end_key, sorted by encoded key
     ///
     /// This only works if keys can be compared in their encoded form
     ///
     /// start_key: &K - the start key
     /// end_key: &K - the end key, exclusive
-    /// Returns: Vec<(K, V)> - the list of key-value pairs
+    /// Returns: Vec<(K, V)> - the list of key-value pairs, in ascending encoded key order
     pub fn get_range(&self, start_key: &K, end_key: &K) -> Result<Vec<(K, V)>, Box<dyn Error>> {
-        let mut kv_pairs = HashMap::new();
+        let mut kv_pairs: BTreeMap<Vec<u8>, (K, V)> = BTreeMap::new();
         let start_key_bytes = start_key.encode_vec();
         let end_key_bytes = end_key.encode_vec();
 
@@ -96,33 +96,28 @@ where
             &start_key_bytes,
             rocksdb::Direction::Forward,
         )) {
-            let (key, value) = kv_pair?;
-            if *key >= *end_key_bytes {
-                break;
-            }
-            let key = K::decode_vec(&key.to_vec())?;
-            let value = V::decode_vec(&value.to_vec())?;
-            kv_pairs.insert(key, value);
-        }
-
-        for key in self.cache.keys() {
-            let key_bytes = key.encode_vec();
-            if *key_bytes < *start_key_bytes {
-                continue;
-            }
+            let (key_bytes, value) = kv_pair?;
             if *key_bytes >= *end_key_bytes {
                 break;
             }
-            if let Some(cache) = self.cache.get(key) {
-                if let Some(value) = cache.latest() {
-                    kv_pairs.insert(key.clone(), value.clone());
-                } else {
-                    kv_pairs.remove(key);
-                }
+            let key = K::decode_vec(&key_bytes.to_vec())?;
+            let value = V::decode_vec(&value.to_vec())?;
+            kv_pairs.insert(key_bytes.to_vec(), (key, value));
+        }
+
+        for (key, cache) in &self.cache {
+            let key_bytes = key.encode_vec();
+            if *key_bytes < *start_key_bytes || *key_bytes >= *end_key_bytes {
+                continue;
+            }
+            if let Some(value) = cache.latest() {
+                kv_pairs.insert(key_bytes, (key.clone(), value));
+            } else {
+                kv_pairs.remove(&key_bytes);
             }
         }
 
-        Ok(kv_pairs.into_iter().collect())
+        Ok(kv_pairs.into_values().collect())
     }
 
     /// Returns all keys and values in the database
@@ -270,7 +265,7 @@ mod tests {
 
     use super::*;
     use crate::db::cached_database::BlockHistoryCacheData;
-    use crate::db::types::{AccountInfoED, AddressED};
+    use crate::db::types::{AccountInfoED, AddressED, B256ED, U128ED};
 
     #[test]
     fn test_cache_only() {
@@ -306,6 +301,36 @@ mod tests {
         assert_eq!(cache.latest().unwrap().balance, U256::from(100).into());
         assert_eq!(cache.latest().unwrap().nonce, 1u64.into());
         assert_eq!(cache.latest().unwrap().code_hash, [1; 32].into());
+    }
+
+    #[test]
+    fn test_get_range_returns_key_order() {
+        let path = TempDir::new().unwrap();
+        let mut db = BlockCachedDatabase::<U128ED, B256ED, BlockHistoryCacheData<B256ED>>::new(
+            path.path(),
+            "test_db",
+        )
+        .unwrap();
+        let key = |block: u64, index: u64| U128ED::from(((block as u128) << 64) | index as u128);
+        let value = |index: u64| B256ED::from(B256::from(U256::from(index)));
+
+        // Committed entries for block 1, inserted out of order
+        for index in [7, 2, 9, 0, 4] {
+            db.set(1, &key(1, index), value(index)).unwrap();
+        }
+        db.commit(1).unwrap();
+
+        // Cached entries for block 1, plus one for block 2 outside the range
+        for index in [5, 1, 8, 3, 6] {
+            db.set(2, &key(1, index), value(index)).unwrap();
+        }
+        db.set(2, &key(2, 0), value(100)).unwrap();
+        db.unset(2, &key(1, 9)).unwrap();
+
+        let range = db.get_range(&key(1, 0), &key(2, 0)).unwrap();
+        let expected: Vec<(U128ED, B256ED)> =
+            (0..9).map(|index| (key(1, index), value(index))).collect();
+        assert_eq!(range, expected);
     }
 
     #[test]
