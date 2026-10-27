@@ -6,19 +6,36 @@ on:
   pull_request:
     branches: [ "main" ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
 
+# The jobs run in parallel, each with its own build cache.
 jobs:
-  build:
-
+  check-no-default-features:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --all-features --verbose
-    - name: Build with no default features
-      run: cargo build --no-default-features --verbose
+    - uses: Swatinem/rust-cache@v2
+    - name: Check with no default features
+      run: cargo check --no-default-features
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: Swatinem/rust-cache@v2
     - name: Run tests
-      run: cargo test --all-features --verbose
+      # public_api has its own job: it builds the crate a second time with a nightly toolchain.
+      run: cargo test --all-features -- --skip public_api
+
+  public-api:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: Swatinem/rust-cache@v2
+    - name: Check the public API snapshot
+      run: cargo test --all-features --test public_api

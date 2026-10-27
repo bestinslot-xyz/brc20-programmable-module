@@ -1,10 +1,14 @@
 # Testing
 
-CI builds the crate with all features and with no default features, then runs:
+CI (`.github/workflows/rust.yml`) runs three parallel jobs, each with its own build cache:
 
 ```
-cargo test --all-features
+cargo check --no-default-features
+cargo test --all-features -- --skip public_api
+cargo test --all-features --test public_api
 ```
+
+The public API snapshot has its own job because it builds the crate a second time with a nightly toolchain.
 
 Unit tests live next to the code in `src/`. Integration tests in `tests/` start a server on a free local port with a temporary database through `test_utils::spawn_test_server`, and talk to it with `Brc20ProgApiClient`. Shared helpers and input data live in the `test_utils` crate (`test_utils/src/`, `test_utils/data/`).
 
