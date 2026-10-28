@@ -23,6 +23,7 @@ use crate::db::types::{BlockResponseED, BytecodeED, LogED, Signature, TraceED, T
 use crate::db::Brc20ProgDatabase;
 use crate::engine::evm::get_evm;
 use crate::engine::hardforks::use_rlp_hash_for_tx_hash;
+use crate::engine::precompiles::BitcoinLookup;
 use crate::engine::utils::{
     get_contract_address, get_gas_limit, get_inscription_byte_len, get_tx_hash, get_tx_logs,
     LastBlockInfo, TxInfo,
@@ -448,6 +449,7 @@ impl BRC20ProgEngine {
                 None,
                 op_return_tx_id,
                 &None,
+                BitcoinLookup::BlockExecution,
             );
 
             evm.ctx().modify_tx(|tx| {
@@ -764,6 +766,7 @@ impl BRC20ProgEngine {
                 None,
                 [0u8; 32].into(),
                 &None,
+                BitcoinLookup::PublicCall,
             );
 
             evm.ctx().modify_tx(|tx| {
@@ -821,6 +824,7 @@ impl BRC20ProgEngine {
                 None,
                 [0u8; 32].into(),
                 &precompile_data,
+                BitcoinLookup::PublicCall,
             );
 
             let mut outputs = Vec::new();

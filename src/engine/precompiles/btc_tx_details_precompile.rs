@@ -4,7 +4,8 @@ use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
 use crate::engine::precompiles::btc_utils::{
-    get_block_height, get_transaction_and_block_hash_with_overrides, get_transaction_with_overrides,
+    get_block_height, get_transaction_and_block_hash_with_overrides,
+    get_transaction_with_overrides, BitcoinDataUnavailable,
 };
 use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 use crate::global::GAS_PER_BITCOIN_RPC_CALL;
@@ -21,7 +22,11 @@ sol! {
     function getTxDetails(bytes32 txid) returns (uint256 block_height, bytes32[] vin_txids, uint256[] vin_vouts , bytes[] vin_scriptPubKeys, uint256[] vin_values, bytes[] vout_scriptPubKeys, uint256[] vout_values);
 }
 
-pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
+/// `Err` means a Bitcoin lookup failed during a public call. See
+/// [`BitcoinLookup`](crate::engine::precompiles::BitcoinLookup).
+pub fn btc_tx_details_precompile(
+    call: &PrecompileCall,
+) -> Result<InterpreterResult, BitcoinDataUnavailable> {
     let mut interpreter_result = InterpreterResult::new(
         InstructionResult::Stop,
         Bytes::new(),
@@ -29,17 +34,26 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
     );
 
     if !use_gas(&mut interpreter_result, GAS_PER_BITCOIN_RPC_CALL) {
-        return interpreter_result;
+        return Ok(interpreter_result);
     }
 
     let Ok(txid) = getTxDetailsCall::abi_decode(&call.bytes) else {
-        return precompile_error(interpreter_result, "Failed to decode parameters");
+        return Ok(precompile_error(
+            interpreter_result,
+            "Failed to decode parameters",
+        ));
     };
 
-    let Ok((tx_info, block_hash)) =
-        get_transaction_and_block_hash_with_overrides(&txid.txid, &call.btc_tx_hexes_data)
+    let Some((tx_info, block_hash)) = get_transaction_and_block_hash_with_overrides(
+        &txid.txid,
+        &call.btc_tx_hexes_data,
+        call.bitcoin_lookup,
+    )?
     else {
-        return precompile_error(interpreter_result, "Failed to get transaction details");
+        return Ok(precompile_error(
+            interpreter_result,
+            "Failed to get transaction details",
+        ));
     };
 
     if !use_gas(
@@ -47,19 +61,23 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
         // +1 for block height retrieval
         (tx_info.input.len()) as u64 * GAS_PER_BITCOIN_RPC_CALL,
     ) {
-        return interpreter_result;
+        return Ok(interpreter_result);
     }
 
     let Some(block_hash) = block_hash else {
-        return precompile_error(interpreter_result, "Transaction is not confirmed");
+        return Ok(precompile_error(
+            interpreter_result,
+            "Transaction is not confirmed",
+        ));
     };
 
-    let Ok(block_height) = get_block_height(&block_hash) else {
-        return precompile_error(interpreter_result, "Failed to get block info");
-    };
+    let block_height = get_block_height(&block_hash, call.bitcoin_lookup)?;
 
     if U256::from(block_height) > call.block_height {
-        return precompile_error(interpreter_result, "Transaction is in the future");
+        return Ok(precompile_error(
+            interpreter_result,
+            "Transaction is in the future",
+        ));
     }
 
     let mut vin_txids = Vec::new();
@@ -71,7 +89,10 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
 
     for vin in tx_info.input {
         if vin.previous_output.is_null() {
-            return precompile_error(interpreter_result, "Failed to get vin txid");
+            return Ok(precompile_error(
+                interpreter_result,
+                "Failed to get vin txid",
+            ));
         };
 
         let mut vin_txid =
@@ -82,17 +103,26 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
         vin_vouts.push(U256::from(vin.previous_output.vout));
 
         // Get the scriptPubKey from the vin transaction, using the txid and vout
-        let Ok(vin_transaction) =
-            get_transaction_with_overrides(&vin_txid, &call.btc_tx_hexes_data)
+        let Some(vin_transaction) = get_transaction_with_overrides(
+            &vin_txid,
+            &call.btc_tx_hexes_data,
+            call.bitcoin_lookup,
+        )?
         else {
-            return precompile_error(interpreter_result, "Failed to get vin transaction details");
+            return Ok(precompile_error(
+                interpreter_result,
+                "Failed to get vin transaction details",
+            ));
         };
 
         let Some(prev_vout) = &vin_transaction
             .output
             .get(vin.previous_output.vout as usize)
         else {
-            return precompile_error(interpreter_result, "Failed to get vin vout");
+            return Ok(precompile_error(
+                interpreter_result,
+                "Failed to get vin vout",
+            ));
         };
         vin_script_pub_keys.push(prev_vout.script_pubkey.clone().into_bytes().into());
         vin_values.push(U256::from(prev_vout.value.to_sat()));
@@ -113,7 +143,7 @@ pub fn btc_tx_details_precompile(call: &PrecompileCall) -> InterpreterResult {
         vout_values,
     ));
 
-    return precompile_output(interpreter_result, bytes);
+    Ok(precompile_output(interpreter_result, bytes))
 }
 
 #[cfg(test)]
@@ -123,7 +153,7 @@ mod tests {
     use alloy::primitives::hex::FromHex;
 
     use super::*;
-    use crate::engine::precompiles::btc_utils::validate_bitcoin_rpc_status;
+    use crate::engine::precompiles::btc_utils::{validate_bitcoin_rpc_status, BitcoinLookup};
 
     #[test]
     fn test_get_tx_details_encode_params_single_vin_vout() {
@@ -166,7 +196,9 @@ mod tests {
             block_height: U256::from(240961u64),
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: HashMap::new(),
-        });
+            bitcoin_lookup: BitcoinLookup::BlockExecution,
+        })
+        .unwrap();
 
         assert!(response.is_ok());
 
@@ -217,7 +249,9 @@ mod tests {
             block_height: U256::from(240959u64),
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: HashMap::new(),
-        });
+            bitcoin_lookup: BitcoinLookup::BlockExecution,
+        })
+        .unwrap();
 
         assert!(response.is_halt());
     }
@@ -251,7 +285,9 @@ mod tests {
             block_height: U256::from(0u64),
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: btc_tx_hexes,
-        });
+            bitcoin_lookup: BitcoinLookup::BlockExecution,
+        })
+        .unwrap();
 
         assert!(response.is_ok());
 

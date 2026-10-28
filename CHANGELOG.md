@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Bug Fixes
+
+ - a failed Bitcoin lookup fails a public call instead of panicking
+   * A `BitcoinRpc` error during `eth_call`, `eth_callMany`, `eth_estimateGas` or
+     `eth_estimateGasMany` makes one attempt and fails the whole call with
+     `Call failed: Bitcoin data unavailable`, with no retry delay.
+   * During block execution a `BitcoinRpc` error is retried five times, one second
+     apart, and then panics, as before.
+
 ## v0.16.6 (2026-10-27)
 
 ### New Features

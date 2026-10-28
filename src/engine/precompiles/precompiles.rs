@@ -7,6 +7,7 @@ use revm::interpreter::{CallInputs, Gas, InstructionResult, InterpreterResult};
 use revm::precompile::{PrecompileSpecId, PrecompileStatus, Precompiles};
 use revm::primitives::{AddressSet, B256, U256};
 
+use crate::engine::precompiles::btc_utils::{BitcoinDataUnavailable, BitcoinLookup};
 use crate::engine::precompiles::{
     bip322_verify_precompile, btc_tx_details_precompile, get_locked_pkscript_precompile,
     get_op_return_tx_id_precompile, last_sat_location_precompile,
@@ -27,14 +28,21 @@ pub struct PrecompileCall {
     pub block_height: U256,
     pub current_op_return_tx_id: B256,
     pub btc_tx_hexes_data: HashMap<B256, Bytes>,
+    pub bitcoin_lookup: BitcoinLookup,
 }
+
+/// A BRC2.0 precompile. `Err` aborts the whole call, which happens only when a Bitcoin lookup
+/// fails during a public call.
+pub type CustomPrecompile =
+    fn(&PrecompileCall) -> Result<InterpreterResult, BitcoinDataUnavailable>;
 
 pub struct BRC20Precompiles {
     pub eth_precompiles: &'static Precompiles,
-    pub custom_precompiles: HashMap<Address, fn(&PrecompileCall) -> InterpreterResult>,
+    pub custom_precompiles: HashMap<Address, CustomPrecompile>,
     pub all_addresses: AddressSet,
     pub op_return_tx_id: B256,
     pub btc_tx_hexes_data: HashMap<B256, Bytes>,
+    pub bitcoin_lookup: BitcoinLookup,
 }
 
 impl BRC20Precompiles {
@@ -42,6 +50,7 @@ impl BRC20Precompiles {
         precompile_spec: PrecompileSpecId,
         op_return_tx_id: B256,
         precompile_data: &Option<PrecompileData>,
+        bitcoin_lookup: BitcoinLookup,
     ) -> Self {
         let eth_precompiles = Precompiles::new(precompile_spec);
         let mut all_addresses = eth_precompiles.addresses_set().clone();
@@ -50,9 +59,10 @@ impl BRC20Precompiles {
         all_addresses.insert(*LAST_SAT_LOCATION_PRECOMPILE_ADDRESS);
         all_addresses.insert(*GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS);
 
-        let mut custom_precompiles: HashMap<Address, fn(&PrecompileCall) -> InterpreterResult> =
-            HashMap::new();
-        custom_precompiles.insert(*BIP322_PRECOMPILE_ADDRESS, bip322_verify_precompile);
+        let mut custom_precompiles: HashMap<Address, CustomPrecompile> = HashMap::new();
+        custom_precompiles.insert(*BIP322_PRECOMPILE_ADDRESS, |call| {
+            Ok(bip322_verify_precompile(call))
+        });
         custom_precompiles.insert(
             *BTC_TX_DETAILS_PRECOMPILE_ADDRESS,
             btc_tx_details_precompile,
@@ -61,15 +71,13 @@ impl BRC20Precompiles {
             *LAST_SAT_LOCATION_PRECOMPILE_ADDRESS,
             last_sat_location_precompile,
         );
-        custom_precompiles.insert(
-            *GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS,
-            get_locked_pkscript_precompile,
-        );
+        custom_precompiles.insert(*GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS, |call| {
+            Ok(get_locked_pkscript_precompile(call))
+        });
         if precompile_spec >= PrecompileSpecId::PRAGUE {
-            custom_precompiles.insert(
-                *GET_OP_RETURN_TX_ID_PRECOMPILE_ADDRESS,
-                get_op_return_tx_id_precompile,
-            );
+            custom_precompiles.insert(*GET_OP_RETURN_TX_ID_PRECOMPILE_ADDRESS, |call| {
+                Ok(get_op_return_tx_id_precompile(call))
+            });
         }
 
         let btc_tx_hexes_data = if let Some(data) = precompile_data {
@@ -87,6 +95,7 @@ impl BRC20Precompiles {
             custom_precompiles,
             op_return_tx_id,
             btc_tx_hexes_data,
+            bitcoin_lookup,
         }
     }
 }
@@ -127,13 +136,19 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
             }
         } else if let Some(custom_precompile) = self.custom_precompiles.get(&inputs.target_address)
         {
-            return Ok(Some(custom_precompile(&PrecompileCall {
+            // A Bitcoin lookup that failed during a public call aborts the whole call. As a failed
+            // subcall, a contract could catch it and answer with a result block execution never
+            // produces.
+            let output = custom_precompile(&PrecompileCall {
                 bytes: inputs.input.bytes(ctx),
                 gas_limit: inputs.gas_limit,
                 block_height: ctx.block().number(),
                 current_op_return_tx_id: self.op_return_tx_id,
                 btc_tx_hexes_data: self.btc_tx_hexes_data.clone(),
-            })));
+                bitcoin_lookup: self.bitcoin_lookup,
+            })
+            .map_err(|error| error.to_string())?;
+            return Ok(Some(output));
         } else {
             return Ok(None);
         }
@@ -186,7 +201,12 @@ mod tests {
     #[test]
     fn test_prague_spec_has_bls_precompiles() {
         // A sanity test to ensure that the Prague spec includes the BLS precompiles.
-        let precompiles = BRC20Precompiles::new(PrecompileSpecId::PRAGUE, [0u8; 32].into(), &None);
+        let precompiles = BRC20Precompiles::new(
+            PrecompileSpecId::PRAGUE,
+            [0u8; 32].into(),
+            &None,
+            BitcoinLookup::BlockExecution,
+        );
         assert!(precompiles
             .all_addresses
             .contains(&Address::from_str("0x000000000000000000000000000000000000000b").unwrap()));
