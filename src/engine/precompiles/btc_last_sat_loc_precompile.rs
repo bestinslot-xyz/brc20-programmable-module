@@ -4,7 +4,8 @@ use bitcoin::hashes::Hash;
 use revm::interpreter::{Gas, InstructionResult, InterpreterResult};
 
 use crate::engine::precompiles::btc_utils::{
-    get_block_height, get_transaction_and_block_hash_with_overrides, get_transaction_with_overrides,
+    get_block_height, get_transaction_and_block_hash_with_overrides,
+    get_transaction_with_overrides, BitcoinDataUnavailable,
 };
 use crate::engine::precompiles::{precompile_error, precompile_output, use_gas, PrecompileCall};
 use crate::global::GAS_PER_BITCOIN_RPC_CALL;
@@ -21,7 +22,11 @@ sol! {
     function getLastSatLocation(bytes32 txid, uint256 vout, uint256 sat) returns (bytes32 last_txid, uint256 last_vout, uint256 last_sat, bytes old_pkscript, bytes new_pkscript);
 }
 
-pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult {
+/// `Err` means a Bitcoin lookup failed during a public call. See
+/// [`BitcoinLookup`](crate::engine::precompiles::BitcoinLookup).
+pub fn last_sat_location_precompile(
+    call: &PrecompileCall,
+) -> Result<InterpreterResult, BitcoinDataUnavailable> {
     let mut interpreter_result = InterpreterResult::new(
         InstructionResult::Stop,
         Bytes::new(),
@@ -29,7 +34,10 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
     );
 
     let Ok(inputs) = getLastSatLocationCall::abi_decode(&call.bytes) else {
-        return precompile_error(interpreter_result, "Failed to decode parameters");
+        return Ok(precompile_error(
+            interpreter_result,
+            "Failed to decode parameters",
+        ));
     };
 
     let txid = inputs.txid;
@@ -37,54 +45,70 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
     let sat = inputs.sat.as_limbs()[0];
 
     if !use_gas(&mut interpreter_result, GAS_PER_BITCOIN_RPC_CALL) {
-        return interpreter_result;
+        return Ok(interpreter_result);
     }
 
-    let Ok((raw_tx_info, block_hash)) =
-        get_transaction_and_block_hash_with_overrides(&txid, &call.btc_tx_hexes_data)
+    let Some((raw_tx_info, block_hash)) = get_transaction_and_block_hash_with_overrides(
+        &txid,
+        &call.btc_tx_hexes_data,
+        call.bitcoin_lookup,
+    )?
     else {
-        return precompile_error(interpreter_result, "Failed to get transaction details");
+        return Ok(precompile_error(
+            interpreter_result,
+            "Failed to get transaction details",
+        ));
     };
 
     let Some(block_hash) = block_hash else {
-        return precompile_error(interpreter_result, "Failed to get block height");
+        return Ok(precompile_error(
+            interpreter_result,
+            "Failed to get block height",
+        ));
     };
 
-    let Ok(block_height) = get_block_height(&block_hash) else {
-        return precompile_error(interpreter_result, "Failed to get block info");
-    };
+    let block_height = get_block_height(&block_hash, call.bitcoin_lookup)?;
 
     if U256::from(block_height) > call.block_height {
-        return precompile_error(interpreter_result, "Transaction is in the future");
+        return Ok(precompile_error(
+            interpreter_result,
+            "Transaction is in the future",
+        ));
     }
 
     if raw_tx_info.is_coinbase() {
-        return precompile_error(
+        return Ok(precompile_error(
             interpreter_result,
             "Coinbase transactions are not supported",
-        );
+        ));
     }
     if raw_tx_info.input.len() == 0 {
-        return precompile_error(interpreter_result, "No vin found");
+        return Ok(precompile_error(interpreter_result, "No vin found"));
     }
 
     if raw_tx_info.output.len() < vout {
-        return precompile_error(interpreter_result, "Vout index out of bounds");
+        return Ok(precompile_error(
+            interpreter_result,
+            "Vout index out of bounds",
+        ));
     }
 
     if let Some(value) = raw_tx_info.output.get(vout) {
         if value.value.to_sat() < sat {
-            return precompile_error(interpreter_result, "Sat value out of bounds");
+            return Ok(precompile_error(
+                interpreter_result,
+                "Sat value out of bounds",
+            ));
         }
     } else {
-        return precompile_error(interpreter_result, "Invalid response");
+        return Ok(precompile_error(interpreter_result, "Invalid response"));
     }
 
     let Ok(new_pkscript) = raw_tx_info
         .tx_out(vout)
         .map(|x| Bytes::from(x.script_pubkey.clone().into_bytes()))
     else {
-        return precompile_error(interpreter_result, "Invalid response");
+        return Ok(precompile_error(interpreter_result, "Invalid response"));
     };
 
     let mut total_vout_sat_count = 0;
@@ -108,11 +132,14 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
             .previous_output
             .is_null()
         {
-            return precompile_error(interpreter_result, "Failed to get vin txid");
+            return Ok(precompile_error(
+                interpreter_result,
+                "Failed to get vin txid",
+            ));
         };
 
         if !use_gas(&mut interpreter_result, GAS_PER_BITCOIN_RPC_CALL) {
-            return interpreter_result;
+            return Ok(interpreter_result);
         }
 
         result_vin_txid = FixedBytes::<32>::from_slice(
@@ -126,13 +153,22 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
 
         result_vin_vout = raw_tx_info.input[current_vin_index].previous_output.vout;
 
-        let Ok(vin_response) =
-            get_transaction_with_overrides(&result_vin_txid, &call.btc_tx_hexes_data)
+        let Some(vin_response) = get_transaction_with_overrides(
+            &result_vin_txid,
+            &call.btc_tx_hexes_data,
+            call.bitcoin_lookup,
+        )?
         else {
-            return precompile_error(interpreter_result, "Failed to get vin transaction details");
+            return Ok(precompile_error(
+                interpreter_result,
+                "Failed to get vin transaction details",
+            ));
         };
         let Ok(current_vin) = vin_response.tx_out(result_vin_vout as usize) else {
-            return precompile_error(interpreter_result, "Failed to get vin vout");
+            return Ok(precompile_error(
+                interpreter_result,
+                "Failed to get vin vout",
+            ));
         };
         current_vin_value = current_vin.value.to_sat();
         old_pkscript = Bytes::from(current_vin.script_pubkey.clone().into_bytes());
@@ -145,7 +181,10 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
     }
 
     if total_vin_sat_count < total_vout_sat_count {
-        return precompile_error(interpreter_result, "Insufficient satoshis in vin");
+        return Ok(precompile_error(
+            interpreter_result,
+            "Insufficient satoshis in vin",
+        ));
     }
 
     let bytes = getLastSatLocationCall::abi_encode_returns_tuple(&(
@@ -156,7 +195,7 @@ pub fn last_sat_location_precompile(call: &PrecompileCall) -> InterpreterResult 
         new_pkscript,
     ));
 
-    return precompile_output(interpreter_result, bytes);
+    Ok(precompile_output(interpreter_result, bytes))
 }
 
 #[cfg(test)]
@@ -166,7 +205,7 @@ mod tests {
     use alloy::primitives::hex::FromHex;
 
     use super::*;
-    use crate::engine::precompiles::validate_bitcoin_rpc_status;
+    use crate::engine::precompiles::{validate_bitcoin_rpc_status, BitcoinLookup};
 
     #[test]
     fn test_get_last_sat_location_encode_params_single_vin_vout() {
@@ -194,7 +233,9 @@ mod tests {
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: HashMap::new(),
-        });
+            bitcoin_lookup: BitcoinLookup::BlockExecution,
+        })
+        .unwrap();
         let result = result;
         let returns = getLastSatLocationCall::abi_decode_returns(&result.output).unwrap();
 
@@ -247,7 +288,9 @@ mod tests {
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: HashMap::new(),
-        });
+            bitcoin_lookup: BitcoinLookup::BlockExecution,
+        })
+        .unwrap();
         let result = result;
         let returns = getLastSatLocationCall::abi_decode_returns(&result.output).unwrap();
 
@@ -303,7 +346,9 @@ mod tests {
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: HashMap::new(),
-        });
+            bitcoin_lookup: BitcoinLookup::BlockExecution,
+        })
+        .unwrap();
 
         assert!(result.is_halt());
     }

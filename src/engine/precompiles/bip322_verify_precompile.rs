@@ -116,6 +116,7 @@ mod tests {
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: HashMap::new(),
+            bitcoin_lookup: crate::engine::precompiles::BitcoinLookup::BlockExecution,
         });
 
         assert!(result.is_ok());

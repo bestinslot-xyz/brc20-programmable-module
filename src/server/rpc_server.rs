@@ -37,7 +37,8 @@ use crate::global::{
 };
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
-    wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
+    call_failed, is_bitcoin_unavailable, wrap_rpc_error, wrap_rpc_error_string,
+    wrap_rpc_error_string_with_data,
 };
 use crate::types::{Base64Bytes, PrecompileData, RawBytes};
 use crate::Brc20ProgConfig;
@@ -253,7 +254,13 @@ impl Brc20ProgApiServer for Brc20Prog {
                     decode_brc20_balance_result(receipt.output.as_ref())
                 )
             })
-            .map_err(wrap_rpc_error)
+            .map_err(|error| {
+                if is_bitcoin_unavailable(error.as_ref()) {
+                    call_failed(error)
+                } else {
+                    wrap_rpc_error(error)
+                }
+            })
     }
 
     #[instrument(skip(self), level = "error")]
@@ -630,13 +637,7 @@ impl Brc20ProgApiServer for Brc20Prog {
                 None,
             )
             .await;
-        let Ok(result) = receipt else {
-            return Err(wrap_rpc_error_string_with_data(
-                3,
-                "Call failed",
-                "0x".into(),
-            ));
-        };
+        let result = receipt.map_err(call_failed)?;
         let data_string = result.output.unwrap_or(Bytes::new()).to_string();
         if !result.status {
             return Err(wrap_rpc_error_string_with_data(
@@ -685,13 +686,7 @@ impl Brc20ProgApiServer for Brc20Prog {
             .engine
             .read_contract_multi(&txinfos, block_height, precompile_data, None)
             .await;
-        let Ok(results) = receipts else {
-            return Err(wrap_rpc_error_string_with_data(
-                3,
-                "Call failed",
-                "0x".into(),
-            ));
-        };
+        let results = receipts.map_err(call_failed)?;
 
         let mut outputs = Vec::with_capacity(results.len());
         let mut result_idx = 0;
@@ -744,17 +739,11 @@ impl Brc20ProgApiServer for Brc20Prog {
             data.value().unwrap_or_default().clone(),
         );
 
-        let Ok(result) = self
+        let result = self
             .engine
             .read_contract(&tx_info, start_block_height, None)
             .await
-        else {
-            return Err(wrap_rpc_error_string_with_data(
-                3,
-                "Call failed",
-                "0x".into(),
-            ));
-        };
+            .map_err(call_failed)?;
 
         if !result.status {
             let data_string = result.output.unwrap_or(Bytes::new()).to_string();
@@ -775,10 +764,17 @@ impl Brc20ProgApiServer for Brc20Prog {
                 .engine
                 .read_contract(&tx_info, start_block_height, Some(estimated_gas))
                 .await;
-            let Ok(result) = receipt else {
-                lower_gas_limit = estimated_gas + 1;
-                debug!("eth_estimate_gas: estimated gas too low: {}", estimated_gas);
-                continue;
+            let result = match receipt {
+                Ok(result) => result,
+                // A missing input says nothing about the gas, so the search stops
+                Err(error) if is_bitcoin_unavailable(error.as_ref()) => {
+                    return Err(call_failed(error))
+                }
+                Err(_) => {
+                    lower_gas_limit = estimated_gas + 1;
+                    debug!("eth_estimate_gas: estimated gas too low: {}", estimated_gas);
+                    continue;
+                }
             };
             if result.status {
                 upper_gas_limit = estimated_gas;
@@ -798,13 +794,7 @@ impl Brc20ProgApiServer for Brc20Prog {
             .read_contract(&tx_info, start_block_height, Some(estimated_gas))
             .await;
 
-        let Ok(result) = receipt else {
-            return Err(wrap_rpc_error_string_with_data(
-                3,
-                "Call failed",
-                "0x".into(),
-            ));
-        };
+        let result = receipt.map_err(call_failed)?;
 
         let end_block_height = if let Some(block_height) = block_height {
             Some(
@@ -872,17 +862,11 @@ impl Brc20ProgApiServer for Brc20Prog {
 
         // First run to check if all calls can succeed with the max gas limit, to avoid
         // unnecessary bisection for all calls.
-        let Ok(results) = self
+        let results = self
             .engine
             .read_contract_multi(&txinfos, start_block_height, precompile_data.clone(), None)
             .await
-        else {
-            return Err(wrap_rpc_error_string_with_data(
-                3,
-                "Call failed",
-                "0x".into(),
-            ));
-        };
+            .map_err(call_failed)?;
 
         for (result_idx, result) in results.iter().enumerate() {
             if !result.status {
@@ -915,13 +899,20 @@ impl Brc20ProgApiServer for Brc20Prog {
                         Some(estimated_gases.as_ref()),
                     )
                     .await;
-                let Ok(result) = receipts else {
-                    lower_gas_limit = estimated_gases[i] + 1;
-                    debug!(
-                        "eth_estimate_gas_many {}: estimated gas too low: {}",
-                        i, estimated_gases[i]
-                    );
-                    continue;
+                let result = match receipts {
+                    Ok(result) => result,
+                    // A missing input says nothing about the gas, so the search stops
+                    Err(error) if is_bitcoin_unavailable(error.as_ref()) => {
+                        return Err(call_failed(error))
+                    }
+                    Err(_) => {
+                        lower_gas_limit = estimated_gases[i] + 1;
+                        debug!(
+                            "eth_estimate_gas_many {}: estimated gas too low: {}",
+                            i, estimated_gases[i]
+                        );
+                        continue;
+                    }
                 };
                 if result[i].status {
                     upper_gas_limit = estimated_gases[i];
@@ -949,13 +940,7 @@ impl Brc20ProgApiServer for Brc20Prog {
                 Some(estimated_gases.as_ref()),
             )
             .await;
-        let Ok(results) = receipts else {
-            return Err(wrap_rpc_error_string_with_data(
-                3,
-                "Call failed",
-                "0x".into(),
-            ));
-        };
+        let results = receipts.map_err(call_failed)?;
 
         let end_block_height = if let Some(block_height) = block_height {
             Some(
