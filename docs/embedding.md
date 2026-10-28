@@ -37,7 +37,7 @@ fn open(source: Arc<dyn BitcoinRpc>) -> Result<Brc20Prog, Box<dyn std::error::Er
 Answers feed consensus, so they must be the same on every node for a given chain state. Return `Ok(None)` for a transaction that does not exist: the precompile call fails. Return `Err` for a lookup that cannot be answered right now. What the module does with it depends on where the lookup runs:
 
 - During block execution (`brc20_call`, `brc20_transact` and the other methods that add a transaction to a block), the module retries it five times, one second apart, and then panics, so an outage stops the indexer rather than producing a different result.
-- During a public call (`eth_call`, `eth_callMany`, `eth_estimateGas`, `eth_estimateGasMany`), the module makes one attempt and the call fails with `Call failed: Bitcoin data unavailable`. A source that holds only part of the chain can return `Err` for the rest, and a public request for it neither stalls nor crashes the node.
+- During a public call (`eth_call`, `eth_callMany`, `eth_estimateGas`, `eth_estimateGasMany`, `brc20_balance`), the module retries it once with no pause, and then the call fails with `Call failed: Bitcoin data unavailable`. `brc20_balance` reaches no Bitcoin precompile, so it hits this only if its contract ever calls one. A source that holds only part of the chain can return `Err` for the rest, and a public request for it neither stalls nor crashes the node.
 
 The methods run synchronously inside EVM execution, on the thread that called the `Brc20ProgApiServer` method. An implementation backed by async code can bridge with `tokio::task::block_in_place` on a multi-threaded runtime, and must not wait on a lock that the indexer holds across that call.
 

@@ -24,9 +24,11 @@ pub type BitcoinRpcError = Box<dyn Error + Send + Sync>;
 ///     add a transaction to a block), the engine retries it five times, one second apart, and then
 ///     panics, so a transient outage never produces a different execution result.
 ///   * During a public call (`eth_call`, `eth_callMany`, `eth_estimateGas`,
-///     `eth_estimateGasMany`), the engine makes one attempt and the whole call fails with
-///     "Bitcoin data unavailable". A source that holds only part of the chain can therefore
-///     return `Err` for data it lacks without exposing the node to a crash from a public request.
+///     `eth_estimateGasMany`, `brc20_balance`), the engine retries it once with no pause, and then
+///     the whole call fails with "Call failed: Bitcoin data unavailable". `brc20_balance` reaches
+///     no Bitcoin precompile, so it hits this only if its contract ever calls one. A source that
+///     holds only part of the chain can therefore return `Err` for data it lacks without exposing
+///     the node to a crash from a public request.
 ///
 /// Methods are called synchronously from inside EVM execution.
 pub trait BitcoinRpc: Send + Sync {

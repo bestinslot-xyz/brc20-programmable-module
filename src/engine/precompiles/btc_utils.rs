@@ -25,6 +25,7 @@ lazy_static::lazy_static! {
 }
 
 const BITCOIN_RPC_RETRIES: u32 = 5;
+const PUBLIC_CALL_RETRIES: u32 = 1;
 
 fn new_core_client() -> BitcoinCoreRpc {
     let config = CONFIG.read();
@@ -130,20 +131,31 @@ pub fn validate_bitcoin_rpc_status() -> Result<(), Box<dyn Error>> {
 /// Where a Bitcoin lookup runs, which decides what a [`BitcoinRpc`] error does.
 ///
 /// Each entry point that builds an EVM picks the mode and the precompiles carry it in
-/// [`PrecompileCall`](crate::engine::precompiles::PrecompileCall). It lives in the EVM value
-/// rather than in process or thread state, so one call's mode never reaches another call.
+/// [`PrecompileCall`](crate::engine::precompiles::PrecompileCall). Each EVM carries its own mode,
+/// so one call's mode never reaches another call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BitcoinLookup {
     /// Block execution, the consensus path. A lookup error is retried and then panics, so an
     /// unreachable source stops the node instead of changing an execution result.
     BlockExecution,
-    /// A public read such as `eth_call` or `eth_estimateGas`. A lookup error fails the call after
-    /// one attempt, so an unauthenticated caller can neither crash the node nor stall it.
+    /// A public read such as `eth_call` or `eth_estimateGas`. A lookup error is retried once,
+    /// with no pause, and then fails the call, so an unauthenticated caller can neither crash the node nor
+    /// stall it, and a single transient source error does not fail the call.
     PublicCall,
 }
 
+impl BitcoinLookup {
+    /// Retries after the first failed attempt, and the pause before each.
+    fn retry_policy(self) -> (u32, Duration) {
+        match self {
+            BitcoinLookup::BlockExecution => (BITCOIN_RPC_RETRIES, Duration::from_secs(1)),
+            BitcoinLookup::PublicCall => (PUBLIC_CALL_RETRIES, Duration::ZERO),
+        }
+    }
+}
+
 /// Message of the error that aborts a public call whose Bitcoin lookup failed.
-pub const BITCOIN_DATA_UNAVAILABLE: &str = "Bitcoin data unavailable";
+const BITCOIN_DATA_UNAVAILABLE: &str = "Bitcoin data unavailable";
 
 /// A [`BitcoinRpc`] lookup failed during a public call.
 #[derive(Debug, PartialEq, Eq)]
@@ -159,26 +171,30 @@ impl Error for BitcoinDataUnavailable {}
 
 /// Runs `lookup` against the current source.
 ///
-/// During block execution a failed lookup is retried, and the node panics once the retries run
-/// out, so an unreachable source never changes an execution result. During a public call a failed
-/// lookup returns [`BitcoinDataUnavailable`] at once.
+/// Both modes retry a failed lookup. Once the retries run out, block execution panics, so an
+/// unreachable source never changes an execution result, and a public call returns
+/// [`BitcoinDataUnavailable`].
 fn run_lookup<T>(
     mode: BitcoinLookup,
     lookup: impl Fn(&dyn BitcoinRpc) -> Result<T, BitcoinRpcError>,
 ) -> Result<T, BitcoinDataUnavailable> {
     let rpc = bitcoin_rpc();
-    let mut retries_left = BITCOIN_RPC_RETRIES;
+    let (mut retries_left, pause) = mode.retry_policy();
     loop {
-        match (lookup(rpc.as_ref()), mode) {
-            (Ok(value), _) => return Ok(value),
-            (Err(_), BitcoinLookup::PublicCall) => return Err(BitcoinDataUnavailable),
-            (Err(_), BitcoinLookup::BlockExecution) if retries_left > 0 => {
+        match lookup(rpc.as_ref()) {
+            Ok(value) => return Ok(value),
+            Err(_) if retries_left > 0 => {
                 retries_left -= 1;
-                sleep(Duration::from_secs(1));
+                if !pause.is_zero() {
+                    sleep(pause);
+                }
             }
-            (Err(error), BitcoinLookup::BlockExecution) => {
-                panic!("Bitcoin RPC unreachable. Response: {:?}", error)
-            }
+            Err(error) => match mode {
+                BitcoinLookup::BlockExecution => {
+                    panic!("Bitcoin RPC unreachable. Response: {:?}", error)
+                }
+                BitcoinLookup::PublicCall => return Err(BitcoinDataUnavailable),
+            },
         }
     }
 }

@@ -3,7 +3,7 @@ use std::error::Error;
 use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
 use tracing::error;
 
-use crate::engine::BITCOIN_DATA_UNAVAILABLE;
+use crate::engine::BitcoinDataUnavailable;
 
 pub fn wrap_rpc_error(error: Box<dyn Error>) -> ErrorObject<'static> {
     error!("{:?}", error);
@@ -15,10 +15,15 @@ pub fn wrap_rpc_error_string(error: &str) -> ErrorObject<'static> {
     ErrorObjectOwned::owned(400, error, None::<String>)
 }
 
+/// Whether a public call failed because a Bitcoin lookup failed.
+pub fn is_bitcoin_unavailable(error: &(dyn Error + 'static)) -> bool {
+    error.downcast_ref::<BitcoinDataUnavailable>().is_some()
+}
+
 /// Error for a public call that could not run. A failed Bitcoin lookup is named in the message.
 pub fn call_failed(error: Box<dyn Error>) -> ErrorObject<'static> {
-    let message = if error.to_string().contains(BITCOIN_DATA_UNAVAILABLE) {
-        format!("Call failed: {}", BITCOIN_DATA_UNAVAILABLE)
+    let message = if is_bitcoin_unavailable(error.as_ref()) {
+        format!("Call failed: {}", BitcoinDataUnavailable)
     } else {
         "Call failed".to_string()
     };

@@ -37,7 +37,8 @@ use crate::global::{
 };
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
-    call_failed, wrap_rpc_error, wrap_rpc_error_string, wrap_rpc_error_string_with_data,
+    call_failed, is_bitcoin_unavailable, wrap_rpc_error, wrap_rpc_error_string,
+    wrap_rpc_error_string_with_data,
 };
 use crate::types::{Base64Bytes, PrecompileData, RawBytes};
 use crate::Brc20ProgConfig;
@@ -253,7 +254,13 @@ impl Brc20ProgApiServer for Brc20Prog {
                     decode_brc20_balance_result(receipt.output.as_ref())
                 )
             })
-            .map_err(wrap_rpc_error)
+            .map_err(|error| {
+                if is_bitcoin_unavailable(error.as_ref()) {
+                    call_failed(error)
+                } else {
+                    wrap_rpc_error(error)
+                }
+            })
     }
 
     #[instrument(skip(self), level = "error")]
@@ -757,10 +764,17 @@ impl Brc20ProgApiServer for Brc20Prog {
                 .engine
                 .read_contract(&tx_info, start_block_height, Some(estimated_gas))
                 .await;
-            let Ok(result) = receipt else {
-                lower_gas_limit = estimated_gas + 1;
-                debug!("eth_estimate_gas: estimated gas too low: {}", estimated_gas);
-                continue;
+            let result = match receipt {
+                Ok(result) => result,
+                // A missing input says nothing about the gas, so the search stops
+                Err(error) if is_bitcoin_unavailable(error.as_ref()) => {
+                    return Err(call_failed(error))
+                }
+                Err(_) => {
+                    lower_gas_limit = estimated_gas + 1;
+                    debug!("eth_estimate_gas: estimated gas too low: {}", estimated_gas);
+                    continue;
+                }
             };
             if result.status {
                 upper_gas_limit = estimated_gas;
@@ -885,13 +899,20 @@ impl Brc20ProgApiServer for Brc20Prog {
                         Some(estimated_gases.as_ref()),
                     )
                     .await;
-                let Ok(result) = receipts else {
-                    lower_gas_limit = estimated_gases[i] + 1;
-                    debug!(
-                        "eth_estimate_gas_many {}: estimated gas too low: {}",
-                        i, estimated_gases[i]
-                    );
-                    continue;
+                let result = match receipts {
+                    Ok(result) => result,
+                    // A missing input says nothing about the gas, so the search stops
+                    Err(error) if is_bitcoin_unavailable(error.as_ref()) => {
+                        return Err(call_failed(error))
+                    }
+                    Err(_) => {
+                        lower_gas_limit = estimated_gases[i] + 1;
+                        debug!(
+                            "eth_estimate_gas_many {}: estimated gas too low: {}",
+                            i, estimated_gases[i]
+                        );
+                        continue;
+                    }
                 };
                 if result[i].status {
                     upper_gas_limit = estimated_gases[i];

@@ -1,8 +1,8 @@
 //! Brc20Prog::open_with_bitcoin_rpc routes the Bitcoin precompiles through a caller-supplied
 //! BitcoinRpc instead of a Bitcoin Core node.
 //!
-//! A BitcoinRpc error fails a public call at once and panics during block execution after the
-//! retries run out.
+//! A BitcoinRpc error fails a public call after one immediate retry, and panics during block
+//! execution after five retries one second apart.
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -52,6 +52,8 @@ struct FakeBitcoinRpc {
     heights: Mutex<HashMap<BlockHash, usize>>,
     /// Transient failures still to return per txid before answering
     failures_left: Mutex<HashMap<Txid, u32>>,
+    /// Lookups per txid that answer before the failures in `failures_left` start
+    answers_before_failing: Mutex<HashMap<Txid, u32>>,
 }
 
 impl FakeBitcoinRpc {
@@ -85,7 +87,22 @@ impl FakeBitcoinRpc {
         self.failures_left.lock().unwrap()[txid]
     }
 
+    /// Answers the next `answers` lookups of `txid`, then fails the next `failures`
+    fn fail_later(&self, txid: Txid, answers: u32, failures: u32) {
+        self.answers_before_failing
+            .lock()
+            .unwrap()
+            .insert(txid, answers);
+        self.fail(txid, failures);
+    }
+
     fn take_failure(&self, txid: &Txid) -> Result<(), BitcoinRpcError> {
+        if let Some(answers) = self.answers_before_failing.lock().unwrap().get_mut(txid) {
+            if *answers > 0 {
+                *answers -= 1;
+                return Ok(());
+            }
+        }
         let mut failures = self.failures_left.lock().unwrap();
         match failures.get_mut(txid) {
             Some(left) if *left > 0 => {
@@ -435,31 +452,70 @@ async fn test_failed_lookup_fails_estimate_gas_and_call_many() {
     );
 }
 
-/// A public call makes one attempt, and the next call sees the source answer again
+/// The binary search stops at a Bitcoin failure instead of reading it as too little gas
 #[tokio::test]
-async fn test_public_call_makes_one_attempt() {
+async fn test_failed_lookup_mid_search_fails_estimate_gas() {
+    let fake = Arc::new(FakeBitcoinRpc::default());
+    let embedded = open_with_fake("signet", fake.clone());
+    embedded.prog.brc20_mine(10, 0).await.unwrap();
+    let latest = || Some("latest".to_string());
+
+    // The first run answers, the first run of the search fails both attempts
+    let (_, txid) = spend(&fake, 0x64);
+    fake.fail_later(txid, 1, 2);
+    let call = eth_call_to(TX_DETAILS_PRECOMPILE, &tx_details_data(&txid));
+    let started = Instant::now();
+    let result = embedded.prog.eth_estimate_gas(call, latest()).await;
+    assert_unavailable(result.map_err(|error| error.to_string()), started);
+    assert_eq!(fake.failures_left(&txid), 0);
+
+    let (_, txid) = spend(&fake, 0x66);
+    fake.fail_later(txid, 1, 2);
+    let call = eth_call_to(TX_DETAILS_PRECOMPILE, &tx_details_data(&txid));
+    let started = Instant::now();
+    let result = embedded
+        .prog
+        .eth_estimate_gas_many(vec![call], latest(), None)
+        .await;
+    assert_unavailable(
+        result
+            .map(|outputs| outputs.join(","))
+            .map_err(|error| error.to_string()),
+        started,
+    );
+    assert_eq!(fake.failures_left(&txid), 0);
+}
+
+/// A public call retries a failed lookup once, with no pause
+#[tokio::test]
+async fn test_public_call_retries_once() {
     let fake = Arc::new(FakeBitcoinRpc::default());
     let embedded = open_with_fake("signet", fake.clone());
     embedded.prog.brc20_mine(10, 0).await.unwrap();
     let (_, txid) = spend(&fake, 0x70);
-    fake.fail(txid, 1);
 
+    fake.fail(txid, 1);
+    let started = Instant::now();
+    let output = get_tx_details(&embedded.prog, &txid).await.unwrap();
+    assert!(started.elapsed() < PUBLIC_CALL_DEADLINE);
+    let details = getTxDetailsCall::abi_decode_returns(&hex::decode(output).unwrap()).unwrap();
+    assert_eq!(details.block_height, U256::from(2));
+    assert_eq!(fake.failures_left(&txid), 0);
+
+    fake.fail(txid, 2);
     let started = Instant::now();
     assert_unavailable(get_tx_details(&embedded.prog, &txid).await, started);
     assert_eq!(fake.failures_left(&txid), 0);
-
-    let output = get_tx_details(&embedded.prog, &txid).await.unwrap();
-    let details = getTxDetailsCall::abi_decode_returns(&hex::decode(output).unwrap()).unwrap();
-    assert_eq!(details.block_height, U256::from(2));
 }
 
+/// Block execution retries five times, so five failures followed by an answer still succeed
 #[tokio::test]
 async fn test_block_execution_retries_transient_errors() {
     let fake = Arc::new(FakeBitcoinRpc::default());
     let embedded = open_with_fake("signet", fake.clone());
     embedded.prog.brc20_mine(10, 0).await.unwrap();
     let (_, txid) = spend(&fake, 0x80);
-    fake.fail(txid, 2);
+    fake.fail(txid, 5);
 
     let receipt = call_in_block(
         &embedded.prog,
@@ -478,6 +534,44 @@ async fn test_block_execution_retries_transient_errors() {
         .unwrap();
     let details = getTxDetailsCall::abi_decode_returns(&trace.output.bytes).unwrap();
     assert_eq!(details.block_height, U256::from(2));
+}
+
+/// Runs the tx details lookup as a block transaction on a fresh module, with `failures`
+/// transient failures first. Returns the receipt's gas used and the trace as JSON.
+async fn block_call_after_failures(failures: u32) -> (u64, String) {
+    let fake = Arc::new(FakeBitcoinRpc::default());
+    let embedded = open_with_fake("signet", fake.clone());
+    embedded.prog.brc20_mine(10, 0).await.unwrap();
+    let (_, txid) = spend(&fake, 0xa0);
+    fake.fail(txid, failures);
+
+    let receipt = call_in_block(
+        &embedded.prog,
+        TX_DETAILS_PRECOMPILE,
+        &tx_details_data(&txid),
+    )
+    .await;
+    assert_eq!(fake.failures_left(&txid), 0);
+    let trace = embedded
+        .prog
+        .debug_trace_transaction(receipt.transaction_hash)
+        .await
+        .unwrap()
+        .unwrap();
+    (
+        receipt.gas_used.uint.to::<u64>(),
+        serde_json::to_string(&trace).unwrap(),
+    )
+}
+
+/// A lookup that fails and then recovers leaves no mark on the block result
+#[tokio::test]
+async fn test_recovered_lookup_matches_clean_block_execution() {
+    let clean = block_call_after_failures(0).await;
+    let recovered = block_call_after_failures(1).await;
+
+    assert_eq!(recovered.0, clean.0);
+    assert_eq!(recovered.1, clean.1);
 }
 
 #[tokio::test]

@@ -10,9 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Bug Fixes
 
  - a failed Bitcoin lookup fails a public call instead of panicking
-   * A `BitcoinRpc` error during `eth_call`, `eth_callMany`, `eth_estimateGas` or
-     `eth_estimateGasMany` makes one attempt and fails the whole call with
-     `Call failed: Bitcoin data unavailable`, with no retry delay.
+   * A `BitcoinRpc` error during `eth_call`, `eth_callMany`, `eth_estimateGas`,
+     `eth_estimateGasMany` or `brc20_balance` is retried once with no pause, and then
+     fails the whole call with `Call failed: Bitcoin data unavailable`.
+     `brc20_balance` reaches no Bitcoin precompile today.
+   * The `eth_estimateGas` and `eth_estimateGasMany` gas search returns that error as soon
+     as a lookup fails, instead of reading it as too little gas.
    * During block execution a `BitcoinRpc` error is retried five times, one second
      apart, and then panics, as before.
 

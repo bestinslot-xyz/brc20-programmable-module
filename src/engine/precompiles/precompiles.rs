@@ -43,6 +43,9 @@ pub struct BRC20Precompiles {
     pub op_return_tx_id: B256,
     pub btc_tx_hexes_data: HashMap<B256, Bytes>,
     pub bitcoin_lookup: BitcoinLookup,
+    /// Set when a Bitcoin lookup aborted the call, so the caller can report
+    /// [`BitcoinDataUnavailable`] instead of the string error revm passes up.
+    pub bitcoin_unavailable: bool,
 }
 
 impl BRC20Precompiles {
@@ -96,6 +99,7 @@ impl BRC20Precompiles {
             op_return_tx_id,
             btc_tx_hexes_data,
             bitcoin_lookup,
+            bitcoin_unavailable: false,
         }
     }
 }
@@ -146,9 +150,14 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for BRC20Precompiles {
                 current_op_return_tx_id: self.op_return_tx_id,
                 btc_tx_hexes_data: self.btc_tx_hexes_data.clone(),
                 bitcoin_lookup: self.bitcoin_lookup,
-            })
-            .map_err(|error| error.to_string())?;
-            return Ok(Some(output));
+            });
+            return match output {
+                Ok(output) => Ok(Some(output)),
+                Err(error) => {
+                    self.bitcoin_unavailable = true;
+                    Err(error.to_string())
+                }
+            };
         } else {
             return Ok(None);
         }

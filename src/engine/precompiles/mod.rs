@@ -22,6 +22,6 @@ pub use bitcoin_rpc::{BitcoinRpc, BitcoinRpcError};
 
 mod btc_utils;
 pub use btc_utils::{
-    get_bitcoin_network, set_bitcoin_rpc, validate_bitcoin_rpc_status, BitcoinLookup,
-    BITCOIN_DATA_UNAVAILABLE,
+    get_bitcoin_network, set_bitcoin_rpc, validate_bitcoin_rpc_status, BitcoinDataUnavailable,
+    BitcoinLookup,
 };
