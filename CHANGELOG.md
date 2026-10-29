@@ -16,8 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      power cut midway never leaves a block's height recorded without its state.
    * Each database takes one batch per commit. The state databases go first, and
      `block_number_to_hash`, which sets the reported height, goes last.
-   * Opening fails with an error when the first commit into an empty database was
-     interrupted, or when the interrupted commit spans more than 10 blocks.
+   * When the first commit into an empty database was interrupted, or the interrupted
+     commit spans more than 10 blocks, opening wipes the module's databases with a
+     warning, and the indexer replays from its activation height. Other files in the data
+     directory stay, and an interrupted wipe finishes on the next open.
    * A commit syncs the WAL of every database it writes, 20 syncs for a signet block of
      five deposits, in place of flushing four memtables to disk. The on-disk layout is
      unchanged.

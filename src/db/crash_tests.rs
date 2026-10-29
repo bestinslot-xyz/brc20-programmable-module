@@ -352,42 +352,109 @@ fn test_open_without_marker_writes_nothing() {
     assert_eq!(db.dump(true), before);
 }
 
-#[test]
-fn test_interrupted_first_commit_refuses_to_open() {
-    let dir = TempDir::new().unwrap();
-    let engine = open_engine(dir.path());
+/// Leaves `path` with an interrupted first commit, which no rollback can undo
+fn interrupt_first_commit(path: &Path) {
+    let engine = open_engine(path);
     execute_block(&engine, 0);
     assert!(crash_after(3, || engine.commit_to_db()));
-    drop(engine);
-
-    let error = Brc20ProgDatabase::new(dir.path())
-        .err()
-        .unwrap()
-        .to_string();
-    assert!(error.contains("first commit"), "{}", error);
 }
 
-#[test]
-fn test_interrupted_commit_deeper_than_history_refuses_to_open() {
-    let dir = TempDir::new().unwrap();
-    let engine = open_engine(dir.path());
+/// Leaves `path` with an interrupted commit of 11 blocks, deeper than the reorg history
+fn interrupt_deep_commit(path: &Path) {
+    let engine = open_engine(path);
     execute_block(&engine, 0);
     engine.commit_to_db().unwrap();
     for n in 1..=MAX_REORG_HISTORY_SIZE + 1 {
         execute_block(&engine, n);
     }
     assert!(crash_after(3, || engine.commit_to_db()));
-    drop(engine);
+}
 
-    let error = Brc20ProgDatabase::new(dir.path())
-        .err()
-        .unwrap()
-        .to_string();
-    assert!(
-        error.contains("Rolling back to block 0 failed"),
-        "{}",
-        error
+/// Opens `path`, checks it is an empty store, then checks blocks commit into it
+fn assert_wiped_and_working(path: &Path) {
+    let db = Brc20ProgDatabase::new(path).unwrap();
+    assert!(!db.has_marker());
+    assert_eq!(db.get_latest_block_height().unwrap(), 0);
+    assert!(db.get_block(0).unwrap().is_none());
+    assert!(db.dump(true).iter().all(|(_, entries)| entries.is_empty()));
+    assert_eq!(
+        max_block_number(db.db_global_values.as_ref().unwrap()).unwrap(),
+        0
     );
+    drop(db);
+
+    build(path, 2, 2);
+    assert_eq!(
+        Brc20ProgDatabase::new(path)
+            .unwrap()
+            .get_latest_block_height()
+            .unwrap(),
+        2
+    );
+}
+
+#[test]
+fn test_interrupted_first_commit_wipes_the_store() {
+    let dir = TempDir::new().unwrap();
+    interrupt_first_commit(dir.path());
+    assert_wiped_and_working(dir.path());
+}
+
+#[test]
+fn test_interrupted_commit_deeper_than_history_wipes_the_store() {
+    let dir = TempDir::new().unwrap();
+    interrupt_deep_commit(dir.path());
+    assert_wiped_and_working(dir.path());
+}
+
+#[test]
+fn test_interrupted_wipe_completes_on_next_open() {
+    let dir = TempDir::new().unwrap();
+    interrupt_deep_commit(dir.path());
+
+    // The wipe stops after setting its marker. Then one database loses its CURRENT file and
+    // another goes entirely, as a crash partway through the deletions leaves them.
+    assert!(crash_after(1, || Brc20ProgDatabase::new(dir.path()).map(|_| ())));
+    std::fs::remove_file(dir.path().join("account").join("CURRENT")).unwrap();
+    std::fs::remove_dir_all(dir.path().join("code")).unwrap();
+
+    assert_wiped_and_working(dir.path());
+}
+
+#[test]
+fn test_wipe_keeps_files_it_does_not_own() {
+    let dir = TempDir::new().unwrap();
+    interrupt_first_commit(dir.path());
+    let mut config = ConfigDatabase::new(dir.path(), "config").unwrap();
+    config.set("key".to_string(), "value".to_string()).unwrap();
+    drop(config);
+    std::fs::write(dir.path().join("notes.txt"), "keep").unwrap();
+
+    assert_wiped_and_working(dir.path());
+    let config = ConfigDatabase::new(dir.path(), "config").unwrap();
+    assert_eq!(
+        config.get("key".to_string()).unwrap().as_deref(),
+        Some("value")
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("notes.txt")).unwrap(),
+        "keep"
+    );
+}
+
+#[test]
+fn test_wipe_list_names_every_database_directory() {
+    let dir = TempDir::new().unwrap();
+    drop(Brc20ProgDatabase::new(dir.path()).unwrap());
+    let mut created: Vec<String> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .filter(|name| name != "global")
+        .collect();
+    created.sort();
+    let mut listed: Vec<String> = DATABASE_DIRS.iter().map(|name| name.to_string()).collect();
+    listed.sort();
+    assert_eq!(created, listed);
 }
 
 async fn balances(engine: &BRC20ProgEngine, holders: &[(Bytes, Address)]) -> Vec<U256> {
