@@ -75,23 +75,70 @@ impl ConfigDatabase {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn validate(&mut self, key: &str, value: &str) -> Result<(), Box<dyn Error>> {
-        match self.get(key.to_string())? {
-            Some(db_value) => {
-                if db_value != value.to_string() {
-                    return Err(format!(
-                        "Config for {} mismatch: expected {}, found {}",
-                        key, value, db_value
-                    )
-                    .into());
-                }
-            }
-            None => {
-                return Err(format!("Config for {} not found: expected {}", key, value).into());
-            }
-        };
-        Ok(())
+        check_value(key, value, self.get(key.to_string())?)
     }
+}
+
+fn check_value(key: &str, value: &str, found: Option<String>) -> Result<(), Box<dyn Error>> {
+    match found {
+        Some(db_value) => {
+            if db_value != value {
+                return Err(format!(
+                    "Config for {} mismatch: expected {}, found {}",
+                    key, value, db_value
+                )
+                .into());
+            }
+        }
+        None => {
+            return Err(format!("Config for {} not found: expected {}", key, value).into());
+        }
+    };
+    Ok(())
+}
+
+/// Checks the stored data dir configuration, read through `get`, against `config`.
+fn check_settings(
+    config: &Brc20ProgConfig,
+    get: impl Fn(&str) -> Result<Option<String>, Box<dyn Error>>,
+) -> Result<(), Box<dyn Error>> {
+    let checks = [
+        (DB_VERSION_KEY.as_str(), DB_VERSION.to_string()),
+        (PROTOCOL_VERSION_KEY.as_str(), PROTOCOL_VERSION.to_string()),
+        (
+            BITCOIN_RPC_NETWORK_KEY.as_str(),
+            config.bitcoin_rpc_network.clone(),
+        ),
+        (
+            EVM_RECORD_TRACES_KEY.as_str(),
+            config.evm_record_traces.to_string(),
+        ),
+    ];
+    for (key, value) in checks {
+        check_value(key, &value, get(key)?)?;
+    }
+    Ok(())
+}
+
+/// Checks the configuration of a data dir in the per-database layout before it migrates, reading
+/// its `config` database without modifying it. A data dir without one fails like an empty
+/// configuration.
+fn check_per_database_settings(
+    config: &Brc20ProgConfig,
+    db_path: &Path,
+) -> Result<(), Box<dyn Error>> {
+    let config_path = db_path.join("config");
+    if !config_path.is_dir() {
+        return check_settings(config, |_| Ok(None));
+    }
+    let old_config = store::open_per_database_dir(&config_path)?;
+    check_settings(config, |key| {
+        Ok(old_config
+            .get(key.to_string().encode_vec())?
+            .and_then(|value| String::decode_vec(&value).ok()))
+    })
 }
 
 pub fn validate_config_database(config: &Brc20ProgConfig) -> Result<(), Box<dyn Error>> {
@@ -109,6 +156,11 @@ pub fn validate_config_database(config: &Brc20ProgConfig) -> Result<(), Box<dyn 
         .filter_map(|entry| entry.ok())
         .all(|entry| entry.file_name() == MIGRATING_DIR);
 
+    // A data dir about to migrate is checked first, so a mismatch leaves it untouched.
+    if !fresh_run && store::needs_migration(db_path) {
+        check_per_database_settings(config, db_path)?;
+    }
+
     let mut config_database = ConfigDatabase::new(store::open(db_path)?, "config")?;
     if fresh_run {
         config_database.set(DB_VERSION_KEY.clone(), DB_VERSION.to_string())?;
@@ -123,13 +175,7 @@ pub fn validate_config_database(config: &Brc20ProgConfig) -> Result<(), Box<dyn 
         )?;
         config_database.commit()?;
     } else {
-        config_database.validate(&*DB_VERSION_KEY, &DB_VERSION.to_string())?;
-        config_database.validate(&*PROTOCOL_VERSION_KEY, &PROTOCOL_VERSION.to_string())?;
-        config_database.validate(&*BITCOIN_RPC_NETWORK_KEY, &config.bitcoin_rpc_network)?;
-        config_database.validate(
-            &*EVM_RECORD_TRACES_KEY,
-            &config.evm_record_traces.to_string(),
-        )?;
+        check_settings(config, |key| config_database.get(key.to_string()))?;
     }
     Ok(())
 }
@@ -139,6 +185,7 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
+    use crate::db::store::test_hooks::{copy_dir, file_tree, fixture_path};
 
     #[test]
     fn test_config_database() {
@@ -200,6 +247,54 @@ mod tests {
         db.set("key".to_string(), "value".to_string()).unwrap();
         let result = db.validate("key", "value2");
         assert!(result.is_err());
+    }
+
+    fn fixture_config(path: &Path, network: &str) -> Brc20ProgConfig {
+        // The v0.16.6 fixture was written for mainnet with traces recorded.
+        Brc20ProgConfig {
+            db_path: path.to_str().unwrap().to_string(),
+            bitcoin_rpc_network: network.to_string(),
+            evm_record_traces: true,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_mismatched_config_fails_before_migrating() {
+        let temp = TempDir::new().unwrap();
+        copy_dir(&fixture_path(), temp.path());
+
+        let error = validate_config_database(&fixture_config(temp.path(), "signet"))
+            .err()
+            .unwrap()
+            .to_string();
+        assert_eq!(
+            error,
+            "Config for BITCOIN_RPC_NETWORK mismatch: expected signet, found bitcoin"
+        );
+        assert_eq!(file_tree(temp.path()), file_tree(&fixture_path()));
+        assert!(!temp.path().join(store::ENGINE_DIR).exists());
+        assert!(!temp.path().join(MIGRATING_DIR).exists());
+
+        validate_config_database(&fixture_config(temp.path(), "bitcoin")).unwrap();
+        assert!(temp.path().join(store::ENGINE_DIR).exists());
+        assert!(!temp.path().join("config").exists());
+    }
+
+    #[test]
+    fn test_per_database_dir_without_config_fails_before_migrating() {
+        let temp = TempDir::new().unwrap();
+        copy_dir(&fixture_path(), temp.path());
+        std::fs::remove_dir_all(temp.path().join("config")).unwrap();
+        let before = file_tree(temp.path());
+
+        let error = validate_config_database(&fixture_config(temp.path(), "bitcoin"))
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(error.contains("not found"), "{}", error);
+        assert_eq!(file_tree(temp.path()), before);
+        assert!(!temp.path().join(store::ENGINE_DIR).exists());
     }
 
     #[test]

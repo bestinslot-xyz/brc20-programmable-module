@@ -40,15 +40,16 @@ The data dir at `BRC20_PROG_DB_PATH` holds one RocksDB at `<data dir>/engine`. E
 
 Releases up to v0.16.6 store each database in its own RocksDB directory directly under the data dir. The first open of such a data dir migrates it, inside `Brc20Prog::open` or at server startup:
 
-1. It checks that the free disk space is at least the size of the existing databases, and stops with an error naming both sizes otherwise.
-2. It copies every database into its column family of a new store in `<data dir>/engine.migrating`, in bounded batches, logging progress per column family.
-3. It compares every column family with its source by key count and a digest over all key-value pairs, then writes `storage_version`.
-4. It renames `engine.migrating` to `engine`.
-5. It deletes the per-database directories.
+1. It reads the old `config` database read-only and checks it against the configuration (`DB_VERSION`, protocol version, `BITCOIN_RPC_NETWORK`, `EVM_RECORD_TRACES`), the same check every start runs. A mismatch stops the start with that check's error and leaves the data dir as it was.
+2. It checks that the free disk space is at least the size of the existing databases, and stops with an error naming both sizes otherwise.
+3. It copies every database into its column family of a new store in `<data dir>/engine.migrating`, in bounded batches, logging progress per column family.
+4. It compares every column family with its source by key count and a digest over all key-value pairs, records the names of the directories it copied in the `meta` column family under `migrated_from`, then writes `storage_version`.
+5. It renames `engine.migrating` to `engine`.
+6. It deletes the directories listed in `migrated_from`, then the list.
 
-The existing databases stay untouched until step 4, so an interrupted migration starts over on the next open, from a fresh `engine.migrating`. If the process stops during step 5, the next open finishes the deletion. The migration needs free space about equal to the current data dir and runs once; on the 760 MB signet data dir it takes about 11 seconds.
+The existing databases stay byte-identical until step 5, so an interrupted migration starts over on the next open, from a fresh `engine.migrating`. If the process stops during step 6, the next open finishes the deletion from the list. Directories not on the list, including database-named ones created later, are left alone. The migration needs free space about equal to the current data dir and runs once; on the 760 MB signet data dir it takes about 11 seconds.
 
-A migrated data dir cannot be opened by v0.16.6 or earlier. A store with a `storage_version` newer than the running release fails to open, with an error that names the version.
+A migrated data dir cannot be opened by v0.16.6 or earlier. Such a release fails with `Config for DB_VERSION not found` and leaves an empty `config` database next to `engine`; the next open of this release removes it with a log line, and leaves a non-empty `config` directory in place with a warning. A store with a `storage_version` newer than the running release fails to open, with an error that names the version.
 
 ## Command-line options
 

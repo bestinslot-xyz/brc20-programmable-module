@@ -9,10 +9,11 @@
 //!
 //! A data dir in the per-database layout (one RocksDB directory per database name) migrates
 //! into this layout the first time it is opened. The migration builds the store in
-//! `<data dir>/engine.migrating`, verifies every column family against its source, writes
-//! `storage_version`, renames the directory to `engine`, and then deletes the source
-//! directories. The source directories stay untouched until the rename, so an interrupted
-//! migration restarts from scratch on the next open, and an interrupted cleanup finishes on it.
+//! `<data dir>/engine.migrating`, verifies every column family against its source, records the
+//! source directories in `meta` under `migrated_from`, writes `storage_version`, renames the
+//! directory to `engine`, and then deletes the listed source directories and the list. The
+//! source directories stay untouched until the rename, so an interrupted migration restarts from
+//! scratch on the next open, and an interrupted cleanup finishes from the list on it.
 
 use std::error::Error;
 use std::fs;
@@ -37,6 +38,13 @@ pub(crate) const META_CF: &str = "meta";
 
 /// Key of the storage format version in [`META_CF`].
 const STORAGE_VERSION_KEY: &[u8] = b"storage_version";
+
+/// Key in [`META_CF`] listing the per-database directories a migration consumed, one name per
+/// line, present until the cleanup has deleted them.
+const MIGRATED_FROM_KEY: &[u8] = b"migrated_from";
+
+/// Directory under the system temp dir for the info logs of read-only opens.
+const READ_ONLY_LOG_DIR: &str = "brc20-prog-read-only-logs";
 
 /// Storage format version this build reads and writes.
 pub(crate) const STORAGE_VERSION: u32 = 2;
@@ -139,7 +147,8 @@ pub(crate) enum FailPoint {
 pub(crate) mod test_hooks {
     use std::cell::Cell;
     use std::collections::BTreeMap;
-    use std::path::Path;
+    use std::fs;
+    use std::path::{Path, PathBuf};
 
     use rocksdb::{IteratorMode, DB};
 
@@ -147,6 +156,49 @@ pub(crate) mod test_hooks {
 
     /// Every key-value pair of every database, by database name, in iteration order.
     pub(crate) type StoreDump = BTreeMap<String, Vec<(Vec<u8>, Vec<u8>)>>;
+
+    /// A data dir written by brc20-prog v0.16.6, the last release with the per-database layout:
+    /// the mainnet consensus fixture workload, committed.
+    pub(crate) fn fixture_path() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/v0_16_6_mainnet_db")
+    }
+
+    pub(crate) fn copy_dir(from: &Path, to: &Path) {
+        fs::create_dir_all(to).unwrap();
+        for entry in fs::read_dir(from).unwrap() {
+            let entry = entry.unwrap();
+            let target = to.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy_dir(&entry.path(), &target);
+            } else {
+                fs::copy(entry.path(), &target).unwrap();
+            }
+        }
+    }
+
+    /// Every file under the per-database directories of `base_path` with its bytes, by path
+    /// relative to `base_path`.
+    pub(crate) fn file_tree(base_path: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
+        fn walk(root: &Path, dir: &Path, files: &mut BTreeMap<PathBuf, Vec<u8>>) {
+            for entry in fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    walk(root, &path, files);
+                } else {
+                    let relative = path.strip_prefix(root).unwrap().to_path_buf();
+                    files.insert(relative, fs::read(&path).unwrap());
+                }
+            }
+        }
+        let mut files = BTreeMap::new();
+        for name in database_names() {
+            let path = base_path.join(&name);
+            if path.is_dir() {
+                walk(base_path, &path, &mut files);
+            }
+        }
+        files
+    }
 
     /// Contents of every database column family of an engine store.
     pub(crate) fn dump_store(db: &DB) -> StoreDump {
@@ -293,8 +345,9 @@ fn write_storage_version(db: &DB) -> Result<(), Box<dyn Error>> {
 /// Opens the engine store of the data dir at `base_path`.
 ///
 /// A data dir with neither layout gets a fresh store. A data dir in the per-database layout
-/// migrates first. Source directories left over from an interrupted cleanup are deleted once the
-/// store has opened.
+/// migrates first. Once the store has opened, the source directories still listed in its
+/// `migrated_from` are deleted, which finishes an interrupted cleanup, and an empty `config`
+/// directory left by an earlier release is removed.
 ///
 /// Fails if the store's `storage_version` is missing or not one this build reads, or if a
 /// migration is needed and cannot complete.
@@ -343,8 +396,14 @@ pub(crate) fn open(base_path: &Path) -> Result<Arc<DB>, Box<dyn Error>> {
         }
     }
 
-    remove_per_database_dirs(base_path)?;
+    remove_migrated_dirs(base_path, &db)?;
+    remove_stray_config_dir(base_path)?;
     Ok(Arc::new(db))
+}
+
+/// Whether opening the data dir at `base_path` migrates it from the per-database layout.
+pub(crate) fn needs_migration(base_path: &Path) -> bool {
+    !base_path.join(ENGINE_DIR).exists() && !per_database_dirs(base_path).is_empty()
 }
 
 /// Directories of the per-database layout present in the data dir.
@@ -465,9 +524,16 @@ impl Digest {
 }
 
 /// Opens a database directory of the per-database layout without modifying it.
+///
+/// RocksDB writes its info log to a directory under the system temp dir instead of `path`, so
+/// the directory stays byte-identical.
 pub(crate) fn open_per_database_dir(path: &Path) -> Result<DB, Box<dyn Error>> {
+    let log_dir = std::env::temp_dir().join(READ_ONLY_LOG_DIR);
+    fs::create_dir_all(&log_dir)?;
     let mut opts = Options::default();
     opts.set_max_open_files(256);
+    opts.set_db_log_dir(&log_dir);
+    opts.set_keep_log_file_num(1);
     Ok(DB::open_for_read_only(&opts, path, false)?)
 }
 
@@ -581,6 +647,13 @@ fn migrate(base_path: &Path, sources: &[String]) -> Result<(), Box<dyn Error>> {
         }
         info!("Verified every column family against its source");
 
+        // The cleanup deletes exactly these directories, even when a later open finishes it.
+        db.put_cf(
+            column_family(&db, META_CF)?,
+            MIGRATED_FROM_KEY,
+            sources.join("\n"),
+        )?;
+
         fail_point(FailPoint::MigrationBeforeStorageVersion)?;
         write_storage_version(&db)?;
     }
@@ -597,19 +670,79 @@ fn migrate(base_path: &Path, sources: &[String]) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Deletes the per-database directories. Runs only once `engine` holds a complete store.
-fn remove_per_database_dirs(base_path: &Path) -> Result<(), Box<dyn Error>> {
+/// The per-database directories a migration consumed, recorded in [`META_CF`] until the cleanup
+/// has deleted them.
+fn read_migrated_from(db: &DB) -> Result<Option<Vec<String>>, Box<dyn Error>> {
+    let Some(bytes) = db.get_cf(column_family(db, META_CF)?, MIGRATED_FROM_KEY)? else {
+        return Ok(None);
+    };
+    let names = std::str::from_utf8(&bytes)
+        .map_err(|_| "The engine store has an unreadable migrated_from list")?
+        .split('\n')
+        .filter(|name| !name.is_empty())
+        .map(|name| name.to_string())
+        .collect::<Vec<_>>();
+    if let Some(unknown) = names.iter().find(|name| !database_names().contains(name)) {
+        return Err(format!(
+            "The engine store's migrated_from list names {}, which is not a database",
+            unknown
+        )
+        .into());
+    }
+    Ok(Some(names))
+}
+
+/// Deletes the per-database directories listed in `migrated_from`, then the list itself.
+///
+/// Runs only once `engine` holds a complete store, and finishes a cleanup an earlier open left
+/// unfinished. Directories not on the list are left alone.
+fn remove_migrated_dirs(base_path: &Path, db: &DB) -> Result<(), Box<dyn Error>> {
+    let Some(names) = read_migrated_from(db)? else {
+        return Ok(());
+    };
     let mut removed = 0;
-    for name in database_names() {
-        let path: PathBuf = base_path.join(&name);
+    for name in &names {
+        let path: PathBuf = base_path.join(name);
         if path.is_dir() {
             fs::remove_dir_all(&path)?;
             removed += 1;
             fail_point(FailPoint::CleanupAfterDeleting(removed))?;
         }
     }
-    if removed > 0 {
-        info!("Removed {} per-database directories", removed);
+    sync_dir(base_path);
+    db.delete_cf(column_family(db, META_CF)?, MIGRATED_FROM_KEY)?;
+    info!(
+        "Removed {} per-database directories the migration consumed",
+        removed
+    );
+    Ok(())
+}
+
+/// Handles a `config` directory next to a complete `engine`, which an earlier release creates
+/// when it fails to open a migrated data dir. An empty one (no files, or a RocksDB without keys)
+/// is removed; any other is left in place with a warning.
+fn remove_stray_config_dir(base_path: &Path) -> Result<(), Box<dyn Error>> {
+    let path = base_path.join("config");
+    if !path.is_dir() {
+        return Ok(());
+    }
+    let empty = fs::read_dir(&path)?.next().is_none()
+        || open_per_database_dir(&path)
+            .map(|db| db.iterator(IteratorMode::Start).next().is_none())
+            .unwrap_or(false);
+    if empty {
+        fs::remove_dir_all(&path)?;
+        info!(
+            "Removed {}, an empty config database next to the engine store, as created by an \
+             earlier brc20-prog that cannot open this data dir",
+            path.display()
+        );
+    } else {
+        warn!(
+            "{} is next to the engine store and is not empty; leaving it in place. The engine \
+             keeps its configuration in the engine store and does not read this directory.",
+            path.display()
+        );
     }
     Ok(())
 }
@@ -618,33 +751,20 @@ fn remove_per_database_dirs(base_path: &Path) -> Result<(), Box<dyn Error>> {
 mod tests {
     use tempfile::TempDir;
 
-    use super::test_hooks::{self, dump_per_database_dirs, dump_store, StoreDump};
+    use super::test_hooks::{
+        self, copy_dir, dump_per_database_dirs, dump_store, file_tree, fixture_path, StoreDump,
+    };
     use super::*;
-
-    /// A data dir written by brc20-prog v0.16.6, the last release with the per-database layout:
-    /// the mainnet consensus fixture workload, committed.
-    fn fixture_path() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/v0_16_6_mainnet_db")
-    }
-
-    fn copy_dir(from: &Path, to: &Path) {
-        fs::create_dir_all(to).unwrap();
-        for entry in fs::read_dir(from).unwrap() {
-            let entry = entry.unwrap();
-            let target = to.join(entry.file_name());
-            if entry.file_type().unwrap().is_dir() {
-                copy_dir(&entry.path(), &target);
-            } else {
-                fs::copy(entry.path(), &target).unwrap();
-            }
-        }
-    }
 
     /// A copy of the v0.16.6 fixture and the contents it must migrate to.
     fn old_layout_data_dir() -> (TempDir, StoreDump) {
         let dir = TempDir::new().unwrap();
         copy_dir(&fixture_path(), dir.path());
         (dir, dump_per_database_dirs(&fixture_path()))
+    }
+
+    fn read_migrated_from_at(path: &Path) -> Option<Vec<String>> {
+        read_migrated_from(&open_with_column_families(&path.join(ENGINE_DIR)).unwrap()).unwrap()
     }
 
     fn entries(path: &Path) -> Vec<String> {
@@ -656,16 +776,19 @@ mod tests {
         names
     }
 
-    /// The data dir holds only the per-database directories, unchanged.
+    /// The data dir holds no `engine`, and its per-database directories are byte-identical to
+    /// the fixture's.
     fn assert_untouched(path: &Path, expected: &StoreDump) {
         assert!(!path.join(ENGINE_DIR).exists());
+        assert_eq!(file_tree(path), file_tree(&fixture_path()));
         assert_eq!(&dump_per_database_dirs(path), expected);
     }
 
-    /// The data dir holds only a migrated store with the expected contents.
+    /// The data dir holds only a migrated store with the expected contents and no pending cleanup.
     fn assert_migrated(path: &Path, expected: &StoreDump) {
         let db = open(path).unwrap();
         assert_eq!(read_storage_version(&db).unwrap(), Some(STORAGE_VERSION));
+        assert_eq!(read_migrated_from(&db).unwrap(), None);
         assert_eq!(&dump_store(&db), expected);
         assert_eq!(entries(path), vec![ENGINE_DIR.to_string()]);
     }
@@ -753,12 +876,13 @@ mod tests {
         assert!(dir.path().join(ENGINE_DIR).exists());
         assert!(!dir.path().join(MIGRATING_DIR).exists());
         assert_eq!(dump_per_database_dirs(dir.path()), expected);
+        assert_eq!(read_migrated_from_at(dir.path()), Some(database_names()));
 
         assert_migrated(dir.path(), &expected);
     }
 
     #[test]
-    fn test_cleanup_interrupted_midway_finishes_on_next_open() {
+    fn test_cleanup_interrupted_midway_finishes_from_the_list_on_next_open() {
         let count = database_names().len();
         for deleted in [1, count / 2, count - 1] {
             let (dir, expected) = old_layout_data_dir();
@@ -766,9 +890,82 @@ mod tests {
             assert!(open(dir.path()).is_err());
             test_hooks::disarm();
             assert_eq!(per_database_dirs(dir.path()).len(), count - deleted);
+            assert_eq!(read_migrated_from_at(dir.path()), Some(database_names()));
 
             assert_migrated(dir.path(), &expected);
         }
+    }
+
+    #[test]
+    fn test_cleanup_deletes_only_the_listed_dirs() {
+        // A data dir missing some databases migrates and lists only the ones it had.
+        let (dir, _) = old_layout_data_dir();
+        fs::remove_dir_all(dir.path().join("tx_trace_cache")).unwrap();
+        fs::create_dir_all(dir.path().join("notes")).unwrap();
+        fs::write(dir.path().join("notes/readme"), b"keep").unwrap();
+        test_hooks::arm(FailPoint::MigrationAfterRename);
+        assert!(open(dir.path()).is_err());
+        test_hooks::disarm();
+        let listed = read_migrated_from_at(dir.path()).unwrap();
+        assert_eq!(listed.len(), database_names().len() - 1);
+        assert!(!listed.contains(&"tx_trace_cache".to_string()));
+
+        // A database-named dir that appears after the migration is not on the list.
+        fs::create_dir_all(dir.path().join("tx_trace_cache")).unwrap();
+        fs::write(dir.path().join("tx_trace_cache/readme"), b"keep").unwrap();
+        drop(open(dir.path()).unwrap());
+        assert_eq!(
+            entries(dir.path()),
+            vec![
+                ENGINE_DIR.to_string(),
+                "notes".to_string(),
+                "tx_trace_cache".to_string()
+            ]
+        );
+
+        // With the list gone, later opens leave every dir alone.
+        fs::create_dir_all(dir.path().join("tx")).unwrap();
+        fs::write(dir.path().join("tx/readme"), b"keep").unwrap();
+        drop(open(dir.path()).unwrap());
+        assert_eq!(fs::read(dir.path().join("tx/readme")).unwrap(), b"keep");
+        assert_eq!(fs::read(dir.path().join("notes/readme")).unwrap(), b"keep");
+    }
+
+    #[test]
+    fn test_empty_config_dir_next_to_the_engine_is_removed() {
+        for kind in ["empty dir", "empty database"] {
+            let (dir, expected) = old_layout_data_dir();
+            drop(open(dir.path()).unwrap());
+            let config = dir.path().join("config");
+            if kind == "empty dir" {
+                fs::create_dir_all(&config).unwrap();
+            } else {
+                // What v0.16.6 leaves when it fails to open a migrated data dir.
+                let mut opts = Options::default();
+                opts.create_if_missing(true);
+                drop(DB::open(&opts, &config).unwrap());
+            }
+            assert_migrated(dir.path(), &expected);
+        }
+    }
+
+    #[test]
+    fn test_config_dir_with_data_next_to_the_engine_is_kept() {
+        let (dir, _) = old_layout_data_dir();
+        drop(open(dir.path()).unwrap());
+        let config = dir.path().join("config");
+        {
+            let mut opts = Options::default();
+            opts.create_if_missing(true);
+            DB::open(&opts, &config)
+                .unwrap()
+                .put(b"key", b"value")
+                .unwrap();
+        }
+        drop(open(dir.path()).unwrap());
+        assert!(config.is_dir());
+        let kept = open_per_database_dir(&config).unwrap();
+        assert_eq!(kept.get(b"key").unwrap().as_deref(), Some(&b"value"[..]));
     }
 
     #[test]
