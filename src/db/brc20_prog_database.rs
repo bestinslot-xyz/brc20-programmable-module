@@ -935,9 +935,10 @@ impl Brc20ProgDatabase {
             .expect(DB_MUTEX_ERROR)
             .commit()?;
 
-        let global_values = self.db_global_values.as_mut().expect(DB_MUTEX_ERROR);
-        global_values.flush()?;
-        global_values.write_synced(ROLLBACK_TARGET_KEY, None)?;
+        self.db_global_values
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .write_synced(ROLLBACK_TARGET_KEY, None)?;
 
         self.clear_caches()?;
         Ok(())

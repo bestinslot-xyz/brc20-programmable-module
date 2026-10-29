@@ -79,16 +79,14 @@ where
 
     /// Commit the cache to the database
     //
-    /// It writes all the values in the cache to the database
+    /// It writes all the values in the cache to the database with a synced WAL
     /// It does not clear the cache
     pub fn commit(&mut self) -> Result<(), Box<dyn Error>> {
         let mut batch = WriteBatch::default();
         for (key, value) in self.cache.iter() {
             batch.put(key.encode_vec(), value.encode_vec());
         }
-        write_batch(&self.db, batch, false)?;
-        self.db.flush()?;
-        Ok(())
+        write_batch(&self.db, batch, true)
     }
 
     /// Clear the cache
@@ -124,7 +122,7 @@ where
     /// Reorg the database
     //
     /// It deletes all the data that is not valid anymore, i.e. the data with block number greater than latest_valid_block_number
-    /// Make sure to call commit after calling this function to write the changes to the database
+    /// It writes the deletions with a synced WAL
     //
     /// latest_valid_block_number: u64 - the latest valid block number
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
@@ -138,7 +136,7 @@ where
                 current += 1;
             }
         }
-        write_batch(&self.db, batch, false)
+        write_batch(&self.db, batch, true)
     }
 }
 
