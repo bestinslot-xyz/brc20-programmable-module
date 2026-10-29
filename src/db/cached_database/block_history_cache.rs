@@ -21,9 +21,21 @@ where
     fn latest(&self) -> Option<V>;
     fn set(&mut self, block_number: u64, value: V);
     fn unset(&mut self, block_number: u64);
-    fn reorg(&mut self, latest_valid_block_number: u64);
+    fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), HistoryTooShort>;
     fn is_old(&self, block_number: u64) -> bool;
 }
+
+/// A reorg target older than every value a history keeps
+#[derive(Debug)]
+pub struct HistoryTooShort;
+
+impl std::fmt::Display for HistoryTooShort {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Reorg too deep for the stored history")
+    }
+}
+
+impl Error for HistoryTooShort {}
 
 impl<V> BlockHistoryCacheData<V>
 where
@@ -114,15 +126,17 @@ where
 
     /// Reorganize the cache, removing all values with block number greater than the latest valid block number
     ///
-    /// If the reorg is too deep, this will panic, so make sure the caller never passes a value too old here.
+    /// It fails, leaving the history unchanged, when no value is old enough to keep.
     ///
     /// latest_valid_block_number: U256 - the latest valid block number
-    fn reorg(&mut self, latest_valid_block_number: u64) {
+    fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), HistoryTooShort> {
+        let first = self.cache.keys().next();
+        if first.is_none_or(|&first| first > latest_valid_block_number) {
+            return Err(HistoryTooShort);
+        }
         self.cache
             .retain(|&key, _| key <= latest_valid_block_number);
-        if self.cache.is_empty() {
-            panic!("Reorg too deep. Please restart your indexer.");
-        }
+        Ok(())
     }
 
     /// Check if the cache is too old for a reorg at the latest block number
@@ -250,7 +264,7 @@ mod tests {
         cache.set(block_number2, value2.into());
         assert_eq!(cache.latest().unwrap(), value2.into());
 
-        cache.reorg(1);
+        cache.reorg(1).unwrap();
 
         assert_eq!(cache.latest().unwrap(), value.into());
     }
@@ -265,7 +279,7 @@ mod tests {
             assert_eq!(cache.latest().unwrap(), value.into());
         }
 
-        cache.reorg(5);
+        cache.reorg(5).unwrap();
 
         assert_eq!(cache.latest().unwrap(), U256::from(500).into());
     }
@@ -280,7 +294,7 @@ mod tests {
             assert_eq!(cache.latest().unwrap(), value.into());
         }
 
-        cache.reorg(0);
+        cache.reorg(0).unwrap();
 
         assert!(cache.latest().is_none());
     }
@@ -302,7 +316,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_reorg_too_old() {
         let mut cache = BlockHistoryCacheData::<U256ED>::new(None);
 
@@ -312,6 +325,7 @@ mod tests {
             assert_eq!(cache.latest().unwrap(), value.into());
         }
 
-        cache.reorg(0);
+        assert!(cache.reorg(0).is_err());
+        assert_eq!(cache.latest().unwrap(), U256::from(1100).into());
     }
 }

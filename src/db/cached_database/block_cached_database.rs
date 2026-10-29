@@ -232,7 +232,7 @@ where
         }
         for key in keys {
             let cache = self.retrieve_cache(&key)?;
-            cache.reorg(latest_valid_block_number);
+            cache.reorg(latest_valid_block_number)?;
         }
         self.commit(latest_valid_block_number)?;
         self.clear_cache();

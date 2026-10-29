@@ -276,25 +276,34 @@ fn reference_run(low: u64, high: u64) -> (Dump, Vec<(B256, Option<String>, Optio
     (dump_at(dir.path(), true), outputs)
 }
 
-#[test]
-fn test_commit_crash_after_every_write_rolls_back() {
-    // Blocks 0..=12 are committed, then blocks 13 and 14 go out in one commit. Holders first
-    // minted more than MAX_REORG_HISTORY_SIZE blocks back keep their history as old ones.
-    let (low, high) = (12, 14);
-    let twin_dir = TempDir::new().unwrap();
-    build(twin_dir.path(), low, low);
-    let twin = dump_at(twin_dir.path(), false);
+/// Copies the closed store at `from` into the empty directory `to`
+fn copy_store(from: &Path, to: &Path) {
+    for entry in std::fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            std::fs::create_dir(&target).unwrap();
+            copy_store(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
+
+/// Commits blocks `0..=low`, then crashes the commit of `low + 1..=high` after every write
+fn commit_kill_case(low: u64, high: u64) {
+    let base = TempDir::new().unwrap();
+    build(base.path(), low, low);
+    let twin = dump_at(base.path(), false);
     let reference = reference_run(low, high);
 
     let mut heights = Vec::new();
     for writes in 1.. {
         let dir = TempDir::new().unwrap();
+        copy_store(base.path(), dir.path());
         let engine = open_engine(dir.path());
-        for n in 0..=high {
+        for n in low + 1..=high {
             execute_block(&engine, n);
-            if n == low {
-                engine.commit_to_db().unwrap();
-            }
         }
         if !crash_after(writes, || engine.commit_to_db()) {
             break;
@@ -311,6 +320,19 @@ fn test_commit_crash_after_every_write_rolls_back() {
 }
 
 #[test]
+fn test_commit_crash_after_every_write_rolls_back() {
+    // Holders first minted more than MAX_REORG_HISTORY_SIZE blocks back keep their history as
+    // old ones
+    commit_kill_case(12, 14);
+}
+
+#[test]
+fn test_commit_of_ten_blocks_crash_after_every_write_rolls_back() {
+    // The deepest commit the reorg history can undo
+    commit_kill_case(12, 12 + MAX_REORG_HISTORY_SIZE);
+}
+
+#[test]
 fn test_reorg_crash_after_every_write_rolls_back() {
     // The reorg undoes blocks 13..=15, whose new keys have a history old enough to delete
     let (low, high) = (12, 15);
@@ -318,11 +340,13 @@ fn test_reorg_crash_after_every_write_rolls_back() {
     build(twin_dir.path(), low, low);
     let twin = dump_at(twin_dir.path(), false);
     let reference = reference_run(low, high);
+    let base = TempDir::new().unwrap();
+    build(base.path(), low + 1, high);
 
     let mut crashes = 0;
     for writes in 1.. {
         let dir = TempDir::new().unwrap();
-        build(dir.path(), low + 1, high);
+        copy_store(base.path(), dir.path());
         let engine = open_engine(dir.path());
         if !crash_after(writes, || engine.reorg(low)) {
             break;
@@ -336,6 +360,143 @@ fn test_reorg_crash_after_every_write_rolls_back() {
         );
     }
     assert!(crashes > 20);
+}
+
+#[test]
+fn test_reorg_above_the_committed_height_crash_rolls_back_to_it() {
+    // Blocks 0..=14 are committed and 15..=17 only executed, then the reorg keeps 15 and 16
+    let (committed, target, high) = (14, 16, 17);
+    let base = TempDir::new().unwrap();
+    build(base.path(), committed, committed);
+    let twin = dump_at(base.path(), false);
+    let reference = reference_run(committed, high);
+    let target_dir = TempDir::new().unwrap();
+    build(target_dir.path(), target, target);
+    let at_target = dump_at(target_dir.path(), false);
+
+    let mut heights = Vec::new();
+    for writes in 1.. {
+        let dir = TempDir::new().unwrap();
+        copy_store(base.path(), dir.path());
+        let engine = open_engine(dir.path());
+        for n in committed + 1..=high {
+            execute_block(&engine, n);
+        }
+        if !crash_after(writes, || engine.reorg(target)) {
+            break;
+        }
+        drop(engine);
+        let db = Brc20ProgDatabase::new(dir.path()).unwrap();
+        let height = db.get_latest_block_height().unwrap();
+        heights.push(height);
+        if height == target {
+            // The finished reorg also wrote the traces of block 17, which reorgs keep
+            assert_same(&db.dump(false), &at_target);
+        } else {
+            drop(db);
+            check_recovered(dir.path(), committed, high, &twin, &reference);
+        }
+    }
+    assert_eq!(heights.pop().unwrap(), target);
+    assert!(heights.len() > 20);
+    assert!(heights.iter().all(|&h| h == committed));
+}
+
+#[test]
+fn test_crash_during_rollback_recovers_on_next_open() {
+    let (low, high) = (12, 14);
+    let twin_dir = TempDir::new().unwrap();
+    build(twin_dir.path(), low, low);
+    let twin = dump_at(twin_dir.path(), false);
+    let reference = reference_run(low, high);
+    let crashed = TempDir::new().unwrap();
+    copy_store(twin_dir.path(), crashed.path());
+    let engine = open_engine(crashed.path());
+    for n in low + 1..=high {
+        execute_block(&engine, n);
+    }
+    assert!(crash_after(15, || engine.commit_to_db()));
+    drop(engine);
+
+    let mut crashes = 0;
+    for writes in 1.. {
+        let dir = TempDir::new().unwrap();
+        copy_store(crashed.path(), dir.path());
+        if !crash_after(writes, || Brc20ProgDatabase::new(dir.path()).map(|_| ())) {
+            break;
+        }
+        crashes += 1;
+        assert_eq!(
+            check_recovered(dir.path(), low, high, &twin, &reference),
+            low
+        );
+    }
+    assert!(crashes > 20);
+}
+
+#[test]
+fn test_reorg_below_a_replaced_chain_errors_and_keeps_the_store() {
+    let dir = TempDir::new().unwrap();
+    build(dir.path(), 30, 30);
+    let engine = open_engine(dir.path());
+    engine.reorg(20).unwrap();
+    execute_block(&engine, 21);
+    engine.commit_to_db().unwrap();
+
+    // The histories were pruned against block 30, so they cannot reach block 11
+    let error = engine.reorg(11).err().unwrap().to_string();
+    assert!(error.contains("too far behind"), "{}", error);
+    drop(engine);
+
+    let db = Brc20ProgDatabase::new(dir.path()).unwrap();
+    assert!(!db.has_marker());
+    assert_eq!(db.get_latest_block_height().unwrap(), 21);
+}
+
+#[test]
+fn test_history_too_short_for_the_rollback_wipes_the_store() {
+    let dir = TempDir::new().unwrap();
+    build(dir.path(), 30, 30);
+    let engine = open_engine(dir.path());
+    engine.reorg(20).unwrap();
+    execute_block(&engine, 21);
+    engine.commit_to_db().unwrap();
+    drop(engine);
+
+    // An older version lowered the highest finalised block on replay, which let a reorg past
+    // the pruned history through the depth check
+    let mut db = Brc20ProgDatabase::new(dir.path()).unwrap();
+    let global = db.db_global_values.as_mut().unwrap();
+    global
+        .set(MAX_BLOCK_NUMBER_KEY.to_string(), "21".to_string())
+        .unwrap();
+    let error = db.reorg(11).err().unwrap();
+    assert!(error.is::<HistoryTooShort>(), "{}", error);
+    assert!(db.has_marker());
+    drop(db);
+
+    assert_wiped_and_working(dir.path());
+}
+
+#[test]
+fn test_failed_commit_blocks_later_writes_until_reopen() {
+    let dir = TempDir::new().unwrap();
+    build(dir.path(), 12, 12);
+    let engine = open_engine(dir.path());
+    for n in 13..=14 {
+        execute_block(&engine, n);
+    }
+    assert!(crash_after(10, || engine.commit_to_db()));
+
+    for error in [engine.commit_to_db(), engine.reorg(12)] {
+        let error = error.err().unwrap().to_string();
+        assert!(error.contains("reopen the database"), "{}", error);
+    }
+    drop(engine);
+
+    let db = Brc20ProgDatabase::new(dir.path()).unwrap();
+    assert!(!db.has_marker());
+    assert_eq!(db.get_latest_block_height().unwrap(), 12);
 }
 
 #[test]
@@ -440,6 +601,25 @@ fn test_wipe_keeps_files_it_does_not_own() {
         std::fs::read_to_string(dir.path().join("notes.txt")).unwrap(),
         "keep"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn test_wipe_stops_at_a_symlinked_database() {
+    let dir = TempDir::new().unwrap();
+    let elsewhere = TempDir::new().unwrap();
+    interrupt_first_commit(dir.path());
+    let linked = elsewhere.path().join("account");
+    std::fs::rename(dir.path().join("account"), &linked).unwrap();
+    std::os::unix::fs::symlink(&linked, dir.path().join("account")).unwrap();
+
+    let error = Brc20ProgDatabase::new(dir.path())
+        .err()
+        .unwrap()
+        .to_string();
+    assert!(error.contains("symbolic link"), "{}", error);
+    assert!(linked.join("CURRENT").exists());
+    assert!(dir.path().join("code").exists());
 }
 
 #[test]

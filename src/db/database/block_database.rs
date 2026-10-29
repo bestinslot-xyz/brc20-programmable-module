@@ -39,6 +39,9 @@ where
         let mut opts = Options::default();
         opts.create_if_missing(true);
         opts.set_max_open_files(256);
+        // Commits sync the WAL without flushing, so a small memtable bounds the memory and the
+        // WAL replayed at open
+        opts.set_write_buffer_size(8 << 20);
         let db = DB::open(&opts, &path.join(Path::new(name)))?;
         Ok(Self {
             db,

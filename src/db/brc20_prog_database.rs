@@ -13,7 +13,7 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use serde_either::SingleOrVec;
 
-use crate::db::cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
+use crate::db::cached_database::{BlockCachedDatabase, BlockHistoryCacheData, HistoryTooShort};
 use crate::db::database::BlockDatabase;
 use crate::engine::get_tx_logs;
 use crate::db::types::{
@@ -133,6 +133,9 @@ pub struct Brc20ProgDatabase {
 
     /// Cache for latest block number and block hash
     latest_block_number: Option<(u64, B256)>,
+
+    /// Set from marking a rollback target until the write it guards clears the marker
+    rollback_pending: bool,
 }
 
 impl Default for Brc20ProgDatabase {
@@ -155,6 +158,7 @@ impl Default for Brc20ProgDatabase {
             db_block_hash_to_number: None,
             db_global_values: None,
             latest_block_number: None,
+            rollback_pending: false,
         }
     }
 }
@@ -171,7 +175,11 @@ impl Brc20ProgDatabase {
             return Self::open(base_path, global);
         };
         let target = match marker.parse::<u64>() {
-            Ok(target) if max_block_number(&global)? <= target + MAX_REORG_HISTORY_SIZE => target,
+            Ok(target)
+                if max_block_number(&global)? <= target.saturating_add(MAX_REORG_HISTORY_SIZE) =>
+            {
+                target
+            }
             Ok(_) => {
                 let reason = "the interrupted write spans more blocks than the reorg history holds";
                 return Self::wipe(base_path, global, &marker, reason);
@@ -193,9 +201,17 @@ impl Brc20ProgDatabase {
             base_path.display(),
             target
         );
-        db.reorg(target)
-            .map_err(|e| format!("Rolling back to block {} failed: {}", target, e))?;
-        Ok(db)
+        match db.reorg(target) {
+            Ok(()) => Ok(db),
+            // Only a store pruned by an older version can lack the history, and every open
+            // would fail the same way, so the store is rebuilt instead
+            Err(e) if e.is::<HistoryTooShort>() => {
+                let global = db.db_global_values.take().expect(DB_MUTEX_ERROR);
+                drop(db);
+                Self::wipe(base_path, global, &marker, &e.to_string())
+            }
+            Err(e) => Err(format!("Rolling back to block {} failed: {}", target, e).into()),
+        }
     }
 
     /// Deletes every database under `base_path` except `global`, then clears `global`, leaving
@@ -213,6 +229,19 @@ impl Brc20ProgDatabase {
             marked_height,
             reason
         );
+        // Removing a symbolic link would leave its database's data in place, so a link stops
+        // the wipe before anything is deleted
+        for name in DATABASE_DIRS {
+            let path = base_path.join(name);
+            if std::fs::symlink_metadata(&path).is_ok_and(|meta| meta.file_type().is_symlink()) {
+                tracing::warn!("Not wiping {}: it is a symbolic link", path.display());
+                return Err(format!(
+                    "{} is a symbolic link, empty the directory it points to and remove the link",
+                    path.display()
+                )
+                .into());
+            }
+        }
         global.write_synced(ROLLBACK_TARGET_KEY, Some(WIPE_MARKER))?;
         for name in DATABASE_DIRS {
             match std::fs::remove_dir_all(base_path.join(name)) {
@@ -269,6 +298,7 @@ impl Brc20ProgDatabase {
             db_block_number_to_hash: Some(BlockDatabase::new(&base_path, "block_number_to_hash")?),
             db_global_values: Some(global),
             latest_block_number: None,
+            rollback_pending: false,
         })
     }
 
@@ -281,6 +311,7 @@ impl Brc20ProgDatabase {
             .expect(DB_MUTEX_ERROR)
             .last_committed_key()?
             .map_or(String::new(), |height| height.min(limit).to_string());
+        self.rollback_pending = true;
         self.db_global_values
             .as_mut()
             .expect(DB_MUTEX_ERROR)
@@ -930,6 +961,7 @@ impl Brc20ProgDatabase {
         block_number: u64,
         block_hash: B256,
     ) -> Result<(), Box<dyn Error>> {
+        self.require_no_pending_rollback()?;
         self.require_block_does_not_exist(block_hash, block_number)?;
 
         if self.latest_block_number.is_none()
@@ -938,10 +970,12 @@ impl Brc20ProgDatabase {
             self.latest_block_number = Some((block_number, block_hash));
         }
 
-        self.db_global_values
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .set(MAX_BLOCK_NUMBER_KEY.to_string(), block_number.to_string())?;
+        // Only ever raised: the histories are pruned against the highest block they saw, so a
+        // reorg must stay within reach of it even after a lower chain replaces it
+        let global_values = self.db_global_values.as_mut().expect(DB_MUTEX_ERROR);
+        if block_number > max_block_number(global_values)? {
+            global_values.set(MAX_BLOCK_NUMBER_KEY.to_string(), block_number.to_string())?;
+        }
 
         self.db_block_number_to_hash
             .as_mut()
@@ -959,6 +993,20 @@ impl Brc20ProgDatabase {
     /// the reported height covers only written state. The rollback marker is set before the
     /// first write and cleared once every write is durable.
     pub fn commit_changes(&mut self) -> Result<(), Box<dyn Error>> {
+        self.require_no_pending_rollback()?;
+        self.write_changes()
+    }
+
+    /// Fails while a commit or reorg in this process stopped partway, leaving its marker for
+    /// `new` to roll back
+    fn require_no_pending_rollback(&self) -> Result<(), Box<dyn Error>> {
+        if self.rollback_pending {
+            return Err("an earlier write failed; reopen the database to roll it back".into());
+        }
+        Ok(())
+    }
+
+    fn write_changes(&mut self) -> Result<(), Box<dyn Error>> {
         let next_block = self.get_next_block_height()?;
 
         self.mark_rollback_target(u64::MAX)?;
@@ -1028,6 +1076,7 @@ impl Brc20ProgDatabase {
             .as_mut()
             .expect(DB_MUTEX_ERROR)
             .write_synced(ROLLBACK_TARGET_KEY, None)?;
+        self.rollback_pending = false;
 
         self.clear_caches()?;
         Ok(())
@@ -1094,6 +1143,7 @@ impl Brc20ProgDatabase {
     }
 
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
+        self.require_no_pending_rollback()?;
         let max_global_block_number =
             max_block_number(self.db_global_values.as_ref().expect(DB_MUTEX_ERROR))?;
 
@@ -1171,7 +1221,7 @@ impl Brc20ProgDatabase {
             .expect(DB_MUTEX_ERROR)
             .reorg(latest_valid_block_number)?;
 
-        Ok(self.commit_changes()?)
+        self.write_changes()
     }
 }
 
