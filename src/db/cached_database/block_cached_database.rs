@@ -3,10 +3,11 @@ use std::error::Error;
 use std::hash::Hash;
 use std::path::Path;
 
-use rocksdb::{IteratorMode, Options, DB};
+use rocksdb::{IteratorMode, Options, WriteBatch, DB};
 
 use crate::db::cached_database::BlockHistoryCache;
 use crate::db::types::{Decode, Encode};
+use crate::db::write_batch;
 
 // Database to store data that is mapped to a block number with a history cache
 //
@@ -174,23 +175,31 @@ where
     ///
     /// It writes all the values in the cache to the database and clears the cache
     ///
+    /// It writes three synced batches: the histories, then the values, then the deletion of
+    /// histories too old to keep. A crash between them leaves every value it wrote undoable.
+    ///
     /// block_number: U256 - the block number to commit at
     pub fn commit(&mut self, block_number: u64) -> Result<(), Box<dyn Error>> {
+        let mut histories = WriteBatch::default();
+        let mut values = WriteBatch::default();
+        let mut old_histories = WriteBatch::default();
         for (key, cache) in self.cache.iter() {
             let key_bytes = key.encode_vec();
-            let cache_bytes = cache.encode_vec();
             if cache.is_old(block_number) {
-                self.cache_db.delete(&key_bytes)?;
+                old_histories.delete(&key_bytes);
             } else {
-                self.cache_db.put(&key_bytes, &cache_bytes)?;
+                histories.put(&key_bytes, cache.encode_vec());
             }
 
             if let Some(value) = cache.latest() {
-                self.db.put(&key_bytes, &value.encode_vec())?;
+                values.put(&key_bytes, value.encode_vec());
             } else {
-                self.db.delete(&key_bytes)?;
+                values.delete(&key_bytes);
             }
         }
+        write_batch(&self.cache_db, histories, true)?;
+        write_batch(&self.db, values, true)?;
+        write_batch(&self.cache_db, old_histories, true)?;
 
         let keys_to_remove: Vec<K> = self
             .cache

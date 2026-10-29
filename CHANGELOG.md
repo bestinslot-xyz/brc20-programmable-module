@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+ - an interrupted commit or reorg is rolled back when the database next opens
+   * `brc20_commitToDatabase` and `brc20_reorg` record the height to fall back to in the
+     `global` database before their first write, and clear it once every write is synced.
+     Opening a database that still holds it reorgs back to that height, so a crash, kill or
+     power cut midway never leaves a block's height recorded without its state.
+   * Each database takes one batch per commit. The state databases go first, and
+     `block_number_to_hash`, which sets the reported height, goes last.
+   * Opening fails with an error when the first commit into an empty database was
+     interrupted, or when the interrupted commit spans more than 10 blocks.
+   * A commit syncs the WAL of every database it writes, 17 syncs for a signet block of
+     five deposits. The on-disk layout is unchanged.
  - a failed Bitcoin lookup fails a public call instead of panicking
    * A `BitcoinRpc` error during `eth_call`, `eth_callMany`, `eth_estimateGas`,
      `eth_estimateGasMany` or `brc20_balance` is retried once with no pause, and then

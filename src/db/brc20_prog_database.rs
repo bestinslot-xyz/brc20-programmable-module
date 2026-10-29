@@ -27,6 +27,9 @@ static DB_MUTEX_ERROR: &str = "Database mutex error";
 
 static MAX_BLOCK_NUMBER_KEY: &str = "max_block_number";
 
+/// Present while a commit or reorg is being written, holding the height to roll back to
+static ROLLBACK_TARGET_KEY: &str = "rollback_target";
+
 pub struct Brc20ProgDatabase {
     /// Account address to memory location
     /// TODO: If the value is zero, consider deleting it from the database to save space
@@ -115,10 +118,12 @@ impl Default for Brc20ProgDatabase {
 }
 
 impl Brc20ProgDatabase {
+    /// Opens the databases under `base_path`, first rolling back a commit or reorg that a crash
+    /// interrupted, to the height its marker names.
     pub fn new(base_path: &Path) -> Result<Self, Box<dyn Error>> {
         rlimit::Resource::NOFILE.set(4096, 8192)?;
 
-        Ok(Self {
+        let mut db = Self {
             db_account_memory: Some(BlockCachedDatabase::new(&base_path, "account_memory")?),
             db_code: Some(BlockCachedDatabase::new(&base_path, "code")?),
             db_account: Some(BlockCachedDatabase::new(&base_path, "account")?),
@@ -160,7 +165,37 @@ impl Brc20ProgDatabase {
             db_block_number_to_hash: Some(BlockDatabase::new(&base_path, "block_number_to_hash")?),
             db_global_values: Some(ConfigDatabase::new(&base_path, "global")?),
             latest_block_number: None,
-        })
+        };
+
+        let marker = db
+            .db_global_values
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .get(ROLLBACK_TARGET_KEY.to_string())?;
+        if let Some(target) = marker {
+            let target: u64 = target.parse().map_err(|_| {
+                "The first commit into this database was interrupted, delete the database directory and start again"
+            })?;
+            tracing::warn!("Rolling back an interrupted write to block {}", target);
+            db.reorg(target)
+                .map_err(|e| format!("Rolling back to block {} failed: {}", target, e))?;
+        }
+        Ok(db)
+    }
+
+    /// Durably records the height that `new` rolls back to if the process stops before
+    /// `commit_changes` clears it: `limit`, or the committed height when that is lower.
+    fn mark_rollback_target(&mut self, limit: u64) -> Result<(), Box<dyn Error>> {
+        let target = self
+            .db_block_number_to_hash
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .last_committed_key()?
+            .map_or(String::new(), |height| height.min(limit).to_string());
+        self.db_global_values
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .write_synced(ROLLBACK_TARGET_KEY, Some(&target))
     }
 
     pub fn get_latest_block_height(&self) -> Result<u64, Box<dyn Error>> {
@@ -831,25 +866,13 @@ impl Brc20ProgDatabase {
             .set(block_number, &block_hash.into(), block_number.into())?)
     }
 
+    /// Writes the cached changes, state first and the block number to hash database last, so
+    /// the reported height covers only written state. The rollback marker is set before the
+    /// first write and cleared once every write is durable.
     pub fn commit_changes(&mut self) -> Result<(), Box<dyn Error>> {
         let next_block = self.get_next_block_height()?;
 
-        self.db_global_values
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .flush()?;
-        self.db_block_number_to_hash
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit()?;
-        self.db_block_number_to_block
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit()?;
-        self.db_block_number_to_raw_block
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit()?;
+        self.mark_rollback_target(u64::MAX)?;
 
         self.db_number_and_index_to_tx_hash
             .as_mut()
@@ -899,6 +922,22 @@ impl Brc20ProgDatabase {
             .as_mut()
             .expect(DB_MUTEX_ERROR)
             .commit(next_block)?;
+        self.db_block_number_to_block
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .commit()?;
+        self.db_block_number_to_raw_block
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .commit()?;
+        self.db_block_number_to_hash
+            .as_mut()
+            .expect(DB_MUTEX_ERROR)
+            .commit()?;
+
+        let global_values = self.db_global_values.as_mut().expect(DB_MUTEX_ERROR);
+        global_values.flush()?;
+        global_values.write_synced(ROLLBACK_TARGET_KEY, None)?;
 
         self.clear_caches()?;
         Ok(())
@@ -980,6 +1019,10 @@ impl Brc20ProgDatabase {
             )
             .into());
         }
+
+        // A crash before `commit_changes` clears the marker leaves `new` to redo the reorg,
+        // which is idempotent
+        self.mark_rollback_target(latest_valid_block_number)?;
 
         self.db_account_memory
             .as_mut()
@@ -1137,6 +1180,10 @@ impl DatabaseCommit for Brc20ProgDatabase {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "crash_tests.rs"]
+mod crash_tests;
 
 /// Tests for all set and get methods
 #[cfg(test)]

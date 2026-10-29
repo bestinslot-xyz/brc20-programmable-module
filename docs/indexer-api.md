@@ -178,6 +178,11 @@ When `BRC20_PROG_ADMIN_RPC_SERVER_URL` is set, the indexer methods are served on
 
 - None
 
+> [!NOTE]
+> A commit or reorg that stops partway, from a crash, a kill or a power cut, is rolled back when the database next opens, to the last height whose commit finished. The indexer then reads that height with `eth_blockNumber` and replays the blocks after it. A finished commit is synced to disk before it returns.
+>
+> Opening the database fails with an error in the two cases the rollback cannot cover: the first commit into an empty database was interrupted (delete the database directory and start again), or the interrupted commit spans more blocks than the reorg history holds (10).
+
 <hr>
 
 ## Clear Caches
