@@ -4,9 +4,10 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
 
-use rocksdb::{Options, DB};
+use rocksdb::{Options, WriteBatch, DB};
 
 use crate::db::types::{Decode, Encode};
+use crate::db::write_batch;
 use crate::global::{
     Brc20ProgConfig, BITCOIN_RPC_NETWORK_KEY, DB_VERSION, DB_VERSION_KEY, EVM_RECORD_TRACES_KEY,
     PROTOCOL_VERSION, PROTOCOL_VERSION_KEY,
@@ -43,6 +44,22 @@ impl ConfigDatabase {
         self.db.put(&key.encode_vec(), &value.encode_vec())?;
         self.cache.insert(key, value);
         Ok(())
+    }
+
+    /// Writes each value under its key, or deletes the key for `None`, as one batch with a
+    /// synced WAL
+    pub fn write_synced(&mut self, entries: &[(&str, Option<&str>)]) -> Result<(), Box<dyn Error>> {
+        let mut batch = WriteBatch::default();
+        for (key, value) in entries {
+            match value {
+                Some(value) => {
+                    batch.put(key.to_string().encode_vec(), value.to_string().encode_vec())
+                }
+                None => batch.delete(key.to_string().encode_vec()),
+            }
+            self.cache.remove(*key);
+        }
+        write_batch(&self.db, batch, true)
     }
 
     pub fn flush(&self) -> Result<(), Box<dyn Error>> {

@@ -2,9 +2,10 @@ use std::collections::BTreeMap;
 use std::error::Error;
 use std::path::Path;
 
-use rocksdb::{IteratorMode, Options, DB};
+use rocksdb::{IteratorMode, Options, WriteBatch, DB};
 
 use crate::db::types::{Decode, Encode, U64ED};
+use crate::db::write_batch;
 
 /// Database to store data that is mapped to a block number
 ///
@@ -38,6 +39,9 @@ where
         let mut opts = Options::default();
         opts.create_if_missing(true);
         opts.set_max_open_files(256);
+        // Commits sync the WAL without flushing, so a small memtable bounds the memory and the
+        // WAL replayed at open
+        opts.set_write_buffer_size(8 << 20);
         let db = DB::open(&opts, &path.join(Path::new(name)))?;
         Ok(Self {
             db,
@@ -78,14 +82,14 @@ where
 
     /// Commit the cache to the database
     //
-    /// It writes all the values in the cache to the database
+    /// It writes all the values in the cache to the database with a synced WAL
     /// It does not clear the cache
     pub fn commit(&mut self) -> Result<(), Box<dyn Error>> {
+        let mut batch = WriteBatch::default();
         for (key, value) in self.cache.iter() {
-            self.db.put(&key.encode_vec(), &value.encode_vec())?;
+            batch.put(key.encode_vec(), value.encode_vec());
         }
-        self.db.flush()?;
-        Ok(())
+        write_batch(&self.db, batch, true)
     }
 
     /// Clear the cache
@@ -105,33 +109,37 @@ where
     //
     /// Returns: Option<u64> - the last key in the database
     pub fn last_key(&self) -> Result<Option<u64>, Box<dyn Error>> {
-        let db_last_key = match self.db.full_iterator(IteratorMode::End).take(1).last() {
-            Some(Ok((key, _))) => Some(U64ED::decode_vec(&key.to_vec())?.into()),
-            _ => None,
+        let cache_last_key = self.cache.keys().last().copied();
+
+        Ok(std::cmp::max(self.last_committed_key()?, cache_last_key))
+    }
+
+    /// Get the last key written to the database, ignoring the cache
+    pub fn last_committed_key(&self) -> Result<Option<u64>, Box<dyn Error>> {
+        let Some(Ok((key, _))) = self.db.full_iterator(IteratorMode::End).take(1).last() else {
+            return Ok(None);
         };
-
-        let cache_last_key = self.cache.keys().last().map(|key| *key);
-
-        Ok(std::cmp::max(db_last_key, cache_last_key))
+        Ok(Some(U64ED::decode_vec(&key.to_vec())?.into()))
     }
 
     /// Reorg the database
     //
     /// It deletes all the data that is not valid anymore, i.e. the data with block number greater than latest_valid_block_number
-    /// Make sure to call commit after calling this function to write the changes to the database
+    /// It writes the deletions with a synced WAL
     //
     /// latest_valid_block_number: u64 - the latest valid block number
     pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
         let mut current = latest_valid_block_number + 1;
         let last_block = self.last_key()?;
+        let mut batch = WriteBatch::default();
         if let Some(end) = last_block {
             while end >= current {
-                self.db.delete(&U64ED::from(current).encode_vec())?;
+                batch.delete(U64ED::from(current).encode_vec());
                 self.cache.remove(&current);
                 current += 1;
             }
         }
-        Ok(())
+        write_batch(&self.db, batch, true)
     }
 }
 

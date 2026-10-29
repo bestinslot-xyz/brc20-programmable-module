@@ -178,6 +178,15 @@ When `BRC20_PROG_ADMIN_RPC_SERVER_URL` is set, the indexer methods are served on
 
 - None
 
+> [!NOTE]
+> A commit or reorg that stops partway, from a crash, a kill or a power cut, is rolled back when the database next opens, to the last height whose commit finished. The indexer then reads that height with `eth_blockNumber` and replays the blocks after it. A finished commit is synced to disk before it returns.
+>
+> In the two cases the rollback cannot cover, opening the database wipes it instead and logs a warning naming the directory, the marked height and the reason: the first commit into an empty database was interrupted, or an interrupted commit or reorg has a target more than 10 blocks below the highest finalised block. The wipe deletes the module's own databases and keeps every other file in the directory. The module then reports an empty chain, and the indexer replays from its activation height. A wipe that is itself interrupted finishes on the next open. A database directory that is a symbolic link is emptied through the link, which stays, when it points to an empty directory or a RocksDB database. A link to anything else stops the wipe with an error before anything is deleted: empty the directory it points to and remove the link.
+>
+> A commit that spans more than 10 blocks, such as one after mining the empty blocks below the activation height, is wiped this way if it is interrupted, and those blocks are mined again.
+>
+> After a commit or reorg fails partway with an error, the process refuses every read and write except clearing caches with `an earlier write failed; reopen the database to roll it back`.
+
 <hr>
 
 ## Clear Caches
