@@ -78,12 +78,17 @@ async fn v0_16_6_data_dir_migrates_and_serves_the_consensus_fixture() {
     let pinned = snapshot.splitn(3, "---\n").nth(2).unwrap();
     assert_eq!(migrated_report.trim_end(), pinned.trim_end());
 
-    // Only the engine store is left, and each column family equals its v0.16.6 database.
-    let remaining: Vec<String> = fs::read_dir(data_dir.path())
+    // Only the engine store and its open lock are left, and each column family equals its
+    // v0.16.6 database.
+    let mut remaining: Vec<String> = fs::read_dir(data_dir.path())
         .unwrap()
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())
         .collect();
-    assert_eq!(remaining, vec!["engine".to_string()]);
+    remaining.sort();
+    assert_eq!(
+        remaining,
+        vec!["engine".to_string(), "engine.lock".to_string()]
+    );
 
     let engine_path = data_dir.path().join("engine");
     let column_families = DB::list_cf(&Options::default(), &engine_path).unwrap();

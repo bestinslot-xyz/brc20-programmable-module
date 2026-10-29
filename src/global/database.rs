@@ -5,9 +5,9 @@ use std::error::Error;
 use std::path::Path;
 use std::sync::Arc;
 
-use rocksdb::{WriteBatch, DB};
+use rocksdb::{WriteBatch, WriteOptions, DB};
 
-use crate::db::store::{self, column_family, MIGRATING_DIR};
+use crate::db::store::{self, column_family, LOCK_FILE, MIGRATING_DIR};
 use crate::db::types::{Decode, Encode};
 use crate::global::{
     Brc20ProgConfig, BITCOIN_RPC_NETWORK_KEY, DB_VERSION, DB_VERSION_KEY, EVM_RECORD_TRACES_KEY,
@@ -66,11 +66,13 @@ impl ConfigDatabase {
         self.pending.clear();
     }
 
-    /// Writes the pending values in their own batch.
+    /// Writes the pending values in their own batch, synced to disk.
     pub fn commit(&mut self) -> Result<(), Box<dyn Error>> {
         let mut batch = WriteBatch::default();
         self.stage_commit(&mut batch)?;
-        self.db.write(batch)?;
+        let mut write_opts = WriteOptions::default();
+        write_opts.set_sync(true);
+        self.db.write_opt(batch, &write_opts)?;
         self.clear_pending();
         Ok(())
     }
@@ -150,11 +152,11 @@ pub fn validate_config_database(config: &Brc20ProgConfig) -> Result<(), Box<dyn 
             return Err(format!("{} is not a directory", config.db_path).into());
         }
     }
-    // A store left half-built by an interrupted first start counts as no data.
+    // A store left half-built by an interrupted first start, and the open lock, count as no data.
     let fresh_run = db_path
         .read_dir()?
         .filter_map(|entry| entry.ok())
-        .all(|entry| entry.file_name() == MIGRATING_DIR);
+        .all(|entry| entry.file_name() == MIGRATING_DIR || entry.file_name() == LOCK_FILE);
 
     // A data dir about to migrate is checked first, so a mismatch leaves it untouched.
     if !fresh_run && store::needs_migration(db_path) {

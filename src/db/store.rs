@@ -43,8 +43,11 @@ const STORAGE_VERSION_KEY: &[u8] = b"storage_version";
 /// line, present until the cleanup has deleted them.
 const MIGRATED_FROM_KEY: &[u8] = b"migrated_from";
 
-/// Directory under the system temp dir for the info logs of read-only opens.
-const READ_ONLY_LOG_DIR: &str = "brc20-prog-read-only-logs";
+/// Lock file in the data dir, held while a process opens or migrates the store.
+pub(crate) const LOCK_FILE: &str = "engine.lock";
+
+/// Free space a migration needs, as a multiple of the source databases' size, in tenths.
+const MIGRATION_SPACE_TENTHS: u64 = 11;
 
 /// Storage format version this build reads and writes.
 pub(crate) const STORAGE_VERSION: u32 = 2;
@@ -179,17 +182,6 @@ pub(crate) mod test_hooks {
     /// Every file under the per-database directories of `base_path` with its bytes, by path
     /// relative to `base_path`.
     pub(crate) fn file_tree(base_path: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
-        fn walk(root: &Path, dir: &Path, files: &mut BTreeMap<PathBuf, Vec<u8>>) {
-            for entry in fs::read_dir(dir).unwrap() {
-                let path = entry.unwrap().path();
-                if path.is_dir() {
-                    walk(root, &path, files);
-                } else {
-                    let relative = path.strip_prefix(root).unwrap().to_path_buf();
-                    files.insert(relative, fs::read(&path).unwrap());
-                }
-            }
-        }
         let mut files = BTreeMap::new();
         for name in database_names() {
             let path = base_path.join(&name);
@@ -198,6 +190,25 @@ pub(crate) mod test_hooks {
             }
         }
         files
+    }
+
+    /// Every file under `path` with its bytes, by path relative to `path`.
+    pub(crate) fn dir_tree(path: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
+        let mut files = BTreeMap::new();
+        walk(path, path, &mut files);
+        files
+    }
+
+    fn walk(root: &Path, dir: &Path, files: &mut BTreeMap<PathBuf, Vec<u8>>) {
+        for entry in fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                walk(root, &path, files);
+            } else {
+                let relative = path.strip_prefix(root).unwrap().to_path_buf();
+                files.insert(relative, fs::read(&path).unwrap());
+            }
+        }
     }
 
     /// Contents of every database column family of an engine store.
@@ -349,10 +360,20 @@ fn write_storage_version(db: &DB) -> Result<(), Box<dyn Error>> {
 /// `migrated_from` are deleted, which finishes an interrupted cleanup, and an empty `config`
 /// directory left by an earlier release is removed.
 ///
-/// Fails if the store's `storage_version` is missing or not one this build reads, or if a
-/// migration is needed and cannot complete.
+/// The whole open runs under an exclusive lock on `<data dir>/engine.lock`, so a second process
+/// opening the same data dir fails instead of removing or racing a store being built.
+///
+/// Fails if another process is opening the data dir, if the store's `storage_version` is missing
+/// or not one this build reads, or if a migration is needed and cannot complete.
 pub(crate) fn open(base_path: &Path) -> Result<Arc<DB>, Box<dyn Error>> {
+    // A migration opens a RocksDB per source directory next to the store, so the limit goes up
+    // before anything is opened.
+    rlimit::Resource::NOFILE.set(4096, 8192)?;
     fs::create_dir_all(base_path)?;
+    // Held until the store is open; from then on RocksDB's own LOCK file guards it. Holding it
+    // longer would also block the next open in this process, since every open locks anew.
+    let _lock = lock_data_dir(base_path)?;
+
     let engine_path = base_path.join(ENGINE_DIR);
     if !engine_path.exists() {
         let sources = per_database_dirs(base_path);
@@ -364,8 +385,50 @@ pub(crate) fn open(base_path: &Path) -> Result<Arc<DB>, Box<dyn Error>> {
         }
     }
 
+    // Checked read-only first, so a store this build cannot read is never written.
+    check_storage_version(&engine_path)?;
     let db = open_with_column_families(&engine_path)?;
-    match read_storage_version(&db)? {
+    remove_migrated_dirs(base_path, &db)?;
+    remove_stray_config_dir(base_path)?;
+    warn_about_stray_dirs(base_path);
+    Ok(Arc::new(db))
+}
+
+/// Takes the exclusive, non-blocking lock on `<data dir>/engine.lock` (`flock` on unix). The lock
+/// is released when the returned file is dropped.
+fn lock_data_dir(base_path: &Path) -> Result<fs::File, Box<dyn Error>> {
+    let path = base_path.join(LOCK_FILE);
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&path)?;
+    match file.try_lock() {
+        Ok(()) => Ok(file),
+        Err(fs::TryLockError::WouldBlock) => Err(format!(
+            "Another brc20-prog is opening this data dir ({}); try again once it has started or \
+             stopped.",
+            base_path.display()
+        )
+        .into()),
+        Err(fs::TryLockError::Error(error)) => {
+            Err(format!("Cannot lock {}: {}", path.display(), error).into())
+        }
+    }
+}
+
+/// Reads the store's `storage_version` through a read-only open and fails unless this build
+/// reads it.
+fn check_storage_version(engine_path: &Path) -> Result<(), Box<dyn Error>> {
+    let opts = Options::default();
+    let names = DB::list_cf(&opts, engine_path)?;
+    let version = if names.iter().any(|name| name == META_CF) {
+        let db = DB::open_cf_for_read_only(&opts, engine_path, &names, false)?;
+        read_storage_version(&db)?
+    } else {
+        None
+    };
+    match version {
         Some(STORAGE_VERSION) => {}
         Some(version) if version > STORAGE_VERSION => {
             return Err(format!(
@@ -395,10 +458,7 @@ pub(crate) fn open(base_path: &Path) -> Result<Arc<DB>, Box<dyn Error>> {
             .into());
         }
     }
-
-    remove_migrated_dirs(base_path, &db)?;
-    remove_stray_config_dir(base_path)?;
-    Ok(Arc::new(db))
+    Ok(())
 }
 
 /// Whether opening the data dir at `base_path` migrates it from the per-database layout.
@@ -446,6 +506,8 @@ fn create_fresh(base_path: &Path) -> Result<(), Box<dyn Error>> {
 }
 
 /// Total size in bytes of the files under `path`.
+///
+/// RocksDB info logs (`LOG*`) are left out, since the migration does not copy them.
 fn dir_size(path: &Path) -> Result<u64, Box<dyn Error>> {
     let mut total = 0;
     for entry in fs::read_dir(path)? {
@@ -453,7 +515,7 @@ fn dir_size(path: &Path) -> Result<u64, Box<dyn Error>> {
         let metadata = entry.metadata()?;
         if metadata.is_dir() {
             total += dir_size(&entry.path())?;
-        } else {
+        } else if !entry.file_name().to_string_lossy().starts_with("LOG") {
             total += metadata.len();
         }
     }
@@ -525,15 +587,11 @@ impl Digest {
 
 /// Opens a database directory of the per-database layout without modifying it.
 ///
-/// RocksDB writes its info log to a directory under the system temp dir instead of `path`, so
-/// the directory stays byte-identical.
+/// A read-only open creates no info log and writes no file, so the directory stays
+/// byte-identical.
 pub(crate) fn open_per_database_dir(path: &Path) -> Result<DB, Box<dyn Error>> {
-    let log_dir = std::env::temp_dir().join(READ_ONLY_LOG_DIR);
-    fs::create_dir_all(&log_dir)?;
     let mut opts = Options::default();
     opts.set_max_open_files(256);
-    opts.set_db_log_dir(&log_dir);
-    opts.set_keep_log_file_num(1);
     Ok(DB::open_for_read_only(&opts, path, false)?)
 }
 
@@ -587,10 +645,13 @@ fn migrate(base_path: &Path, sources: &[String]) -> Result<(), Box<dyn Error>> {
     let started = Instant::now();
     let building = base_path.join(MIGRATING_DIR);
 
-    let mut needed = 0;
+    let mut source_size = 0;
     for name in sources {
-        needed += dir_size(&base_path.join(name))?;
+        source_size += dir_size(&base_path.join(name))?;
     }
+    // The copy is about the size of its sources; the margin covers RocksDB's own files and the
+    // memtables flushed during the copy.
+    let needed = source_size / 10 * MIGRATION_SPACE_TENTHS;
     match free_space(base_path)? {
         Some(available) if available < needed => {
             return Err(format!(
@@ -610,7 +671,7 @@ fn migrate(base_path: &Path, sources: &[String]) -> Result<(), Box<dyn Error>> {
     info!(
         "Migrating the engine data in {} ({} MB in {} databases) into {}",
         base_path.display(),
-        needed.div_ceil(1024 * 1024),
+        source_size.div_ceil(1024 * 1024),
         sources.len(),
         building.display()
     );
@@ -644,6 +705,7 @@ fn migrate(base_path: &Path, sources: &[String]) -> Result<(), Box<dyn Error>> {
                 )
                 .into());
             }
+            info!("Verified {}: {} keys", name, keys);
         }
         info!("Verified every column family against its source");
 
@@ -718,6 +780,24 @@ fn remove_migrated_dirs(base_path: &Path, db: &DB) -> Result<(), Box<dyn Error>>
     Ok(())
 }
 
+/// Warns about per-database directories next to a complete `engine` that no `migrated_from` list
+/// names. The engine does not read them, and they are left in place. A kept `config` directory has
+/// its own warning.
+fn warn_about_stray_dirs(base_path: &Path) {
+    let stray: Vec<String> = per_database_dirs(base_path)
+        .into_iter()
+        .filter(|name| name != "config")
+        .collect();
+    if !stray.is_empty() {
+        warn!(
+            "Leaving per-database directories next to the engine store in {} that no migration \
+             listed: {}. The engine does not read them.",
+            base_path.display(),
+            stray.join(", ")
+        );
+    }
+}
+
 /// Handles a `config` directory next to a complete `engine`, which an earlier release creates
 /// when it fails to open a migrated data dir. An empty one (no files, or a RocksDB without keys)
 /// is removed; any other is left in place with a warning.
@@ -752,7 +832,8 @@ mod tests {
     use tempfile::TempDir;
 
     use super::test_hooks::{
-        self, copy_dir, dump_per_database_dirs, dump_store, file_tree, fixture_path, StoreDump,
+        self, copy_dir, dir_tree, dump_per_database_dirs, dump_store, file_tree, fixture_path,
+        StoreDump,
     };
     use super::*;
 
@@ -767,10 +848,12 @@ mod tests {
         read_migrated_from(&open_with_column_families(&path.join(ENGINE_DIR)).unwrap()).unwrap()
     }
 
+    /// Entries of a data dir, without the lock file every open leaves behind.
     fn entries(path: &Path) -> Vec<String> {
         let mut names: Vec<String> = fs::read_dir(path)
             .unwrap()
             .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .filter(|name| name != LOCK_FILE)
             .collect();
         names.sort();
         names
@@ -1015,8 +1098,54 @@ mod tests {
             db.create_cf("added_by_a_newer_version", &Options::default())
                 .unwrap();
         }
+        let engine_path = dir.path().join(ENGINE_DIR);
+        let before = dir_tree(&engine_path);
         let error = open(dir.path()).err().unwrap().to_string();
         assert!(error.contains("newer brc20-prog"), "{}", error);
+        // The store is only read, never opened for writing.
+        assert_eq!(dir_tree(&engine_path), before);
+    }
+
+    #[test]
+    fn test_open_fails_while_another_process_holds_the_lock() {
+        let (dir, expected) = old_layout_data_dir();
+        let holder = lock_data_dir(dir.path()).unwrap();
+        let error = open(dir.path()).err().unwrap().to_string();
+        assert!(
+            error.contains("Another brc20-prog is opening this data dir"),
+            "{}",
+            error
+        );
+        assert!(!dir.path().join(MIGRATING_DIR).exists());
+        assert_untouched(dir.path(), &expected);
+        assert_eq!(
+            entries(dir.path()),
+            fixture_entries(),
+            "nothing but the lock file was added"
+        );
+
+        drop(holder);
+        assert_migrated(dir.path(), &expected);
+    }
+
+    #[test]
+    fn test_lock_contention_keeps_a_store_being_built() {
+        // A second open while the first is still building must not remove engine.migrating.
+        let (dir, _) = old_layout_data_dir();
+        test_hooks::arm(FailPoint::MigrationBeforeRename);
+        assert!(open(dir.path()).is_err());
+        test_hooks::disarm();
+        let building = dir.path().join(MIGRATING_DIR);
+        let before = dir_tree(&building);
+
+        let holder = lock_data_dir(dir.path()).unwrap();
+        assert!(open(dir.path()).is_err());
+        assert_eq!(dir_tree(&building), before);
+        drop(holder);
+    }
+
+    fn fixture_entries() -> Vec<String> {
+        entries(&fixture_path())
     }
 
     #[test]

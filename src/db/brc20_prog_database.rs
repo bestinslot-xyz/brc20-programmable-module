@@ -125,8 +125,6 @@ impl Brc20ProgDatabase {
     /// Opens the engine store of the data dir at `base_path`, migrating a data dir in the
     /// per-database layout first (see [`crate::db::store`]).
     pub fn new(base_path: &Path) -> Result<Self, Box<dyn Error>> {
-        rlimit::Resource::NOFILE.set(4096, 8192)?;
-
         let store = store::open(base_path)?;
         Ok(Self {
             db_account_memory: Some(BlockCachedDatabase::new(store.clone(), "account_memory")?),

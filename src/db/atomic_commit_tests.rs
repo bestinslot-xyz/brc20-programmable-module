@@ -238,11 +238,27 @@ fn test_reorg_is_written_in_one_batch() {
         test_hooks::disarm();
     }
 
-    let engine = open_engine(dir.path());
-    assert_eq!(engine.get_latest_block_height().unwrap(), 1);
-    assert!(engine.get_block_by_number(2, false).unwrap().is_none());
+    {
+        let engine = open_engine(dir.path());
+        assert_eq!(engine.get_latest_block_height().unwrap(), 1);
+        assert!(engine.get_block_by_number(2, false).unwrap().is_none());
+        assert_eq!(
+            engine.get_storage_at(contract, U256::ZERO).unwrap(),
+            U256::from(43)
+        );
+    }
+
+    // A twin store that reorgs without a failure ends with the same contents.
+    let twin = TempDir::new().unwrap();
+    {
+        let engine = open_engine(twin.path());
+        let contract = run_first_blocks(&engine);
+        execute_block_two(&engine, contract);
+        engine.commit_to_db().unwrap();
+    }
+    open_engine(twin.path()).reorg(1).unwrap();
     assert_eq!(
-        engine.get_storage_at(contract, U256::ZERO).unwrap(),
-        U256::from(43)
+        without_wall_clock(dump(dir.path())),
+        without_wall_clock(dump(twin.path()))
     );
 }

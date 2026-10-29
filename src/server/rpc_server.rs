@@ -93,8 +93,8 @@ impl Brc20Prog {
         });
         set_bitcoin_rpc(bitcoin_rpc);
 
-        validate_config_database(&config)?;
         validate_config(&config)?;
+        validate_config_database(&config)?;
 
         let engine = BRC20ProgEngine::new(Brc20ProgDatabase::new(Path::new(&config.db_path))?);
         info!("Latest block number: {}", engine.get_latest_block_height()?);
