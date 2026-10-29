@@ -14,15 +14,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      `global` database before their first write, and clear it once every write is synced.
      Opening a database that still holds it reorgs back to that height, so a crash, kill or
      power cut midway never leaves a block's height recorded without its state.
-   * Each database takes one batch per commit. The state databases go first, and
-     `block_number_to_hash`, which sets the reported height, goes last.
-   * When the first commit into an empty database was interrupted, or the interrupted
-     commit spans more than 10 blocks, opening wipes the module's databases with a
-     warning, and the indexer replays from its activation height. Other files in the data
-     directory stay, and an interrupted wipe finishes on the next open.
+   * Each database writes its changes as whole synced batches: a cached database writes
+     its histories, then its values, then the deletion of old histories. The state
+     databases go first, and `block_number_to_hash`, which sets the reported height, goes
+     last.
+   * When the first commit into an empty database was interrupted, or an interrupted
+     commit or reorg has a target more than 10 blocks below the highest finalised block,
+     opening wipes the module's databases with a warning, and the indexer replays from its
+     activation height. Other files in the data directory stay, and an interrupted wipe
+     finishes on the next open.
+   * After a commit or reorg fails partway, the same process refuses further commits,
+     reorgs and finalised blocks until the database is reopened.
+   * The highest finalised block only ever rises, so a reorg after a replay of a lower
+     chain stays within the pruned history.
    * A commit syncs the WAL of every database it writes, 20 syncs for a signet block of
-     five deposits, in place of flushing four memtables to disk. The on-disk layout is
-     unchanged.
+     five deposits. The on-disk layout is unchanged.
+   * v0.16.6 and earlier ignore the rollback marker: open a store that crashed under this
+     version with this version or a later one.
  - a failed Bitcoin lookup fails a public call instead of panicking
    * A `BitcoinRpc` error during `eth_call`, `eth_callMany`, `eth_estimateGas`,
      `eth_estimateGasMany` or `brc20_balance` is retried once with no pause, and then
