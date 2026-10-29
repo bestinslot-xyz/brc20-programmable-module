@@ -18,8 +18,17 @@ pub type BitcoinRpcError = Box<dyn Error + Send + Sync>;
 ///
 /// Answers feed consensus, so they must be deterministic for a given chain state:
 /// * `Ok(None)` means the transaction does not exist, and the precompile call fails.
-/// * `Err` means the lookup could not be answered right now. The engine retries it, and panics if
-///   it keeps failing, so a transient outage never produces a different execution result.
+/// * `Err` means the lookup could not be answered right now. What happens next depends on where
+///   the lookup runs:
+///   * During block execution (`brc20_call`, `brc20_transact` and the other indexer methods that
+///     add a transaction to a block), the engine retries it five times, one second apart, and then
+///     panics, so a transient outage never produces a different execution result.
+///   * During a public call (`eth_call`, `eth_callMany`, `eth_estimateGas`,
+///     `eth_estimateGasMany`, `brc20_balance`), the engine retries it once with no pause, and then
+///     the whole call fails with "Call failed: Bitcoin data unavailable". `brc20_balance` reaches
+///     no Bitcoin precompile, so it hits this only if its contract ever calls one. A source that
+///     holds only part of the chain can therefore return `Err` for data it lacks without exposing
+///     the node to a crash from a public request.
 ///
 /// Methods are called synchronously from inside EVM execution.
 pub trait BitcoinRpc: Send + Sync {

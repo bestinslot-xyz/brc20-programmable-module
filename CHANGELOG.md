@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - A data dir in the per-database layout migrates automatically the first time it is opened, inside `Brc20Prog::open` and at server startup. The configuration check runs against the old data first, so a mismatched start leaves the data dir untouched. The migration runs once, needs free disk space of about 1.1 times the current data dir, blocks the open until it finishes (11 seconds for a 760 MB signet data dir), verifies every column family against its source, and deletes only the directories it copied, only after the new store is complete. An interrupted migration starts over on the next open. See [Storage](docs/configuration.md#storage).
  - **v0.16.6 and earlier cannot open a migrated data dir.** Keep a copy of the data dir before upgrading if a downgrade may be needed.
 
+### Bug Fixes
+
+ - a failed Bitcoin lookup fails a public call instead of panicking
+   * A `BitcoinRpc` error during `eth_call`, `eth_callMany`, `eth_estimateGas`,
+     `eth_estimateGasMany` or `brc20_balance` is retried once with no pause, and then
+     fails the whole call with `Call failed: Bitcoin data unavailable`.
+     `brc20_balance` reaches no Bitcoin precompile today.
+   * The `eth_estimateGas` and `eth_estimateGasMany` gas search returns that error as soon
+     as a lookup fails, instead of reading it as too little gas.
+   * During block execution a `BitcoinRpc` error is retried five times, one second
+     apart, and then panics, as before.
+
 ## v0.16.6 (2026-10-27)
 
 ### New Features

@@ -23,6 +23,7 @@ use crate::db::types::{BlockResponseED, BytecodeED, LogED, Signature, TraceED, T
 use crate::db::Brc20ProgDatabase;
 use crate::engine::evm::get_evm;
 use crate::engine::hardforks::use_rlp_hash_for_tx_hash;
+use crate::engine::precompiles::{BRC20Precompiles, BitcoinDataUnavailable, BitcoinLookup};
 use crate::engine::utils::{
     get_contract_address, get_gas_limit, get_inscription_byte_len, get_tx_hash, get_tx_logs,
     LastBlockInfo, TxInfo,
@@ -448,6 +449,7 @@ impl BRC20ProgEngine {
                 None,
                 op_return_tx_id,
                 &None,
+                BitcoinLookup::BlockExecution,
             );
 
             evm.ctx().modify_tx(|tx| {
@@ -764,6 +766,7 @@ impl BRC20ProgEngine {
                 None,
                 [0u8; 32].into(),
                 &None,
+                BitcoinLookup::PublicCall,
             );
 
             evm.ctx().modify_tx(|tx| {
@@ -777,7 +780,7 @@ impl BRC20ProgEngine {
             let output = evm.replay().map(|x| x.result);
             core::mem::swap(&mut *db, evm.ctx().db_mut());
 
-            output.map_err(|e| e.into())
+            output.map_err(|e| public_call_error(&evm.precompiles, e.into()))
         })?;
 
         Ok(ReadContractResult {
@@ -821,6 +824,7 @@ impl BRC20ProgEngine {
                 None,
                 [0u8; 32].into(),
                 &precompile_data,
+                BitcoinLookup::PublicCall,
             );
 
             let mut outputs = Vec::new();
@@ -853,7 +857,7 @@ impl BRC20ProgEngine {
                     Err(e) => {
                         // Clean up and return error
                         core::mem::swap(&mut *db, evm.ctx().db_mut());
-                        return Err(e.into());
+                        return Err(public_call_error(&evm.precompiles, e.into()));
                     }
                 }
             }
@@ -1031,6 +1035,16 @@ fn generate_block_hash(block_number: u64) -> B256 {
         .copied()
         .collect::<Vec<u8>>();
     B256::from_slice(&full_bytes)
+}
+
+/// Returns [`BitcoinDataUnavailable`] when a Bitcoin lookup aborted the public call, and `error`
+/// otherwise.
+fn public_call_error(precompiles: &BRC20Precompiles, error: Box<dyn Error>) -> Box<dyn Error> {
+    if precompiles.bitcoin_unavailable {
+        Box::new(BitcoinDataUnavailable)
+    } else {
+        error
+    }
 }
 
 #[cfg(test)]

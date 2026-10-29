@@ -25,6 +25,7 @@ lazy_static::lazy_static! {
 }
 
 const BITCOIN_RPC_RETRIES: u32 = 5;
+const PUBLIC_CALL_RETRIES: u32 = 1;
 
 fn new_core_client() -> BitcoinCoreRpc {
     let config = CONFIG.read();
@@ -127,61 +128,128 @@ pub fn validate_bitcoin_rpc_status() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Runs `lookup` against the current source, retrying transient errors and panicking once the
-/// retries run out, so an unreachable source never changes an execution result.
-fn with_retry<T>(lookup: impl Fn(&dyn BitcoinRpc) -> Result<T, BitcoinRpcError>) -> T {
-    let rpc = bitcoin_rpc();
-    let mut retries_left = BITCOIN_RPC_RETRIES;
-    loop {
-        match lookup(rpc.as_ref()) {
-            Ok(value) => return value,
-            Err(_) if retries_left > 0 => {
-                retries_left -= 1;
-                sleep(Duration::from_secs(1));
-            }
-            Err(error) => panic!("Bitcoin RPC unreachable. Response: {:?}", error),
+/// Where a Bitcoin lookup runs, which decides what a [`BitcoinRpc`] error does.
+///
+/// Each entry point that builds an EVM picks the mode and the precompiles carry it in
+/// [`PrecompileCall`](crate::engine::precompiles::PrecompileCall). Each EVM carries its own mode,
+/// so one call's mode never reaches another call.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BitcoinLookup {
+    /// Block execution, the consensus path. A lookup error is retried and then panics, so an
+    /// unreachable source stops the node instead of changing an execution result.
+    BlockExecution,
+    /// A public read such as `eth_call` or `eth_estimateGas`. A lookup error is retried once,
+    /// with no pause, and then fails the call, so an unauthenticated caller can neither crash the node nor
+    /// stall it, and a single transient source error does not fail the call.
+    PublicCall,
+}
+
+impl BitcoinLookup {
+    /// Retries after the first failed attempt, and the pause before each.
+    fn retry_policy(self) -> (u32, Duration) {
+        match self {
+            BitcoinLookup::BlockExecution => (BITCOIN_RPC_RETRIES, Duration::from_secs(1)),
+            BitcoinLookup::PublicCall => (PUBLIC_CALL_RETRIES, Duration::ZERO),
         }
     }
 }
 
-fn parse_txid(txid: &B256) -> Result<Txid, Box<dyn Error>> {
-    Txid::from_str(&hex::encode(txid.as_slice())).map_err(|_| "Invalid Txid".into())
+/// Message of the error that aborts a public call whose Bitcoin lookup failed.
+const BITCOIN_DATA_UNAVAILABLE: &str = "Bitcoin data unavailable";
+
+/// A [`BitcoinRpc`] lookup failed during a public call.
+#[derive(Debug, PartialEq, Eq)]
+pub struct BitcoinDataUnavailable;
+
+impl std::fmt::Display for BitcoinDataUnavailable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(BITCOIN_DATA_UNAVAILABLE)
+    }
 }
 
+impl Error for BitcoinDataUnavailable {}
+
+/// Runs `lookup` against the current source.
+///
+/// Both modes retry a failed lookup. Once the retries run out, block execution panics, so an
+/// unreachable source never changes an execution result, and a public call returns
+/// [`BitcoinDataUnavailable`].
+fn run_lookup<T>(
+    mode: BitcoinLookup,
+    lookup: impl Fn(&dyn BitcoinRpc) -> Result<T, BitcoinRpcError>,
+) -> Result<T, BitcoinDataUnavailable> {
+    let rpc = bitcoin_rpc();
+    let (mut retries_left, pause) = mode.retry_policy();
+    loop {
+        match lookup(rpc.as_ref()) {
+            Ok(value) => return Ok(value),
+            Err(_) if retries_left > 0 => {
+                retries_left -= 1;
+                if !pause.is_zero() {
+                    sleep(pause);
+                }
+            }
+            Err(error) => match mode {
+                BitcoinLookup::BlockExecution => {
+                    panic!("Bitcoin RPC unreachable. Response: {:?}", error)
+                }
+                BitcoinLookup::PublicCall => return Err(BitcoinDataUnavailable),
+            },
+        }
+    }
+}
+
+fn parse_txid(txid: &B256) -> Option<Txid> {
+    Txid::from_str(&hex::encode(txid.as_slice())).ok()
+}
+
+/// Returns the transaction with `txid` and the hash of its block, from `btc_tx_hexes` or the
+/// Bitcoin source. `Ok(None)` means the transaction is missing or undecodable, which fails the
+/// precompile call.
 pub fn get_transaction_and_block_hash_with_overrides(
     txid: &B256,
     btc_tx_hexes: &HashMap<B256, Bytes>,
-) -> Result<(Transaction, Option<BlockHash>), Box<dyn Error>> {
+    mode: BitcoinLookup,
+) -> Result<Option<(Transaction, Option<BlockHash>)>, BitcoinDataUnavailable> {
     if let Some(tx_hex) = btc_tx_hexes.get(txid) {
-        let tx: Transaction = bitcoin::consensus::deserialize(tx_hex)
-            .map_err(|_| "Failed to deserialize transaction from hex")?;
-        // Since we don't have block hash info in the override, return placeholder
-        return Ok((tx, Some(*BLOCK_HASH_FUTURE_PLACEHOLDER)));
+        // An override carries no block, so it gets the placeholder hash at height 0
+        return Ok(bitcoin::consensus::deserialize(tx_hex)
+            .ok()
+            .map(|tx| (tx, Some(*BLOCK_HASH_FUTURE_PLACEHOLDER))));
     }
-    let bitcoin_txid = parse_txid(txid)?;
-    with_retry(|rpc| rpc.get_transaction_with_block_hash(&bitcoin_txid))
-        .ok_or_else(|| format!("Tx not found. Txid: {:?}", bitcoin_txid).into())
+    let Some(bitcoin_txid) = parse_txid(txid) else {
+        return Ok(None);
+    };
+    run_lookup(mode, |rpc| {
+        rpc.get_transaction_with_block_hash(&bitcoin_txid)
+    })
 }
 
+/// Returns the transaction with `txid`, from `btc_tx_hexes` or the Bitcoin source. `Ok(None)`
+/// means the transaction is missing or undecodable, which fails the precompile call.
 pub fn get_transaction_with_overrides(
     txid: &B256,
     btc_tx_hexes: &HashMap<B256, Bytes>,
-) -> Result<Transaction, Box<dyn Error>> {
+    mode: BitcoinLookup,
+) -> Result<Option<Transaction>, BitcoinDataUnavailable> {
     if let Some(tx_hex) = btc_tx_hexes.get(txid) {
-        let tx: Transaction = bitcoin::consensus::deserialize(tx_hex)
-            .map_err(|_| "Failed to deserialize transaction from hex")?;
-        return Ok(tx);
+        return Ok(bitcoin::consensus::deserialize(tx_hex).ok());
     }
-    let bitcoin_txid = parse_txid(txid)?;
-    with_retry(|rpc| rpc.get_transaction(&bitcoin_txid))
-        .ok_or_else(|| format!("Tx not found. Txid: {:?}", bitcoin_txid).into())
+    let Some(bitcoin_txid) = parse_txid(txid) else {
+        return Ok(None);
+    };
+    run_lookup(mode, |rpc| rpc.get_transaction(&bitcoin_txid))
 }
 
-pub fn get_block_height(block_hash: &BlockHash) -> Result<usize, Box<dyn Error>> {
+/// Returns the height of the block with `block_hash`.
+pub fn get_block_height(
+    block_hash: &BlockHash,
+    mode: BitcoinLookup,
+) -> Result<usize, BitcoinDataUnavailable> {
     if block_hash == &*BLOCK_HASH_FUTURE_PLACEHOLDER {
         return Ok(0);
     }
-    Ok(with_retry(|rpc| rpc.get_block_height(block_hash)))
+    run_lookup(mode, |rpc| rpc.get_block_height(block_hash))
 }
 
 #[cfg(test)]
@@ -201,7 +269,11 @@ mod tests {
         let response = get_transaction_and_block_hash_with_overrides(
             &FixedBytes::from_hex(txid_string).unwrap(),
             &HashMap::new(),
+            BitcoinLookup::BlockExecution,
         );
-        assert_eq!(response.unwrap().0.compute_txid().to_string(), txid_string);
+        assert_eq!(
+            response.unwrap().unwrap().0.compute_txid().to_string(),
+            txid_string
+        );
     }
 }

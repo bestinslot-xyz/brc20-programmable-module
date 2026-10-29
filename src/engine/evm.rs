@@ -9,10 +9,13 @@ use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 
 use crate::db::Brc20ProgDatabase;
 use crate::engine::hardforks::get_evm_spec;
-use crate::engine::precompiles::BRC20Precompiles;
+use crate::engine::precompiles::{BRC20Precompiles, BitcoinLookup};
 use crate::global::CONFIG;
 use crate::types::PrecompileData;
 
+/// Builds the EVM for one block transaction or one public call. `bitcoin_lookup` says which of
+/// the two it is, and so what a failed Bitcoin lookup does inside it.
+#[allow(clippy::too_many_arguments)]
 pub fn get_evm(
     block_number: u64,
     block_hash: B256,
@@ -21,6 +24,7 @@ pub fn get_evm(
     gas_limit: Option<u64>,
     current_op_return_tx_id: B256,
     precompile_data: &Option<PrecompileData>,
+    bitcoin_lookup: BitcoinLookup,
 ) -> Evm<
     Context<BlockEnv, TxEnv, CfgEnv, Brc20ProgDatabase>,
     TracingInspector,
@@ -60,6 +64,11 @@ pub fn get_evm(
         TracingInspector::new(TracingInspectorConfig::none().set_record_inputs(true)),
         // The static gas table is fixed at construction, so it must follow the block's spec.
         EthInstructions::new_mainnet_with_spec(evm_spec),
-        BRC20Precompiles::new(evm_spec.into(), current_op_return_tx_id, precompile_data),
+        BRC20Precompiles::new(
+            evm_spec.into(),
+            current_op_return_tx_id,
+            precompile_data,
+            bitcoin_lookup,
+        ),
     )
 }

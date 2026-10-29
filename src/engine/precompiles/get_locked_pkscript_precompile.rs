@@ -133,6 +133,7 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
+    use crate::engine::precompiles::BitcoinLookup;
 
     #[test]
     fn test_get_locked_pkscript_six_blocks() {
@@ -149,6 +150,7 @@ mod tests {
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: HashMap::new(),
+            bitcoin_lookup: BitcoinLookup::BlockExecution,
         });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
         assert_eq!(
@@ -172,6 +174,7 @@ mod tests {
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: HashMap::new(),
+            bitcoin_lookup: BitcoinLookup::BlockExecution,
         });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
         assert_eq!(
@@ -195,6 +198,7 @@ mod tests {
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: HashMap::new(),
+            bitcoin_lookup: BitcoinLookup::BlockExecution,
         });
         let result = getLockedPkscriptCall::abi_decode_returns(&result.output).unwrap();
         assert_eq!(
@@ -218,6 +222,7 @@ mod tests {
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: HashMap::new(),
+            bitcoin_lookup: BitcoinLookup::BlockExecution,
         });
         assert!(result.is_halt());
     }
@@ -237,6 +242,7 @@ mod tests {
             block_height: U256::ZERO,
             current_op_return_tx_id: [0u8; 32].into(),
             btc_tx_hexes_data: HashMap::new(),
+            bitcoin_lookup: BitcoinLookup::BlockExecution,
         });
         assert!(result.is_halt());
     }
