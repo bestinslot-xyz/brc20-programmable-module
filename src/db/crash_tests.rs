@@ -445,7 +445,7 @@ fn test_reorg_below_a_replaced_chain_errors_and_keeps_the_store() {
 
     // The histories were pruned against block 30, so they cannot reach block 11
     let error = engine.reorg(11).err().unwrap().to_string();
-    assert!(error.contains("too far behind"), "{}", error);
+    assert!(error.contains("max recorded block height"), "{}", error);
     drop(engine);
 
     let db = Brc20ProgDatabase::new(dir.path()).unwrap();
@@ -479,6 +479,25 @@ fn test_history_too_short_for_the_rollback_wipes_the_store() {
 }
 
 #[test]
+fn test_reorg_after_losing_uncommitted_blocks_stays_allowed() {
+    // Blocks 13..=21 are finalised but never committed, then the process dies
+    let dir = TempDir::new().unwrap();
+    build(dir.path(), 12, 12);
+    let engine = open_engine(dir.path());
+    for n in 13..=21 {
+        execute_block(&engine, n);
+    }
+    drop(engine);
+
+    let engine = open_engine(dir.path());
+    assert_eq!(engine.get_latest_block_height().unwrap(), 12);
+    execute_block(&engine, 13);
+    engine.commit_to_db().unwrap();
+    engine.reorg(7).unwrap();
+    assert_eq!(engine.get_latest_block_height().unwrap(), 7);
+}
+
+#[test]
 fn test_failed_commit_blocks_later_writes_until_reopen() {
     let dir = TempDir::new().unwrap();
     build(dir.path(), 12, 12);
@@ -488,8 +507,19 @@ fn test_failed_commit_blocks_later_writes_until_reopen() {
     }
     assert!(crash_after(10, || engine.commit_to_db()));
 
-    for error in [engine.commit_to_db(), engine.reorg(12)] {
-        let error = error.err().unwrap().to_string();
+    // Writes and reads alike, including a reorg to the current height and a block
+    let results = [
+        engine.commit_to_db().err(),
+        engine.reorg(12).err(),
+        engine.reorg(14).err(),
+        engine.finalise_block(TIMESTAMP, 15, B256::ZERO, 0).err(),
+        engine.get_latest_block_height().err(),
+        engine.get_block_by_number(12, false).err(),
+        engine.get_transaction_count(holder(1), 12).err(),
+        engine.get_storage_at(holder(1), U256::ZERO).err(),
+    ];
+    for error in results {
+        let error = error.unwrap().to_string();
         assert!(error.contains("reopen the database"), "{}", error);
     }
     drop(engine);
@@ -603,23 +633,64 @@ fn test_wipe_keeps_files_it_does_not_own() {
     );
 }
 
+/// Moves the `account` database of `dir` into `elsewhere` and links it back
+#[cfg(unix)]
+fn link_account_database(dir: &Path, elsewhere: &Path) -> std::path::PathBuf {
+    let linked = elsewhere.join("account");
+    std::fs::rename(dir.join("account"), &linked).unwrap();
+    std::os::unix::fs::symlink(&linked, dir.join("account")).unwrap();
+    std::fs::write(elsewhere.join("notes.txt"), "keep").unwrap();
+    linked
+}
+
 #[cfg(unix)]
 #[test]
-fn test_wipe_stops_at_a_symlinked_database() {
+fn test_wipe_empties_a_symlinked_database_and_keeps_the_link() {
     let dir = TempDir::new().unwrap();
     let elsewhere = TempDir::new().unwrap();
     interrupt_first_commit(dir.path());
-    let linked = elsewhere.path().join("account");
-    std::fs::rename(dir.path().join("account"), &linked).unwrap();
-    std::os::unix::fs::symlink(&linked, dir.path().join("account")).unwrap();
+    let linked = link_account_database(dir.path(), elsewhere.path());
+
+    assert_wiped_and_working(dir.path());
+    assert!(is_symlink(&dir.path().join("account")));
+    assert!(linked.join("CURRENT").exists());
+    assert!(elsewhere.path().join("notes.txt").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn test_interrupted_emptying_of_a_symlinked_database_completes() {
+    let dir = TempDir::new().unwrap();
+    let elsewhere = TempDir::new().unwrap();
+    interrupt_first_commit(dir.path());
+    let linked = link_account_database(dir.path(), elsewhere.path());
+
+    // The wipe stops after setting its marker, then the target loses a file, so it no
+    // longer looks like a database
+    assert!(crash_after(1, || Brc20ProgDatabase::new(dir.path()).map(|_| ())));
+    std::fs::remove_file(linked.join("IDENTITY")).unwrap();
+
+    assert_wiped_and_working(dir.path());
+    assert!(is_symlink(&dir.path().join("account")));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_wipe_stops_at_a_link_to_something_else() {
+    let dir = TempDir::new().unwrap();
+    let elsewhere = TempDir::new().unwrap();
+    interrupt_first_commit(dir.path());
+    std::fs::remove_dir_all(dir.path().join("account")).unwrap();
+    std::fs::write(elsewhere.path().join("notes.txt"), "keep").unwrap();
+    std::os::unix::fs::symlink(elsewhere.path(), dir.path().join("account")).unwrap();
 
     let error = Brc20ProgDatabase::new(dir.path())
         .err()
         .unwrap()
         .to_string();
-    assert!(error.contains("symbolic link"), "{}", error);
-    assert!(linked.join("CURRENT").exists());
-    assert!(dir.path().join("code").exists());
+    assert!(error.contains("not a database"), "{}", error);
+    assert!(elsewhere.path().join("notes.txt").exists());
+    assert!(dir.path().join("code").join("CURRENT").exists());
 }
 
 #[test]

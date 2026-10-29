@@ -46,14 +46,19 @@ impl ConfigDatabase {
         Ok(())
     }
 
-    /// Writes `value` under `key`, or deletes `key` for `None`, with a synced WAL
-    pub fn write_synced(&mut self, key: &str, value: Option<&str>) -> Result<(), Box<dyn Error>> {
+    /// Writes each value under its key, or deletes the key for `None`, as one batch with a
+    /// synced WAL
+    pub fn write_synced(&mut self, entries: &[(&str, Option<&str>)]) -> Result<(), Box<dyn Error>> {
         let mut batch = WriteBatch::default();
-        match value {
-            Some(value) => batch.put(key.to_string().encode_vec(), value.to_string().encode_vec()),
-            None => batch.delete(key.to_string().encode_vec()),
+        for (key, value) in entries {
+            match value {
+                Some(value) => {
+                    batch.put(key.to_string().encode_vec(), value.to_string().encode_vec())
+                }
+                None => batch.delete(key.to_string().encode_vec()),
+            }
+            self.cache.remove(*key);
         }
-        self.cache.remove(key);
         write_batch(&self.db, batch, true)
     }
 

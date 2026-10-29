@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::error::Error;
+use std::sync::RwLockReadGuard;
 use std::time::{Duration, UNIX_EPOCH};
 
 use alloy::consensus::transaction::RlpEcdsaDecodableTx;
@@ -36,9 +37,41 @@ use crate::global::{
 use crate::types::{AddressED, PrecompileData};
 
 pub struct BRC20ProgEngine {
-    db: SharedData<Brc20ProgDatabase>,
+    db: EngineDatabase,
     last_block_info: SharedData<LastBlockInfo>,
     block_finalised: Notify,
+}
+
+/// The engine's database. Every access fails while a commit or reorg that stopped partway
+/// waits for a reopen to roll it back, as the state it would see is torn.
+struct EngineDatabase(SharedData<Brc20ProgDatabase>);
+
+impl EngineDatabase {
+    fn read(&self) -> Result<RwLockReadGuard<'_, Brc20ProgDatabase>, Box<dyn Error>> {
+        let db = self.0.read();
+        db.require_no_pending_rollback()?;
+        Ok(db)
+    }
+
+    fn read_fn<R>(
+        &self,
+        f: impl FnOnce(&Brc20ProgDatabase) -> Result<R, Box<dyn Error>>,
+    ) -> Result<R, Box<dyn Error>> {
+        self.0.read_fn(|db| {
+            db.require_no_pending_rollback()?;
+            f(db)
+        })
+    }
+
+    fn write_fn<R>(
+        &self,
+        f: impl FnOnce(&mut Brc20ProgDatabase) -> Result<R, Box<dyn Error>>,
+    ) -> Result<R, Box<dyn Error>> {
+        self.0.write_fn(|db| {
+            db.require_no_pending_rollback()?;
+            f(db)
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -52,7 +85,7 @@ pub struct ReadContractResult {
 impl BRC20ProgEngine {
     pub fn new(db: Brc20ProgDatabase) -> Self {
         let engine = BRC20ProgEngine {
-            db: SharedData::new(db),
+            db: EngineDatabase(SharedData::new(db)),
             last_block_info: SharedData::new(LastBlockInfo::new()),
             block_finalised: Notify::new(),
         };
@@ -127,7 +160,7 @@ impl BRC20ProgEngine {
     }
 
     pub fn get_latest_block_height(&self) -> Result<u64, Box<dyn Error>> {
-        self.db.read().get_latest_block_height()
+        self.db.read()?.get_latest_block_height()
     }
 
     pub fn mine_blocks(&self, mut block_count: u64, timestamp: u64) -> Result<(), Box<dyn Error>> {
@@ -172,7 +205,7 @@ impl BRC20ProgEngine {
     pub fn get_all_pending_transactions(
         &self,
     ) -> Result<HashMap<AddressED, HashMap<u64, TxED>>, Box<dyn Error>> {
-        let pending_txes = self.db.read().get_all_pending_txes()?;
+        let pending_txes = self.db.read()?.get_all_pending_txes()?;
         let mut result = HashMap::new();
 
         for ((account, nonce), mut tx) in pending_txes {
@@ -197,7 +230,7 @@ impl BRC20ProgEngine {
         &self,
         account: Address,
     ) -> Result<HashMap<AddressED, HashMap<u64, TxED>>, Box<dyn Error>> {
-        let pending_txes = self.db.read().get_all_pending_txes_from(account)?;
+        let pending_txes = self.db.read()?.get_all_pending_txes_from(account)?;
         let mut result = HashMap::new();
         result.insert(account.into(), HashMap::new());
         let Some(txes) = result.get_mut(&account.into()) else {
@@ -320,13 +353,13 @@ impl BRC20ProgEngine {
         let mut next_tx_idx = tx_idx + 1;
         loop {
             // Loop instead of while to avoid holding the database read lock here
-            let Some(pending_tx) = self.db.read().get_pending_tx(tx_info.from, next_nonce)? else {
+            let Some(pending_tx) = self.db.read()?.get_pending_tx(tx_info.from, next_nonce)? else {
                 break;
             };
 
             let pending_tx_op_return_tx_id = self
                 .db
-                .read()
+                .read()?
                 .get_pending_tx_op_return_tx_id(pending_tx.hash.bytes)?;
 
             if let Some(pending_tx_block_number) = pending_tx.block_number {
@@ -545,12 +578,12 @@ impl BRC20ProgEngine {
         contract_address: Address,
     ) -> Result<Option<String>, Box<dyn Error>> {
         self.db
-            .read()
+            .read()?
             .get_inscription_id_by_contract_address(contract_address)
     }
 
     pub fn get_trace(&self, tx_hash: B256) -> Result<Option<TraceED>, Box<dyn Error>> {
-        self.db.read().get_tx_trace(tx_hash)
+        self.db.read()?.get_tx_trace(tx_hash)
     }
 
     pub fn get_block_trace_hash(
@@ -605,7 +638,7 @@ impl BRC20ProgEngine {
     ) -> Result<u64, Box<dyn Error>> {
         let account_nonce: u64 = self
             .db
-            .read()
+            .read()?
             .get_account_info(account)?
             .map(|x| x.nonce.into())
             .unwrap_or(0);
@@ -617,7 +650,7 @@ impl BRC20ProgEngine {
         &self,
         block_number: u64,
     ) -> Result<u64, Box<dyn Error>> {
-        self.db.read().get_block_tx_count(block_number)
+        self.db.read()?.get_block_tx_count(block_number)
     }
 
     pub fn get_block_transaction_count_by_hash(
@@ -657,7 +690,7 @@ impl BRC20ProgEngine {
     }
 
     pub fn get_transaction_by_hash(&self, tx_hash: B256) -> Result<Option<TxED>, Box<dyn Error>> {
-        self.db.read().get_tx_by_hash(tx_hash)
+        self.db.read()?.get_tx_by_hash(tx_hash)
     }
 
     pub fn get_transaction_receipt_by_inscription_id(
@@ -674,7 +707,7 @@ impl BRC20ProgEngine {
         &self,
         tx_hash: B256,
     ) -> Result<Option<TxReceiptED>, Box<dyn Error>> {
-        self.db.read().get_tx_receipt(tx_hash)
+        self.db.read()?.get_tx_receipt(tx_hash)
     }
 
     pub fn get_logs(
@@ -685,7 +718,7 @@ impl BRC20ProgEngine {
         topics: Option<Vec<SingleOrVec<Option<B256>>>>,
     ) -> Result<Vec<LogED>, Box<dyn Error>> {
         self.db
-            .read()
+            .read()?
             .get_logs(block_number_from, block_number_to, address, topics)
     }
 
@@ -887,7 +920,7 @@ impl BRC20ProgEngine {
     ) -> Result<U256, Box<dyn Error>> {
         Ok(self
             .db
-            .read()
+            .read()?
             .get_account_memory(contract, location)?
             .map(|x| x.uint)
             .unwrap_or(U256::ZERO))
@@ -947,7 +980,7 @@ impl BRC20ProgEngine {
         // Clearing caches will clear all waiting txes, so notify waiters to avoid them waiting indefinitely
         self.block_finalised.notify_waiters();
 
-        self.db.write_fn(|db| db.clear_caches())
+        self.db.0.write_fn(|db| db.clear_caches())
     }
 
     pub fn commit_to_db(&self) -> Result<(), Box<dyn Error>> {
@@ -1012,14 +1045,14 @@ impl BRC20ProgEngine {
             Ok(())
         })?;
         self.db
-            .read()
+            .read()?
             .require_block_does_not_exist(block_hash, block_number)
     }
 
     fn get_account_nonce(&self, addr: Address) -> Result<u64, Box<dyn Error>> {
         Ok(self
             .db
-            .read()
+            .read()?
             .get_account_info(addr)?
             .map(|x| x.nonce.into())
             .unwrap_or(0))
