@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Storage format
+
+ - The engine keeps all its data in one RocksDB at `<data dir>/engine`, with one column family per database, a `<name>_cache` column family per reorg history, and a `meta` column family holding `storage_version = 2`. Each `brc20_commitToDatabase` and `brc20_reorg` writes one batch across all column families, so a crash leaves the engine at the last committed block or at the new one. A power loss can drop the most recent commits but never part of one; the embedding indexer then replays from the engine's latest block.
+ - A data dir in the per-database layout migrates automatically the first time it is opened, inside `Brc20Prog::open` and at server startup. The migration runs once, needs free disk space about equal to the current data dir, verifies every column family against its source, and deletes the per-database directories only after the new store is complete. An interrupted migration starts over on the next open. See [Storage](docs/configuration.md#storage).
+ - **v0.16.6 and earlier cannot open a migrated data dir.** Keep a copy of the data dir before upgrading if a downgrade may be needed.
+
 ## v0.16.6 (2026-10-27)
 
 ### New Features

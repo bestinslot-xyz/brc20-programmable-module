@@ -47,6 +47,16 @@ The inputs in `test_utils/data/consensus_fixture/` are pre-encoded, so the workl
 test_utils/data/consensus_fixture/build.sh
 ```
 
+## Storage tests
+
+The storage layout and its migration are described in [Storage](configuration.md#storage).
+
+- `src/db/atomic_commit_tests.rs` fails a commit before and after its write batch is written, and a reorg the same way, through fail points in `src/db/store.rs` that only test builds arm. After a reopen the store is at the previous block with every column family unchanged, or at the new block with the same contents as an uninterrupted run, and re-executing the lost block gives the same trace hash and receipts.
+- `src/db/store.rs` tests migrate a copy of `tests/fixtures/v0_16_6_mainnet_db` and compare every column family with its source. They interrupt the migration after each copied column family, before `storage_version` is written, before and after the rename and midway through the cleanup, and check that the next open completes it. They also cover a leftover `engine.migrating`, too little free space (through a test hook for the free-space query), a newer `storage_version` and a store without one.
+- `tests/storage_migration.rs` opens a server on a copy of the fixture, so the migration runs at startup, and checks that the consensus fixture report rendered from the migrated data dir equals both a fresh run and the mainnet snapshot, and that every column family equals its v0.16.6 database.
+
+`tests/fixtures/v0_16_6_mainnet_db` is a data dir written by brc20-prog v0.16.6: the mainnet consensus fixture workload, committed with `brc20_commitToDatabase`, with the RocksDB `LOG` and `LOCK` files left out.
+
 ## Inscription decoding corpus
 
 Inscription data decides transaction calldata, so decoding it is consensus. `test_inscription_data_corpus` in `src/api/types.rs` (built with the `server` feature) decodes every payload in `src/api/testdata/inscription_corpus.txt` and pins each outcome (decoded length and sha256, `rejected`, or `panic`) in `src/api/snapshots/brc20_prog__api__types__tests__inscription_data_corpus.snap`. A changed outcome, for example from a base64 or zstd upgrade, is a consensus change.

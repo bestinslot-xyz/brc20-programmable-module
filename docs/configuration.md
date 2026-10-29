@@ -8,7 +8,7 @@ Precompiled contracts require the Bitcoin RPC variables to work properly, otherw
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
-| `BRC20_PROG_DB_PATH` | `target/db` | Path to the database folder. |
+| `BRC20_PROG_DB_PATH` | `target/db` | Path to the data dir. See [Storage](#storage). |
 | `BRC20_PROG_RPC_SERVER_URL` | `127.0.0.1:18545` | Address of the JSON-RPC server. |
 | `BRC20_PROG_ADMIN_RPC_SERVER_URL` | unset | Address of a separate listener for the indexer methods. See [Admin RPC server](#admin-rpc-server). |
 | `BRC20_PROG_RPC_SERVER_ENABLE_AUTH` | `false` | Enables HTTP basic auth. See [Authorization](#authorization). |
@@ -29,6 +29,26 @@ Precompiled contracts require the Bitcoin RPC variables to work properly, otherw
 Boolean variables are enabled by the value `true`. A numeric variable that fails to parse falls back to its default.
 
 `Brc20Prog::open`, which the server runs at startup, rejects a configuration where auth is enabled without both a username and a password, where `BRC20_PROG_RPC_SERVER_URL` is empty, or where `BRC20_PROG_ADMIN_RPC_SERVER_URL` is not a socket address or equals `BRC20_PROG_RPC_SERVER_URL`. With `FAIL_ON_BITCOIN_RPC_ERROR=true`, it also rejects an empty `BITCOIN_RPC_URL` or `BITCOIN_RPC_NETWORK`. `Brc20Prog::open_with_bitcoin_rpc` does not use `BITCOIN_RPC_URL`, so it accepts an empty one.
+
+## Storage
+
+The data dir at `BRC20_PROG_DB_PATH` holds one RocksDB at `<data dir>/engine`. Each database of the engine (accounts, storage, code, transactions, receipts, traces, blocks, global values and the data dir's configuration) is a column family named after it. A database with reorg history keeps that history in a `<name>_cache` column family, and the `meta` column family holds the storage format version, `storage_version = 2`.
+
+`brc20_commitToDatabase` and `brc20_reorg` each write one RocksDB write batch across all column families, so a crash leaves the database at the last committed block or at the new one, never between them. Writes use RocksDB's default options, with the write-ahead log written but not synced: a power loss can drop the most recent commits, but never part of one. The engine then reports a lower latest block, and the indexer replays from there.
+
+### Migration from the per-database layout
+
+Releases up to v0.16.6 store each database in its own RocksDB directory directly under the data dir. The first open of such a data dir migrates it, inside `Brc20Prog::open` or at server startup:
+
+1. It checks that the free disk space is at least the size of the existing databases, and stops with an error naming both sizes otherwise.
+2. It copies every database into its column family of a new store in `<data dir>/engine.migrating`, in bounded batches, logging progress per column family.
+3. It compares every column family with its source by key count and a digest over all key-value pairs, then writes `storage_version`.
+4. It renames `engine.migrating` to `engine`.
+5. It deletes the per-database directories.
+
+The existing databases stay untouched until step 4, so an interrupted migration starts over on the next open, from a fresh `engine.migrating`. If the process stops during step 5, the next open finishes the deletion. The migration needs free space about equal to the current data dir and runs once; on the 760 MB signet data dir it takes about 11 seconds.
+
+A migrated data dir cannot be opened by v0.16.6 or earlier. A store with a `storage_version` newer than the running release fails to open, with an error that names the version.
 
 ## Command-line options
 
