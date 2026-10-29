@@ -3,23 +3,26 @@
 use std::error::Error;
 use std::fmt::Display;
 use std::path::Path;
+use std::sync::Arc;
 
 use alloy::primitives::{Address, Bloom, Bytes, FixedBytes, Log, B256, U256, U64};
 use revm::context::result::ExecutionResult;
 use revm::context::DBErrorMarker;
 use revm::state::{AccountInfo, Bytecode, EvmState};
 use revm::{Database as DatabaseTrait, DatabaseCommit};
+use rocksdb::{WriteBatch, DB};
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use serde_either::SingleOrVec;
 
 use crate::db::cached_database::{BlockCachedDatabase, BlockHistoryCacheData};
 use crate::db::database::BlockDatabase;
-use crate::engine::get_tx_logs;
+use crate::db::store::{self, fail_point, FailPoint};
 use crate::db::types::{
     AccountInfoED, AddressED, BlockResponseED, BytecodeED, LogED, RawBlock, Signature, TraceED,
     TxED, TxReceiptED, B256ED, U128ED, U256ED, U512ED, U64ED,
 };
+use crate::engine::get_tx_logs;
 use crate::global::database::ConfigDatabase;
 use crate::global::{CONFIG, MAX_FUTURE_TRANSACTION_BLOCKS, MAX_REORG_HISTORY_SIZE};
 
@@ -88,11 +91,15 @@ pub struct Brc20ProgDatabase {
 
     /// Cache for latest block number and block hash
     latest_block_number: Option<(u64, B256)>,
+
+    /// The engine store every database above lives in, written with one batch per commit
+    store: Option<Arc<DB>>,
 }
 
 impl Default for Brc20ProgDatabase {
     fn default() -> Self {
         Self {
+            store: None,
             db_account_memory: None,
             db_code: None,
             db_account: None,
@@ -115,51 +122,58 @@ impl Default for Brc20ProgDatabase {
 }
 
 impl Brc20ProgDatabase {
+    /// Opens the engine store of the data dir at `base_path`, migrating a data dir in the
+    /// per-database layout first (see [`crate::db::store`]).
     pub fn new(base_path: &Path) -> Result<Self, Box<dyn Error>> {
         rlimit::Resource::NOFILE.set(4096, 8192)?;
 
+        let store = store::open(base_path)?;
         Ok(Self {
-            db_account_memory: Some(BlockCachedDatabase::new(&base_path, "account_memory")?),
-            db_code: Some(BlockCachedDatabase::new(&base_path, "code")?),
-            db_account: Some(BlockCachedDatabase::new(&base_path, "account")?),
+            db_account_memory: Some(BlockCachedDatabase::new(store.clone(), "account_memory")?),
+            db_code: Some(BlockCachedDatabase::new(store.clone(), "code")?),
+            db_account: Some(BlockCachedDatabase::new(store.clone(), "account")?),
             db_number_and_index_to_tx_hash: Some(BlockCachedDatabase::new(
-                &base_path,
+                store.clone(),
                 "number_and_index_to_tx_hash",
             )?),
-            db_tx_receipt: Some(BlockCachedDatabase::new(&base_path, "tx_receipt")?),
+            db_tx_receipt: Some(BlockCachedDatabase::new(store.clone(), "tx_receipt")?),
             db_inscription_id_to_tx_hash: Some(BlockCachedDatabase::new(
-                &base_path,
+                store.clone(),
                 "inscription_id_to_tx_hash",
             )?),
             db_contract_address_to_inscription_id: Some(BlockCachedDatabase::new(
-                &base_path,
+                store.clone(),
                 "contract_address_to_inscription_id",
             )?),
-            db_tx: Some(BlockCachedDatabase::new(&base_path, "tx")?),
+            db_tx: Some(BlockCachedDatabase::new(store.clone(), "tx")?),
             db_pending_txes: Some(BlockCachedDatabase::new(
-                &base_path,
+                store.clone(),
                 "account_and_nonce_to_tx_hash",
             )?),
             db_pending_txes_op_return_tx_ids: Some(BlockCachedDatabase::new(
-                &base_path,
+                store.clone(),
                 "pending_tx_hash_to_tx_id",
             )?),
-            db_tx_trace: Some(BlockCachedDatabase::new(&base_path, "tx_trace")?),
+            db_tx_trace: Some(BlockCachedDatabase::new(store.clone(), "tx_trace")?),
             db_block_hash_to_number: Some(BlockCachedDatabase::new(
-                &base_path,
+                store.clone(),
                 "block_hash_to_number",
             )?),
             db_block_number_to_block: Some(BlockDatabase::new(
-                &base_path,
+                store.clone(),
                 "block_number_to_block",
             )?),
             db_block_number_to_raw_block: Some(BlockDatabase::new(
-                &base_path,
+                store.clone(),
                 "block_number_to_raw_block",
             )?),
-            db_block_number_to_hash: Some(BlockDatabase::new(&base_path, "block_number_to_hash")?),
-            db_global_values: Some(ConfigDatabase::new(&base_path, "global")?),
+            db_block_number_to_hash: Some(BlockDatabase::new(
+                store.clone(),
+                "block_number_to_hash",
+            )?),
+            db_global_values: Some(ConfigDatabase::new(store.clone(), "global")?),
             latest_block_number: None,
+            store: Some(store),
         })
     }
 
@@ -831,75 +845,94 @@ impl Brc20ProgDatabase {
             .set(block_number, &block_hash.into(), block_number.into())?)
     }
 
+    /// Writes every cached change in one batch, then clears the caches.
+    ///
+    /// The batch covers the block number, hash and block databases, every cached database and
+    /// its history, and the global values, so a commit is persisted whole or not at all. It is
+    /// written with RocksDB's default write options: a process crash keeps every written batch,
+    /// and a power loss can drop the most recent batches but never part of one.
     pub fn commit_changes(&mut self) -> Result<(), Box<dyn Error>> {
+        self.commit_batch(WriteBatch::default())
+    }
+
+    /// Adds every cached change to `batch`, writes it and clears the caches.
+    fn commit_batch(&mut self, mut batch: WriteBatch) -> Result<(), Box<dyn Error>> {
         let next_block = self.get_next_block_height()?;
+
+        self.db_global_values
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch)?;
+        self.db_block_number_to_hash
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch)?;
+        self.db_block_number_to_block
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch)?;
+        self.db_block_number_to_raw_block
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch)?;
+
+        self.db_number_and_index_to_tx_hash
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch, next_block)?;
+        self.db_inscription_id_to_tx_hash
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch, next_block)?;
+        self.db_contract_address_to_inscription_id
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch, next_block)?;
+        self.db_tx
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch, next_block)?;
+        self.db_pending_txes
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch, next_block)?;
+        self.db_pending_txes_op_return_tx_ids
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch, next_block)?;
+        self.db_tx_trace
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch, next_block)?;
+        self.db_tx_receipt
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch, next_block)?;
+        self.db_account_memory
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch, next_block)?;
+        self.db_code
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch, next_block)?;
+        self.db_account
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch, next_block)?;
+        self.db_block_hash_to_number
+            .as_ref()
+            .expect(DB_MUTEX_ERROR)
+            .stage_commit(&mut batch, next_block)?;
+
+        fail_point(FailPoint::CommitBeforeWrite)?;
+        self.store.as_ref().expect(DB_MUTEX_ERROR).write(batch)?;
+        fail_point(FailPoint::CommitAfterWrite)?;
 
         self.db_global_values
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .flush()?;
-        self.db_block_number_to_hash
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit()?;
-        self.db_block_number_to_block
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit()?;
-        self.db_block_number_to_raw_block
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit()?;
-
-        self.db_number_and_index_to_tx_hash
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit(next_block)?;
-        self.db_inscription_id_to_tx_hash
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit(next_block)?;
-        self.db_contract_address_to_inscription_id
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit(next_block)?;
-        self.db_tx
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit(next_block)?;
-        self.db_pending_txes
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit(next_block)?;
-        self.db_pending_txes_op_return_tx_ids
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit(next_block)?;
-        self.db_tx_trace
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit(next_block)?;
-        self.db_tx_receipt
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit(next_block)?;
-        self.db_account_memory
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit(next_block)?;
-        self.db_code
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit(next_block)?;
-        self.db_account
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit(next_block)?;
-        self.db_block_hash_to_number
-            .as_mut()
-            .expect(DB_MUTEX_ERROR)
-            .commit(next_block)?;
-
+            .clear_pending();
         self.clear_caches()?;
         Ok(())
     }
@@ -981,69 +1014,72 @@ impl Brc20ProgDatabase {
             .into());
         }
 
+        // Every database reads only its own column families while staging, so staging them all
+        // before the single write sees the same state as applying them one by one.
+        let mut batch = WriteBatch::default();
         self.db_account_memory
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
         self.db_code
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
         self.db_account
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
         self.db_block_hash_to_number
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
         self.db_number_and_index_to_tx_hash
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
         self.db_tx_receipt
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
         self.db_inscription_id_to_tx_hash
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
         self.db_contract_address_to_inscription_id
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
         self.db_tx
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
         self.db_pending_txes
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
         self.db_pending_txes_op_return_tx_ids
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
         self.db_tx_trace
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
 
         self.db_block_number_to_hash
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
         self.db_block_number_to_block
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
         self.db_block_number_to_raw_block
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .reorg(latest_valid_block_number)?;
+            .stage_reorg(&mut batch, latest_valid_block_number)?;
 
-        Ok(self.commit_changes()?)
+        self.commit_batch(batch)
     }
 }
 

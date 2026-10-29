@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 use std::error::Error;
-use std::path::Path;
+use std::sync::Arc;
 
-use rocksdb::{IteratorMode, Options, DB};
+use rocksdb::{ColumnFamily, IteratorMode, WriteBatch, DB};
 
+use crate::db::store::column_family;
 use crate::db::types::{Decode, Encode, U64ED};
 
 /// Database to store data that is mapped to a block number
@@ -12,13 +13,16 @@ use crate::db::types::{Decode, Encode, U64ED};
 /// It also supports reorg by deleting data that is not valid anymore
 /// It uses U256 as the key (block_number) and V as the value
 ///
+/// The data lives in the engine store's column family named after the database.
+///
 /// V: the type of the value to store
 /// It should implement Encode, Decode and Clone, so that it can be serialized and deserialized
 pub struct BlockDatabase<V>
 where
     V: Encode + Decode + Clone,
 {
-    db: DB,
+    db: Arc<DB>,
+    name: String,
     cache: BTreeMap<u64, V>,
 }
 
@@ -26,23 +30,23 @@ impl<V> BlockDatabase<V>
 where
     V: Encode + Decode + Clone,
 {
-    /// Create a new BlockDatabase
+    /// Create a BlockDatabase over the `name` column family of the engine store
     ///
-    /// It creates a new database if it does not exist
-    ///
-    /// path: &Path - the path to the database
-    /// name: &str - the name of the database
+    /// db: Arc<DB> - the engine store
+    /// name: &str - the name of the database, which is its column family
     ///
     /// Returns: BlockDatabase<V> - the created BlockDatabase
-    pub fn new(path: &Path, name: &str) -> Result<Self, Box<dyn Error>> {
-        let mut opts = Options::default();
-        opts.create_if_missing(true);
-        opts.set_max_open_files(256);
-        let db = DB::open(&opts, &path.join(Path::new(name)))?;
+    pub fn new(db: Arc<DB>, name: &str) -> Result<Self, Box<dyn Error>> {
+        column_family(&db, name)?;
         Ok(Self {
             db,
+            name: name.to_string(),
             cache: BTreeMap::new(),
         })
+    }
+
+    fn cf(&self) -> Result<&ColumnFamily, Box<dyn Error>> {
+        column_family(&self.db, &self.name)
     }
 
     /// Get the value for a block number
@@ -58,7 +62,7 @@ where
             return Ok(Some(value.clone()));
         }
 
-        let Some(value_bytes) = self.db.get(&key.encode_vec())? else {
+        let Some(value_bytes) = self.db.get_cf(self.cf()?, key.encode_vec())? else {
             return Ok(None);
         };
 
@@ -76,15 +80,14 @@ where
         self.cache.insert(block_number, value.clone());
     }
 
-    /// Commit the cache to the database
+    /// Add the cached values to a commit's write batch
     //
-    /// It writes all the values in the cache to the database
-    /// It does not clear the cache
-    pub fn commit(&mut self) -> Result<(), Box<dyn Error>> {
+    /// The values reach the database when the batch is written. The cache is kept.
+    pub fn stage_commit(&self, batch: &mut WriteBatch) -> Result<(), Box<dyn Error>> {
+        let cf = self.cf()?;
         for (key, value) in self.cache.iter() {
-            self.db.put(&key.encode_vec(), &value.encode_vec())?;
+            batch.put_cf(cf, key.encode_vec(), value.encode_vec());
         }
-        self.db.flush()?;
         Ok(())
     }
 
@@ -105,7 +108,12 @@ where
     //
     /// Returns: Option<u64> - the last key in the database
     pub fn last_key(&self) -> Result<Option<u64>, Box<dyn Error>> {
-        let db_last_key = match self.db.full_iterator(IteratorMode::End).take(1).last() {
+        let db_last_key = match self
+            .db
+            .full_iterator_cf(self.cf()?, IteratorMode::End)
+            .take(1)
+            .last()
+        {
             Some(Ok((key, _))) => Some(U64ED::decode_vec(&key.to_vec())?.into()),
             _ => None,
         };
@@ -117,20 +125,43 @@ where
 
     /// Reorg the database
     //
-    /// It deletes all the data that is not valid anymore, i.e. the data with block number greater than latest_valid_block_number
-    /// Make sure to call commit after calling this function to write the changes to the database
+    /// It removes the data that is not valid anymore, i.e. the data with block number greater than
+    /// latest_valid_block_number, from the cache and adds its deletion to the write batch
     //
     /// latest_valid_block_number: u64 - the latest valid block number
-    pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
+    pub fn stage_reorg(
+        &mut self,
+        batch: &mut WriteBatch,
+        latest_valid_block_number: u64,
+    ) -> Result<(), Box<dyn Error>> {
         let mut current = latest_valid_block_number + 1;
         let last_block = self.last_key()?;
         if let Some(end) = last_block {
+            let cf = column_family(&self.db, &self.name)?;
             while end >= current {
-                self.db.delete(&U64ED::from(current).encode_vec())?;
+                batch.delete_cf(cf, U64ED::from(current).encode_vec());
                 self.cache.remove(&current);
                 current += 1;
             }
         }
+        Ok(())
+    }
+
+    /// Write the cache to the database in its own batch
+    #[cfg(test)]
+    pub fn commit(&mut self) -> Result<(), Box<dyn Error>> {
+        let mut batch = WriteBatch::default();
+        self.stage_commit(&mut batch)?;
+        self.db.write(batch)?;
+        Ok(())
+    }
+
+    /// Reorg the database in its own batch
+    #[cfg(test)]
+    pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
+        let mut batch = WriteBatch::default();
+        self.stage_reorg(&mut batch, latest_valid_block_number)?;
+        self.db.write(batch)?;
         Ok(())
     }
 }
@@ -142,12 +173,17 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
+    use crate::db::store;
     use crate::db::types::U256ED;
 
     #[test]
     fn test_block_database() {
         let tempdir = TempDir::new().unwrap();
-        let mut db = BlockDatabase::<U256ED>::new(tempdir.path(), "test").unwrap();
+        let mut db = BlockDatabase::<U256ED>::new(
+            store::open(tempdir.path()).unwrap(),
+            "block_number_to_hash",
+        )
+        .unwrap();
 
         let block_number = 1;
         let value = U256::from(100).into();

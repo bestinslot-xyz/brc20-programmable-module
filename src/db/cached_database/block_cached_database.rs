@@ -1,17 +1,21 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::error::Error;
 use std::hash::Hash;
-use std::path::Path;
+use std::sync::Arc;
 
-use rocksdb::{IteratorMode, Options, DB};
+use rocksdb::{ColumnFamily, IteratorMode, WriteBatch, DB};
 
 use crate::db::cached_database::BlockHistoryCache;
+use crate::db::store::{cache_name, column_family};
 use crate::db::types::{Decode, Encode};
 
 // Database to store data that is mapped to a block number with a history cache
 //
 // It uses a cache to store the data in memory and only writes to the database when commit is called
 // It also supports reorg by reverting back the state to the latest valid block
+//
+// The latest values live in the engine store's column family named after the database, and the
+// histories in the `<name>_cache` column family.
 //
 // K: the type of the key
 // V: the type of the value to store
@@ -23,8 +27,9 @@ where
     V: Encode + Decode + Clone + Eq,
     C: BlockHistoryCache<V> + Encode + Decode + Clone,
 {
-    db: DB,
-    cache_db: DB,
+    db: Arc<DB>,
+    name: String,
+    cache_name: String,
     cache: HashMap<K, C>,
 
     _phantom: std::marker::PhantomData<V>,
@@ -36,27 +41,32 @@ where
     V: Encode + Decode + Eq + Clone,
     C: BlockHistoryCache<V> + Encode + Decode + Clone,
 {
-    /// Create a new BlockCachedDatabase
+    /// Create a BlockCachedDatabase over the `name` and `<name>_cache` column families of the
+    /// engine store
     ///
-    /// It creates a new database if it does not exist
-    ///
-    /// path: &Path - the path to store the database
+    /// db: Arc<DB> - the engine store
     /// name: &str - the name of the database
     ///
     /// Returns: BlockCachedDatabase<K, V, C> - the created BlockCachedDatabase
-    pub fn new(path: &Path, name: &str) -> Result<Self, Box<dyn Error>> {
-        let mut opts = Options::default();
-        opts.create_if_missing(true);
-        opts.set_max_open_files(256);
-        let db = DB::open(&opts, &path.join(Path::new(name)))?;
-        let cache_db = DB::open(&opts, &path.join(Path::new(&format!("{}_cache", name))))?;
-        let cache = HashMap::new();
+    pub fn new(db: Arc<DB>, name: &str) -> Result<Self, Box<dyn Error>> {
+        let cache_name = cache_name(name);
+        column_family(&db, name)?;
+        column_family(&db, &cache_name)?;
         Ok(Self {
             db,
-            cache_db,
-            cache,
+            name: name.to_string(),
+            cache_name,
+            cache: HashMap::new(),
             _phantom: std::marker::PhantomData,
         })
+    }
+
+    fn values_cf(&self) -> Result<&ColumnFamily, Box<dyn Error>> {
+        column_family(&self.db, &self.name)
+    }
+
+    fn history_cf(&self) -> Result<&ColumnFamily, Box<dyn Error>> {
+        column_family(&self.db, &self.cache_name)
     }
 
     /// Get the value for a key
@@ -71,7 +81,7 @@ where
         if let Some(cache) = self.cache.get(key) {
             return Ok(cache.latest());
         }
-        if let Some(value) = self.db.get(&key.encode_vec())? {
+        if let Some(value) = self.db.get_cf(self.values_cf()?, key.encode_vec())? {
             let value = V::decode_vec(&value.to_vec())?;
             return Ok(Some(value));
         }
@@ -92,10 +102,10 @@ where
         let start_key_bytes = start_key.encode_vec();
         let end_key_bytes = end_key.encode_vec();
 
-        for kv_pair in self.db.iterator(IteratorMode::From(
-            &start_key_bytes,
-            rocksdb::Direction::Forward,
-        )) {
+        for kv_pair in self.db.iterator_cf(
+            self.values_cf()?,
+            IteratorMode::From(&start_key_bytes, rocksdb::Direction::Forward),
+        ) {
             let (key_bytes, value) = kv_pair?;
             if *key_bytes >= *end_key_bytes {
                 break;
@@ -126,7 +136,10 @@ where
     pub fn all(&self) -> Result<Vec<(K, V)>, Box<dyn Error>> {
         let mut kv_pairs: HashMap<K, V> = HashMap::new();
 
-        for kv_pair in self.db.full_iterator(IteratorMode::Start) {
+        for kv_pair in self
+            .db
+            .full_iterator_cf(self.values_cf()?, IteratorMode::Start)
+        {
             let (key, value) = kv_pair?;
             let key = K::decode_vec(&key.to_vec())?;
             let value = V::decode_vec(&value.to_vec())?;
@@ -170,51 +183,54 @@ where
         Ok(())
     }
 
-    /// Commit the cache to the database
+    /// Add the cache to a commit's write batch
     ///
-    /// It writes all the values in the cache to the database and clears the cache
+    /// For every cached key, the batch stores its latest value and its history, and drops a
+    /// history too old for a reorg. The values reach the database when the batch is written.
+    /// The cache is kept; clear it once the batch is written.
     ///
     /// block_number: U256 - the block number to commit at
-    pub fn commit(&mut self, block_number: u64) -> Result<(), Box<dyn Error>> {
+    pub fn stage_commit(
+        &self,
+        batch: &mut WriteBatch,
+        block_number: u64,
+    ) -> Result<(), Box<dyn Error>> {
+        let values_cf = self.values_cf()?;
+        let history_cf = self.history_cf()?;
         for (key, cache) in self.cache.iter() {
             let key_bytes = key.encode_vec();
-            let cache_bytes = cache.encode_vec();
             if cache.is_old(block_number) {
-                self.cache_db.delete(&key_bytes)?;
+                batch.delete_cf(history_cf, &key_bytes);
             } else {
-                self.cache_db.put(&key_bytes, &cache_bytes)?;
+                batch.put_cf(history_cf, &key_bytes, cache.encode_vec());
             }
 
             if let Some(value) = cache.latest() {
-                self.db.put(&key_bytes, &value.encode_vec())?;
+                batch.put_cf(values_cf, &key_bytes, value.encode_vec());
             } else {
-                self.db.delete(&key_bytes)?;
+                batch.delete_cf(values_cf, &key_bytes);
             }
         }
-
-        let keys_to_remove: Vec<K> = self
-            .cache
-            .iter()
-            .filter(|(_, cache)| cache.is_old(block_number))
-            .map(|(key, _)| key.clone())
-            .collect();
-        for key in keys_to_remove {
-            self.cache.remove(&key);
-        }
-
-        self.clear_cache();
         Ok(())
     }
 
     /// Revert the state to the latest valid block
     ///
-    /// It reverts the state of all the caches to the latest valid block and clears the cache
+    /// It reverts every history to the latest valid block, adds the reverted state to the write
+    /// batch and clears the cache
     ///
     /// latest_valid_block_number: U256 - the latest valid block number
-    pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
+    pub fn stage_reorg(
+        &mut self,
+        batch: &mut WriteBatch,
+        latest_valid_block_number: u64,
+    ) -> Result<(), Box<dyn Error>> {
         let mut keys = HashSet::new();
         {
-            for kv_pair in self.cache_db.full_iterator(IteratorMode::Start) {
+            for kv_pair in self
+                .db
+                .full_iterator_cf(self.history_cf()?, IteratorMode::Start)
+            {
                 keys.insert(K::decode_vec(&kv_pair?.0.to_vec())?);
             }
             for key in self.cache.keys() {
@@ -225,8 +241,27 @@ where
             let cache = self.retrieve_cache(&key)?;
             cache.reorg(latest_valid_block_number);
         }
-        self.commit(latest_valid_block_number)?;
+        self.stage_commit(batch, latest_valid_block_number)?;
         self.clear_cache();
+        Ok(())
+    }
+
+    /// Write the cache to the database in its own batch and clear the cache
+    #[cfg(test)]
+    pub fn commit(&mut self, block_number: u64) -> Result<(), Box<dyn Error>> {
+        let mut batch = WriteBatch::default();
+        self.stage_commit(&mut batch, block_number)?;
+        self.db.write(batch)?;
+        self.clear_cache();
+        Ok(())
+    }
+
+    /// Revert the state to the latest valid block in its own batch
+    #[cfg(test)]
+    pub fn reorg(&mut self, latest_valid_block_number: u64) -> Result<(), Box<dyn Error>> {
+        let mut batch = WriteBatch::default();
+        self.stage_reorg(&mut batch, latest_valid_block_number)?;
+        self.db.write(batch)?;
         Ok(())
     }
 
@@ -241,7 +276,7 @@ where
     fn retrieve_cache(&mut self, key: &K) -> Result<&mut C, Box<dyn Error>> {
         if self.cache.contains_key(key) {
             // Do nothing, the cache is already in memory
-        } else if let Some(cache_bytes) = self.cache_db.get(&key.encode_vec())? {
+        } else if let Some(cache_bytes) = self.db.get_cf(self.history_cf()?, key.encode_vec())? {
             let cache = C::decode_vec(&cache_bytes.to_vec())?;
             self.cache.insert(key.clone(), cache);
         } else {
@@ -249,7 +284,7 @@ where
             // we have an old value at hand if reorg occurs
             let stored_value = self
                 .db
-                .get(&key.encode_vec())?
+                .get_cf(self.values_cf()?, key.encode_vec())?
                 .and_then(|value| V::decode_vec(&value.to_vec()).ok());
             self.cache.insert(key.clone(), C::new(stored_value));
         }
@@ -265,6 +300,7 @@ mod tests {
 
     use super::*;
     use crate::db::cached_database::BlockHistoryCacheData;
+    use crate::db::store;
     use crate::db::types::{AccountInfoED, AddressED, B256ED, U128ED};
 
     #[test]
@@ -274,7 +310,7 @@ mod tests {
             AddressED,
             AccountInfoED,
             BlockHistoryCacheData<AccountInfoED>,
-        >::new(path.path(), "test_db")
+        >::new(store::open(path.path()).unwrap(), "account")
         .unwrap();
 
         let address: Address = "0x1234567890123456789012345678901234567890"
@@ -307,8 +343,8 @@ mod tests {
     fn test_get_range_returns_key_order() {
         let path = TempDir::new().unwrap();
         let mut db = BlockCachedDatabase::<U128ED, B256ED, BlockHistoryCacheData<B256ED>>::new(
-            path.path(),
-            "test_db",
+            store::open(path.path()).unwrap(),
+            "number_and_index_to_tx_hash",
         )
         .unwrap();
         let key = |block: u64, index: u64| U128ED::from(((block as u128) << 64) | index as u128);
@@ -340,7 +376,7 @@ mod tests {
             AddressED,
             AccountInfoED,
             BlockHistoryCacheData<AccountInfoED>,
-        >::new(path.path(), "test_db")
+        >::new(store::open(path.path()).unwrap(), "account")
         .unwrap();
 
         let address: Address = "0x1234567890123456789012345678901234567890"
@@ -364,18 +400,20 @@ mod tests {
 
         db.commit(1).unwrap();
 
-        let real_db = db.db;
-
-        let account_info = real_db.get(address_ed.encode_vec()).unwrap();
+        let account_info = db
+            .db
+            .get_cf(db.values_cf().unwrap(), address_ed.encode_vec())
+            .unwrap();
 
         let account_info = AccountInfoED::decode_vec(&account_info.unwrap().to_vec()).unwrap();
         assert_eq!(account_info.balance, U256::from(100).into());
         assert_eq!(account_info.nonce, 1u64.into());
         assert_eq!(account_info.code_hash, B256::from([1; 32]).into());
 
-        let cache_db = db.cache_db;
-
-        let cache = cache_db.get(address_ed.encode_vec()).unwrap();
+        let cache = db
+            .db
+            .get_cf(db.history_cf().unwrap(), address_ed.encode_vec())
+            .unwrap();
 
         let cache =
             BlockHistoryCacheData::<AccountInfoED>::decode_vec(&cache.unwrap().to_vec()).unwrap();
@@ -394,7 +432,7 @@ mod tests {
             AddressED,
             AccountInfoED,
             BlockHistoryCacheData<AccountInfoED>,
-        >::new(path.path(), "test_db")
+        >::new(store::open(path.path()).unwrap(), "account")
         .unwrap();
 
         let address: Address = "0x1234567890123456789012345678901234567890"
@@ -431,7 +469,7 @@ mod tests {
             AddressED,
             AccountInfoED,
             BlockHistoryCacheData<AccountInfoED>,
-        >::new(path.path(), "test_db")
+        >::new(store::open(path.path()).unwrap(), "account")
         .unwrap();
 
         let address: Address = "0x1234567890123456789012345678901234567890"
@@ -472,7 +510,7 @@ mod tests {
             AddressED,
             AccountInfoED,
             BlockHistoryCacheData<AccountInfoED>,
-        >::new(path.path(), "test_db")
+        >::new(store::open(path.path()).unwrap(), "account")
         .unwrap();
 
         let address: Address = "0x1234567890123456789012345678901234567890"

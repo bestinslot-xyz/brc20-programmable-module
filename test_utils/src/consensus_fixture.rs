@@ -6,12 +6,14 @@
 
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::path::Path;
 
 use brc20_prog::types::{AddressED, RawBytes, TxReceiptED, U256ED};
 use brc20_prog::{Brc20ProgApiClient, Brc20ProgConfig};
 use jsonrpsee::http_client::HttpClient;
+use jsonrpsee::server::ServerHandle;
 
-use crate::{load_file_as_string, spawn_test_server};
+use crate::{load_file_as_string, spawn_test_server, spawn_test_server_at};
 
 /// Mainnet chain id ("BRC20").
 pub const CHAIN_ID_MAINNET: u64 = 0x4252433230;
@@ -486,14 +488,40 @@ fn amount(value: u64) -> U256ED {
     U256ED::from(value)
 }
 
-/// Runs the fixture on a fresh database and returns the rendered report.
-pub async fn run_consensus_fixture(spec: FixtureSpec) -> String {
-    let (server, client) = spawn_test_server(Brc20ProgConfig {
+fn fixture_config(spec: &FixtureSpec) -> Brc20ProgConfig {
+    Brc20ProgConfig {
         bitcoin_rpc_network: spec.network.to_string(),
         chain_id: spec.chain_id,
         ..Default::default()
-    })
-    .await;
+    }
+}
+
+/// Runs the fixture on a fresh database and returns the rendered report.
+pub async fn run_consensus_fixture(spec: FixtureSpec) -> String {
+    let (server, runner) = execute_consensus_fixture(&spec).await;
+    let report = runner.render().await;
+    server.stop().expect("stop server");
+    report
+}
+
+/// Runs the fixture on a fresh database, then renders the report from a server opened on
+/// `db_path`, a data dir that already holds the fixture's committed chain.
+///
+/// Returns the report rendered from the fresh database and the one rendered from `db_path`.
+pub async fn render_consensus_fixture_from(spec: FixtureSpec, db_path: &Path) -> (String, String) {
+    let (server, mut runner) = execute_consensus_fixture(&spec).await;
+    let fresh_report = runner.render().await;
+    server.stop().expect("stop server");
+
+    let (server, client) = spawn_test_server_at(fixture_config(&spec), db_path).await;
+    runner.client = client;
+    let report = runner.render().await;
+    server.stop().expect("stop server");
+    (fresh_report, report)
+}
+
+async fn execute_consensus_fixture(spec: &FixtureSpec) -> (ServerHandle, Runner) {
+    let (server, client) = spawn_test_server(fixture_config(spec)).await;
 
     // brc20_initialise deploys the BRC20 controller and finalises genesis, then pings the
     // Bitcoin RPC, which is unreachable in tests. Tolerate only that failure.
@@ -520,7 +548,5 @@ pub async fn run_consensus_fixture(spec: FixtureSpec) -> String {
     for era in &spec.eras {
         runner.run_era(era).await;
     }
-    let report = runner.render().await;
-    server.stop().expect("stop server");
-    report
+    (server, runner)
 }

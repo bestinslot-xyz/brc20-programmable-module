@@ -1,0 +1,832 @@
+#![cfg(feature = "server")]
+
+//! The engine's on-disk store.
+//!
+//! The engine keeps every database in one RocksDB at `<data dir>/engine`. Each database is a
+//! column family with the database's name, each cached database keeps its reorg history in a
+//! `<name>_cache` column family, and the `meta` column family holds `storage_version`. A commit
+//! writes one `WriteBatch` across all column families, so a block is persisted whole or not at all.
+//!
+//! A data dir in the per-database layout (one RocksDB directory per database name) migrates
+//! into this layout the first time it is opened. The migration builds the store in
+//! `<data dir>/engine.migrating`, verifies every column family against its source, writes
+//! `storage_version`, renames the directory to `engine`, and then deletes the source
+//! directories. The source directories stay untouched until the rename, so an interrupted
+//! migration restarts from scratch on the next open, and an interrupted cleanup finishes on it.
+
+use std::error::Error;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Instant;
+
+use alloy::primitives::{Keccak256, B256};
+use rocksdb::{
+    ColumnFamily, ColumnFamilyDescriptor, IteratorMode, Options, WriteBatch, WriteOptions, DB,
+};
+use tracing::{info, warn};
+
+/// Directory of the engine store inside the data dir.
+pub(crate) const ENGINE_DIR: &str = "engine";
+
+/// Directory an engine store is built in before it is renamed to [`ENGINE_DIR`].
+pub(crate) const MIGRATING_DIR: &str = "engine.migrating";
+
+/// Column family holding the store's own metadata.
+pub(crate) const META_CF: &str = "meta";
+
+/// Key of the storage format version in [`META_CF`].
+const STORAGE_VERSION_KEY: &[u8] = b"storage_version";
+
+/// Storage format version this build reads and writes.
+pub(crate) const STORAGE_VERSION: u32 = 2;
+
+/// Databases with a reorg history, each also stored as a `<name>_cache` column family.
+pub(crate) const CACHED_DATABASES: [&str; 12] = [
+    "account_memory",
+    "code",
+    "account",
+    "number_and_index_to_tx_hash",
+    "tx_receipt",
+    "inscription_id_to_tx_hash",
+    "contract_address_to_inscription_id",
+    "tx",
+    "account_and_nonce_to_tx_hash",
+    "pending_tx_hash_to_tx_id",
+    "tx_trace",
+    "block_hash_to_number",
+];
+
+/// Databases keyed by block number.
+pub(crate) const BLOCK_DATABASES: [&str; 3] = [
+    "block_number_to_block",
+    "block_number_to_raw_block",
+    "block_number_to_hash",
+];
+
+/// Key-value databases for global values and the data dir's configuration.
+pub(crate) const PLAIN_DATABASES: [&str; 2] = ["global", "config"];
+
+/// Largest number of keys copied in one migration batch.
+const MIGRATION_BATCH_KEYS: usize = 10_000;
+
+/// Largest number of key and value bytes copied in one migration batch.
+const MIGRATION_BATCH_BYTES: usize = 32 * 1024 * 1024;
+
+/// Keys copied between two progress lines of one column family.
+const MIGRATION_PROGRESS_KEYS: u64 = 200_000;
+
+/// Open file limit of the engine store, within the process limit set at open.
+const MAX_OPEN_FILES: i32 = 2048;
+
+/// Total write-ahead log size at which the engine store flushes the oldest column families.
+const MAX_TOTAL_WAL_SIZE: u64 = 512 * 1024 * 1024;
+
+/// Name of the column family that holds a cached database's history.
+pub(crate) fn cache_name(name: &str) -> String {
+    format!("{}_cache", name)
+}
+
+/// Every database name, which is both a column family of the engine store and a directory of
+/// the per-database layout.
+pub(crate) fn database_names() -> Vec<String> {
+    let mut names = Vec::new();
+    for name in CACHED_DATABASES {
+        names.push(name.to_string());
+        names.push(cache_name(name));
+    }
+    names.extend(BLOCK_DATABASES.iter().map(|name| name.to_string()));
+    names.extend(PLAIN_DATABASES.iter().map(|name| name.to_string()));
+    names
+}
+
+/// Every column family of the engine store.
+fn column_family_names() -> Vec<String> {
+    let mut names = database_names();
+    names.push(META_CF.to_string());
+    names
+}
+
+/// Returns the handle of a column family, or an error naming it.
+pub(crate) fn column_family<'a>(
+    db: &'a DB,
+    name: &str,
+) -> Result<&'a ColumnFamily, Box<dyn Error>> {
+    db.cf_handle(name)
+        .ok_or_else(|| format!("Column family {} is missing from the engine store", name).into())
+}
+
+/// Points where tests inject a failure. Builds outside tests never fail at them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum FailPoint {
+    /// A commit's batch is built and not yet written.
+    CommitBeforeWrite,
+    /// A commit's batch is written and the in-memory caches are not yet cleared.
+    CommitAfterWrite,
+    /// The migration copied this many column families.
+    MigrationAfterCopying(usize),
+    /// The migration verified every column family and has not written `storage_version`.
+    MigrationBeforeStorageVersion,
+    /// The migrated store is complete and not yet renamed to `engine`.
+    MigrationBeforeRename,
+    /// The migrated store is renamed to `engine` and no source directory is deleted yet.
+    MigrationAfterRename,
+    /// The cleanup deleted this many source directories.
+    CleanupAfterDeleting(usize),
+}
+
+#[cfg(test)]
+pub(crate) mod test_hooks {
+    use std::cell::Cell;
+    use std::collections::BTreeMap;
+    use std::path::Path;
+
+    use rocksdb::{IteratorMode, DB};
+
+    use super::{column_family, database_names, open_per_database_dir, FailPoint};
+
+    /// Every key-value pair of every database, by database name, in iteration order.
+    pub(crate) type StoreDump = BTreeMap<String, Vec<(Vec<u8>, Vec<u8>)>>;
+
+    /// Contents of every database column family of an engine store.
+    pub(crate) fn dump_store(db: &DB) -> StoreDump {
+        database_names()
+            .into_iter()
+            .map(|name| {
+                let pairs = db
+                    .full_iterator_cf(column_family(db, &name).unwrap(), IteratorMode::Start)
+                    .map(|item| {
+                        let (key, value) = item.unwrap();
+                        (key.to_vec(), value.to_vec())
+                    })
+                    .collect();
+                (name, pairs)
+            })
+            .collect()
+    }
+
+    /// Contents of every database directory of a data dir in the per-database layout. A missing
+    /// directory reads as an empty database.
+    pub(crate) fn dump_per_database_dirs(base_path: &Path) -> StoreDump {
+        database_names()
+            .into_iter()
+            .map(|name| {
+                let path = base_path.join(&name);
+                let pairs = if path.is_dir() {
+                    open_per_database_dir(&path)
+                        .unwrap()
+                        .full_iterator(IteratorMode::Start)
+                        .map(|item| {
+                            let (key, value) = item.unwrap();
+                            (key.to_vec(), value.to_vec())
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                (name, pairs)
+            })
+            .collect()
+    }
+
+    thread_local! {
+        static ARMED: Cell<Option<FailPoint>> = const { Cell::new(None) };
+        static FREE_SPACE: Cell<Option<u64>> = const { Cell::new(None) };
+    }
+
+    /// Makes the next pass through `point` on this thread fail.
+    pub(crate) fn arm(point: FailPoint) {
+        ARMED.with(|armed| armed.set(Some(point)));
+    }
+
+    /// Disarms the fail point of this thread.
+    pub(crate) fn disarm() {
+        ARMED.with(|armed| armed.set(None));
+    }
+
+    /// Reports `bytes` as the free space of every path on this thread, or the real value for None.
+    pub(crate) fn set_free_space(bytes: Option<u64>) {
+        FREE_SPACE.with(|free| free.set(bytes));
+    }
+
+    pub(super) fn take(point: FailPoint) -> bool {
+        ARMED.with(|armed| {
+            if armed.get() == Some(point) {
+                armed.set(None);
+                true
+            } else {
+                false
+            }
+        })
+    }
+
+    pub(super) fn free_space() -> Option<u64> {
+        FREE_SPACE.with(|free| free.get())
+    }
+}
+
+/// Fails if a test armed `point`.
+pub(crate) fn fail_point(point: FailPoint) -> Result<(), Box<dyn Error>> {
+    #[cfg(test)]
+    if test_hooks::take(point) {
+        return Err(format!("Injected failure at {:?}", point).into());
+    }
+    #[cfg(not(test))]
+    let _ = point;
+    Ok(())
+}
+
+fn store_options() -> Options {
+    let mut opts = Options::default();
+    opts.create_if_missing(true);
+    opts.create_missing_column_families(true);
+    opts.set_max_open_files(MAX_OPEN_FILES);
+    // Column families share the write-ahead log, so a rarely written one would keep old log
+    // files alive; past this total, RocksDB flushes the column families that hold them.
+    opts.set_max_total_wal_size(MAX_TOTAL_WAL_SIZE);
+    opts
+}
+
+/// Opens a RocksDB with every engine column family, plus any other column family already in it.
+fn open_with_column_families(path: &Path) -> Result<DB, Box<dyn Error>> {
+    let opts = store_options();
+    let mut names = column_family_names();
+    if path.join("CURRENT").exists() {
+        for existing in DB::list_cf(&opts, path)? {
+            if existing != rocksdb::DEFAULT_COLUMN_FAMILY_NAME && !names.contains(&existing) {
+                names.push(existing);
+            }
+        }
+    }
+    let descriptors = names
+        .into_iter()
+        .map(|name| ColumnFamilyDescriptor::new(name, Options::default()));
+    Ok(DB::open_cf_descriptors(&opts, path, descriptors)?)
+}
+
+fn read_storage_version(db: &DB) -> Result<Option<u32>, Box<dyn Error>> {
+    let Some(bytes) = db.get_cf(column_family(db, META_CF)?, STORAGE_VERSION_KEY)? else {
+        return Ok(None);
+    };
+    let version = std::str::from_utf8(&bytes)
+        .ok()
+        .and_then(|text| text.parse::<u32>().ok())
+        .ok_or("The engine store has an unreadable storage_version")?;
+    Ok(Some(version))
+}
+
+/// Writes `storage_version` durably: a synced WAL write followed by a flush of the meta column family.
+fn write_storage_version(db: &DB) -> Result<(), Box<dyn Error>> {
+    let meta = column_family(db, META_CF)?;
+    let mut write_opts = WriteOptions::default();
+    write_opts.set_sync(true);
+    db.put_cf_opt(
+        meta,
+        STORAGE_VERSION_KEY,
+        STORAGE_VERSION.to_string(),
+        &write_opts,
+    )?;
+    db.flush_cf(meta)?;
+    Ok(())
+}
+
+/// Opens the engine store of the data dir at `base_path`.
+///
+/// A data dir with neither layout gets a fresh store. A data dir in the per-database layout
+/// migrates first. Source directories left over from an interrupted cleanup are deleted once the
+/// store has opened.
+///
+/// Fails if the store's `storage_version` is missing or not one this build reads, or if a
+/// migration is needed and cannot complete.
+pub(crate) fn open(base_path: &Path) -> Result<Arc<DB>, Box<dyn Error>> {
+    fs::create_dir_all(base_path)?;
+    let engine_path = base_path.join(ENGINE_DIR);
+    if !engine_path.exists() {
+        let sources = per_database_dirs(base_path);
+        remove_leftover_build(base_path)?;
+        if sources.is_empty() {
+            create_fresh(base_path)?;
+        } else {
+            migrate(base_path, &sources)?;
+        }
+    }
+
+    let db = open_with_column_families(&engine_path)?;
+    match read_storage_version(&db)? {
+        Some(STORAGE_VERSION) => {}
+        Some(version) if version > STORAGE_VERSION => {
+            return Err(format!(
+                "The engine store at {} has storage_version {}, written by a newer brc20-prog. \
+                 This build reads storage_version {}; upgrade brc20-prog to open it.",
+                engine_path.display(),
+                version,
+                STORAGE_VERSION
+            )
+            .into());
+        }
+        Some(version) => {
+            return Err(format!(
+                "The engine store at {} has unsupported storage_version {}; this build reads \
+                 storage_version {}.",
+                engine_path.display(),
+                version,
+                STORAGE_VERSION
+            )
+            .into());
+        }
+        None => {
+            return Err(format!(
+                "The engine store at {} has no storage_version, so it is not a complete store.",
+                engine_path.display()
+            )
+            .into());
+        }
+    }
+
+    remove_per_database_dirs(base_path)?;
+    Ok(Arc::new(db))
+}
+
+/// Directories of the per-database layout present in the data dir.
+fn per_database_dirs(base_path: &Path) -> Vec<String> {
+    database_names()
+        .into_iter()
+        .filter(|name| base_path.join(name).is_dir())
+        .collect()
+}
+
+fn remove_leftover_build(base_path: &Path) -> Result<(), Box<dyn Error>> {
+    let building = base_path.join(MIGRATING_DIR);
+    if building.exists() {
+        warn!(
+            "Removing {}, left over from an interrupted run",
+            building.display()
+        );
+        fs::remove_dir_all(&building)?;
+    }
+    Ok(())
+}
+
+/// Syncs a directory so a rename inside it survives power loss. Best effort where unsupported.
+fn sync_dir(path: &Path) {
+    if let Ok(dir) = fs::File::open(path) {
+        let _ = dir.sync_all();
+    }
+}
+
+/// Creates an empty store, built under [`MIGRATING_DIR`] so `engine` always has `storage_version`.
+fn create_fresh(base_path: &Path) -> Result<(), Box<dyn Error>> {
+    let building = base_path.join(MIGRATING_DIR);
+    {
+        let db = open_with_column_families(&building)?;
+        write_storage_version(&db)?;
+    }
+    fs::rename(&building, base_path.join(ENGINE_DIR))?;
+    sync_dir(base_path);
+    Ok(())
+}
+
+/// Total size in bytes of the files under `path`.
+fn dir_size(path: &Path) -> Result<u64, Box<dyn Error>> {
+    let mut total = 0;
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let metadata = entry.metadata()?;
+        if metadata.is_dir() {
+            total += dir_size(&entry.path())?;
+        } else {
+            total += metadata.len();
+        }
+    }
+    Ok(total)
+}
+
+/// Free space in bytes available to this process on the filesystem holding `path`.
+fn free_space(path: &Path) -> Result<Option<u64>, Box<dyn Error>> {
+    #[cfg(test)]
+    if let Some(bytes) = test_hooks::free_space() {
+        return Ok(Some(bytes));
+    }
+    free_space_of(path)
+}
+
+#[cfg(unix)]
+fn free_space_of(path: &Path) -> Result<Option<u64>, Box<dyn Error>> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    let c_path = CString::new(path.as_os_str().as_bytes())?;
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+    // SAFETY: c_path is a valid NUL-terminated string and stat is a valid out pointer.
+    let result = unsafe { libc::statvfs(c_path.as_ptr(), &mut stat) };
+    if result != 0 {
+        return Err(format!(
+            "Cannot read the free space of {}: {}",
+            path.display(),
+            std::io::Error::last_os_error()
+        )
+        .into());
+    }
+    Ok(Some(
+        (stat.f_bavail as u64).saturating_mul(stat.f_frsize as u64),
+    ))
+}
+
+#[cfg(not(unix))]
+fn free_space_of(_path: &Path) -> Result<Option<u64>, Box<dyn Error>> {
+    Ok(None)
+}
+
+/// Running key count and digest of a column family's key-value pairs in iteration order.
+struct Digest {
+    keys: u64,
+    hasher: Keccak256,
+}
+
+impl Digest {
+    fn new() -> Self {
+        Self {
+            keys: 0,
+            hasher: Keccak256::new(),
+        }
+    }
+
+    fn add(&mut self, key: &[u8], value: &[u8]) {
+        self.keys += 1;
+        self.hasher.update((key.len() as u64).to_be_bytes());
+        self.hasher.update(key);
+        self.hasher.update((value.len() as u64).to_be_bytes());
+        self.hasher.update(value);
+    }
+
+    fn finish(self) -> (u64, B256) {
+        (self.keys, self.hasher.finalize())
+    }
+}
+
+/// Opens a database directory of the per-database layout without modifying it.
+pub(crate) fn open_per_database_dir(path: &Path) -> Result<DB, Box<dyn Error>> {
+    let mut opts = Options::default();
+    opts.set_max_open_files(256);
+    Ok(DB::open_for_read_only(&opts, path, false)?)
+}
+
+/// Copies the database at `source` into the `name` column family in bounded batches.
+///
+/// Returns the key count and digest of what was read.
+fn copy_database(source: &Path, target: &DB, name: &str) -> Result<(u64, B256), Box<dyn Error>> {
+    let source_db = open_per_database_dir(source)?;
+    let cf = column_family(target, name)?;
+    let mut write_opts = WriteOptions::default();
+    // The store is flushed and verified before it is used, so the copy skips the WAL.
+    write_opts.disable_wal(true);
+
+    let mut digest = Digest::new();
+    let mut batch = WriteBatch::default();
+    let mut batch_bytes = 0;
+    for item in source_db.full_iterator(IteratorMode::Start) {
+        let (key, value) = item?;
+        digest.add(&key, &value);
+        batch_bytes += key.len() + value.len();
+        batch.put_cf(cf, &key, &value);
+        if batch.len() >= MIGRATION_BATCH_KEYS || batch_bytes >= MIGRATION_BATCH_BYTES {
+            target.write_opt(std::mem::take(&mut batch), &write_opts)?;
+            batch_bytes = 0;
+        }
+        if digest.keys.is_multiple_of(MIGRATION_PROGRESS_KEYS) {
+            info!("Migrating {}: {} keys copied", name, digest.keys);
+        }
+    }
+    if !batch.is_empty() {
+        target.write_opt(batch, &write_opts)?;
+    }
+    Ok(digest.finish())
+}
+
+/// Key count and digest of a column family.
+fn digest_column_family(db: &DB, name: &str) -> Result<(u64, B256), Box<dyn Error>> {
+    let mut digest = Digest::new();
+    for item in db.full_iterator_cf(column_family(db, name)?, IteratorMode::Start) {
+        let (key, value) = item?;
+        digest.add(&key, &value);
+    }
+    Ok(digest.finish())
+}
+
+/// Migrates the per-database layout in `base_path` into a new engine store.
+///
+/// `sources` names the per-database directories present; a database without a directory
+/// becomes an empty column family.
+fn migrate(base_path: &Path, sources: &[String]) -> Result<(), Box<dyn Error>> {
+    let started = Instant::now();
+    let building = base_path.join(MIGRATING_DIR);
+
+    let mut needed = 0;
+    for name in sources {
+        needed += dir_size(&base_path.join(name))?;
+    }
+    match free_space(base_path)? {
+        Some(available) if available < needed => {
+            return Err(format!(
+                "Migrating the engine data in {} to the single-store layout needs about {} MB of \
+                 free disk space, and {} MB is available. Free up space and start again; the \
+                 existing data is unchanged.",
+                base_path.display(),
+                needed.div_ceil(1024 * 1024),
+                available / (1024 * 1024)
+            )
+            .into());
+        }
+        Some(_) => {}
+        None => warn!("Cannot read free disk space; migrating without the space check"),
+    }
+
+    info!(
+        "Migrating the engine data in {} ({} MB in {} databases) into {}",
+        base_path.display(),
+        needed.div_ceil(1024 * 1024),
+        sources.len(),
+        building.display()
+    );
+
+    {
+        let db = open_with_column_families(&building)?;
+        let mut copied = Vec::new();
+        for (index, name) in database_names().iter().enumerate() {
+            let source = base_path.join(name);
+            let summary = if sources.contains(name) {
+                copy_database(&source, &db, name)?
+            } else {
+                Digest::new().finish()
+            };
+            info!("Migrated {}: {} keys", name, summary.0);
+            copied.push((name.clone(), summary));
+            fail_point(FailPoint::MigrationAfterCopying(index + 1))?;
+        }
+
+        for name in database_names() {
+            db.flush_cf(column_family(&db, &name)?)?;
+        }
+
+        for (name, (source_keys, source_digest)) in copied {
+            let (keys, digest) = digest_column_family(&db, &name)?;
+            if keys != source_keys || digest != source_digest {
+                return Err(format!(
+                    "Migration check failed for {}: the source has {} keys (digest {}), the \
+                     copy has {} keys (digest {}). The existing data is unchanged.",
+                    name, source_keys, source_digest, keys, digest
+                )
+                .into());
+            }
+        }
+        info!("Verified every column family against its source");
+
+        fail_point(FailPoint::MigrationBeforeStorageVersion)?;
+        write_storage_version(&db)?;
+    }
+
+    fail_point(FailPoint::MigrationBeforeRename)?;
+    fs::rename(&building, base_path.join(ENGINE_DIR))?;
+    sync_dir(base_path);
+    fail_point(FailPoint::MigrationAfterRename)?;
+
+    info!(
+        "Migrated the engine data in {:.1?}; removing the per-database directories",
+        started.elapsed()
+    );
+    Ok(())
+}
+
+/// Deletes the per-database directories. Runs only once `engine` holds a complete store.
+fn remove_per_database_dirs(base_path: &Path) -> Result<(), Box<dyn Error>> {
+    let mut removed = 0;
+    for name in database_names() {
+        let path: PathBuf = base_path.join(&name);
+        if path.is_dir() {
+            fs::remove_dir_all(&path)?;
+            removed += 1;
+            fail_point(FailPoint::CleanupAfterDeleting(removed))?;
+        }
+    }
+    if removed > 0 {
+        info!("Removed {} per-database directories", removed);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use tempfile::TempDir;
+
+    use super::test_hooks::{self, dump_per_database_dirs, dump_store, StoreDump};
+    use super::*;
+
+    /// A data dir written by brc20-prog v0.16.6, the last release with the per-database layout:
+    /// the mainnet consensus fixture workload, committed.
+    fn fixture_path() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/v0_16_6_mainnet_db")
+    }
+
+    fn copy_dir(from: &Path, to: &Path) {
+        fs::create_dir_all(to).unwrap();
+        for entry in fs::read_dir(from).unwrap() {
+            let entry = entry.unwrap();
+            let target = to.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy_dir(&entry.path(), &target);
+            } else {
+                fs::copy(entry.path(), &target).unwrap();
+            }
+        }
+    }
+
+    /// A copy of the v0.16.6 fixture and the contents it must migrate to.
+    fn old_layout_data_dir() -> (TempDir, StoreDump) {
+        let dir = TempDir::new().unwrap();
+        copy_dir(&fixture_path(), dir.path());
+        (dir, dump_per_database_dirs(&fixture_path()))
+    }
+
+    fn entries(path: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(path)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// The data dir holds only the per-database directories, unchanged.
+    fn assert_untouched(path: &Path, expected: &StoreDump) {
+        assert!(!path.join(ENGINE_DIR).exists());
+        assert_eq!(&dump_per_database_dirs(path), expected);
+    }
+
+    /// The data dir holds only a migrated store with the expected contents.
+    fn assert_migrated(path: &Path, expected: &StoreDump) {
+        let db = open(path).unwrap();
+        assert_eq!(read_storage_version(&db).unwrap(), Some(STORAGE_VERSION));
+        assert_eq!(&dump_store(&db), expected);
+        assert_eq!(entries(path), vec![ENGINE_DIR.to_string()]);
+    }
+
+    #[test]
+    fn test_fresh_data_dir_opens_in_the_single_store_layout() {
+        let dir = TempDir::new().unwrap();
+        let db = open(dir.path()).unwrap();
+        assert_eq!(read_storage_version(&db).unwrap(), Some(STORAGE_VERSION));
+        for name in column_family_names() {
+            assert!(db.cf_handle(&name).is_some(), "missing {}", name);
+        }
+        assert_eq!(entries(dir.path()), vec![ENGINE_DIR.to_string()]);
+    }
+
+    #[test]
+    fn test_fixture_covers_every_kind_of_database() {
+        let expected = dump_per_database_dirs(&fixture_path());
+        for name in [
+            "account",
+            "account_cache",
+            "account_memory",
+            "code",
+            "tx",
+            "tx_receipt",
+            "tx_trace",
+            "block_number_to_block",
+            "block_number_to_raw_block",
+            "block_number_to_hash",
+            "block_hash_to_number",
+            "global",
+            "config",
+        ] {
+            assert!(
+                !expected[name].is_empty(),
+                "{} is empty in the fixture",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn test_migration_copies_every_key_and_value() {
+        let (dir, expected) = old_layout_data_dir();
+        assert_migrated(dir.path(), &expected);
+    }
+
+    #[test]
+    fn test_migration_interrupted_after_each_column_family_completes_on_next_open() {
+        let count = database_names().len();
+        for copied in 1..=count {
+            let (dir, expected) = old_layout_data_dir();
+            test_hooks::arm(FailPoint::MigrationAfterCopying(copied));
+            assert!(open(dir.path()).is_err());
+            test_hooks::disarm();
+            assert!(dir.path().join(MIGRATING_DIR).exists());
+            assert_untouched(dir.path(), &expected);
+
+            assert_migrated(dir.path(), &expected);
+        }
+    }
+
+    #[test]
+    fn test_migration_interrupted_before_the_rename_completes_on_next_open() {
+        for point in [
+            FailPoint::MigrationBeforeStorageVersion,
+            FailPoint::MigrationBeforeRename,
+        ] {
+            let (dir, expected) = old_layout_data_dir();
+            test_hooks::arm(point);
+            assert!(open(dir.path()).is_err());
+            test_hooks::disarm();
+            assert_untouched(dir.path(), &expected);
+
+            assert_migrated(dir.path(), &expected);
+        }
+    }
+
+    #[test]
+    fn test_cleanup_interrupted_after_the_rename_finishes_on_next_open() {
+        let (dir, expected) = old_layout_data_dir();
+        test_hooks::arm(FailPoint::MigrationAfterRename);
+        assert!(open(dir.path()).is_err());
+        test_hooks::disarm();
+        assert!(dir.path().join(ENGINE_DIR).exists());
+        assert!(!dir.path().join(MIGRATING_DIR).exists());
+        assert_eq!(dump_per_database_dirs(dir.path()), expected);
+
+        assert_migrated(dir.path(), &expected);
+    }
+
+    #[test]
+    fn test_cleanup_interrupted_midway_finishes_on_next_open() {
+        let count = database_names().len();
+        for deleted in [1, count / 2, count - 1] {
+            let (dir, expected) = old_layout_data_dir();
+            test_hooks::arm(FailPoint::CleanupAfterDeleting(deleted));
+            assert!(open(dir.path()).is_err());
+            test_hooks::disarm();
+            assert_eq!(per_database_dirs(dir.path()).len(), count - deleted);
+
+            assert_migrated(dir.path(), &expected);
+        }
+    }
+
+    #[test]
+    fn test_leftover_migration_dir_is_removed_and_redone() {
+        let (dir, expected) = old_layout_data_dir();
+        {
+            // A store that looks complete but was never renamed, holding a stray key.
+            let leftover = open_with_column_families(&dir.path().join(MIGRATING_DIR)).unwrap();
+            leftover
+                .put_cf(
+                    column_family(&leftover, "account").unwrap(),
+                    b"stray",
+                    b"key",
+                )
+                .unwrap();
+            write_storage_version(&leftover).unwrap();
+        }
+
+        assert_migrated(dir.path(), &expected);
+    }
+
+    #[test]
+    fn test_insufficient_free_space_fails_without_changes() {
+        let (dir, expected) = old_layout_data_dir();
+        test_hooks::set_free_space(Some(1024));
+        let error = open(dir.path()).err().unwrap().to_string();
+        test_hooks::set_free_space(None);
+        assert!(error.contains("free disk space"), "{}", error);
+        assert!(!dir.path().join(MIGRATING_DIR).exists());
+        assert_untouched(dir.path(), &expected);
+
+        assert_migrated(dir.path(), &expected);
+    }
+
+    #[test]
+    fn test_newer_storage_version_is_rejected() {
+        let dir = TempDir::new().unwrap();
+        drop(open(dir.path()).unwrap());
+        {
+            let mut db = open_with_column_families(&dir.path().join(ENGINE_DIR)).unwrap();
+            db.put_cf(
+                column_family(&db, META_CF).unwrap(),
+                STORAGE_VERSION_KEY,
+                (STORAGE_VERSION + 1).to_string(),
+            )
+            .unwrap();
+            db.create_cf("added_by_a_newer_version", &Options::default())
+                .unwrap();
+        }
+        let error = open(dir.path()).err().unwrap().to_string();
+        assert!(error.contains("newer brc20-prog"), "{}", error);
+    }
+
+    #[test]
+    fn test_store_without_storage_version_is_rejected() {
+        let dir = TempDir::new().unwrap();
+        drop(open_with_column_families(&dir.path().join(ENGINE_DIR)).unwrap());
+        let error = open(dir.path()).err().unwrap().to_string();
+        assert!(error.contains("no storage_version"), "{}", error);
+    }
+}

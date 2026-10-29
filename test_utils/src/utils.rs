@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::net::TcpListener;
+use std::path::Path;
 
 use brc20_prog::types::{EthCall, RawBytes};
 use brc20_prog::{start, Brc20ProgApiClient, Brc20ProgConfig};
@@ -21,9 +22,17 @@ pub fn get_free_port() -> u16 {
 
 pub async fn spawn_test_server(config: Brc20ProgConfig) -> (ServerHandle, HttpClient) {
     let db_path = TempDir::new().unwrap();
+    spawn_test_server_at(config, db_path.path()).await
+}
+
+/// Starts a test server on the data dir at `db_path`.
+pub async fn spawn_test_server_at(
+    config: Brc20ProgConfig,
+    db_path: &Path,
+) -> (ServerHandle, HttpClient) {
     let server_address = format!("127.0.0.1:{}", get_free_port());
     let server = start(Brc20ProgConfig {
-        db_path: db_path.path().to_str().unwrap().to_string(),
+        db_path: db_path.to_str().unwrap().to_string(),
         brc20_prog_rpc_server_url: server_address.clone(),
         fail_on_bitcoin_rpc_error: false,
         evm_record_traces: true,

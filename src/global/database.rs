@@ -3,29 +3,35 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
+use std::sync::Arc;
 
-use rocksdb::{Options, DB};
+use rocksdb::{WriteBatch, DB};
 
+use crate::db::store::{self, column_family, MIGRATING_DIR};
 use crate::db::types::{Decode, Encode};
 use crate::global::{
     Brc20ProgConfig, BITCOIN_RPC_NETWORK_KEY, DB_VERSION, DB_VERSION_KEY, EVM_RECORD_TRACES_KEY,
     PROTOCOL_VERSION, PROTOCOL_VERSION_KEY,
 };
 
+/// String key-value database in a column family of the engine store.
+///
+/// Values set since the last commit are pending: reads see them, and the next commit writes them.
 pub struct ConfigDatabase {
-    db: DB,
+    db: Arc<DB>,
+    name: String,
     cache: HashMap<String, String>,
+    pending: HashMap<String, String>,
 }
 
 impl ConfigDatabase {
-    pub fn new(path: &Path, name: &str) -> Result<Self, Box<dyn Error>> {
-        let mut opts = Options::default();
-        opts.create_if_missing(true);
-        opts.set_max_open_files(256);
-        let db = DB::open(&opts, &path.join(Path::new(name)))?;
+    pub fn new(db: Arc<DB>, name: &str) -> Result<Self, Box<dyn Error>> {
+        column_family(&db, name)?;
         Ok(Self {
             db,
+            name: name.to_string(),
             cache: HashMap::new(),
+            pending: HashMap::new(),
         })
     }
 
@@ -35,18 +41,38 @@ impl ConfigDatabase {
         }
         Ok(self
             .db
-            .get(&key.encode_vec())?
+            .get_cf(column_family(&self.db, &self.name)?, key.encode_vec())?
             .map_or(None, |value| String::decode_vec(&value).ok()))
     }
 
     pub fn set(&mut self, key: String, value: String) -> Result<(), Box<dyn Error>> {
-        self.db.put(&key.encode_vec(), &value.encode_vec())?;
+        self.pending.insert(key.clone(), value.clone());
         self.cache.insert(key, value);
         Ok(())
     }
 
-    pub fn flush(&self) -> Result<(), Box<dyn Error>> {
-        self.db.flush().map_err(|e| e.into())
+    /// Adds the pending values to a commit's write batch. They stay pending until
+    /// [`ConfigDatabase::clear_pending`].
+    pub fn stage_commit(&self, batch: &mut WriteBatch) -> Result<(), Box<dyn Error>> {
+        let cf = column_family(&self.db, &self.name)?;
+        for (key, value) in &self.pending {
+            batch.put_cf(cf, key.encode_vec(), value.encode_vec());
+        }
+        Ok(())
+    }
+
+    /// Marks the pending values as written.
+    pub fn clear_pending(&mut self) {
+        self.pending.clear();
+    }
+
+    /// Writes the pending values in their own batch.
+    pub fn commit(&mut self) -> Result<(), Box<dyn Error>> {
+        let mut batch = WriteBatch::default();
+        self.stage_commit(&mut batch)?;
+        self.db.write(batch)?;
+        self.clear_pending();
+        Ok(())
     }
 
     pub fn validate(&mut self, key: &str, value: &str) -> Result<(), Box<dyn Error>> {
@@ -77,9 +103,13 @@ pub fn validate_config_database(config: &Brc20ProgConfig) -> Result<(), Box<dyn 
             return Err(format!("{} is not a directory", config.db_path).into());
         }
     }
-    let fresh_run = !db_path.read_dir()?.next().is_some();
+    // A store left half-built by an interrupted first start counts as no data.
+    let fresh_run = db_path
+        .read_dir()?
+        .filter_map(|entry| entry.ok())
+        .all(|entry| entry.file_name() == MIGRATING_DIR);
 
-    let mut config_database = ConfigDatabase::new(&Path::new(&config.db_path), "config")?;
+    let mut config_database = ConfigDatabase::new(store::open(db_path)?, "config")?;
     if fresh_run {
         config_database.set(DB_VERSION_KEY.clone(), DB_VERSION.to_string())?;
         config_database.set(PROTOCOL_VERSION_KEY.clone(), PROTOCOL_VERSION.to_string())?;
@@ -91,7 +121,7 @@ pub fn validate_config_database(config: &Brc20ProgConfig) -> Result<(), Box<dyn 
             EVM_RECORD_TRACES_KEY.clone(),
             config.evm_record_traces.to_string(),
         )?;
-        config_database.flush()?;
+        config_database.commit()?;
     } else {
         config_database.validate(&*DB_VERSION_KEY, &DB_VERSION.to_string())?;
         config_database.validate(&*PROTOCOL_VERSION_KEY, &PROTOCOL_VERSION.to_string())?;
@@ -113,7 +143,7 @@ mod tests {
     #[test]
     fn test_config_database() {
         let temp = TempDir::new().unwrap();
-        let mut db = ConfigDatabase::new(&temp.path(), "config").unwrap();
+        let mut db = ConfigDatabase::new(store::open(temp.path()).unwrap(), "config").unwrap();
         db.set("key".to_string(), "value".to_string()).unwrap();
         let value = db.get("key".to_string()).unwrap();
         assert_eq!(value, Some("value".to_string()));
@@ -122,7 +152,7 @@ mod tests {
     #[test]
     fn test_config_database_not_found() {
         let temp = TempDir::new().unwrap();
-        let db = ConfigDatabase::new(&temp.path(), "config").unwrap();
+        let db = ConfigDatabase::new(store::open(temp.path()).unwrap(), "config").unwrap();
         let value = db.get("key".to_string()).unwrap();
         assert_eq!(value, None);
     }
@@ -130,7 +160,7 @@ mod tests {
     #[test]
     fn test_config_database_update() {
         let temp = TempDir::new().unwrap();
-        let mut db = ConfigDatabase::new(&temp.path(), "config").unwrap();
+        let mut db = ConfigDatabase::new(store::open(temp.path()).unwrap(), "config").unwrap();
         db.set("key".to_string(), "value".to_string()).unwrap();
         db.set("key".to_string(), "value2".to_string()).unwrap();
         let value = db.get("key".to_string()).unwrap();
@@ -140,7 +170,7 @@ mod tests {
     #[test]
     fn test_config_database_validate() {
         let temp = TempDir::new().unwrap();
-        let mut db = ConfigDatabase::new(&temp.path(), "config").unwrap();
+        let mut db = ConfigDatabase::new(store::open(temp.path()).unwrap(), "config").unwrap();
         db.set("key".to_string(), "value".to_string()).unwrap();
         let result = db.validate("key", "value");
         assert!(result.is_ok());
@@ -149,7 +179,7 @@ mod tests {
     #[test]
     fn test_config_database_validate_mismatch() {
         let temp = TempDir::new().unwrap();
-        let mut db = ConfigDatabase::new(&temp.path(), "config").unwrap();
+        let mut db = ConfigDatabase::new(store::open(temp.path()).unwrap(), "config").unwrap();
         db.set("key".to_string(), "value".to_string()).unwrap();
         let result = db.validate("key", "value2");
         assert!(result.is_err());
@@ -158,7 +188,7 @@ mod tests {
     #[test]
     fn test_config_database_validate_not_found() {
         let temp = TempDir::new().unwrap();
-        let mut db = ConfigDatabase::new(&temp.path(), "config").unwrap();
+        let mut db = ConfigDatabase::new(store::open(temp.path()).unwrap(), "config").unwrap();
         let result = db.validate("key", "value");
         assert!(result.is_err());
     }
@@ -166,18 +196,35 @@ mod tests {
     #[test]
     fn test_config_database_validate_not_found_mismatch() {
         let temp = TempDir::new().unwrap();
-        let mut db = ConfigDatabase::new(&temp.path(), "config").unwrap();
+        let mut db = ConfigDatabase::new(store::open(temp.path()).unwrap(), "config").unwrap();
         db.set("key".to_string(), "value".to_string()).unwrap();
         let result = db.validate("key", "value2");
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_config_database_flush() {
+    fn test_config_database_commit() {
         let temp = TempDir::new().unwrap();
-        let mut db = ConfigDatabase::new(&temp.path(), "config").unwrap();
-        db.set("key".to_string(), "value".to_string()).unwrap();
-        let result = db.flush();
-        assert!(result.is_ok());
+        {
+            let mut db = ConfigDatabase::new(store::open(temp.path()).unwrap(), "config").unwrap();
+            db.set("key".to_string(), "value".to_string()).unwrap();
+            assert!(db.commit().is_ok());
+        }
+        let db = ConfigDatabase::new(store::open(temp.path()).unwrap(), "config").unwrap();
+        assert_eq!(
+            db.get("key".to_string()).unwrap(),
+            Some("value".to_string())
+        );
+    }
+
+    #[test]
+    fn test_config_database_uncommitted_value_is_not_stored() {
+        let temp = TempDir::new().unwrap();
+        {
+            let mut db = ConfigDatabase::new(store::open(temp.path()).unwrap(), "config").unwrap();
+            db.set("key".to_string(), "value".to_string()).unwrap();
+        }
+        let db = ConfigDatabase::new(store::open(temp.path()).unwrap(), "config").unwrap();
+        assert_eq!(db.get("key".to_string()).unwrap(), None);
     }
 }
