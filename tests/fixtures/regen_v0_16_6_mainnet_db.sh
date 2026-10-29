@@ -54,7 +54,16 @@ PATCH
 
 FIXTURE_DB="$work/db" cargo test --all-features --test consensus_fixture_mainnet
 
+mkdir -p "$work/out"
+rsync -a --exclude 'LOG*' --exclude LOCK "$work/db/" "$work/out/"
+
+# The output dir is replaced whole, so refuse an empty path or the filesystem root.
+name=$(basename "$out")
+if [ -z "$out" ] || [ "$name" = "/" ] || [ "$name" = "." ] || [ "$name" = ".." ]; then
+    echo "Refusing to replace output dir '$out'" >&2
+    exit 1
+fi
 rm -rf "$out"
-mkdir -p "$out"
-rsync -a --exclude 'LOG*' --exclude LOCK "$work/db/" "$out/"
+mkdir -p "$(dirname "$out")"
+mv "$work/out" "$out"
 echo "Wrote $out"

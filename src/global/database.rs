@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use rocksdb::{WriteBatch, WriteOptions, DB};
 
-use crate::db::store::{self, column_family, LOCK_FILE, MIGRATING_DIR};
+use crate::db::store::{self, column_family};
 use crate::db::types::{Decode, Encode};
 use crate::global::{
     Brc20ProgConfig, BITCOIN_RPC_NETWORK_KEY, DB_VERSION, DB_VERSION_KEY, EVM_RECORD_TRACES_KEY,
@@ -67,6 +67,7 @@ impl ConfigDatabase {
     }
 
     /// Writes the pending values in their own batch, synced to disk.
+    #[cfg(test)]
     pub fn commit(&mut self) -> Result<(), Box<dyn Error>> {
         let mut batch = WriteBatch::default();
         self.stage_commit(&mut batch)?;
@@ -101,12 +102,9 @@ fn check_value(key: &str, value: &str, found: Option<String>) -> Result<(), Box<
     Ok(())
 }
 
-/// Checks the stored data dir configuration, read through `get`, against `config`.
-fn check_settings(
-    config: &Brc20ProgConfig,
-    get: impl Fn(&str) -> Result<Option<String>, Box<dyn Error>>,
-) -> Result<(), Box<dyn Error>> {
-    let checks = [
+/// The data dir configuration a store is created with and checked against on every start.
+fn settings(config: &Brc20ProgConfig) -> [(&'static str, String); 4] {
+    [
         (DB_VERSION_KEY.as_str(), DB_VERSION.to_string()),
         (PROTOCOL_VERSION_KEY.as_str(), PROTOCOL_VERSION.to_string()),
         (
@@ -117,10 +115,30 @@ fn check_settings(
             EVM_RECORD_TRACES_KEY.as_str(),
             config.evm_record_traces.to_string(),
         ),
-    ];
-    for (key, value) in checks {
+    ]
+}
+
+/// Checks the stored data dir configuration, read through `get`, against `config`.
+fn check_settings(
+    config: &Brc20ProgConfig,
+    get: impl Fn(&str) -> Result<Option<String>, Box<dyn Error>>,
+) -> Result<(), Box<dyn Error>> {
+    for (key, value) in settings(config) {
         check_value(key, &value, get(key)?)?;
     }
+    Ok(())
+}
+
+/// Writes the configuration into the `config` column family of a store being created, synced.
+fn write_settings(config: &Brc20ProgConfig, db: &DB) -> Result<(), Box<dyn Error>> {
+    let cf = column_family(db, "config")?;
+    let mut batch = WriteBatch::default();
+    for (key, value) in settings(config) {
+        batch.put_cf(cf, key.to_string().encode_vec(), value.encode_vec());
+    }
+    let mut write_opts = WriteOptions::default();
+    write_opts.set_sync(true);
+    db.write_opt(batch, &write_opts)?;
     Ok(())
 }
 
@@ -152,34 +170,21 @@ pub fn validate_config_database(config: &Brc20ProgConfig) -> Result<(), Box<dyn 
             return Err(format!("{} is not a directory", config.db_path).into());
         }
     }
-    // A store left half-built by an interrupted first start, and the open lock, count as no data.
-    let fresh_run = db_path
-        .read_dir()?
-        .filter_map(|entry| entry.ok())
-        .all(|entry| entry.file_name() == MIGRATING_DIR || entry.file_name() == LOCK_FILE);
-
-    // A data dir about to migrate is checked first, so a mismatch leaves it untouched.
-    if !fresh_run && store::needs_migration(db_path) {
-        check_per_database_settings(config, db_path)?;
-    }
-
-    let mut config_database = ConfigDatabase::new(store::open(db_path)?, "config")?;
-    if fresh_run {
-        config_database.set(DB_VERSION_KEY.clone(), DB_VERSION.to_string())?;
-        config_database.set(PROTOCOL_VERSION_KEY.clone(), PROTOCOL_VERSION.to_string())?;
-        config_database.set(
-            BITCOIN_RPC_NETWORK_KEY.clone(),
-            config.bitcoin_rpc_network.clone(),
-        )?;
-        config_database.set(
-            EVM_RECORD_TRACES_KEY.clone(),
-            config.evm_record_traces.to_string(),
-        )?;
-        config_database.commit()?;
-    } else {
-        check_settings(config, |key| config_database.get(key.to_string()))?;
-    }
-    Ok(())
+    // Both hooks run inside the open's data dir lock: a data dir about to migrate is checked
+    // before anything changes, and a new store gets its configuration before it becomes visible
+    // as `engine`. So two starts racing on one data dir cannot overwrite each other's
+    // configuration or see a store without one.
+    let check_before_migration = |path: &Path| check_per_database_settings(config, path);
+    let initialize_fresh = |db: &DB| write_settings(config, db);
+    let store = store::open_with(
+        db_path,
+        &store::OpenHooks {
+            before_migration: Some(&check_before_migration),
+            initialize_fresh: Some(&initialize_fresh),
+        },
+    )?;
+    let config_database = ConfigDatabase::new(store, "config")?;
+    check_settings(config, |key| config_database.get(key.to_string()))
 }
 
 #[cfg(test)]
@@ -187,7 +192,8 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::db::store::test_hooks::{copy_dir, file_tree, fixture_path};
+    use crate::db::store::test_hooks::{self, copy_dir, file_tree, fixture_path};
+    use crate::db::store::FailPoint;
 
     #[test]
     fn test_config_database() {
@@ -276,11 +282,70 @@ mod tests {
         );
         assert_eq!(file_tree(temp.path()), file_tree(&fixture_path()));
         assert!(!temp.path().join(store::ENGINE_DIR).exists());
-        assert!(!temp.path().join(MIGRATING_DIR).exists());
+        assert!(!temp.path().join(store::MIGRATING_DIR).exists());
 
         validate_config_database(&fixture_config(temp.path(), "bitcoin")).unwrap();
         assert!(temp.path().join(store::ENGINE_DIR).exists());
         assert!(!temp.path().join("config").exists());
+    }
+
+    fn network_mismatch(path: &Path, network: &str) -> String {
+        validate_config_database(&fixture_config(path, network))
+            .err()
+            .unwrap()
+            .to_string()
+    }
+
+    #[test]
+    fn test_fresh_store_has_its_config_before_it_becomes_engine() {
+        let temp = TempDir::new().unwrap();
+        test_hooks::arm(FailPoint::CreateBeforeRename);
+        assert!(validate_config_database(&fixture_config(temp.path(), "bitcoin")).is_err());
+        test_hooks::disarm();
+
+        // The half-created store already holds the config, and is not visible as `engine`.
+        assert!(!temp.path().join(store::ENGINE_DIR).exists());
+        let building = temp.path().join(store::MIGRATING_DIR);
+        let names = DB::list_cf(&rocksdb::Options::default(), &building).unwrap();
+        let half_built =
+            DB::open_cf_for_read_only(&rocksdb::Options::default(), &building, &names, false)
+                .unwrap();
+        let network = half_built
+            .get_cf(
+                column_family(&half_built, "config").unwrap(),
+                BITCOIN_RPC_NETWORK_KEY.clone().encode_vec(),
+            )
+            .unwrap()
+            .map(|value| String::decode_vec(&value).unwrap());
+        assert_eq!(network.as_deref(), Some("bitcoin"));
+        drop(half_built);
+
+        // The next start rebuilds it with its own config, and no later start can overwrite it.
+        validate_config_database(&fixture_config(temp.path(), "signet")).unwrap();
+        assert_eq!(
+            network_mismatch(temp.path(), "bitcoin"),
+            "Config for BITCOIN_RPC_NETWORK mismatch: expected bitcoin, found signet"
+        );
+    }
+
+    #[test]
+    fn test_start_while_another_start_holds_the_lock_changes_nothing() {
+        // Two starts racing on one data dir: the open of the second fails on the lock while the
+        // first holds it, instead of seeing the data dir as empty and writing its own config.
+        let temp = TempDir::new().unwrap();
+        let lock = std::fs::File::create(temp.path().join(store::LOCK_FILE)).unwrap();
+        lock.try_lock().unwrap();
+        let error = network_mismatch(temp.path(), "signet");
+        assert!(error.contains("Another brc20-prog"), "{}", error);
+        let entries: Vec<_> = std::fs::read_dir(temp.path()).unwrap().collect();
+        assert_eq!(entries.len(), 1, "only the lock file");
+        drop(lock);
+
+        validate_config_database(&fixture_config(temp.path(), "bitcoin")).unwrap();
+        assert_eq!(
+            network_mismatch(temp.path(), "signet"),
+            "Config for BITCOIN_RPC_NETWORK mismatch: expected signet, found bitcoin"
+        );
     }
 
     #[test]

@@ -140,6 +140,8 @@ pub(crate) enum FailPoint {
     MigrationBeforeStorageVersion,
     /// The migrated store is complete and not yet renamed to `engine`.
     MigrationBeforeRename,
+    /// A new store is filled and has `storage_version`, and is not yet renamed to `engine`.
+    CreateBeforeRename,
     /// The migrated store is renamed to `engine` and no source directory is deleted yet.
     MigrationAfterRename,
     /// The cleanup deleted this many source directories.
@@ -366,6 +368,28 @@ fn write_storage_version(db: &DB) -> Result<(), Box<dyn Error>> {
 /// Fails if another process is opening the data dir, if the store's `storage_version` is missing
 /// or not one this build reads, or if a migration is needed and cannot complete.
 pub(crate) fn open(base_path: &Path) -> Result<Arc<DB>, Box<dyn Error>> {
+    open_with(base_path, &OpenHooks::default())
+}
+
+/// A check run on a data dir before it migrates.
+pub(crate) type MigrationCheck<'a> = &'a dyn Fn(&Path) -> Result<(), Box<dyn Error>>;
+
+/// A step that fills a new store before it becomes `engine`.
+pub(crate) type FreshInitializer<'a> = &'a dyn Fn(&DB) -> Result<(), Box<dyn Error>>;
+
+/// Steps the caller runs inside [`open_with`], under the data dir lock.
+#[derive(Default)]
+pub(crate) struct OpenHooks<'a> {
+    /// Runs on a data dir in the per-database layout before the migration starts; an error stops
+    /// the open with the data dir unchanged.
+    pub(crate) before_migration: Option<MigrationCheck<'a>>,
+    /// Fills a new store before it gets `storage_version` and becomes `engine`, so no process
+    /// ever sees a new store without this data.
+    pub(crate) initialize_fresh: Option<FreshInitializer<'a>>,
+}
+
+/// Opens the engine store like [`open`], running `hooks` inside the data dir lock.
+pub(crate) fn open_with(base_path: &Path, hooks: &OpenHooks) -> Result<Arc<DB>, Box<dyn Error>> {
     // A migration opens a RocksDB per source directory next to the store, so the limit goes up
     // before anything is opened.
     rlimit::Resource::NOFILE.set(4096, 8192)?;
@@ -377,10 +401,14 @@ pub(crate) fn open(base_path: &Path) -> Result<Arc<DB>, Box<dyn Error>> {
     let engine_path = base_path.join(ENGINE_DIR);
     if !engine_path.exists() {
         let sources = per_database_dirs(base_path);
-        remove_leftover_build(base_path)?;
         if sources.is_empty() {
-            create_fresh(base_path)?;
+            remove_leftover_build(base_path)?;
+            create_fresh(base_path, hooks.initialize_fresh)?;
         } else {
+            if let Some(check) = hooks.before_migration {
+                check(base_path)?;
+            }
+            remove_leftover_build(base_path)?;
             migrate(base_path, &sources)?;
         }
     }
@@ -421,7 +449,12 @@ fn lock_data_dir(base_path: &Path) -> Result<fs::File, Box<dyn Error>> {
 /// reads it.
 fn check_storage_version(engine_path: &Path) -> Result<(), Box<dyn Error>> {
     let opts = Options::default();
-    let names = DB::list_cf(&opts, engine_path)?;
+    // A dir without CURRENT holds no RocksDB, so it has no storage_version either.
+    let names = if engine_path.join("CURRENT").is_file() {
+        DB::list_cf(&opts, engine_path)?
+    } else {
+        Vec::new()
+    };
     let version = if names.iter().any(|name| name == META_CF) {
         let db = DB::open_cf_for_read_only(&opts, engine_path, &names, false)?;
         read_storage_version(&db)?
@@ -461,11 +494,6 @@ fn check_storage_version(engine_path: &Path) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Whether opening the data dir at `base_path` migrates it from the per-database layout.
-pub(crate) fn needs_migration(base_path: &Path) -> bool {
-    !base_path.join(ENGINE_DIR).exists() && !per_database_dirs(base_path).is_empty()
-}
-
 /// Directories of the per-database layout present in the data dir.
 fn per_database_dirs(base_path: &Path) -> Vec<String> {
     database_names()
@@ -494,12 +522,19 @@ fn sync_dir(path: &Path) {
 }
 
 /// Creates an empty store, built under [`MIGRATING_DIR`] so `engine` always has `storage_version`.
-fn create_fresh(base_path: &Path) -> Result<(), Box<dyn Error>> {
+fn create_fresh(
+    base_path: &Path,
+    initialize: Option<FreshInitializer>,
+) -> Result<(), Box<dyn Error>> {
     let building = base_path.join(MIGRATING_DIR);
     {
         let db = open_with_column_families(&building)?;
+        if let Some(initialize) = initialize {
+            initialize(&db)?;
+        }
         write_storage_version(&db)?;
     }
+    fail_point(FailPoint::CreateBeforeRename)?;
     fs::rename(&building, base_path.join(ENGINE_DIR))?;
     sync_dir(base_path);
     Ok(())
@@ -1146,6 +1181,20 @@ mod tests {
 
     fn fixture_entries() -> Vec<String> {
         entries(&fixture_path())
+    }
+
+    #[test]
+    fn test_engine_dir_without_a_database_is_rejected() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join(ENGINE_DIR)).unwrap();
+        fs::write(dir.path().join(ENGINE_DIR).join("stray"), b"x").unwrap();
+        let error = open(dir.path()).err().unwrap().to_string();
+        assert!(error.contains("no storage_version"), "{}", error);
+        assert_eq!(
+            fs::read_dir(dir.path().join(ENGINE_DIR)).unwrap().count(),
+            1,
+            "the dir is left as it was"
+        );
     }
 
     #[test]
