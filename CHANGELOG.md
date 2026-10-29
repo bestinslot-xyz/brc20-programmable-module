@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      activation height. Other files in the data directory stay, and an interrupted wipe
      finishes on the next open.
    * After a commit or reorg fails partway, the same process refuses every read and write
-     until the database is reopened.
+     except clearing caches until the database is reopened.
    * The highest finalised block only ever rises, so a reorg after a replay of a lower
      chain stays within the pruned history. It is stored with each commit's rollback
      marker, so blocks finalised but lost in a crash do not narrow the reorgs allowed.

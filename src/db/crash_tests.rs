@@ -498,6 +498,28 @@ fn test_reorg_after_losing_uncommitted_blocks_stays_allowed() {
 }
 
 #[test]
+fn test_reorg_keeps_the_highest_block_its_histories_were_pruned_against() {
+    // Blocks 13..=25 are executed but not committed, so their pruning lives in memory until
+    // the reorg writes it
+    let dir = TempDir::new().unwrap();
+    build(dir.path(), 12, 12);
+    let engine = open_engine(dir.path());
+    for n in 13..=25 {
+        execute_block(&engine, n);
+    }
+    engine.reorg(16).unwrap();
+
+    // The histories were pruned against block 25, so they cannot reach block 6
+    let error = engine.reorg(6).err().unwrap().to_string();
+    assert!(error.contains("max recorded block height"), "{}", error);
+    drop(engine);
+
+    let db = Brc20ProgDatabase::new(dir.path()).unwrap();
+    assert!(!db.has_marker());
+    assert_eq!(db.get_latest_block_height().unwrap(), 16);
+}
+
+#[test]
 fn test_failed_commit_blocks_later_writes_until_reopen() {
     let dir = TempDir::new().unwrap();
     build(dir.path(), 12, 12);
@@ -672,6 +694,30 @@ fn test_interrupted_emptying_of_a_symlinked_database_completes() {
 
     assert_wiped_and_working(dir.path());
     assert!(is_symlink(&dir.path().join("account")));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_resumed_wipe_stops_at_a_link_retargeted_to_something_else() {
+    let dir = TempDir::new().unwrap();
+    let elsewhere = TempDir::new().unwrap();
+    let foreign = TempDir::new().unwrap();
+    interrupt_first_commit(dir.path());
+    link_account_database(dir.path(), elsewhere.path());
+
+    // The wipe stops after setting its marker, then the link moves to a foreign directory
+    assert!(crash_after(1, || Brc20ProgDatabase::new(dir.path()).map(|_| ())));
+    std::fs::remove_file(dir.path().join("account")).unwrap();
+    std::os::unix::fs::symlink(foreign.path(), dir.path().join("account")).unwrap();
+    std::fs::write(foreign.path().join("notes.txt"), "keep").unwrap();
+
+    let error = Brc20ProgDatabase::new(dir.path())
+        .err()
+        .unwrap()
+        .to_string();
+    assert!(error.contains("not a database"), "{}", error);
+    assert!(foreign.path().join("notes.txt").exists());
+    assert!(dir.path().join("code").join("CURRENT").exists());
 }
 
 #[cfg(unix)]

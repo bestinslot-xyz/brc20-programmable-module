@@ -77,6 +77,25 @@ fn looks_like_a_database(path: &Path) -> Result<bool, Box<dyn Error>> {
     Ok(empty || (path.join("CURRENT").is_file() && path.join("IDENTITY").is_file()))
 }
 
+/// Whether `path` is a directory whose every entry is a file RocksDB names for itself
+fn holds_only_database_files(path: &Path) -> Result<bool, Box<dyn Error>> {
+    if !path.is_dir() {
+        return Ok(false);
+    }
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let prefixes = ["LOG", "MANIFEST-", "OPTIONS-"];
+        let owned = ["CURRENT", "IDENTITY", "LOCK"].contains(&name.as_str())
+            || prefixes.iter().any(|prefix| name.starts_with(prefix))
+            || [".sst", ".log", ".blob"].iter().any(|s| name.ends_with(s));
+        if !owned || !entry.file_type()?.is_file() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 /// The stored highest finalised block, which bounds how far back a reorg can go
 fn max_block_number(global: &ConfigDatabase) -> Result<u64, Box<dyn Error>> {
     Ok(global
@@ -248,12 +267,20 @@ impl Brc20ProgDatabase {
             reason
         );
         // A database reached through a symbolic link is emptied and the link kept, but only
-        // when the target is empty or holds a RocksDB database. A resumed wipe checked it
-        // before its marker was written, and may have emptied it partway since.
+        // when the target is empty or holds a RocksDB database. A resumed wipe may have
+        // emptied it partway, so it accepts any target holding only RocksDB's own files.
         let resuming = global.get(ROLLBACK_TARGET_KEY.to_string())?.as_deref() == Some(WIPE_MARKER);
         for name in DATABASE_DIRS {
             let path = base_path.join(name);
-            if !resuming && is_symlink(&path) && !looks_like_a_database(&path)? {
+            if !is_symlink(&path) {
+                continue;
+            }
+            let owned = if resuming {
+                holds_only_database_files(&path)?
+            } else {
+                looks_like_a_database(&path)?
+            };
+            if !owned {
                 tracing::warn!(
                     "Not wiping {}: its link target is not a database",
                     path.display()
@@ -1198,6 +1225,8 @@ impl Brc20ProgDatabase {
             .into());
         }
 
+        // The in-memory highest block stays: the histories this reorg writes were pruned
+        // against it, even for blocks it drops.
         // A crash before `commit_changes` clears the marker leaves `new` to redo the reorg,
         // which is idempotent
         self.mark_rollback_target(latest_valid_block_number)?;

@@ -185,7 +185,7 @@ When `BRC20_PROG_ADMIN_RPC_SERVER_URL` is set, the indexer methods are served on
 >
 > A commit that spans more than 10 blocks, such as one after mining the empty blocks below the activation height, is wiped this way if it is interrupted, and those blocks are mined again.
 >
-> After a commit or reorg fails partway with an error, the process refuses every read and write with `an earlier write failed; reopen the database to roll it back`.
+> After a commit or reorg fails partway with an error, the process refuses every read and write except clearing caches with `an earlier write failed; reopen the database to roll it back`.
 
 <hr>
 
