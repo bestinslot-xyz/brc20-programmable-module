@@ -20,6 +20,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 The configuration is process-wide, so open one instance per process.
 
+The first open after upgrading from v0.16.6 or earlier migrates the data dir into the engine store inside `Brc20Prog::open` (see [Storage](configuration.md#storage)). The open blocks until the migration has finished: 11 seconds for the 760 MB signet data dir, and minutes for a large mainnet one. Call it where blocking is acceptable, before the indexer starts its own deadlines or health checks, and not from an async task that must stay responsive.
+
 ## Supplying Bitcoin data
 
 The Bitcoin precompiles look up transactions and block heights through a Bitcoin Core node at `BITCOIN_RPC_URL`. An indexer that already has this data can implement the `BitcoinRpc` trait and open the module with `Brc20Prog::open_with_bitcoin_rpc`, which serves the lookups in process. `BITCOIN_RPC_NETWORK` still selects the network, and `brc20_initialise` checks it against `BitcoinRpc::network`.
