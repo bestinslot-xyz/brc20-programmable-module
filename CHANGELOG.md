@@ -23,10 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      opening wipes the module's databases with a warning, and the indexer replays from its
      activation height. Other files in the data directory stay, and an interrupted wipe
      finishes on the next open.
-   * After a commit or reorg fails partway, the same process refuses further commits,
-     reorgs and finalised blocks until the database is reopened.
+   * After a commit or reorg fails partway, the same process refuses every read and write
+     until the database is reopened.
    * The highest finalised block only ever rises, so a reorg after a replay of a lower
-     chain stays within the pruned history.
+     chain stays within the pruned history. It is stored with each commit's rollback
+     marker, so blocks finalised but lost in a crash do not narrow the reorgs allowed.
+   * A database directory that is a symbolic link to a database is emptied by a wipe, and
+     the link kept. A link to anything else stops the wipe before anything is deleted.
    * A commit syncs the WAL of every database it writes, 20 syncs for a signet block of
      five deposits. The on-disk layout is unchanged.
    * v0.16.6 and earlier ignore the rollback marker: open a store that crashed under this
