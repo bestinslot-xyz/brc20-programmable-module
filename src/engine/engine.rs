@@ -526,7 +526,7 @@ impl BRC20ProgEngine {
             }
 
             if CONFIG.read().evm_record_traces {
-                db.set_tx_trace(tx_hash, traces)?;
+                db.set_tx_trace(block_number, tx_hash, traces)?;
             }
 
             db.set_tx_receipt(
@@ -1191,6 +1191,72 @@ mod tests {
         assert!(engine.reorg(height - MAX_REORG_HISTORY_SIZE - 1).is_err());
         // The failed reorgs must not have mutated the chain.
         assert_eq!(engine.get_latest_block_height().unwrap(), height);
+    }
+
+    /// Adds `tx_info` as the only transaction of block `block_number` and finalises it
+    fn execute_single_tx_block(
+        engine: &BRC20ProgEngine,
+        block_number: u64,
+        tx_info: &TxInfo,
+    ) -> B256 {
+        let receipt = engine
+            .add_tx_to_block(
+                1622547800,
+                tx_info,
+                0,
+                block_number,
+                B256::ZERO,
+                format!("{}i0", block_number),
+                1000,
+                B256::ZERO,
+            )
+            .unwrap();
+        engine
+            .finalise_block(1622547800, block_number, B256::ZERO, 1)
+            .unwrap();
+        receipt.transaction_hash.bytes
+    }
+
+    #[test]
+    fn test_reorg_removes_traces_of_dropped_txes() {
+        CONFIG.write_fn_unchecked(|config| config.evm_record_traces = true);
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        engine.mine_blocks(1, 1622547800).unwrap();
+        let dropped = TxInfo::from_inscription([1; 20].into(), TxKind::Create, vec![].into());
+        let dropped_hash = execute_single_tx_block(&engine, 1, &dropped);
+        engine.commit_to_db().unwrap();
+        assert!(engine.get_trace(dropped_hash).unwrap().is_some());
+
+        // The replacement block 1 lacks the dropped transaction
+        engine.reorg(0).unwrap();
+        let replacement = TxInfo::from_inscription([2; 20].into(), TxKind::Create, vec![].into());
+        let replacement_hash = execute_single_tx_block(&engine, 1, &replacement);
+        engine.commit_to_db().unwrap();
+
+        assert!(engine.get_trace(dropped_hash).unwrap().is_none());
+        assert!(engine.get_trace(replacement_hash).unwrap().is_some());
+    }
+
+    #[test]
+    fn test_reorg_to_genesis_keeps_genesis_state() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        let from = Address::from_slice([1; 20].as_ref());
+        let tx_info = TxInfo::from_inscription(from, TxKind::Create, vec![].into());
+        execute_single_tx_block(&engine, 0, &tx_info);
+        execute_single_tx_block(&engine, 1, &tx_info);
+        engine.commit_to_db().unwrap();
+        assert_eq!(engine.get_transaction_count(from, 1).unwrap(), 2);
+
+        engine.reorg(0).unwrap();
+
+        assert_eq!(engine.get_latest_block_height().unwrap(), 0);
+        assert_eq!(engine.get_transaction_count(from, 0).unwrap(), 1);
     }
 
     #[test]
