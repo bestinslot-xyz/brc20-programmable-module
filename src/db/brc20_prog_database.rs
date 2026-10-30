@@ -405,19 +405,18 @@ impl Brc20ProgDatabase {
         }
     }
 
+    /// The block the state written now belongs to: 0 on an empty store, so a chain whose
+    /// genesis is at height 0 records it at history block 0
     pub fn get_next_block_height(&self) -> Result<u64, Box<dyn Error>> {
-        match self.latest_block_number {
-            Some((block_number, _)) => return Ok(block_number + 1),
-            None => {
-                return Ok(self
-                    .db_block_number_to_hash
-                    .as_ref()
-                    .expect(DB_MUTEX_ERROR)
-                    .last_key()?
-                    .unwrap_or(0)
-                    + 1);
-            }
-        }
+        let latest = match self.latest_block_number {
+            Some((block_number, _)) => Some(block_number),
+            None => self
+                .db_block_number_to_hash
+                .as_ref()
+                .expect(DB_MUTEX_ERROR)
+                .last_key()?,
+        };
+        Ok(latest.map_or(0, |block_number| block_number + 1))
     }
 
     pub fn get_account_memory(
@@ -672,11 +671,16 @@ impl Brc20ProgDatabase {
             .latest(&tx_hash.into())
     }
 
-    pub fn set_tx_trace(&mut self, tx_hash: B256, trace: TraceED) -> Result<(), Box<dyn Error>> {
+    pub fn set_tx_trace(
+        &mut self,
+        block_number: u64,
+        tx_hash: B256,
+        trace: TraceED,
+    ) -> Result<(), Box<dyn Error>> {
         self.db_tx_trace
             .as_mut()
             .expect(DB_MUTEX_ERROR)
-            .set(0, &tx_hash.into(), trace)
+            .set(block_number, &tx_hash.into(), trace)
     }
 
     pub fn set_tx_receipt(

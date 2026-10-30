@@ -75,10 +75,9 @@ fn dump_block_responses(db: &Option<BlockDatabase<BlockResponseED>>) -> Vec<(Vec
 }
 
 impl Brc20ProgDatabase {
-    /// Every value a read can see, by database. Traces stay out with `with_traces` false,
-    /// as a reorg keeps the traces of the blocks it removes.
-    fn dump(&self, with_traces: bool) -> Dump {
-        let mut dump = vec![
+    /// Every value a read can see, by database
+    fn dump(&self) -> Dump {
+        vec![
             ("account_memory", dump_cached(&self.db_account_memory)),
             ("code", dump_cached(&self.db_code)),
             ("account", dump_cached(&self.db_account)),
@@ -111,13 +110,11 @@ impl Brc20ProgDatabase {
                 dump_raw_receipts(&self.db_block_number_to_raw_block),
             ),
             ("number_to_hash", dump_blocks(&self.db_block_number_to_hash)),
-        ];
-        if with_traces {
-            dump.push(("tx_trace", dump_cached(&self.db_tx_trace)));
-        }
-        dump.into_iter()
-            .map(|(name, v)| (name.to_string(), v))
-            .collect()
+            ("tx_trace", dump_cached(&self.db_tx_trace)),
+        ]
+        .into_iter()
+        .map(|(name, v)| (name.to_string(), v))
+        .collect()
     }
 
     fn has_marker(&self) -> bool {
@@ -203,8 +200,8 @@ fn assert_same(actual: &Dump, expected: &Dump) {
     assert_eq!(actual.len(), expected.len());
 }
 
-fn dump_at(path: &Path, with_traces: bool) -> Dump {
-    Brc20ProgDatabase::new(path).unwrap().dump(with_traces)
+fn dump_at(path: &Path) -> Dump {
+    Brc20ProgDatabase::new(path).unwrap().dump()
 }
 
 /// Block outputs a re-execution must reproduce: hash, trace hash and raw receipts.
@@ -242,11 +239,11 @@ fn check_recovered(
     assert!(!db.has_marker());
     let height = db.get_latest_block_height().unwrap();
     if height == high {
-        assert_same(&db.dump(true), &reference.0);
+        assert_same(&db.dump(), &reference.0);
         return height;
     }
     assert_eq!(height, low);
-    assert_same(&db.dump(false), twin);
+    assert_same(&db.dump(), twin);
     drop(db);
 
     let engine = open_engine(path);
@@ -261,7 +258,7 @@ fn check_recovered(
         );
     }
     drop(engine);
-    assert_same(&dump_at(path, true), &reference.0);
+    assert_same(&dump_at(path), &reference.0);
     height
 }
 
@@ -273,7 +270,7 @@ fn reference_run(low: u64, high: u64) -> (Dump, Vec<(B256, Option<String>, Optio
         .map(|n| block_outputs(&engine, n))
         .collect();
     drop(engine);
-    (dump_at(dir.path(), true), outputs)
+    (dump_at(dir.path()), outputs)
 }
 
 /// Copies the closed store at `from` into the empty directory `to`
@@ -294,7 +291,7 @@ fn copy_store(from: &Path, to: &Path) {
 fn commit_kill_case(low: u64, high: u64) {
     let base = TempDir::new().unwrap();
     build(base.path(), low, low);
-    let twin = dump_at(base.path(), false);
+    let twin = dump_at(base.path());
     let reference = reference_run(low, high);
 
     let mut heights = Vec::new();
@@ -338,7 +335,7 @@ fn test_reorg_crash_after_every_write_rolls_back() {
     let (low, high) = (12, 15);
     let twin_dir = TempDir::new().unwrap();
     build(twin_dir.path(), low, low);
-    let twin = dump_at(twin_dir.path(), false);
+    let twin = dump_at(twin_dir.path());
     let reference = reference_run(low, high);
     let base = TempDir::new().unwrap();
     build(base.path(), low + 1, high);
@@ -368,11 +365,11 @@ fn test_reorg_above_the_committed_height_crash_rolls_back_to_it() {
     let (committed, target, high) = (14, 16, 17);
     let base = TempDir::new().unwrap();
     build(base.path(), committed, committed);
-    let twin = dump_at(base.path(), false);
+    let twin = dump_at(base.path());
     let reference = reference_run(committed, high);
     let target_dir = TempDir::new().unwrap();
     build(target_dir.path(), target, target);
-    let at_target = dump_at(target_dir.path(), false);
+    let at_target = dump_at(target_dir.path());
 
     let mut heights = Vec::new();
     for writes in 1.. {
@@ -390,8 +387,7 @@ fn test_reorg_above_the_committed_height_crash_rolls_back_to_it() {
         let height = db.get_latest_block_height().unwrap();
         heights.push(height);
         if height == target {
-            // The finished reorg also wrote the traces of block 17, which reorgs keep
-            assert_same(&db.dump(false), &at_target);
+            assert_same(&db.dump(), &at_target);
         } else {
             drop(db);
             check_recovered(dir.path(), committed, high, &twin, &reference);
@@ -407,7 +403,7 @@ fn test_crash_during_rollback_recovers_on_next_open() {
     let (low, high) = (12, 14);
     let twin_dir = TempDir::new().unwrap();
     build(twin_dir.path(), low, low);
-    let twin = dump_at(twin_dir.path(), false);
+    let twin = dump_at(twin_dir.path());
     let reference = reference_run(low, high);
     let crashed = TempDir::new().unwrap();
     copy_store(twin_dir.path(), crashed.path());
@@ -555,14 +551,14 @@ fn test_failed_commit_blocks_later_writes_until_reopen() {
 fn test_open_without_marker_writes_nothing() {
     let dir = TempDir::new().unwrap();
     build(dir.path(), 2, 4);
-    let before = dump_at(dir.path(), true);
+    let before = dump_at(dir.path());
 
     WRITES_BEFORE_CRASH.set(Some(1));
     let db = Brc20ProgDatabase::new(dir.path()).unwrap();
     WRITES_BEFORE_CRASH.set(None);
     assert!(!db.has_marker());
     assert_eq!(db.get_latest_block_height().unwrap(), 4);
-    assert_eq!(db.dump(true), before);
+    assert_eq!(db.dump(), before);
 }
 
 /// Leaves `path` with an interrupted first commit, which no rollback can undo
@@ -589,7 +585,7 @@ fn assert_wiped_and_working(path: &Path) {
     assert!(!db.has_marker());
     assert_eq!(db.get_latest_block_height().unwrap(), 0);
     assert!(db.get_block(0).unwrap().is_none());
-    assert!(db.dump(true).iter().all(|(_, entries)| entries.is_empty()));
+    assert!(db.dump().iter().all(|(_, entries)| entries.is_empty()));
     assert_eq!(
         max_block_number(db.db_global_values.as_ref().unwrap()).unwrap(),
         0
