@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.8 (2026-10-30)
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 1 commit contributed to the release.
+ - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 1 unique issue was worked on: [#32](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/32)
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **[#32](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/32)**
+    - Record traces and genesis state at their own block in reorg history ([`2b281e4`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/2b281e477b8b617af8325bb329c37a242e80ff6e))
+</details>
+
 ## 0.16.7 (2026-10-29)
 
 ### Bug Fixes
@@ -54,6 +74,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      five deposits. The on-disk layout is unchanged.
 * v0.16.6 and earlier ignore the rollback marker: open a store that crashed under this
      version with this version or a later one.
+* Each database writes its changes as whole synced batches: a cached database writes
+     its histories, then its values, then the deletion of old histories. The state
+     databases go first, and `block_number_to_hash`, which sets the reported height, goes
+     last.
+* When the first commit into an empty database was interrupted, or an interrupted
+     commit or reorg has a target more than 10 blocks below the highest finalised block,
+     opening wipes the module's databases with a warning, and the indexer replays from its
+     activation height. Other files in the data directory stay, and an interrupted wipe
+     finishes on the next open.
+* After a commit or reorg fails partway, the same process refuses every read and write
+     except clearing caches until the database is reopened.
+* The highest finalised block only ever rises, so a reorg after a replay of a lower
+     chain stays within the pruned history. It is stored with each commit's rollback
+     marker, so blocks finalised but lost in a crash do not narrow the reorgs allowed.
+* A database directory that is a symbolic link to a database is emptied by a wipe, and
+     the link kept. A link to anything else stops the wipe before anything is deleted.
+* A commit syncs the WAL of every database it writes, 20 syncs for a signet block of
+     five deposits. The on-disk layout is unchanged.
+* v0.16.6 and earlier ignore the rollback marker: open a store that crashed under this
+     version with this version or a later one.
 * A `BitcoinRpc` error during `eth_call`, `eth_callMany`, `eth_estimateGas`,
      `eth_estimateGasMany` or `brc20_balance` is retried once with no pause, and then
      fails the whole call with `Call failed: Bitcoin data unavailable`.
@@ -67,7 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 2 commits contributed to the release.
+ - 3 commits contributed to the release.
  - 2 days passed between releases.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 2 unique issues were worked on: [#27](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/27), [#31](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/31)
@@ -82,10 +122,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Fail a public call on a Bitcoin lookup error instead of panicking ([`11aabd3`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/11aabd34c74551eec79698b504d63e91c41cb433))
  * **[#31](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/31)**
     - Recover an interrupted commit or reorg at open, keeping the storage layout ([`1f17498`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/1f1749896eb7989d87186592602318771795a4ef))
+ * **Uncategorized**
+    - Release brc20-prog v0.16.7 ([`52c68cf`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/52c68cfed6657e59c79cde26cf28a44ee044df09))
 </details>
-
-<csr-unknown>
-a failed Bitcoin lookup fails a public call instead of panicking<csr-unknown/>
 
 ## v0.16.6 (2026-10-27)
 
@@ -320,9 +359,6 @@ a failed Bitcoin lookup fails a public call instead of panicking<csr-unknown/>
     - Pin inscription data decoding over a base64/nada/zstd corpus ([`ecdeb17`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/ecdeb17fcafbfc10a5594eb6c4eeaef902bbdb09))
     - Consensus fixture pinning gas, traces, receipts and trace hashes ([`4fb06c7`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/4fb06c727782e47c94f6891a4d4ad9e41de2e836))
 </details>
-
-<csr-unknown>
-configuration.md: environment variables, CLI options, authorization,admin RPC serverindexer-integration.md: inscriptions, initialisation, indexing loop,checklistindexer-api.md: brc20_* method referenceeth-api.md: eth_, debug_ and txpool_contentembedding.md: running the module in-process through Brc20Progprecompiles.md: BIP322 and Bitcoin precompilestesting.md: consensus fixtures, inscription corpus, public APIsnapshot, Bitcoin RPC tests and benchesdifferences-from-ethereum.md: the four consensus differences fromEthereum and the activation heights in engine/hardforks.rsTracing: revm-inspectors 0.44 only records call input when record_inputs isset. The input is part of the trace string, so it is enabled.Instructions: the static gas table is fixed when EthInstructions is built.It is now built for the block’s spec rather than revm’s default (OSAKA).Logs: Revert and Halt results now carry logs. Receipts and the block logindex take logs from successful results only, as before.<csr-unknown/>
 
 ## v0.16.4 (2026-10-26)
 
@@ -720,6 +756,16 @@ configuration.md: environment variables, CLI options, authorization,admin RPC se
    - tokio to 1.48.0
    - criterion to 0.7.0
    - tempfile to 3.23.0
+   - revm to 31.0.0
+   - serde to 1.0.228
+   - tokio to 1.48.0
+   - criterion to 0.7.0
+   - tempfile to 3.23.0
+ - revm to 31.0.0
+ - serde to 1.0.228
+ - tokio to 1.48.0
+ - criterion to 0.7.0
+ - tempfile to 3.23.0
  - revm to 31.0.0
  - serde to 1.0.228
  - tokio to 1.48.0
@@ -1469,7 +1515,7 @@ configuration.md: environment variables, CLI options, authorization,admin RPC se
 </details>
 
 <csr-unknown>
-revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0<csr-unknown/>
+revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0<csr-unknown/>
 
 ## v0.15.13 (2026-02-27)
 
