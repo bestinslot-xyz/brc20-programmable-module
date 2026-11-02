@@ -1164,10 +1164,16 @@ impl Brc20ProgApiServer for Brc20Prog {
             return Err(invalid_params("invalid raw transaction"));
         };
 
+        // Bytes after the RLP list and a high-s signature give the same signed transaction a
+        // different hash, so either would let a third party fill the sender's per-nonce cap
+        let mut buf = raw_tx.as_ref();
+        let (legacy_tx, signature) = TxLegacy::rlp_decode_with_signature(&mut buf)
+            .map_err(|_| invalid_params("invalid raw transaction"))?;
+        if !buf.is_empty() || signature.normalize_s().is_some() {
+            return Err(invalid_params("invalid raw transaction"));
+        }
         // The engine executes every transaction with zero value, so a nonzero value is
         // rejected at send time
-        let (legacy_tx, _) = TxLegacy::rlp_decode_with_signature(&mut raw_tx.as_ref())
-            .map_err(|_| invalid_params("invalid raw transaction"))?;
         if !legacy_tx.value.is_zero() {
             return Err(invalid_params(
                 "transaction value must be zero, BRC2.0 has no native value transfer",

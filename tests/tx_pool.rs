@@ -1,8 +1,9 @@
 use std::str::FromStr;
 
 use alloy::eips::eip2718::Encodable2718;
-use alloy::primitives::{keccak256, Bytes, B256, U256};
-use alloy_consensus::TxLegacy;
+use alloy::primitives::{keccak256, Bytes, Signature, B256, U256};
+use alloy_consensus::transaction::RlpEcdsaDecodableTx;
+use alloy_consensus::{SignableTransaction, TxLegacy};
 use alloy_network::{EthereumWallet, NetworkTransactionBuilder, TransactionBuilder};
 use alloy_rpc_types_eth::TransactionRequest;
 use alloy_signer_local::PrivateKeySigner;
@@ -224,6 +225,63 @@ async fn send_raw_rejects_nonzero_value() {
     };
     assert_eq!(error_code(error), INVALID_PARAMS);
     assert!(message.contains("value"), "message: {message}");
+
+    server.stop().unwrap();
+}
+
+#[tokio::test]
+async fn send_raw_rejects_trailing_bytes() {
+    let (server, client) = spawn_test_server(Default::default()).await;
+    let wallet = EthereumWallet::new(PrivateKeySigner::random());
+    let mut tx = sign_legacy(
+        &wallet,
+        chain_id(&client).await,
+        0,
+        U256::ZERO,
+        Bytes::new(),
+    )
+    .await;
+    tx.push(0);
+
+    let error = client.eth_send_raw_transaction(raw(&tx)).await.unwrap_err();
+    assert_eq!(error_code(error), INVALID_PARAMS);
+
+    server.stop().unwrap();
+}
+
+#[tokio::test]
+async fn send_raw_rejects_high_s_signature() {
+    let (server, client) = spawn_test_server(Default::default()).await;
+    let wallet = EthereumWallet::new(PrivateKeySigner::random());
+    let tx = sign_legacy(
+        &wallet,
+        chain_id(&client).await,
+        0,
+        U256::ZERO,
+        Bytes::new(),
+    )
+    .await;
+
+    // The same signer and nonce with (r, n - s, flipped parity) recovers the same sender
+    let (legacy_tx, signature) = TxLegacy::rlp_decode_with_signature(&mut tx.as_slice()).unwrap();
+    let order = U256::from_str_radix(
+        "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+        16,
+    )
+    .unwrap();
+    let high_s = Signature::new(signature.r(), order - signature.s(), !signature.v());
+    let mut variant = Vec::new();
+    legacy_tx.into_signed(high_s).network_encode(&mut variant);
+    assert_ne!(variant, tx);
+
+    let error = client
+        .eth_send_raw_transaction(raw(&variant))
+        .await
+        .unwrap_err();
+    assert_eq!(error_code(error), INVALID_PARAMS);
+
+    // The original, low-s encoding is still accepted
+    client.eth_send_raw_transaction(raw(&tx)).await.unwrap();
 
     server.stop().unwrap();
 }
