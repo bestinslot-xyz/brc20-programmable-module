@@ -119,7 +119,8 @@ pub struct Brc20ProgConfig {
     /// The password for the BRC20 Prog RPC server, if authentication is enabled
     pub brc20_prog_rpc_server_password: Option<String>,
     /// Whether the first `X-Forwarded-For` hop identifies the client for rate limiting.
-    /// Enable it only behind a proxy that sets the header, since clients can forge it.
+    /// Enable it only behind a proxy that replaces the client's `X-Forwarded-For` header,
+    /// since clients can forge it.
     /// When disabled, every caller shares one rate limit window.
     pub brc20_prog_rpc_trust_forwarded_for: bool,
     /// Whether to record EVM traces
