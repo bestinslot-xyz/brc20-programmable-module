@@ -9,7 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_either::SingleOrVec;
 
 use crate::global::CALLDATA_LIMIT;
-use crate::types::{AddressED, B256ED};
+use crate::types::{AddressED, B256ED, U64ED};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Represents a call to a contract with optional parameters for from, to, data, and input.
@@ -43,6 +43,22 @@ pub struct PrecompileData {
     /// A mapping of Bitcoin transaction IDs (B256ED) to their raw hex bytes (RawBytes).
     #[serde(rename = "bitcoinTxHexes")]
     pub bitcoin_tx_hexes: HashMap<B256ED, RawBytes>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// A signed raw transaction waiting in the RPC pool to be inscribed.
+pub struct PooledTxED {
+    /// `keccak256` of the raw transaction
+    pub hash: B256ED,
+    /// The signed raw transaction
+    pub raw: RawBytes,
+    /// The address that signed the transaction
+    pub from: AddressED,
+    /// The nonce of the transaction
+    pub nonce: U64ED,
+    /// Seconds since the pool received the transaction
+    #[serde(rename = "receivedAtSecs")]
+    pub received_at_secs: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

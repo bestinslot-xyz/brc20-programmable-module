@@ -109,10 +109,6 @@ impl TxPool {
         self.entries.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
     /// Total raw bytes of the pooled transactions.
     pub fn bytes(&self) -> usize {
         self.bytes

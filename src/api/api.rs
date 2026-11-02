@@ -4,7 +4,7 @@ use alloy::primitives::keccak256;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 
-use crate::api::types::{Base64Bytes, EthCall, GetLogsFilter, PrecompileData};
+use crate::api::types::{Base64Bytes, EthCall, GetLogsFilter, PooledTxED, PrecompileData};
 use crate::db::types::{
     AddressED, BlockResponseED, BytecodeED, LogED, TraceED, TxED, TxReceiptED, B256ED, U256ED,
 };
@@ -290,6 +290,19 @@ pub trait Brc20ProgApi {
         hash: B256ED,
         index: Option<u64>,
     ) -> RpcResult<Option<TxED>>;
+
+    /// Holds a signed legacy transaction in the pool until it is inscribed, and returns its
+    /// `keccak256` hash
+    #[method(name = "eth_sendRawTransaction")]
+    async fn eth_send_raw_transaction(&self, raw: RawBytes) -> RpcResult<B256ED>;
+
+    /// Returns a pooled signed transaction by its `keccak256` hash
+    #[method(name = "eth_getRawTransactionByHash")]
+    async fn eth_get_raw_transaction_by_hash(&self, hash: B256ED) -> RpcResult<Option<RawBytes>>;
+
+    /// Unsent pooled txs, oldest first, for sponsors.
+    #[method(name = "brc20_unsentRawTransactions")]
+    async fn brc20_unsent_raw_transactions(&self) -> RpcResult<Vec<PooledTxED>>;
 
     ///
     ///

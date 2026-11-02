@@ -2,9 +2,12 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Instant;
 
-use alloy::primitives::Bytes;
+use alloy::consensus::transaction::RlpEcdsaDecodableTx;
+use alloy::consensus::TxLegacy;
+use alloy::primitives::{keccak256, Bytes};
 use hyper::Method;
 use jsonrpsee::core::middleware::RpcServiceBuilder;
 use jsonrpsee::core::{async_trait, RpcResult};
@@ -19,7 +22,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tracing::{debug, info, instrument, warn};
 
-use crate::api::types::{select_bytes, EthCall, GetLogsFilter};
+use crate::api::types::{select_bytes, EthCall, GetLogsFilter, PooledTxED};
 use crate::api::{Brc20ProgApiServer, INDEXER_METHODS};
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
@@ -33,12 +36,16 @@ use crate::engine::{
 };
 use crate::global::database::validate_config_database;
 use crate::global::{
-    validate_bitcoin_core_config, validate_config, CONFIG, GAS_PER_BYTE, INVALID_ADDRESS,
+    validate_bitcoin_core_config, validate_config, CALLDATA_LIMIT, CONFIG, GAS_PER_BYTE,
+    INVALID_ADDRESS, MAX_FUTURE_TRANSACTION_NONCES,
 };
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
-    call_failed, is_bitcoin_unavailable, wrap_rpc_error, wrap_rpc_error_string,
+    call_failed, invalid_params, is_bitcoin_unavailable, wrap_rpc_error, wrap_rpc_error_string,
     wrap_rpc_error_string_with_data,
+};
+use crate::server::tx_pool::{
+    PooledTx, TxPool, TX_POOL_MAX_BYTES, TX_POOL_MAX_ENTRIES, TX_POOL_TTL,
 };
 use crate::types::{Base64Bytes, PrecompileData, RawBytes};
 use crate::Brc20ProgConfig;
@@ -49,11 +56,15 @@ use crate::Brc20ProgConfig;
 /// same process calls them directly, without HTTP or JSON. Clones share one engine: a clone serving
 /// JSON-RPC sees every change made through another.
 ///
+/// Clones also share one in-memory pool of signed raw transactions that wallets submit with
+/// `eth_sendRawTransaction` and that wait there to be inscribed.
+///
 /// Configuration is process-wide, so open one instance per process.
 #[derive(Clone)]
 pub struct Brc20Prog {
     engine: Arc<BRC20ProgEngine>,
     config: Arc<Brc20ProgConfig>,
+    tx_pool: Arc<Mutex<TxPool>>,
 }
 
 impl Brc20Prog {
@@ -102,7 +113,16 @@ impl Brc20Prog {
         Ok(Self {
             engine: Arc::new(engine),
             config: Arc::new(config),
+            tx_pool: new_tx_pool(),
         })
+    }
+
+    /// Locks the transaction pool. A poisoned lock is recovered, since the pool only caches
+    /// transactions and a partly updated pool is still safe to serve.
+    fn tx_pool(&self) -> MutexGuard<'_, TxPool> {
+        self.tx_pool
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Starts a JSON-RPC listener on `brc20_prog_rpc_server_url` that serves this instance.
@@ -156,6 +176,14 @@ impl Brc20Prog {
 
 fn log_call() {
     info!("rpc.request");
+}
+
+fn new_tx_pool() -> Arc<Mutex<TxPool>> {
+    Arc::new(Mutex::new(TxPool::new(
+        TX_POOL_TTL,
+        TX_POOL_MAX_ENTRIES,
+        TX_POOL_MAX_BYTES,
+    )))
 }
 
 #[async_trait]
@@ -441,13 +469,17 @@ impl Brc20ProgApiServer for Brc20Prog {
             .get_next_block_height()
             .map_err(wrap_rpc_error)?;
 
-        self.engine
+        let raw_tx = select_bytes(&raw_tx_data, &base64_raw_tx_data)
+            .map_err(wrap_rpc_error)?
+            .map(|x| x.to_vec())
+            .unwrap_or_default();
+        let raw_tx_hash = keccak256(&raw_tx);
+
+        let receipts = self
+            .engine
             .add_raw_tx_to_block(
                 timestamp,
-                select_bytes(&raw_tx_data, &base64_raw_tx_data)
-                    .map_err(wrap_rpc_error)?
-                    .map(|x| x.to_vec())
-                    .unwrap_or_default(),
+                raw_tx,
                 tx_idx,
                 block_height,
                 hash.bytes,
@@ -455,7 +487,11 @@ impl Brc20ProgApiServer for Brc20Prog {
                 inscription_byte_len,
                 op_return_tx_id.bytes,
             )
-            .map_err(wrap_rpc_error)
+            .map_err(wrap_rpc_error)?;
+
+        // The transaction is inscribed, so the pool no longer offers it
+        self.tx_pool().remove(&raw_tx_hash);
+        Ok(receipts)
     }
 
     #[instrument(skip(self), level = "error")]
@@ -553,10 +589,20 @@ impl Brc20ProgApiServer for Brc20Prog {
     ) -> RpcResult<String> {
         log_call();
         let block_number = self.parse_block_number(&block).map_err(wrap_rpc_error)?;
-        self.engine
+        let mut count = self
+            .engine
             .get_transaction_count(account.address, block_number)
-            .map(|count| format!("0x{:x}", count))
-            .map_err(wrap_rpc_error)
+            .map_err(wrap_rpc_error)?;
+        // The pending count also covers the sender's pooled transactions
+        if block == "pending" {
+            if let Some(max_nonce) = self
+                .tx_pool()
+                .max_nonce_from(&account.address, Instant::now())
+            {
+                count = count.max(max_nonce + 1);
+            }
+        }
+        Ok(format!("0x{:x}", count))
     }
 
     #[instrument(
@@ -1093,6 +1139,97 @@ impl Brc20ProgApiServer for Brc20Prog {
             .map_err(wrap_rpc_error)
     }
 
+    #[instrument(name = "eth_sendRawTransaction", skip(self, raw), level = "error")]
+    async fn eth_send_raw_transaction(&self, raw: RawBytes) -> RpcResult<B256ED> {
+        log_call();
+        let Some(raw_tx) = raw.value() else {
+            return Err(invalid_params("invalid raw transaction"));
+        };
+        if raw_tx.len() > CALLDATA_LIMIT {
+            return Err(invalid_params(&format!(
+                "raw transaction exceeds {} bytes",
+                CALLDATA_LIMIT
+            )));
+        }
+        let raw_tx = raw_tx.to_vec();
+
+        let tx_info = match self.engine.get_info_from_raw_tx(raw_tx.clone(), true) {
+            Ok(Some(tx_info)) => tx_info,
+            Ok(None) => return Err(invalid_params("invalid chain id")),
+            Err(_) => return Err(invalid_params("invalid raw transaction")),
+        };
+        let Some(nonce) = tx_info.nonce else {
+            return Err(invalid_params("invalid raw transaction"));
+        };
+
+        // The engine executes every transaction with zero value, so a nonzero value is
+        // rejected at send time
+        let (legacy_tx, _) = TxLegacy::rlp_decode_with_signature(&mut raw_tx.as_slice())
+            .map_err(|_| invalid_params("invalid raw transaction"))?;
+        if !legacy_tx.value.is_zero() {
+            return Err(invalid_params(
+                "transaction value must be zero, BRC2.0 has no native value transfer",
+            ));
+        }
+
+        let account_nonce = self
+            .engine
+            .get_transaction_count(tx_info.from, 0)
+            .map_err(wrap_rpc_error)?;
+        let max_nonce = account_nonce + MAX_FUTURE_TRANSACTION_NONCES;
+        if nonce < account_nonce || nonce >= max_nonce {
+            return Err(invalid_params(&format!(
+                "nonce {} is outside the accepted range [{}, {})",
+                nonce, account_nonce, max_nonce
+            )));
+        }
+
+        let now = Instant::now();
+        let mut tx_pool = self.tx_pool();
+        let hash = tx_pool.insert(
+            PooledTx {
+                hash: keccak256(&raw_tx),
+                raw: raw_tx,
+                from: tx_info.from,
+                nonce,
+                received_at: now,
+            },
+            now,
+        );
+        debug!(
+            "tx pool holds {} transactions, {} bytes",
+            tx_pool.len(),
+            tx_pool.bytes()
+        );
+        Ok(hash.into())
+    }
+
+    #[instrument(name = "eth_getRawTransactionByHash", skip(self), level = "error")]
+    async fn eth_get_raw_transaction_by_hash(&self, hash: B256ED) -> RpcResult<Option<RawBytes>> {
+        log_call();
+        Ok(self
+            .tx_pool()
+            .get(&hash.bytes, Instant::now())
+            .map(|tx| RawBytes::from_bytes(tx.raw.clone().into())))
+    }
+
+    #[instrument(name = "brc20_unsentRawTransactions", skip(self), level = "error")]
+    async fn brc20_unsent_raw_transactions(&self) -> RpcResult<Vec<PooledTxED>> {
+        log_call();
+        let now = Instant::now();
+        let txs = self.tx_pool().list(now);
+        Ok(txs
+            .into_iter()
+            .map(|tx| PooledTxED {
+                hash: tx.hash.into(),
+                raw: RawBytes::from_bytes(tx.raw.into()),
+                from: tx.from.into(),
+                nonce: tx.nonce.into(),
+                received_at_secs: now.saturating_duration_since(tx.received_at).as_secs(),
+            })
+            .collect())
+    }
+
     #[instrument(name = "txpool_content", skip(self), level = "error")]
     async fn txpool_content(
         &self,
@@ -1329,6 +1466,7 @@ mod tests {
         Brc20Prog {
             engine: Arc::new(BRC20ProgEngine::new(db)),
             config: Arc::new(Brc20ProgConfig::default()),
+            tx_pool: new_tx_pool(),
         }
     }
 
