@@ -5,13 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.16.8 (2026-10-30)
+## Unreleased
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 1 commit contributed to the release.
+ - 2 commits contributed to the release.
+ - 1 day passed between releases.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 1 unique issue was worked on: [#32](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/32)
 
@@ -23,7 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  * **[#32](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/32)**
     - Record traces and genesis state at their own block in reorg history ([`2b281e4`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/2b281e477b8b617af8325bb329c37a242e80ff6e))
+ * **Uncategorized**
+    - Adjusting changelogs prior to release of brc20-prog v0.16.8 ([`93a3a3b`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/93a3a3bfea8e7432713cf8c00f91c9c42682fafa))
 </details>
+
+## 0.16.8 (2026-10-30)
 
 ## 0.16.7 (2026-10-29)
 
@@ -53,6 +58,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    * A commit syncs the WAL of every database it writes, 20 syncs for a signet block of
      five deposits. The on-disk layout is unchanged.
    * v0.16.6 and earlier ignore the rollback marker: open a store that crashed under this
+     version with this version or a later one.
+* Each database writes its changes as whole synced batches: a cached database writes
+     its histories, then its values, then the deletion of old histories. The state
+     databases go first, and `block_number_to_hash`, which sets the reported height, goes
+     last.
+* When the first commit into an empty database was interrupted, or an interrupted
+     commit or reorg has a target more than 10 blocks below the highest finalised block,
+     opening wipes the module's databases with a warning, and the indexer replays from its
+     activation height. Other files in the data directory stay, and an interrupted wipe
+     finishes on the next open.
+* After a commit or reorg fails partway, the same process refuses every read and write
+     except clearing caches until the database is reopened.
+* The highest finalised block only ever rises, so a reorg after a replay of a lower
+     chain stays within the pruned history. It is stored with each commit's rollback
+     marker, so blocks finalised but lost in a crash do not narrow the reorgs allowed.
+* A database directory that is a symbolic link to a database is emptied by a wipe, and
+     the link kept. A link to anything else stops the wipe before anything is deleted.
+* A commit syncs the WAL of every database it writes, 20 syncs for a signet block of
+     five deposits. The on-disk layout is unchanged.
+* v0.16.6 and earlier ignore the rollback marker: open a store that crashed under this
      version with this version or a later one.
 * Each database writes its changes as whole synced batches: a cached database writes
      its histories, then its values, then the deletion of old histories. The state
@@ -761,6 +786,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - tokio to 1.48.0
    - criterion to 0.7.0
    - tempfile to 3.23.0
+   - revm to 31.0.0
+   - serde to 1.0.228
+   - tokio to 1.48.0
+   - criterion to 0.7.0
+   - tempfile to 3.23.0
+ - revm to 31.0.0
+ - serde to 1.0.228
+ - tokio to 1.48.0
+ - criterion to 0.7.0
+ - tempfile to 3.23.0
  - revm to 31.0.0
  - serde to 1.0.228
  - tokio to 1.48.0
@@ -1515,7 +1550,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 <csr-unknown>
-revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0<csr-unknown/>
+revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0<csr-unknown/>
 
 ## v0.15.13 (2026-02-27)
 
