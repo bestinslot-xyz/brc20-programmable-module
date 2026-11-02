@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 use std::future::Future;
-use std::net::Ipv6Addr;
+use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -32,7 +32,7 @@ const RATE_LIMITED_MESSAGE: &str = "Rate limit exceeded";
 const MAX_TRACKED_WINDOWS: usize = 100_000;
 /// Shortest time between two scans for stale windows, which bounds the cost of a full map.
 const PRUNE_INTERVAL: Duration = Duration::from_secs(1);
-/// Longest client key kept from an `X-Forwarded-For` value that is not an IPv6 address.
+/// Longest client key kept from an `X-Forwarded-For` value that is not an IP address.
 const MAX_CLIENT_KEY_LEN: usize = 64;
 
 /// Identifies the caller a rate limit window belongs to.
@@ -47,7 +47,8 @@ pub enum ClientKey {
 /// HTTP middleware that inserts the caller's [`ClientKey`] into the request extensions.
 ///
 /// With `trust_forwarded_for`, the first comma-separated `X-Forwarded-For` value is the key,
-/// and an IPv6 address is keyed by its /64 prefix. Otherwise every request gets
+/// and an IPv6 address is keyed by its /64 prefix. A port is ignored, and an IPv4-mapped IPv6
+/// address is keyed by its IPv4 address. Otherwise every request gets
 /// [`ClientKey::Shared`]. It never rejects a request.
 #[derive(Clone)]
 pub struct ClientKeyExtractor {
@@ -72,14 +73,27 @@ impl ClientKeyExtractor {
             .and_then(|value| value.split(',').next())
             .map(str::trim)
             .filter(|first| !first.is_empty())
-            .map(|first| match first.parse::<Ipv6Addr>() {
-                // One IPv6 subscriber usually holds a whole /64, so the prefix is the client
-                Ok(address) => {
-                    let prefix = Ipv6Addr::from(u128::from(address) & !u128::from(u64::MAX));
-                    ClientKey::Forwarded(format!("{prefix}/64"))
-                }
-                Err(_) => {
-                    ClientKey::Forwarded(first[..first.len().min(MAX_CLIENT_KEY_LEN)].to_string())
+            .map(|first| {
+                // A value with a port keys by its address, so the client keeps one key across
+                // connections
+                let address = first
+                    .parse::<SocketAddr>()
+                    .map(|socket| socket.ip())
+                    .or_else(|_| first.parse::<IpAddr>());
+                match address {
+                    Ok(IpAddr::V4(v4)) => ClientKey::Forwarded(v4.to_string()),
+                    Ok(IpAddr::V6(v6)) => match v6.to_ipv4_mapped() {
+                        Some(v4) => ClientKey::Forwarded(v4.to_string()),
+                        // One IPv6 subscriber usually holds a whole /64, so the prefix is the
+                        // client
+                        None => {
+                            let prefix = Ipv6Addr::from(u128::from(v6) & !u128::from(u64::MAX));
+                            ClientKey::Forwarded(format!("{prefix}/64"))
+                        }
+                    },
+                    Err(_) => ClientKey::Forwarded(
+                        first[..first.len().min(MAX_CLIENT_KEY_LEN)].to_string(),
+                    ),
                 }
             })
             .unwrap_or(ClientKey::Shared)
@@ -288,6 +302,37 @@ mod tests {
         assert_eq!(
             extractor.client_key(&headers(&long)),
             forwarded(&long[..MAX_CLIENT_KEY_LEN])
+        );
+    }
+
+    #[test]
+    fn ipv4_mapped_address_keys_by_its_ipv4() {
+        let extractor = ClientKeyExtractor::new(true);
+        let first = extractor.client_key(&headers("::ffff:1.2.3.4"));
+        let second = extractor.client_key(&headers("::ffff:5.6.7.8"));
+        assert_eq!(first, forwarded("1.2.3.4"));
+        assert_ne!(first, second);
+        assert_eq!(first, extractor.client_key(&headers("1.2.3.4")));
+    }
+
+    #[test]
+    fn trailing_port_is_ignored() {
+        let extractor = ClientKeyExtractor::new(true);
+        assert_eq!(
+            extractor.client_key(&headers("1.2.3.4:5678")),
+            forwarded("1.2.3.4")
+        );
+        assert_eq!(
+            extractor.client_key(&headers("[2001:db8::1]:443")),
+            extractor.client_key(&headers("2001:db8::1"))
+        );
+        assert_eq!(
+            extractor.client_key(&headers("[2001:db8::1]:443")),
+            forwarded("2001:db8::/64")
+        );
+        assert_eq!(
+            extractor.client_key(&headers("[::ffff:1.2.3.4]:80")),
+            forwarded("1.2.3.4")
         );
     }
 
