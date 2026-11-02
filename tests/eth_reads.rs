@@ -99,3 +99,23 @@ async fn test_eth_read_methods() -> Result<(), Box<dyn Error>> {
     server.stop()?;
     Ok(())
 }
+
+/// Block JSON omits `baseFeePerGas` so wallets see no EIP-1559 support and
+/// sign legacy transactions.
+#[tokio::test]
+async fn block_response_has_no_base_fee() -> Result<(), Box<dyn Error>> {
+    use jsonrpsee::core::client::ClientT;
+    use jsonrpsee::rpc_params;
+
+    let (server, client) = spawn_test_server(Default::default()).await;
+    client.brc20_finalise_block(42, [0u8; 32].into(), 0).await?;
+
+    let value: serde_json::Value = client
+        .request("eth_getBlockByNumber", rpc_params!["latest", false])
+        .await?;
+    assert!(value.get("number").is_some());
+    assert!(value.get("baseFeePerGas").is_none());
+
+    server.stop()?;
+    Ok(())
+}

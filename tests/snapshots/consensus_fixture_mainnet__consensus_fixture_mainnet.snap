@@ -5,7 +5,6 @@ expression: report
 ======== block 1 (mainnet cancun) ========
 trace_hash: d54f898635838f24a34ff5b0e4fe094991ef943096cfaf68da5d505f62be0971
 block: {
-  "baseFeePerGas": "0x0",
   "blobGasUsed": "0x0",
   "difficulty": "0x0",
   "excessBlobGas": "0x0",
@@ -961,7 +960,6 @@ trace: {
 ======== block 2 (mainnet cancun) ========
 trace_hash: 1b83fef124f068ce185850b0b26cb98b7b0f79b4707891d345d4aea77bc47e1b
 block: {
-  "baseFeePerGas": "0x0",
   "blobGasUsed": "0x0",
   "difficulty": "0x0",
   "excessBlobGas": "0x0",
@@ -4464,7 +4462,6 @@ trace: {
 ======== block 3 (mainnet cancun) ========
 trace_hash: b55ee1aea7d4a459e01f62bd3c9224ed9d9fc5ed68cf2ba919032d3c962e7ccc
 block: {
-  "baseFeePerGas": "0x0",
   "blobGasUsed": "0x0",
   "difficulty": "0x0",
   "excessBlobGas": "0x0",
