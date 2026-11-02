@@ -348,10 +348,11 @@ async fn unsent_list_contains_pooled_tx() {
     );
     assert_eq!(unsent[0].from.address, from);
     assert_eq!(Into::<u64>::into(unsent[1].nonce.clone()), 1);
-    assert!(unsent[0].received_at_secs < 60);
+    assert!(unsent[0].age_secs < 60);
 
     let json = serde_json::to_value(&unsent[0]).unwrap();
-    assert!(json.get("receivedAtSecs").is_some(), "json: {json}");
+    assert!(json.get("ageSecs").is_some(), "json: {json}");
+    assert!(json.get("receivedAtSecs").is_none(), "json: {json}");
 
     server.stop().unwrap();
 }

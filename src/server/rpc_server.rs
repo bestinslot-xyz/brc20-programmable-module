@@ -1235,7 +1235,7 @@ impl Brc20ProgApiServer for Brc20Prog {
                 raw: RawBytes::from_bytes(tx.raw),
                 from: tx.from.into(),
                 nonce: tx.nonce.into(),
-                received_at_secs: now.saturating_duration_since(tx.received_at).as_secs(),
+                age_secs: now.saturating_duration_since(tx.received_at).as_secs(),
             })
             .collect())
     }

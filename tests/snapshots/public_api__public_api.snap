@@ -113,11 +113,11 @@ pub brc20_prog::types::LogED::topics: alloc::vec::Vec<brc20_prog::types::B256ED>
 pub brc20_prog::types::LogED::transaction_hash: brc20_prog::types::B256ED
 pub brc20_prog::types::LogED::transaction_index: brc20_prog::types::U64ED
 pub struct brc20_prog::types::PooledTxED
+pub brc20_prog::types::PooledTxED::age_secs: u64
 pub brc20_prog::types::PooledTxED::from: brc20_prog::types::AddressED
 pub brc20_prog::types::PooledTxED::hash: brc20_prog::types::B256ED
 pub brc20_prog::types::PooledTxED::nonce: brc20_prog::types::U64ED
 pub brc20_prog::types::PooledTxED::raw: brc20_prog::types::RawBytes
-pub brc20_prog::types::PooledTxED::received_at_secs: u64
 pub struct brc20_prog::types::PrecompileData
 pub brc20_prog::types::PrecompileData::bitcoin_tx_hexes: std::collections::hash::map::HashMap<brc20_prog::types::B256ED, brc20_prog::types::RawBytes>
 pub brc20_prog::types::PrecompileData::op_return_tx_ids: alloc::vec::Vec<brc20_prog::types::B256ED>

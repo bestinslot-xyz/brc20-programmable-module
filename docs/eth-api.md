@@ -76,7 +76,7 @@ Returns the raw hex of a pooled transaction, or `null` when the pool does not ho
 
 ### brc20_unsentRawTransactions
 
-Lists the pooled transactions, oldest first. It exists for sponsors that inscribe transactions for others. `receivedAtSecs` is the age of the entry in seconds. One response carries at most 16 MiB of raw transaction bytes.
+Lists the pooled transactions, oldest first. It exists for sponsors that inscribe transactions for others. `ageSecs` is the age of the entry in seconds. One response carries at most 16 MiB of raw transaction bytes.
 
 ```json
 {"jsonrpc": "2.0", "id": 1, "method": "brc20_unsentRawTransactions", "params": []}
@@ -92,7 +92,7 @@ Lists the pooled transactions, oldest first. It exists for sponsors that inscrib
       "raw": "0xf86c0a8082520894...",
       "from": "0x1111111111111111111111111111111111111111",
       "nonce": "0xa",
-      "receivedAtSecs": 12
+      "ageSecs": 12
     }
   ]
 }
@@ -123,4 +123,4 @@ Each client may make 30 calls per 60 seconds to `eth_sendRawTransaction`, counte
 
 ### Blocks without baseFeePerGas
 
-Blocks returned by `eth_getBlockByNumber` and `eth_getBlockByHash` have no `baseFeePerGas` field. Wallets such as MetaMask then see no EIP-1559 support and sign legacy transactions, the only kind the engine decodes. Stored blocks and block hashes still include the base fee.
+Blocks returned by `eth_getBlockByNumber` and `eth_getBlockByHash` have no `baseFeePerGas` field. Wallets such as MetaMask then see no EIP-1559 support and sign legacy transactions, the only kind the engine decodes. Only the JSON response changes; stored data and block hashes are unaffected.

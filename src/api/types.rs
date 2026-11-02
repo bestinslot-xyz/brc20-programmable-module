@@ -57,8 +57,8 @@ pub struct PooledTxED {
     /// The nonce of the transaction
     pub nonce: U64ED,
     /// Seconds since the pool received the transaction
-    #[serde(rename = "receivedAtSecs")]
-    pub received_at_secs: u64,
+    #[serde(rename = "ageSecs")]
+    pub age_secs: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
