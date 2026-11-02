@@ -2,6 +2,7 @@
 
 mod auth;
 mod error;
+mod rate_limit;
 mod rpc_server;
 mod start;
 pub mod tx_pool;

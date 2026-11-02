@@ -14,6 +14,7 @@ Precompiled contracts require the Bitcoin RPC variables to work properly, otherw
 | `BRC20_PROG_RPC_SERVER_ENABLE_AUTH` | `false` | Enables HTTP basic auth. See [Authorization](#authorization). |
 | `BRC20_PROG_RPC_SERVER_USER` | unset | Username for HTTP basic auth. Required when auth is enabled. |
 | `BRC20_PROG_RPC_SERVER_PASSWORD` | unset | Password for HTTP basic auth. Required when auth is enabled. |
+| `BRC20_PROG_RPC_TRUST_FORWARDED_FOR` | `false` | Rate limits each client by the first `X-Forwarded-For` hop. See [Rate limits](#rate-limits). |
 | `EVM_RECORD_TRACES` | `false` | Records transaction traces for `debug_traceTransaction`. |
 | `EVM_CALL_GAS_LIMIT` | `1000000000` | Gas limit for `eth_call` and `eth_estimateGas`. |
 | `BITCOIN_RPC_URL` | `http://localhost:38332` | Bitcoin RPC endpoint used by the Bitcoin precompiles. |
@@ -72,3 +73,9 @@ Access to the admin listener is controlled by where it binds and who can reach t
 - **Reverse proxy:** proxy only the public port, never the admin port.
 
 The server logs a warning at startup when the admin listener binds to a non-loopback address. When `BRC20_PROG_ADMIN_RPC_SERVER_URL` is unset, a single listener serves every method and authentication gates the indexer methods.
+
+## Rate limits
+
+The listener on `BRC20_PROG_RPC_SERVER_URL` allows each client 30 calls per 60 seconds to `eth_sendRawTransaction`, and a separate 30 calls per 60 seconds to `brc20_unsentRawTransactions`. Each entry of a batch counts as one call. A call over the limit returns JSON-RPC error `-32005`. The admin listener has no rate limit.
+
+With `BRC20_PROG_RPC_TRUST_FORWARDED_FOR=true`, the first comma-separated value of the `X-Forwarded-For` header identifies the client. Otherwise every caller shares one limit. Enable it only behind a reverse proxy that replaces any `X-Forwarded-For` header from the client with the client's address, since a client can put any value first in that header.

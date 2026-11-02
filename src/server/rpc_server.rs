@@ -44,6 +44,9 @@ use crate::server::error::{
     call_failed, invalid_params, is_bitcoin_unavailable, wrap_rpc_error, wrap_rpc_error_string,
     wrap_rpc_error_string_with_data,
 };
+use crate::server::rate_limit::{
+    ClientKeyExtractor, RateLimiter, RpcRateLimitMiddleware, SEND_RAW_TX_LIMIT, SEND_RAW_TX_WINDOW,
+};
 use crate::server::tx_pool::{
     PooledTx, TxPool, TX_POOL_MAX_BYTES, TX_POOL_MAX_ENTRIES, TX_POOL_TTL, UNSENT_LIST_MAX_BYTES,
 };
@@ -129,12 +132,13 @@ impl Brc20Prog {
     ///
     /// The listener rejects the indexer methods for every caller, since the process that opened
     /// the instance drives them by calling [`Brc20ProgApiServer`] directly. It allows requests from
-    /// any origin.
+    /// any origin, and rate limits each client's calls to the transaction pool methods.
     pub async fn start_public_rpc_server(&self) -> Result<ServerHandle, Box<dyn Error>> {
         start_listener(
             &self.config,
             &self.config.brc20_prog_rpc_server_url,
             HttpNonBlockingAuth::deny(),
+            true,
             true,
             self.clone().into_rpc().into(),
         )
@@ -1319,7 +1323,8 @@ impl Brc20ProgApiServer for Brc20Prog {
 /// Without an admin URL, a single listener serves every method and authentication gates the
 /// indexer methods. With an admin URL, the public listener rejects the indexer methods for every
 /// caller, and the admin listener serves every method behind the configured authentication.
-/// The returned handle controls both listeners.
+/// The listener that serves the public rate limits the transaction pool methods; the admin
+/// listener does not. The returned handle controls both listeners.
 pub async fn start_rpc_server(prog: Brc20Prog) -> Result<ServerHandle, Box<dyn Error>> {
     let config = prog.config.clone();
     let auth = if !config.brc20_prog_rpc_server_enable_auth {
@@ -1347,6 +1352,7 @@ pub async fn start_rpc_server(prog: Brc20Prog) -> Result<ServerHandle, Box<dyn E
             &config.brc20_prog_rpc_server_url,
             auth,
             true,
+            true,
             module,
         )
         .await;
@@ -1365,10 +1371,11 @@ pub async fn start_rpc_server(prog: Brc20Prog) -> Result<ServerHandle, Box<dyn E
         &config.brc20_prog_rpc_server_url,
         HttpNonBlockingAuth::deny(),
         true,
+        true,
         module.clone(),
     )
     .await?;
-    let admin_handle = match start_listener(&config, admin_url, auth, false, module).await {
+    let admin_handle = match start_listener(&config, admin_url, auth, false, false, module).await {
         Ok(handle) => handle,
         Err(error) => {
             let _ = public_handle.stop();
@@ -1402,11 +1409,13 @@ fn join_server_handles(first: ServerHandle, second: ServerHandle) -> ServerHandl
 ///
 /// `auth` decides which requests count as authorized for the indexer methods.
 /// `allow_cross_origin` lets browsers on any origin call the listener.
+/// `rate_limited` limits each client's calls to the transaction pool methods.
 async fn start_listener(
     config: &Brc20ProgConfig,
     url: &str,
     auth: HttpNonBlockingAuth,
     allow_cross_origin: bool,
+    rate_limited: bool,
     module: Methods,
 ) -> Result<ServerHandle, Box<dyn Error>> {
     let cors = if allow_cross_origin {
@@ -1420,12 +1429,18 @@ async fn start_listener(
         CorsLayer::new()
     };
 
+    let rate_limiter =
+        rate_limited.then(|| Arc::new(RateLimiter::new(SEND_RAW_TX_LIMIT, SEND_RAW_TX_WINDOW)));
     let http_middleware = ServiceBuilder::new()
         .layer(cors)
-        .layer(ValidateRequestHeaderLayer::custom(auth));
+        .layer(ValidateRequestHeaderLayer::custom(auth))
+        .layer(ValidateRequestHeaderLayer::custom(ClientKeyExtractor::new(
+            config.brc20_prog_rpc_trust_forwarded_for,
+        )));
     let rpc_middleware = RpcServiceBuilder::new()
         .rpc_logger(1024)
-        .layer_fn(|service| RpcAuthMiddleware::new(service, &*INDEXER_METHODS));
+        .layer_fn(|service| RpcAuthMiddleware::new(service, &*INDEXER_METHODS))
+        .layer_fn(move |service| RpcRateLimitMiddleware::new(service, rate_limiter.clone()));
 
     let handle = Server::builder()
         .set_config(

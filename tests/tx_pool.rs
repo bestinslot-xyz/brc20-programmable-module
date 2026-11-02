@@ -9,13 +9,16 @@ use alloy_signer_local::PrivateKeySigner;
 use brc20_prog::types::{Base64Bytes, RawBytes};
 use brc20_prog::{start, Brc20ProgApiClient, Brc20ProgConfig};
 use jsonrpsee::core::client::Error as ClientError;
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use jsonrpsee::http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder};
+use jsonrpsee::server::ServerHandle;
 use revm::primitives::Address;
 use tempfile::TempDir;
 use test_utils::{get_free_port, load_file_as_string, spawn_test_server};
 
 const INVALID_PARAMS: i32 = -32602;
+const RATE_LIMITED: i32 = -32005;
 const CALLDATA_LIMIT: usize = 1024 * 1024;
+const RATE_LIMIT: usize = 30;
 
 async fn chain_id(client: &HttpClient) -> u64 {
     let chain_id = client.eth_chain_id().await.unwrap();
@@ -407,4 +410,150 @@ async fn pool_methods_are_public() {
     );
 
     handle.stop().unwrap();
+}
+
+/// Starts a server on a free port and returns its handle, its address and its database folder.
+async fn spawn_rate_limit_server(trust_forwarded_for: bool) -> (ServerHandle, String, TempDir) {
+    let db_path = TempDir::new().unwrap();
+    let address = format!("127.0.0.1:{}", get_free_port());
+    let handle = start(Brc20ProgConfig {
+        db_path: db_path.path().to_str().unwrap().to_string(),
+        brc20_prog_rpc_server_url: address.clone(),
+        brc20_prog_rpc_trust_forwarded_for: trust_forwarded_for,
+        fail_on_bitcoin_rpc_error: false,
+        ..Default::default()
+    })
+    .await
+    .expect("Failed to start server");
+    (handle, address, db_path)
+}
+
+/// Returns a client that sends `X-Forwarded-For: forwarded_for` with every request.
+fn client_forwarded_for(address: &str, forwarded_for: &str) -> HttpClient {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "X-Forwarded-For",
+        HeaderValue::from_str(forwarded_for).unwrap(),
+    );
+    HttpClientBuilder::default()
+        .set_headers(headers)
+        .build(format!("http://{}", address))
+        .unwrap()
+}
+
+async fn signed_tx(client: &HttpClient) -> RawBytes {
+    let wallet = EthereumWallet::new(PrivateKeySigner::random());
+    raw(&sign_legacy(&wallet, chain_id(client).await, 0, U256::ZERO, Bytes::new()).await)
+}
+
+#[tokio::test]
+async fn send_raw_rate_limited_per_forwarded_ip() {
+    let (server, address, _db_path) = spawn_rate_limit_server(true).await;
+    let first = client_forwarded_for(&address, "1.1.1.1, 10.0.0.1");
+    let second = client_forwarded_for(&address, "2.2.2.2");
+    let tx = signed_tx(&first).await;
+
+    for _ in 0..RATE_LIMIT {
+        first.eth_send_raw_transaction(tx.clone()).await.unwrap();
+    }
+    let error = first
+        .eth_send_raw_transaction(tx.clone())
+        .await
+        .unwrap_err();
+    assert_eq!(error_code(error), RATE_LIMITED);
+
+    // The first hop identifies the client, so a different proxy hop shares its window
+    let same_client = client_forwarded_for(&address, "1.1.1.1, 10.0.0.2");
+    let error = same_client
+        .eth_send_raw_transaction(tx.clone())
+        .await
+        .unwrap_err();
+    assert_eq!(error_code(error), RATE_LIMITED);
+
+    second.eth_send_raw_transaction(tx).await.unwrap();
+
+    server.stop().unwrap();
+}
+
+#[tokio::test]
+async fn forwarded_header_ignored_when_untrusted() {
+    let (server, address, _db_path) = spawn_rate_limit_server(false).await;
+    let first = client_forwarded_for(&address, "1.1.1.1");
+    let second = client_forwarded_for(&address, "2.2.2.2");
+    let tx = signed_tx(&first).await;
+
+    for _ in 0..RATE_LIMIT / 2 {
+        first.eth_send_raw_transaction(tx.clone()).await.unwrap();
+        second.eth_send_raw_transaction(tx.clone()).await.unwrap();
+    }
+    let error = first
+        .eth_send_raw_transaction(tx.clone())
+        .await
+        .unwrap_err();
+    assert_eq!(error_code(error), RATE_LIMITED);
+    let error = second.eth_send_raw_transaction(tx).await.unwrap_err();
+    assert_eq!(error_code(error), RATE_LIMITED);
+
+    server.stop().unwrap();
+}
+
+#[tokio::test]
+async fn rate_limit_skips_other_methods() {
+    let (server, address, _db_path) = spawn_rate_limit_server(false).await;
+    let client = client_forwarded_for(&address, "1.1.1.1");
+
+    for _ in 0..=RATE_LIMIT {
+        client.eth_chain_id().await.unwrap();
+    }
+
+    server.stop().unwrap();
+}
+
+#[tokio::test]
+async fn unsent_rate_limited_independently_of_send() {
+    let (server, address, _db_path) = spawn_rate_limit_server(true).await;
+    let client = client_forwarded_for(&address, "1.1.1.1");
+    let tx = signed_tx(&client).await;
+
+    for _ in 0..RATE_LIMIT {
+        client.eth_send_raw_transaction(tx.clone()).await.unwrap();
+    }
+    let error = client.eth_send_raw_transaction(tx).await.unwrap_err();
+    assert_eq!(error_code(error), RATE_LIMITED);
+
+    for _ in 0..RATE_LIMIT {
+        assert_eq!(
+            client.brc20_unsent_raw_transactions().await.unwrap().len(),
+            1
+        );
+    }
+    let error = client.brc20_unsent_raw_transactions().await.unwrap_err();
+    assert_eq!(error_code(error), RATE_LIMITED);
+
+    server.stop().unwrap();
+}
+
+#[tokio::test]
+async fn rate_limit_counts_batch_entries() {
+    let (server, address, _db_path) = spawn_rate_limit_server(true).await;
+    let client = client_forwarded_for(&address, "1.1.1.1");
+    let tx = signed_tx(&client).await;
+
+    let mut batch = jsonrpsee::core::params::BatchRequestBuilder::new();
+    for _ in 0..=RATE_LIMIT {
+        batch
+            .insert("eth_sendRawTransaction", jsonrpsee::rpc_params![tx.clone()])
+            .unwrap();
+    }
+    let responses = jsonrpsee::core::client::ClientT::batch_request::<String>(&client, batch)
+        .await
+        .unwrap();
+    let results: Vec<_> = responses.into_iter().collect();
+    assert!(results[..RATE_LIMIT].iter().all(|result| result.is_ok()));
+    assert_eq!(
+        results[RATE_LIMIT].as_ref().unwrap_err().code(),
+        RATE_LIMITED
+    );
+
+    server.stop().unwrap();
 }

@@ -283,6 +283,7 @@ pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_enable_auth: bool
 pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_password: core::option::Option<alloc::string::String>
 pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_url: alloc::string::String
 pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_server_user: core::option::Option<alloc::string::String>
+pub brc20_prog::Brc20ProgConfig::brc20_prog_rpc_trust_forwarded_for: bool
 pub brc20_prog::Brc20ProgConfig::chain_id: u64
 pub brc20_prog::Brc20ProgConfig::db_path: alloc::string::String
 pub brc20_prog::Brc20ProgConfig::evm_call_gas_limit: u64

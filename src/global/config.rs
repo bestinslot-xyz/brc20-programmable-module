@@ -25,6 +25,9 @@ lazy_static::lazy_static! {
 
     static ref BRC20_PROG_ADMIN_RPC_SERVER_URL_KEY: String = "BRC20_PROG_ADMIN_RPC_SERVER_URL".to_string();
 
+    static ref BRC20_PROG_RPC_TRUST_FORWARDED_FOR_KEY: String = "BRC20_PROG_RPC_TRUST_FORWARDED_FOR".to_string();
+    static ref BRC20_PROG_RPC_TRUST_FORWARDED_FOR_DEFAULT: bool = false;
+
     static ref FAIL_ON_BITCOIN_RPC_ERROR_KEY: String = "FAIL_ON_BITCOIN_RPC_ERROR".to_string();
     static ref FAIL_ON_BITCOIN_RPC_ERROR_DEFAULT: bool = true;
 
@@ -115,6 +118,10 @@ pub struct Brc20ProgConfig {
     pub brc20_prog_rpc_server_user: Option<String>,
     /// The password for the BRC20 Prog RPC server, if authentication is enabled
     pub brc20_prog_rpc_server_password: Option<String>,
+    /// Whether the first `X-Forwarded-For` hop identifies the client for rate limiting.
+    /// Enable it only behind a proxy that sets the header, since clients can forge it.
+    /// When disabled, every caller shares one rate limit window.
+    pub brc20_prog_rpc_trust_forwarded_for: bool,
     /// Whether to record EVM traces
     pub evm_record_traces: bool,
     /// Gas limit for EVM calls, through eth_call or eth_estimate_gas
@@ -199,6 +206,7 @@ impl Brc20ProgConfig {
             brc20_prog_rpc_server_enable_auth,
             brc20_prog_rpc_server_user,
             brc20_prog_rpc_server_password,
+            brc20_prog_rpc_trust_forwarded_for: *BRC20_PROG_RPC_TRUST_FORWARDED_FOR_DEFAULT,
             evm_record_traces,
             evm_call_gas_limit,
             bitcoin_rpc_url,
@@ -226,6 +234,7 @@ impl Brc20ProgConfig {
     /// * `BRC20_PROG_RPC_SERVER_ENABLE_AUTH` - Whether to enable authentication for the BRC20 Prog RPC server (Default: false)
     /// * `BRC20_PROG_RPC_SERVER_USER` - The username for the BRC20 Prog RPC server, if authentication is enabled
     /// * `BRC20_PROG_RPC_SERVER_PASSWORD` - The password for the BRC20 Prog RPC server, if authentication is enabled
+    /// * `BRC20_PROG_RPC_TRUST_FORWARDED_FOR` - Whether the first `X-Forwarded-For` hop identifies the client for rate limiting (Default: false)
     /// * `EVM_RECORD_TRACES` - Whether to record EVM traces (Default: false)
     /// * `BITCOIN_RPC_URL` - The URL of the Bitcoin RPC server (Default: "http://localhost:38332" for signet)
     /// * `BITCOIN_RPC_USER` - The username for the Bitcoin RPC server
@@ -260,6 +269,9 @@ impl Brc20ProgConfig {
                 .unwrap_or(*BRC20_PROG_RPC_SERVER_ENABLE_AUTH_DEFAULT),
             brc20_prog_rpc_server_user: env::var(&*BRC20_PROG_RPC_SERVER_USER_KEY).ok(),
             brc20_prog_rpc_server_password: env::var(&*BRC20_PROG_RPC_SERVER_PASSWORD_KEY).ok(),
+            brc20_prog_rpc_trust_forwarded_for: env::var(&*BRC20_PROG_RPC_TRUST_FORWARDED_FOR_KEY)
+                .map(|x| x == "true")
+                .unwrap_or(*BRC20_PROG_RPC_TRUST_FORWARDED_FOR_DEFAULT),
             evm_record_traces: env::var(&*EVM_RECORD_TRACES_KEY)
                 .map(|x| x == "true")
                 .unwrap_or(*EVM_RECORD_TRACES_DEFAULT),
