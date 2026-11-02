@@ -45,7 +45,7 @@ use crate::server::error::{
     wrap_rpc_error_string_with_data,
 };
 use crate::server::tx_pool::{
-    PooledTx, TxPool, TX_POOL_MAX_BYTES, TX_POOL_MAX_ENTRIES, TX_POOL_TTL,
+    PooledTx, TxPool, TX_POOL_MAX_BYTES, TX_POOL_MAX_ENTRIES, TX_POOL_TTL, UNSENT_LIST_MAX_BYTES,
 };
 use crate::types::{Base64Bytes, PrecompileData, RawBytes};
 use crate::Brc20ProgConfig;
@@ -599,7 +599,7 @@ impl Brc20ProgApiServer for Brc20Prog {
                 .tx_pool()
                 .max_nonce_from(&account.address, Instant::now())
             {
-                count = count.max(max_nonce + 1);
+                count = count.max(max_nonce.saturating_add(1));
             }
         }
         Ok(format!("0x{:x}", count))
@@ -1151,9 +1151,7 @@ impl Brc20ProgApiServer for Brc20Prog {
                 CALLDATA_LIMIT
             )));
         }
-        let raw_tx = raw_tx.to_vec();
-
-        let tx_info = match self.engine.get_info_from_raw_tx(raw_tx.clone(), true) {
+        let tx_info = match self.engine.get_info_from_raw_tx(raw_tx.to_vec(), true) {
             Ok(Some(tx_info)) => tx_info,
             Ok(None) => return Err(invalid_params("invalid chain id")),
             Err(_) => return Err(invalid_params("invalid raw transaction")),
@@ -1164,7 +1162,7 @@ impl Brc20ProgApiServer for Brc20Prog {
 
         // The engine executes every transaction with zero value, so a nonzero value is
         // rejected at send time
-        let (legacy_tx, _) = TxLegacy::rlp_decode_with_signature(&mut raw_tx.as_slice())
+        let (legacy_tx, _) = TxLegacy::rlp_decode_with_signature(&mut raw_tx.as_ref())
             .map_err(|_| invalid_params("invalid raw transaction"))?;
         if !legacy_tx.value.is_zero() {
             return Err(invalid_params(
@@ -1174,9 +1172,9 @@ impl Brc20ProgApiServer for Brc20Prog {
 
         let account_nonce = self
             .engine
-            .get_transaction_count(tx_info.from, 0)
+            .get_account_nonce(tx_info.from)
             .map_err(wrap_rpc_error)?;
-        let max_nonce = account_nonce + MAX_FUTURE_TRANSACTION_NONCES;
+        let max_nonce = account_nonce.saturating_add(MAX_FUTURE_TRANSACTION_NONCES);
         if nonce < account_nonce || nonce >= max_nonce {
             return Err(invalid_params(&format!(
                 "nonce {} is outside the accepted range [{}, {})",
@@ -1186,16 +1184,18 @@ impl Brc20ProgApiServer for Brc20Prog {
 
         let now = Instant::now();
         let mut tx_pool = self.tx_pool();
-        let hash = tx_pool.insert(
-            PooledTx {
-                hash: keccak256(&raw_tx),
-                raw: raw_tx,
-                from: tx_info.from,
-                nonce,
-                received_at: now,
-            },
-            now,
-        );
+        let hash = tx_pool
+            .insert(
+                PooledTx {
+                    hash: keccak256(&raw_tx),
+                    raw: raw_tx,
+                    from: tx_info.from,
+                    nonce,
+                    received_at: now,
+                },
+                now,
+            )
+            .map_err(|error| invalid_params(&error.to_string()))?;
         debug!(
             "tx pool holds {} transactions, {} bytes",
             tx_pool.len(),
@@ -1210,19 +1210,19 @@ impl Brc20ProgApiServer for Brc20Prog {
         Ok(self
             .tx_pool()
             .get(&hash.bytes, Instant::now())
-            .map(|tx| RawBytes::from_bytes(tx.raw.clone().into())))
+            .map(|tx| RawBytes::from_bytes(tx.raw.clone())))
     }
 
     #[instrument(name = "brc20_unsentRawTransactions", skip(self), level = "error")]
     async fn brc20_unsent_raw_transactions(&self) -> RpcResult<Vec<PooledTxED>> {
         log_call();
         let now = Instant::now();
-        let txs = self.tx_pool().list(now);
+        let txs = self.tx_pool().list(now, UNSENT_LIST_MAX_BYTES);
         Ok(txs
             .into_iter()
             .map(|tx| PooledTxED {
                 hash: tx.hash.into(),
-                raw: RawBytes::from_bytes(tx.raw.into()),
+                raw: RawBytes::from_bytes(tx.raw),
                 from: tx.from.into(),
                 nonce: tx.nonce.into(),
                 received_at_secs: now.saturating_duration_since(tx.received_at).as_secs(),

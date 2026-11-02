@@ -226,6 +226,45 @@ async fn send_raw_rejects_nonzero_value() {
 }
 
 #[tokio::test]
+async fn send_raw_rejects_fifth_tx_for_same_nonce() {
+    let (server, client) = spawn_test_server(Default::default()).await;
+    let chain_id = chain_id(&client).await;
+    let wallet = EthereumWallet::new(PrivateKeySigner::random());
+
+    let mut first = None;
+    for n in 0..4u8 {
+        let tx = sign_legacy(&wallet, chain_id, 0, U256::ZERO, Bytes::from(vec![n])).await;
+        let hash = client.eth_send_raw_transaction(raw(&tx)).await.unwrap();
+        first.get_or_insert((tx, hash));
+    }
+    let (first_tx, first_hash) = first.unwrap();
+
+    let fifth = sign_legacy(&wallet, chain_id, 0, U256::ZERO, Bytes::from(vec![4u8])).await;
+    let error = client
+        .eth_send_raw_transaction(raw(&fifth))
+        .await
+        .unwrap_err();
+    let message = match &error {
+        ClientError::Call(error) => error.message().to_string(),
+        other => panic!("expected a call error, got {other:?}"),
+    };
+    assert_eq!(error_code(error), INVALID_PARAMS);
+    assert!(
+        message.contains("too many pending transactions for this nonce"),
+        "message: {message}"
+    );
+
+    // Resending a pooled transaction still returns its hash
+    let again = client
+        .eth_send_raw_transaction(raw(&first_tx))
+        .await
+        .unwrap();
+    assert_eq!(again, first_hash);
+
+    server.stop().unwrap();
+}
+
+#[tokio::test]
 async fn unsent_list_contains_pooled_tx() {
     let (server, client) = spawn_test_server(Default::default()).await;
     let signer = PrivateKeySigner::random();
