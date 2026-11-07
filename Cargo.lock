@@ -1477,6 +1477,7 @@ dependencies = [
  "serde_either",
  "serde_json",
  "sha256",
+ "subtle",
  "tempfile",
  "test-utils",
  "tokio",

@@ -202,7 +202,7 @@ When a reorg is detected, `brc20_reorg` should be called to revert the EVM to a 
 
 ## Securing the indexer methods
 
-The indexer methods change chain state, so restrict who can call them. See [Authorization](configuration.md#authorization) for HTTP basic auth, and [Admin RPC server](configuration.md#admin-rpc-server) for serving the indexer methods on a separate listener.
+The indexer methods change chain state, so the server always requires HTTP basic auth for them and refuses to start without a strong password. See [Authorization](configuration.md#authorization) for the credential rules, and [Admin RPC server](configuration.md#admin-rpc-server) for serving the indexer methods on a separate listener. A Rust indexer can instead [embed the module](embedding.md), which keeps the indexer methods off the network entirely.
 
 ## Indexer Checklist
 

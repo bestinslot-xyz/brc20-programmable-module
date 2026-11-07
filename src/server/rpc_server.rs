@@ -33,7 +33,8 @@ use crate::engine::{
 };
 use crate::global::database::validate_config_database;
 use crate::global::{
-    validate_bitcoin_core_config, validate_config, CONFIG, GAS_PER_BYTE, INVALID_ADDRESS,
+    validate_bitcoin_core_config, validate_config, validate_rpc_server_credentials, CONFIG,
+    GAS_PER_BYTE, INVALID_ADDRESS,
 };
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
@@ -107,18 +108,28 @@ impl Brc20Prog {
 
     /// Starts a JSON-RPC listener on `brc20_prog_rpc_server_url` that serves this instance.
     ///
-    /// The listener rejects the indexer methods for every caller, since the process that opened
-    /// the instance drives them by calling [`Brc20ProgApiServer`] directly. It allows requests from
-    /// any origin.
+    /// The listener does not register the indexer methods, and rejects calls to them with a 401
+    /// error for every caller, credentials or not, since the process that opened the instance
+    /// drives them by calling [`Brc20ProgApiServer`] directly. It allows requests from any origin.
     pub async fn start_public_rpc_server(&self) -> Result<ServerHandle, Box<dyn Error>> {
         start_listener(
-            &self.config,
+            self,
             &self.config.brc20_prog_rpc_server_url,
             HttpNonBlockingAuth::deny(),
-            true,
-            self.clone().into_rpc().into(),
         )
         .await
+    }
+
+    /// Returns the JSON-RPC methods of this instance, without the indexer methods unless
+    /// `with_indexer_methods` is true.
+    fn rpc_methods(&self, with_indexer_methods: bool) -> Methods {
+        let mut module = self.clone().into_rpc();
+        if !with_indexer_methods {
+            for method in INDEXER_METHODS.iter() {
+                module.remove_method(method.as_str());
+            }
+        }
+        module.into()
     }
 
     fn parse_block_number(&self, number: &str) -> Result<u64, Box<dyn Error>> {
@@ -995,10 +1006,12 @@ impl Brc20ProgApiServer for Brc20Prog {
         log_call();
         Ok(format!(
             "0x{}",
-            hex::encode(self.engine
-                .get_storage_at(contract.address, location.uint)
-                .map_err(wrap_rpc_error)?
-                .to_be_bytes_vec())
+            hex::encode(
+                self.engine
+                    .get_storage_at(contract.address, location.uint)
+                    .map_err(wrap_rpc_error)?
+                    .to_be_bytes_vec()
+            )
         ))
     }
 
@@ -1177,42 +1190,22 @@ impl Brc20ProgApiServer for Brc20Prog {
     }
 }
 
-/// Starts the JSON-RPC server for `prog`.
+/// Starts the JSON-RPC server for `prog`, serving the indexer methods behind HTTP basic auth.
 ///
-/// Without an admin URL, a single listener serves every method and authentication gates the
-/// indexer methods. With an admin URL, the public listener rejects the indexer methods for every
-/// caller, and the admin listener serves every method behind the configured authentication.
-/// The returned handle controls both listeners.
+/// Without an admin URL, a single listener serves every method and HTTP basic auth gates the
+/// indexer methods. With an admin URL, the public listener does not register the indexer
+/// methods, and the admin listener serves every method behind HTTP basic auth. The returned
+/// handle controls both listeners.
+///
+/// Fails before binding any port when the credentials are missing or weak, or when
+/// `brc20_prog_rpc_server_enable_auth` is false.
 pub async fn start_rpc_server(prog: Brc20Prog) -> Result<ServerHandle, Box<dyn Error>> {
     let config = prog.config.clone();
-    let auth = if !config.brc20_prog_rpc_server_enable_auth {
-        HttpNonBlockingAuth::allow()
-    } else {
-        let Some(rpc_username) = &config.brc20_prog_rpc_server_user else {
-            return Err(
-                "RPC username environment variable is required when authentication is enabled"
-                    .into(),
-            );
-        };
-        let Some(rpc_password) = &config.brc20_prog_rpc_server_password else {
-            return Err(
-                "RPC password environment variable is required when authentication is enabled"
-                    .into(),
-            );
-        };
-        HttpNonBlockingAuth::new(rpc_username, rpc_password)
-    };
-    let module: Methods = prog.into_rpc().into();
+    let (rpc_username, rpc_password) = validate_rpc_server_credentials(&config)?;
+    let auth = HttpNonBlockingAuth::basic(rpc_username, rpc_password)?;
 
     let Some(admin_url) = &config.brc20_prog_admin_rpc_server_url else {
-        return start_listener(
-            &config,
-            &config.brc20_prog_rpc_server_url,
-            auth,
-            true,
-            module,
-        )
-        .await;
+        return start_listener(&prog, &config.brc20_prog_rpc_server_url, auth).await;
     };
 
     let admin_address = admin_url.parse::<SocketAddr>()?;
@@ -1224,14 +1217,12 @@ pub async fn start_rpc_server(prog: Brc20Prog) -> Result<ServerHandle, Box<dyn E
     }
 
     let public_handle = start_listener(
-        &config,
+        &prog,
         &config.brc20_prog_rpc_server_url,
         HttpNonBlockingAuth::deny(),
-        true,
-        module.clone(),
     )
     .await?;
-    let admin_handle = match start_listener(&config, admin_url, auth, false, module).await {
+    let admin_handle = match start_listener(&prog, admin_url, auth).await {
         Ok(handle) => handle,
         Err(error) => {
             let _ = public_handle.stop();
@@ -1261,27 +1252,46 @@ fn join_server_handles(first: ServerHandle, second: ServerHandle) -> ServerHandl
     joined_handle
 }
 
-/// Starts one listener serving `module` on `url`.
+/// Starts one listener serving `prog` on `url`.
 ///
-/// `auth` decides which requests count as authorized for the indexer methods.
-/// `allow_cross_origin` lets browsers on any origin call the listener.
+/// `auth` decides which requests count as authorized for the indexer methods, and also decides
+/// which methods the listener registers and how browsers may reach it:
+/// * A listener that authorizes no request does not register the indexer methods, allows
+///   requests from any origin, and serves HTTP and WebSocket.
+/// * A listener that serves the indexer methods behind credentials sends no CORS headers, so a
+///   browser page on another origin cannot call it, and serves HTTP only, since browsers apply no
+///   CORS check to WebSocket handshakes and may replay cached basic auth credentials on them.
+///
+/// `RpcAuthMiddleware` rejects unauthorized calls to the indexer methods on both kinds.
 async fn start_listener(
-    config: &Brc20ProgConfig,
+    prog: &Brc20Prog,
     url: &str,
     auth: HttpNonBlockingAuth,
-    allow_cross_origin: bool,
-    module: Methods,
 ) -> Result<ServerHandle, Box<dyn Error>> {
-    let cors = if allow_cross_origin {
+    let config = &prog.config;
+    let serves_indexer_methods = auth.requires_credentials();
+    let module = prog.rpc_methods(serves_indexer_methods);
+    let cors = if serves_indexer_methods {
+        CorsLayer::new()
+    } else {
         CorsLayer::new()
             // Allow `POST` when accessing the resource
             .allow_methods([Method::POST])
             // Allow requests from any origin
             .allow_origin(Any)
             .allow_headers([hyper::header::CONTENT_TYPE])
-    } else {
-        CorsLayer::new()
     };
+    let mut server_config = ServerConfigBuilder::default()
+        .max_request_body_size(config.max_request_size)
+        .max_response_body_size(config.max_response_size)
+        .set_batch_request_config(if config.batch_request_limit == 0 {
+            BatchRequestConfig::Unlimited
+        } else {
+            BatchRequestConfig::Limit(config.batch_request_limit)
+        });
+    if serves_indexer_methods {
+        server_config = server_config.http_only();
+    }
 
     let http_middleware = ServiceBuilder::new()
         .layer(cors)
@@ -1291,17 +1301,7 @@ async fn start_listener(
         .layer_fn(|service| RpcAuthMiddleware::new(service, &*INDEXER_METHODS));
 
     let handle = Server::builder()
-        .set_config(
-            ServerConfigBuilder::default()
-                .max_request_body_size(config.max_request_size)
-                .max_response_body_size(config.max_response_size)
-                .set_batch_request_config(if config.batch_request_limit == 0 {
-                    BatchRequestConfig::Unlimited
-                } else {
-                    BatchRequestConfig::Limit(config.batch_request_limit)
-                })
-                .build(),
-        )
+        .set_config(server_config.build())
         .set_http_middleware(http_middleware)
         .set_rpc_middleware(rpc_middleware)
         .build(url.parse::<SocketAddr>()?)
@@ -1330,6 +1330,101 @@ mod tests {
             engine: Arc::new(BRC20ProgEngine::new(db)),
             config: Arc::new(Brc20ProgConfig::default()),
         }
+    }
+
+    fn server_with_credentials(
+        enable_auth: bool,
+        user: Option<&str>,
+        password: Option<&str>,
+    ) -> (Brc20Prog, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let config = Brc20ProgConfig {
+            brc20_prog_rpc_server_url: "127.0.0.1:0".to_string(),
+            brc20_prog_admin_rpc_server_url: None,
+            brc20_prog_rpc_server_enable_auth: enable_auth,
+            brc20_prog_rpc_server_user: user.map(str::to_string),
+            brc20_prog_rpc_server_password: password.map(str::to_string),
+            ..Brc20ProgConfig::default()
+        };
+        (
+            Brc20Prog {
+                engine: Arc::new(BRC20ProgEngine::new(db)),
+                config: Arc::new(config),
+            },
+            temp_dir,
+        )
+    }
+
+    const STRONG_PASSWORD: &str = "3f9c2a7e5b1d48c6a0e7f2b9d4c1a8e6";
+
+    async fn start_error(enable_auth: bool, user: Option<&str>, password: Option<&str>) -> String {
+        let (server, _dir) = server_with_credentials(enable_auth, user, password);
+        match start_rpc_server(server).await {
+            Ok(handle) => {
+                handle.stop().unwrap();
+                panic!("start_rpc_server started without valid credentials");
+            }
+            Err(error) => error.to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_start_rpc_server_rejects_missing_credentials() {
+        start_error(true, None, None).await;
+        start_error(true, Some("indexer"), None).await;
+        start_error(true, None, Some(STRONG_PASSWORD)).await;
+    }
+
+    #[tokio::test]
+    async fn test_start_rpc_server_rejects_weak_credentials() {
+        for (user, password) in [
+            ("user", "password"),
+            ("indexer", ""),
+            ("", STRONG_PASSWORD),
+            ("indexer", "changeme"),
+            ("indexer", &STRONG_PASSWORD[..31]),
+            (STRONG_PASSWORD, STRONG_PASSWORD),
+            ("indexer", &"a".repeat(40)),
+        ] {
+            let error = start_error(true, Some(user), Some(password)).await;
+            assert!(
+                password.is_empty() || !error.contains(password),
+                "error leaks the password"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_start_rpc_server_rejects_disabled_auth() {
+        let error = start_error(false, Some("indexer"), Some(STRONG_PASSWORD)).await;
+        assert!(error.contains("ENABLE_AUTH=false"));
+        assert!(error.contains("start_public_rpc_server"));
+    }
+
+    #[tokio::test]
+    async fn test_start_rpc_server_accepts_strong_credentials() {
+        let (server, _dir) = server_with_credentials(true, Some("indexer"), Some(STRONG_PASSWORD));
+        let handle = start_rpc_server(server).await.unwrap();
+        handle.stop().unwrap();
+    }
+
+    #[test]
+    fn test_rpc_methods_without_indexer_methods() {
+        let server = create_test_server();
+        let all = server.rpc_methods(true);
+        let public = server.rpc_methods(false);
+
+        // Every listed indexer method is a registered name, so removing it takes effect
+        for method in INDEXER_METHODS.iter() {
+            assert!(all.method(method).is_some(), "{method} is not registered");
+            assert!(public.method(method).is_none(), "{method} is still public");
+        }
+        assert!(public.method("eth_blockNumber").is_some());
+        assert_eq!(
+            all.method_names().count(),
+            public.method_names().count() + INDEXER_METHODS.len()
+        );
     }
 
     #[test]

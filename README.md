@@ -36,7 +36,11 @@ Precompiled contracts require environment variables to work properly, see [Confi
 
 **Build and run brc20_prog:**
 
+The server always requires HTTP basic auth for the indexer methods (`brc20_*` and `debug_getBlockTrace*`), and refuses to start without a username and a strong password (at least 32 characters, see [Authorization](docs/configuration.md#authorization)):
+
 ```
+cp env.sample .env
+# Set BRC20_PROG_RPC_SERVER_USER, and BRC20_PROG_RPC_SERVER_PASSWORD to the output of `openssl rand -hex 32`
 cargo run --release
 ```
 
@@ -57,13 +61,13 @@ docker run --rm \
   bestinslot/brc20-prog:latest
 ```
 
-The image binds the JSON-RPC server to `0.0.0.0:18545` and stores its database under `/var/lib/brc20-prog/data` (mount a volume there to persist it). All other configuration is provided through environment variables, see [`env.sample`](env.sample) and [Configuration](docs/configuration.md). Note that `BITCOIN_RPC_URL` must point at a Bitcoin RPC endpoint reachable from inside the container.
+The image binds the JSON-RPC server to `0.0.0.0:18545` and stores its database under `/var/lib/brc20-prog/data` (mount a volume there to persist it). All other configuration is provided through environment variables, see [`env.sample`](env.sample) and [Configuration](docs/configuration.md). The `.env` file must set `BRC20_PROG_RPC_SERVER_USER` and a strong `BRC20_PROG_RPC_SERVER_PASSWORD`, since the server refuses to start without them. Note that `BITCOIN_RPC_URL` must point at a Bitcoin RPC endpoint reachable from inside the container.
 
 To build the image from source instead, run `docker build -t brc20-prog .` from the repository root.
 
 **Embed in an indexer:**
 
-An indexer written in Rust can run the module in its own process instead of calling it over JSON-RPC. See [Embedding in an indexer](docs/embedding.md).
+An indexer written in Rust can run the module in its own process instead of calling it over JSON-RPC (library mode). The indexer methods are then never reachable over the network, and no RPC credentials are needed. See [Embedding in an indexer](docs/embedding.md) and [Server mode and library mode](docs/configuration.md#server-mode-and-library-mode).
 
 ## Configuration
 
