@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.17.0 (2026-11-07)
 
+Server mode requires HTTP basic auth for the indexer methods (`brc20_*` and `debug_getBlockTrace*`). Library mode keeps them off the network and needs no credentials. See [Authorization](docs/configuration.md#authorization).
+
+### Breaking Changes
+
+ - The server refuses to start, before opening the database, without `BRC20_PROG_RPC_SERVER_USER` and a strong `BRC20_PROG_RPC_SERVER_PASSWORD` (at least 32 characters, not a sample value, not the username, not one repeated character).
+ - `BRC20_PROG_RPC_SERVER_ENABLE_AUTH` is retired: it defaults to `true`, and `false` is a startup error.
+ - A listener that serves the indexer methods sends no CORS headers and serves HTTP only (no WebSocket). Browser apps that call `eth_*` from another origin need a split setup with `BRC20_PROG_ADMIN_RPC_SERVER_URL`.
+
+### Security
+
+ - The `Authorization` header is compared in constant time.
+ - Public listeners (`start_public_rpc_server`, and the public side of a split setup) do not register the indexer methods, and answer calls to them with a 401 error.
+ - `Brc20ProgConfig` implements `Debug`, with both passwords redacted.
+ - `env.sample` ships empty credentials.
+
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
