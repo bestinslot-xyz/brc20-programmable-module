@@ -1055,7 +1055,8 @@ impl BRC20ProgEngine {
             .require_block_does_not_exist(block_hash, block_number)
     }
 
-    fn get_account_nonce(&self, addr: Address) -> Result<u64, Box<dyn Error>> {
+    /// Returns the current nonce of `addr`, 0 for an unknown account.
+    pub fn get_account_nonce(&self, addr: Address) -> Result<u64, Box<dyn Error>> {
         Ok(self
             .db
             .read()?

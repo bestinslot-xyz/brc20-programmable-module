@@ -1,8 +1,11 @@
 use std::error::Error;
 
 use alloy::primitives::U64;
-use brc20_prog::types::RawBytes;
+use brc20_prog::types::{RawBytes, U64ED};
 use brc20_prog::Brc20ProgApiClient;
+use jsonrpsee::core::client::ClientT;
+use jsonrpsee::http_client::HttpClient;
+use jsonrpsee::rpc_params;
 use revm::primitives::U256;
 use test_utils::{load_file_as_string, spawn_test_server};
 
@@ -99,3 +102,40 @@ async fn test_eth_read_methods() -> Result<(), Box<dyn Error>> {
     server.stop()?;
     Ok(())
 }
+
+/// Returns the JSON of the latest block, fetched by number and by hash.
+async fn latest_block_json(
+    client: &HttpClient,
+) -> Result<(serde_json::Value, serde_json::Value), Box<dyn Error>> {
+    let by_number: serde_json::Value = client
+        .request("eth_getBlockByNumber", rpc_params!["latest", true])
+        .await?;
+    let by_hash: serde_json::Value = client
+        .request("eth_getBlockByHash", rpc_params![by_number["hash"].clone()])
+        .await?;
+    assert!(by_number.get("number").is_some());
+    assert_eq!(by_number["hash"], by_hash["hash"]);
+    Ok((by_number, by_hash))
+}
+
+/// Block JSON omits `baseFeePerGas` so wallets see no EIP-1559 support and sign legacy
+/// transactions.
+#[tokio::test]
+async fn block_response_has_no_base_fee() -> Result<(), Box<dyn Error>> {
+    let (server, client) = spawn_test_server(Default::default()).await;
+    client.brc20_finalise_block(42, [0u8; 32].into(), 0).await?;
+
+    let (by_number, by_hash) = latest_block_json(&client).await?;
+    assert!(by_number.get("baseFeePerGas").is_none());
+    assert!(by_hash.get("baseFeePerGas").is_none());
+
+    // The typed client reads the missing field as zero
+    let block = client
+        .eth_get_block_by_number("latest".to_string(), Some(false))
+        .await?;
+    assert_eq!(block.base_fee_per_gas, U64ED::zero());
+
+    server.stop()?;
+    Ok(())
+}
+

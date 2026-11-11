@@ -78,7 +78,7 @@ The server is configured through environment variables, and loads a `.env` file 
 - [Configuration](docs/configuration.md): environment variables, command-line options, authorization and the admin RPC server.
 - [Indexer Integration Guide](docs/indexer-integration.md): BRC2.0 inscriptions, initialisation, the per-block indexing loop and the indexer checklist.
 - [Indexer JSON-RPC methods](docs/indexer-api.md): reference for the `brc20_*` methods.
-- [Ethereum JSON-RPC methods](docs/eth-api.md): the `eth_*`, `debug_*` and `txpool_content` methods.
+- [Ethereum JSON-RPC methods](docs/eth-api.md): the `eth_*`, `debug_*` and `txpool_content` methods, and the pending raw transaction pool.
 - [Embedding in an indexer](docs/embedding.md): running the module in-process through `Brc20Prog`.
 - [Precompiles](docs/precompiles.md): BIP322 verification and the Bitcoin precompiles, with their Solidity interfaces.
 - [Differences from Ethereum](docs/differences-from-ethereum.md): consensus behaviour that differs from Ethereum, and the hardfork activation heights.

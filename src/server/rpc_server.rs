@@ -2,15 +2,19 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Instant;
 
-use alloy::primitives::Bytes;
+use alloy::consensus::transaction::RlpEcdsaDecodableTx;
+use alloy::consensus::TxLegacy;
+use alloy::primitives::{keccak256, Bytes};
 use hyper::Method;
 use jsonrpsee::core::middleware::RpcServiceBuilder;
 use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::server::{
     stop_channel, BatchRequestConfig, Server, ServerConfigBuilder, ServerHandle,
 };
+use jsonrpsee::types::{ErrorCode, ErrorObject};
 use jsonrpsee::Methods;
 use revm::primitives::TxKind;
 use revm::state::Bytecode;
@@ -19,7 +23,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tracing::{debug, info, instrument, warn};
 
-use crate::api::types::{select_bytes, EthCall, GetLogsFilter};
+use crate::api::types::{select_bytes, EthCall, GetLogsFilter, PooledTxED};
 use crate::api::{Brc20ProgApiServer, INDEXER_METHODS};
 use crate::brc20_controller::{
     decode_brc20_balance_result, load_brc20_balance_tx, load_brc20_burn_tx, load_brc20_mint_tx,
@@ -33,13 +37,19 @@ use crate::engine::{
 };
 use crate::global::database::validate_config_database;
 use crate::global::{
-    validate_bitcoin_core_config, validate_config, validate_rpc_server_credentials, CONFIG,
-    GAS_PER_BYTE, INVALID_ADDRESS,
+    validate_bitcoin_core_config, validate_config, validate_rpc_server_credentials, CALLDATA_LIMIT,
+    CONFIG, GAS_PER_BYTE, INVALID_ADDRESS, MAX_FUTURE_TRANSACTION_NONCES,
 };
 use crate::server::auth::{HttpNonBlockingAuth, RpcAuthMiddleware};
 use crate::server::error::{
-    call_failed, is_bitcoin_unavailable, wrap_rpc_error, wrap_rpc_error_string,
+    call_failed, invalid_params, is_bitcoin_unavailable, wrap_rpc_error, wrap_rpc_error_string,
     wrap_rpc_error_string_with_data,
+};
+use crate::server::rate_limit::{
+    ClientKeyExtractor, RateLimiter, RpcRateLimitMiddleware, SEND_RAW_TX_LIMIT, SEND_RAW_TX_WINDOW,
+};
+use crate::server::tx_pool::{
+    PooledTx, TxPool, TX_POOL_MAX_BYTES, TX_POOL_MAX_ENTRIES, TX_POOL_TTL, UNSENT_LIST_MAX_BYTES,
 };
 use crate::types::{Base64Bytes, PrecompileData, RawBytes};
 use crate::Brc20ProgConfig;
@@ -50,11 +60,16 @@ use crate::Brc20ProgConfig;
 /// same process calls them directly, without HTTP or JSON. Clones share one engine: a clone serving
 /// JSON-RPC sees every change made through another.
 ///
+/// Clones also share one in-memory pool of signed raw transactions that wallets submit with
+/// `eth_sendRawTransaction` and that wait there to be inscribed. The pool serves only with
+/// `brc20_prog_rpc_tx_pool`.
+///
 /// Configuration is process-wide, so open one instance per process.
 #[derive(Clone)]
 pub struct Brc20Prog {
     engine: Arc<BRC20ProgEngine>,
     config: Arc<Brc20ProgConfig>,
+    tx_pool: Arc<Mutex<TxPool>>,
 }
 
 impl Brc20Prog {
@@ -103,7 +118,16 @@ impl Brc20Prog {
         Ok(Self {
             engine: Arc::new(engine),
             config: Arc::new(config),
+            tx_pool: new_tx_pool(),
         })
+    }
+
+    /// Locks the transaction pool. A poisoned lock is recovered, since the pool only caches
+    /// transactions and a partly updated pool is still safe to serve.
+    fn tx_pool(&self) -> MutexGuard<'_, TxPool> {
+        self.tx_pool
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Starts a JSON-RPC listener on `brc20_prog_rpc_server_url` that serves this instance.
@@ -111,17 +135,22 @@ impl Brc20Prog {
     /// The listener does not register the indexer methods, and rejects calls to them with a 401
     /// error for every caller, credentials or not, since the process that opened the instance
     /// drives them by calling [`Brc20ProgApiServer`] directly. It allows requests from any origin.
+    /// With `brc20_prog_rpc_tx_pool`, it rate limits each client's calls to the transaction pool
+    /// methods.
     pub async fn start_public_rpc_server(&self) -> Result<ServerHandle, Box<dyn Error>> {
         start_listener(
             self,
             &self.config.brc20_prog_rpc_server_url,
             HttpNonBlockingAuth::deny(),
+            true,
         )
         .await
     }
 
     /// Returns the JSON-RPC methods of this instance, without the indexer methods unless
     /// `with_indexer_methods` is true.
+    ///
+    /// Without `brc20_prog_rpc_tx_pool`, the transaction pool methods are absent.
     fn rpc_methods(&self, with_indexer_methods: bool) -> Methods {
         let mut module = self.clone().into_rpc();
         if !with_indexer_methods {
@@ -129,7 +158,21 @@ impl Brc20Prog {
                 module.remove_method(method.as_str());
             }
         }
+        if !self.config.brc20_prog_rpc_tx_pool {
+            for method in TX_POOL_METHODS {
+                module.remove_method(method);
+            }
+        }
         module.into()
+    }
+
+    /// Fails with JSON-RPC "method not found" unless `brc20_prog_rpc_tx_pool` is enabled.
+    fn require_tx_pool(&self) -> RpcResult<()> {
+        if self.config.brc20_prog_rpc_tx_pool {
+            Ok(())
+        } else {
+            Err(ErrorObject::from(ErrorCode::MethodNotFound))
+        }
     }
 
     fn parse_block_number(&self, number: &str) -> Result<u64, Box<dyn Error>> {
@@ -167,6 +210,21 @@ impl Brc20Prog {
 
 fn log_call() {
     info!("rpc.request");
+}
+
+/// Methods of the pending raw transaction pool, served with `brc20_prog_rpc_tx_pool`.
+const TX_POOL_METHODS: [&str; 3] = [
+    "eth_sendRawTransaction",
+    "eth_getRawTransactionByHash",
+    "brc20_unsentRawTransactions",
+];
+
+fn new_tx_pool() -> Arc<Mutex<TxPool>> {
+    Arc::new(Mutex::new(TxPool::new(
+        TX_POOL_TTL,
+        TX_POOL_MAX_ENTRIES,
+        TX_POOL_MAX_BYTES,
+    )))
 }
 
 #[async_trait]
@@ -452,13 +510,17 @@ impl Brc20ProgApiServer for Brc20Prog {
             .get_next_block_height()
             .map_err(wrap_rpc_error)?;
 
-        self.engine
+        let raw_tx = select_bytes(&raw_tx_data, &base64_raw_tx_data)
+            .map_err(wrap_rpc_error)?
+            .map(|x| x.to_vec())
+            .unwrap_or_default();
+        let raw_tx_hash = keccak256(&raw_tx);
+
+        let receipts = self
+            .engine
             .add_raw_tx_to_block(
                 timestamp,
-                select_bytes(&raw_tx_data, &base64_raw_tx_data)
-                    .map_err(wrap_rpc_error)?
-                    .map(|x| x.to_vec())
-                    .unwrap_or_default(),
+                raw_tx,
                 tx_idx,
                 block_height,
                 hash.bytes,
@@ -466,7 +528,13 @@ impl Brc20ProgApiServer for Brc20Prog {
                 inscription_byte_len,
                 op_return_tx_id.bytes,
             )
-            .map_err(wrap_rpc_error)
+            .map_err(wrap_rpc_error)?;
+
+        // The transaction is inscribed, so the pool no longer offers it
+        if self.config.brc20_prog_rpc_tx_pool {
+            self.tx_pool().remove(&raw_tx_hash);
+        }
+        Ok(receipts)
     }
 
     #[instrument(skip(self), level = "error")]
@@ -564,10 +632,20 @@ impl Brc20ProgApiServer for Brc20Prog {
     ) -> RpcResult<String> {
         log_call();
         let block_number = self.parse_block_number(&block).map_err(wrap_rpc_error)?;
-        self.engine
+        let mut count = self
+            .engine
             .get_transaction_count(account.address, block_number)
-            .map(|count| format!("0x{:x}", count))
-            .map_err(wrap_rpc_error)
+            .map_err(wrap_rpc_error)?;
+        // The pending count also covers the sender's pooled transactions
+        if block == "pending" && self.config.brc20_prog_rpc_tx_pool {
+            if let Some(max_nonce) = self
+                .tx_pool()
+                .max_nonce_from(&account.address, Instant::now())
+            {
+                count = count.max(max_nonce.saturating_add(1));
+            }
+        }
+        Ok(format!("0x{:x}", count))
     }
 
     #[instrument(
@@ -1106,6 +1184,108 @@ impl Brc20ProgApiServer for Brc20Prog {
             .map_err(wrap_rpc_error)
     }
 
+    #[instrument(name = "eth_sendRawTransaction", skip(self, raw), level = "error")]
+    async fn eth_send_raw_transaction(&self, raw: RawBytes) -> RpcResult<B256ED> {
+        log_call();
+        self.require_tx_pool()?;
+        let Some(raw_tx) = raw.value() else {
+            return Err(invalid_params("invalid raw transaction"));
+        };
+        if raw_tx.len() > CALLDATA_LIMIT {
+            return Err(invalid_params(&format!(
+                "raw transaction exceeds {} bytes",
+                CALLDATA_LIMIT
+            )));
+        }
+        // Bytes after the RLP list and a high-s signature give the same signed transaction a
+        // different hash, so either would let a third party fill the sender's per-nonce cap
+        let mut buf = raw_tx.as_ref();
+        let (legacy_tx, signature) = TxLegacy::rlp_decode_with_signature(&mut buf)
+            .map_err(|_| invalid_params("invalid raw transaction"))?;
+        if !buf.is_empty() || signature.normalize_s().is_some() {
+            return Err(invalid_params("invalid raw transaction"));
+        }
+
+        // The transaction decodes, so the engine skipping it means another chain id or a
+        // signature that does not recover
+        let tx_info = match self.engine.get_info_from_raw_tx(raw_tx.to_vec(), true) {
+            Ok(Some(tx_info)) => tx_info,
+            Ok(None) => return Err(invalid_params("invalid chain id or signature")),
+            Err(_) => return Err(invalid_params("invalid raw transaction")),
+        };
+        let Some(nonce) = tx_info.nonce else {
+            return Err(invalid_params("invalid raw transaction"));
+        };
+        // The engine executes every transaction with zero value, so a nonzero value is
+        // rejected at send time
+        if !legacy_tx.value.is_zero() {
+            return Err(invalid_params(
+                "transaction value must be zero, BRC2.0 has no native value transfer",
+            ));
+        }
+
+        let account_nonce = self
+            .engine
+            .get_account_nonce(tx_info.from)
+            .map_err(wrap_rpc_error)?;
+        let max_nonce = account_nonce.saturating_add(MAX_FUTURE_TRANSACTION_NONCES);
+        if nonce < account_nonce || nonce >= max_nonce {
+            return Err(invalid_params(&format!(
+                "nonce {} is outside the accepted range [{}, {})",
+                nonce, account_nonce, max_nonce
+            )));
+        }
+
+        let now = Instant::now();
+        let mut tx_pool = self.tx_pool();
+        let hash = tx_pool
+            .insert(
+                PooledTx {
+                    hash: keccak256(&raw_tx),
+                    raw: raw_tx,
+                    from: tx_info.from,
+                    nonce,
+                    received_at: now,
+                },
+                now,
+            )
+            .map_err(|error| invalid_params(&error.to_string()))?;
+        debug!(
+            "tx pool holds {} transactions, {} bytes",
+            tx_pool.len(),
+            tx_pool.bytes()
+        );
+        Ok(hash.into())
+    }
+
+    #[instrument(name = "eth_getRawTransactionByHash", skip(self), level = "error")]
+    async fn eth_get_raw_transaction_by_hash(&self, hash: B256ED) -> RpcResult<Option<RawBytes>> {
+        log_call();
+        self.require_tx_pool()?;
+        Ok(self
+            .tx_pool()
+            .get(&hash.bytes, Instant::now())
+            .map(|tx| RawBytes::from_bytes(tx.raw.clone())))
+    }
+
+    #[instrument(name = "brc20_unsentRawTransactions", skip(self), level = "error")]
+    async fn brc20_unsent_raw_transactions(&self) -> RpcResult<Vec<PooledTxED>> {
+        log_call();
+        self.require_tx_pool()?;
+        let now = Instant::now();
+        let txs = self.tx_pool().list(now, UNSENT_LIST_MAX_BYTES);
+        Ok(txs
+            .into_iter()
+            .map(|tx| PooledTxED {
+                hash: tx.hash.into(),
+                raw: RawBytes::from_bytes(tx.raw),
+                from: tx.from.into(),
+                nonce: tx.nonce.into(),
+                age_secs: now.saturating_duration_since(tx.received_at).as_secs(),
+            })
+            .collect())
+    }
+
     #[instrument(name = "txpool_content", skip(self), level = "error")]
     async fn txpool_content(
         &self,
@@ -1194,8 +1374,9 @@ impl Brc20ProgApiServer for Brc20Prog {
 ///
 /// Without an admin URL, a single listener serves every method and HTTP basic auth gates the
 /// indexer methods. With an admin URL, the public listener does not register the indexer
-/// methods, and the admin listener serves every method behind HTTP basic auth. The returned
-/// handle controls both listeners.
+/// methods, and the admin listener serves every method behind HTTP basic auth. With
+/// `brc20_prog_rpc_tx_pool`, the listener that serves the public rate limits the transaction pool
+/// methods; the admin listener does not. The returned handle controls both listeners.
 ///
 /// Fails before binding any port when the credentials are missing or weak, or when
 /// `brc20_prog_rpc_server_enable_auth` is false.
@@ -1205,7 +1386,7 @@ pub async fn start_rpc_server(prog: Brc20Prog) -> Result<ServerHandle, Box<dyn E
     let auth = HttpNonBlockingAuth::basic(rpc_username, rpc_password)?;
 
     let Some(admin_url) = &config.brc20_prog_admin_rpc_server_url else {
-        return start_listener(&prog, &config.brc20_prog_rpc_server_url, auth).await;
+        return start_listener(&prog, &config.brc20_prog_rpc_server_url, auth, true).await;
     };
 
     let admin_address = admin_url.parse::<SocketAddr>()?;
@@ -1220,9 +1401,10 @@ pub async fn start_rpc_server(prog: Brc20Prog) -> Result<ServerHandle, Box<dyn E
         &prog,
         &config.brc20_prog_rpc_server_url,
         HttpNonBlockingAuth::deny(),
+        true,
     )
     .await?;
-    let admin_handle = match start_listener(&prog, admin_url, auth).await {
+    let admin_handle = match start_listener(&prog, admin_url, auth, false).await {
         Ok(handle) => handle,
         Err(error) => {
             let _ = public_handle.stop();
@@ -1263,10 +1445,14 @@ fn join_server_handles(first: ServerHandle, second: ServerHandle) -> ServerHandl
 ///   CORS check to WebSocket handshakes and may replay cached basic auth credentials on them.
 ///
 /// `RpcAuthMiddleware` rejects unauthorized calls to the indexer methods on both kinds.
+///
+/// `rate_limited` limits each client's calls to the transaction pool methods, when
+/// `brc20_prog_rpc_tx_pool` serves them.
 async fn start_listener(
     prog: &Brc20Prog,
     url: &str,
     auth: HttpNonBlockingAuth,
+    rate_limited: bool,
 ) -> Result<ServerHandle, Box<dyn Error>> {
     let config = &prog.config;
     let serves_indexer_methods = auth.requires_credentials();
@@ -1293,12 +1479,18 @@ async fn start_listener(
         server_config = server_config.http_only();
     }
 
+    let rate_limiter = (rate_limited && config.brc20_prog_rpc_tx_pool)
+        .then(|| Arc::new(RateLimiter::new(SEND_RAW_TX_LIMIT, SEND_RAW_TX_WINDOW)));
     let http_middleware = ServiceBuilder::new()
         .layer(cors)
-        .layer(ValidateRequestHeaderLayer::custom(auth));
+        .layer(ValidateRequestHeaderLayer::custom(auth))
+        .layer(ValidateRequestHeaderLayer::custom(ClientKeyExtractor::new(
+            config.brc20_prog_rpc_trust_forwarded_for,
+        )));
     let rpc_middleware = RpcServiceBuilder::new()
         .rpc_logger(1024)
-        .layer_fn(|service| RpcAuthMiddleware::new(service, &*INDEXER_METHODS));
+        .layer_fn(|service| RpcAuthMiddleware::new(service, &*INDEXER_METHODS))
+        .layer_fn(move |service| RpcRateLimitMiddleware::new(service, rate_limiter.clone()));
 
     let handle = Server::builder()
         .set_config(server_config.build())
@@ -1324,11 +1516,19 @@ mod tests {
     use super::*;
 
     fn create_test_server() -> Brc20Prog {
+        create_test_server_with_tx_pool(false)
+    }
+
+    fn create_test_server_with_tx_pool(tx_pool: bool) -> Brc20Prog {
         let temp_dir = TempDir::new().unwrap();
         let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         Brc20Prog {
             engine: Arc::new(BRC20ProgEngine::new(db)),
-            config: Arc::new(Brc20ProgConfig::default()),
+            config: Arc::new(Brc20ProgConfig {
+                brc20_prog_rpc_tx_pool: tx_pool,
+                ..Brc20ProgConfig::default()
+            }),
+            tx_pool: new_tx_pool(),
         }
     }
 
@@ -1351,6 +1551,7 @@ mod tests {
             Brc20Prog {
                 engine: Arc::new(BRC20ProgEngine::new(db)),
                 config: Arc::new(config),
+                tx_pool: new_tx_pool(),
             },
             temp_dir,
         )
@@ -1425,6 +1626,24 @@ mod tests {
             all.method_names().count(),
             public.method_names().count() + INDEXER_METHODS.len()
         );
+    }
+
+    #[test]
+    fn test_rpc_methods_tx_pool_methods_follow_config() {
+        let disabled = create_test_server_with_tx_pool(false);
+        let enabled = create_test_server_with_tx_pool(true);
+        for with_indexer_methods in [false, true] {
+            let without_pool = disabled.rpc_methods(with_indexer_methods);
+            let with_pool = enabled.rpc_methods(with_indexer_methods);
+            for method in TX_POOL_METHODS {
+                assert!(without_pool.method(method).is_none(), "{method} is served");
+                assert!(with_pool.method(method).is_some(), "{method} is not served");
+            }
+            assert_eq!(
+                with_pool.method_names().count(),
+                without_pool.method_names().count() + TX_POOL_METHODS.len()
+            );
+        }
     }
 
     #[test]

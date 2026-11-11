@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use jsonrpsee::types::error::INVALID_PARAMS_CODE;
 use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
 use tracing::error;
 
@@ -13,6 +14,11 @@ pub fn wrap_rpc_error(error: Box<dyn Error>) -> ErrorObject<'static> {
 pub fn wrap_rpc_error_string(error: &str) -> ErrorObject<'static> {
     error!("{:?}", error);
     ErrorObjectOwned::owned(400, error, None::<String>)
+}
+
+/// Error for a request whose parameters are invalid, with the JSON-RPC invalid params code.
+pub fn invalid_params(error: &str) -> ErrorObject<'static> {
+    ErrorObjectOwned::owned(INVALID_PARAMS_CODE, error, None::<String>)
 }
 
 /// Whether a public call failed because a Bitcoin lookup failed.

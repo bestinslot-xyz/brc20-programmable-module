@@ -14,6 +14,8 @@ Precompiled contracts require the Bitcoin RPC variables to work properly, otherw
 | `BRC20_PROG_RPC_SERVER_USER` | unset | Username for HTTP basic auth on the indexer methods. Required by the server. See [Authorization](#authorization). |
 | `BRC20_PROG_RPC_SERVER_PASSWORD` | unset | Password for HTTP basic auth on the indexer methods. Required by the server, and must be strong. See [Authorization](#authorization). |
 | `BRC20_PROG_RPC_SERVER_ENABLE_AUTH` | `true` | Retired. Authentication is mandatory, so `false` stops the server at startup; any other value is ignored. |
+| `BRC20_PROG_RPC_TX_POOL` | `false` | Serves the [pending raw transaction pool](eth-api.md#pending-raw-transaction-pool) and its rate limits. When `false`, the pool methods return "method not found". |
+| `BRC20_PROG_RPC_TRUST_FORWARDED_FOR` | `false` | Rate limits each client by the first `X-Forwarded-For` hop. See [Rate limits](#rate-limits). |
 | `EVM_RECORD_TRACES` | `false` | Records transaction traces for `debug_traceTransaction`. |
 | `EVM_CALL_GAS_LIMIT` | `1000000000` | Gas limit for `eth_call` and `eth_estimateGas`. |
 | `BITCOIN_RPC_URL` | `http://localhost:38332` | Bitcoin RPC endpoint used by the Bitcoin precompiles. |
@@ -94,3 +96,9 @@ Access to the admin listener is controlled by where it binds and who can reach t
 - **Reverse proxy:** proxy only the public port, never the admin port.
 
 The server logs a warning at startup when the admin listener binds to a non-loopback address. When `BRC20_PROG_ADMIN_RPC_SERVER_URL` is unset, a single listener serves every method, HTTP basic auth gates the indexer methods, and the listener sends no CORS headers and serves HTTP only.
+
+## Rate limits
+
+Rate limits apply when `BRC20_PROG_RPC_TX_POOL=true` enables the [pending raw transaction pool](eth-api.md#pending-raw-transaction-pool). The listener on `BRC20_PROG_RPC_SERVER_URL` then allows each client 30 calls per 60 seconds to `eth_sendRawTransaction`, and a separate 30 calls per 60 seconds to `brc20_unsentRawTransactions`. Each entry of a batch counts as one call. A call over the limit returns JSON-RPC error `-32005`. Notifications are not counted, since the server runs no method for them. The admin listener has no rate limit.
+
+With `BRC20_PROG_RPC_TRUST_FORWARDED_FOR=true`, the first comma-separated value of the `X-Forwarded-For` header identifies the client. An IPv6 address counts as its /64 prefix, an IPv4-mapped IPv6 address counts as its IPv4 address, and a trailing port is ignored. Otherwise every caller shares one limit. Enable it only behind a reverse proxy that replaces any `X-Forwarded-For` header from the client with the client's address, since a client can put any value first in that header.

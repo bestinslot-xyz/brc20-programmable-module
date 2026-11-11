@@ -25,6 +25,12 @@ lazy_static::lazy_static! {
 
     static ref BRC20_PROG_ADMIN_RPC_SERVER_URL_KEY: String = "BRC20_PROG_ADMIN_RPC_SERVER_URL".to_string();
 
+    static ref BRC20_PROG_RPC_TRUST_FORWARDED_FOR_KEY: String = "BRC20_PROG_RPC_TRUST_FORWARDED_FOR".to_string();
+    static ref BRC20_PROG_RPC_TRUST_FORWARDED_FOR_DEFAULT: bool = false;
+
+    static ref BRC20_PROG_RPC_TX_POOL_KEY: String = "BRC20_PROG_RPC_TX_POOL".to_string();
+    static ref BRC20_PROG_RPC_TX_POOL_DEFAULT: bool = false;
+
     static ref FAIL_ON_BITCOIN_RPC_ERROR_KEY: String = "FAIL_ON_BITCOIN_RPC_ERROR".to_string();
     static ref FAIL_ON_BITCOIN_RPC_ERROR_DEFAULT: bool = true;
 
@@ -123,6 +129,17 @@ pub struct Brc20ProgConfig {
     /// [`start`](crate::start), which rejects a weak one (shorter than 32 characters, a sample
     /// value, equal to the username, or one repeated character). Unused in library mode.
     pub brc20_prog_rpc_server_password: Option<String>,
+    /// Whether the first `X-Forwarded-For` hop identifies the client for rate limiting.
+    /// Enable it only behind a proxy that replaces the client's `X-Forwarded-For` header,
+    /// since clients can forge it.
+    /// When disabled, every caller shares one rate limit window.
+    pub brc20_prog_rpc_trust_forwarded_for: bool,
+    /// Whether the JSON-RPC server serves the pending raw transaction pool:
+    /// `eth_sendRawTransaction`, `eth_getRawTransactionByHash` and
+    /// `brc20_unsentRawTransactions`, a pool-aware `eth_getTransactionCount(addr, "pending")`,
+    /// and rate limits on the pool methods.
+    /// When disabled, the pool methods return JSON-RPC "method not found".
+    pub brc20_prog_rpc_tx_pool: bool,
     /// Whether to record EVM traces
     pub evm_record_traces: bool,
     /// Gas limit for EVM calls, through eth_call or eth_estimate_gas
@@ -248,6 +265,8 @@ impl Brc20ProgConfig {
             brc20_prog_rpc_server_enable_auth,
             brc20_prog_rpc_server_user,
             brc20_prog_rpc_server_password,
+            brc20_prog_rpc_trust_forwarded_for: *BRC20_PROG_RPC_TRUST_FORWARDED_FOR_DEFAULT,
+            brc20_prog_rpc_tx_pool: *BRC20_PROG_RPC_TX_POOL_DEFAULT,
             evm_record_traces,
             evm_call_gas_limit,
             bitcoin_rpc_url,
@@ -275,6 +294,8 @@ impl Brc20ProgConfig {
     /// * `BRC20_PROG_RPC_SERVER_ENABLE_AUTH` - Retired; `false` makes [`start`](crate::start) fail, any other value is ignored (Default: true)
     /// * `BRC20_PROG_RPC_SERVER_USER` - HTTP basic auth username for the indexer methods, required by [`start`](crate::start)
     /// * `BRC20_PROG_RPC_SERVER_PASSWORD` - HTTP basic auth password for the indexer methods, required by [`start`](crate::start)
+    /// * `BRC20_PROG_RPC_TRUST_FORWARDED_FOR` - Whether the first `X-Forwarded-For` hop identifies the client for rate limiting (Default: false)
+    /// * `BRC20_PROG_RPC_TX_POOL` - Whether the JSON-RPC server serves the pending raw transaction pool (Default: false)
     /// * `EVM_RECORD_TRACES` - Whether to record EVM traces (Default: false)
     /// * `BITCOIN_RPC_URL` - The URL of the Bitcoin RPC server (Default: "http://localhost:38332" for signet)
     /// * `BITCOIN_RPC_USER` - The username for the Bitcoin RPC server
@@ -309,6 +330,12 @@ impl Brc20ProgConfig {
                 .unwrap_or(*BRC20_PROG_RPC_SERVER_ENABLE_AUTH_DEFAULT),
             brc20_prog_rpc_server_user: env::var(&*BRC20_PROG_RPC_SERVER_USER_KEY).ok(),
             brc20_prog_rpc_server_password: env::var(&*BRC20_PROG_RPC_SERVER_PASSWORD_KEY).ok(),
+            brc20_prog_rpc_trust_forwarded_for: env::var(&*BRC20_PROG_RPC_TRUST_FORWARDED_FOR_KEY)
+                .map(|x| x == "true")
+                .unwrap_or(*BRC20_PROG_RPC_TRUST_FORWARDED_FOR_DEFAULT),
+            brc20_prog_rpc_tx_pool: env::var(&*BRC20_PROG_RPC_TX_POOL_KEY)
+                .map(|x| x == "true")
+                .unwrap_or(*BRC20_PROG_RPC_TX_POOL_DEFAULT),
             evm_record_traces: env::var(&*EVM_RECORD_TRACES_KEY)
                 .map(|x| x == "true")
                 .unwrap_or(*EVM_RECORD_TRACES_DEFAULT),
