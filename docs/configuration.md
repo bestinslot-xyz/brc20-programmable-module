@@ -11,9 +11,9 @@ Precompiled contracts require the Bitcoin RPC variables to work properly, otherw
 | `BRC20_PROG_DB_PATH` | `target/db` | Path to the database folder. |
 | `BRC20_PROG_RPC_SERVER_URL` | `127.0.0.1:18545` | Address of the JSON-RPC server. |
 | `BRC20_PROG_ADMIN_RPC_SERVER_URL` | unset | Address of a separate listener for the indexer methods. See [Admin RPC server](#admin-rpc-server). |
-| `BRC20_PROG_RPC_SERVER_ENABLE_AUTH` | `false` | Enables HTTP basic auth. See [Authorization](#authorization). |
-| `BRC20_PROG_RPC_SERVER_USER` | unset | Username for HTTP basic auth. Required when auth is enabled. |
-| `BRC20_PROG_RPC_SERVER_PASSWORD` | unset | Password for HTTP basic auth. Required when auth is enabled. |
+| `BRC20_PROG_RPC_SERVER_USER` | unset | Username for HTTP basic auth on the indexer methods. Required by the server. See [Authorization](#authorization). |
+| `BRC20_PROG_RPC_SERVER_PASSWORD` | unset | Password for HTTP basic auth on the indexer methods. Required by the server, and must be strong. See [Authorization](#authorization). |
+| `BRC20_PROG_RPC_SERVER_ENABLE_AUTH` | `true` | Retired. Authentication is mandatory, so `false` stops the server at startup; any other value is ignored. |
 | `BRC20_PROG_RPC_TRUST_FORWARDED_FOR` | `false` | Rate limits each client by the first `X-Forwarded-For` hop. See [Rate limits](#rate-limits). |
 | `EVM_RECORD_TRACES` | `false` | Records transaction traces for `debug_traceTransaction`. |
 | `EVM_CALL_GAS_LIMIT` | `1000000000` | Gas limit for `eth_call` and `eth_estimateGas`. |
@@ -29,7 +29,7 @@ Precompiled contracts require the Bitcoin RPC variables to work properly, otherw
 
 Boolean variables are enabled by the value `true`. A numeric variable that fails to parse falls back to its default.
 
-`Brc20Prog::open`, which the server runs at startup, rejects a configuration where auth is enabled without both a username and a password, where `BRC20_PROG_RPC_SERVER_URL` is empty, or where `BRC20_PROG_ADMIN_RPC_SERVER_URL` is not a socket address or equals `BRC20_PROG_RPC_SERVER_URL`. With `FAIL_ON_BITCOIN_RPC_ERROR=true`, it also rejects an empty `BITCOIN_RPC_URL` or `BITCOIN_RPC_NETWORK`. `Brc20Prog::open_with_bitcoin_rpc` does not use `BITCOIN_RPC_URL`, so it accepts an empty one.
+At startup, before opening the database, the server rejects missing or weak credentials and `BRC20_PROG_RPC_SERVER_ENABLE_AUTH=false` (see [Authorization](#authorization)). `Brc20Prog::open`, which the server runs next and which library mode calls directly, rejects a configuration where `BRC20_PROG_RPC_SERVER_URL` is empty, or where `BRC20_PROG_ADMIN_RPC_SERVER_URL` is not a socket address or equals `BRC20_PROG_RPC_SERVER_URL`. With `FAIL_ON_BITCOIN_RPC_ERROR=true`, it also rejects an empty `BITCOIN_RPC_URL` or `BITCOIN_RPC_NETWORK`. `Brc20Prog::open_with_bitcoin_rpc` does not use `BITCOIN_RPC_URL`, so it accepts an empty one.
 
 ## Command-line options
 
@@ -39,15 +39,37 @@ Boolean variables are enabled by the value `true`. A numeric variable that fails
 | `-f`, `--log-file <file>` | Log file. |
 | `-h`, `--help` | Prints usage. |
 
+## Server mode and library mode
+
+The module runs in one of two modes:
+
+- **Server mode:** the `brc20-prog` binary, or `brc20_prog::start` from Rust, serves every JSON-RPC method, and the indexer drives it over JSON-RPC. Every listener that serves the indexer methods requires HTTP basic auth.
+- **Library mode:** a Rust indexer opens the module in its own process with `Brc20Prog::open` and calls the indexer methods directly, so they are never reachable over the network. `Brc20Prog::start_public_rpc_server` can serve the public methods to other clients; that listener does not register the indexer methods, and answers calls to them with a 401 error for every caller, credentials or not. Library mode needs no credentials. See [Embedding in an indexer](embedding.md).
+
 ## Authorization
 
-`brc20_prog` module supports basic username/password HTTP auth. It's turned off by default, but can be enabled using the following environment variables:
+In server mode, the indexer methods (`brc20_mine`, `brc20_deploy`, `brc20_call`, `brc20_transact`, `brc20_deposit`, `brc20_withdraw`, `brc20_initialise`, `brc20_finaliseBlock`, `brc20_reorg`, `brc20_commitToDatabase`, `brc20_clearCaches`, `debug_getBlockTraceString`, `debug_getBlockTraceHash`) always require HTTP basic auth. Every other method is open. Set the credentials with:
 
 ```bash
-BRC20_PROG_RPC_SERVER_ENABLE_AUTH=true
 BRC20_PROG_RPC_SERVER_USER="<USER>"
-BRC20_PROG_RPC_SERVER_PASSWORD="<PASSWORD>"
+BRC20_PROG_RPC_SERVER_PASSWORD="$(openssl rand -hex 32)"
 ```
+
+The server refuses to start when the username or password is missing or empty, or when the password is:
+
+- shorter than 32 characters,
+- equal to the username,
+- a known weak or sample value (`password`, `changeme`, `admin`, `secret`, `user`, `test`, compared case-insensitively),
+- a single repeated character.
+
+Startup errors never include the password. Requests compare the `Authorization` header with the expected value in constant time.
+
+A listener that serves the indexer methods:
+
+- sends no CORS headers, so a web page on another origin cannot call it from a browser,
+- serves HTTP only. It refuses WebSocket connections, since browsers apply no CORS check to WebSocket handshakes.
+
+In single-listener mode (no `BRC20_PROG_ADMIN_RPC_SERVER_URL`), that listener is the only one, so browser apps that call the `eth_*` methods from another origin need a split setup: their public listener allows any origin and serves WebSocket.
 
 > [!CAUTION]
 > This uses basic auth, so make sure authenticated calls are made through HTTPS or a secure tunnel if the server is exposed to the internet, otherwise credentials can be intercepted.
@@ -62,8 +84,8 @@ BRC20_PROG_ADMIN_RPC_SERVER_URL=127.0.0.1:18546
 
 When it is set:
 
-- `BRC20_PROG_RPC_SERVER_URL` serves every other method, and rejects the indexer methods for every caller, including callers with valid credentials.
-- `BRC20_PROG_ADMIN_RPC_SERVER_URL` serves every method. Authentication settings apply to it as above, as a second layer.
+- `BRC20_PROG_RPC_SERVER_URL` serves every other method. It does not register the indexer methods, and answers calls to them with a 401 error for every caller, including callers with valid credentials. It allows requests from any origin and serves WebSocket.
+- `BRC20_PROG_ADMIN_RPC_SERVER_URL` serves every method, with the indexer methods behind HTTP basic auth as above. It sends no CORS headers and serves HTTP only.
 
 Access to the admin listener is controlled by where it binds and who can reach that address, so keep it off the public internet:
 
@@ -72,7 +94,7 @@ Access to the admin listener is controlled by where it binds and who can reach t
 - **Docker, indexer on the host:** publish it to the host loopback only, e.g. `127.0.0.1:18546:18546`.
 - **Reverse proxy:** proxy only the public port, never the admin port.
 
-The server logs a warning at startup when the admin listener binds to a non-loopback address. When `BRC20_PROG_ADMIN_RPC_SERVER_URL` is unset, a single listener serves every method and authentication gates the indexer methods.
+The server logs a warning at startup when the admin listener binds to a non-loopback address. When `BRC20_PROG_ADMIN_RPC_SERVER_URL` is unset, a single listener serves every method, HTTP basic auth gates the indexer methods, and the listener sends no CORS headers and serves HTTP only.
 
 ## Rate limits
 

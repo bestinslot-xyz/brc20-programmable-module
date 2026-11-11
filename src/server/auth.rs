@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::future::Future;
+use std::sync::Arc;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -7,7 +8,10 @@ use jsonrpsee::core::middleware::{Batch, BatchEntry, BatchEntryErr, Notification
 use jsonrpsee::server::middleware::rpc::RpcServiceT;
 use jsonrpsee::types::{ErrorObject, Id, Request};
 use jsonrpsee::MethodResponse;
+use subtle::ConstantTimeEq;
 use tower_http::validate_request::ValidateRequest;
+
+use crate::global::validate_rpc_credentials;
 
 #[derive(Debug, Clone)]
 /// A marker type for authorized requests.
@@ -21,59 +25,65 @@ impl Default for Authorized {
 
 #[derive(Clone)]
 enum AuthMode {
-    /// Every request is authorized.
-    AllowAll,
-    /// Requests carrying this exact `Authorization` header are authorized.
-    Basic(String),
+    /// Requests carrying this exact `Authorization` header value are authorized.
+    Basic(Arc<[u8]>),
     /// No request is authorized.
     DenyAll,
 }
 
 /// A middleware that marks requests as authorized by adding an `Authorized` extension.
 ///
-/// Depending on its mode it authorizes every request, requests with the correct
-/// HTTP Basic Auth header, or no request at all.
+/// It authorizes either requests with the correct HTTP Basic Auth header, or no request at all.
+/// Basic mode only accepts credentials that pass [`validate_rpc_credentials`].
 ///
 /// It never rejects requests, it just adds the `Authorized` extension when the mode allows it.
+/// It deliberately has no `Debug` implementation, so the expected header never reaches a log.
 #[derive(Clone)]
 pub struct HttpNonBlockingAuth {
     mode: AuthMode,
 }
 
 impl HttpNonBlockingAuth {
-    pub fn allow() -> Self {
-        Self {
-            mode: AuthMode::AllowAll,
-        }
-    }
-
+    /// Authorizes no request.
     pub fn deny() -> Self {
         Self {
             mode: AuthMode::DenyAll,
         }
     }
 
-    pub fn new(rpc_username: &String, rpc_password: &String) -> Self {
-        Self {
-            mode: AuthMode::Basic(format!(
-                "Basic {}",
-                BASE64_STANDARD
-                    .encode(format!("{}:{}", rpc_username, rpc_password).as_bytes())
-                    .to_string()
-            )),
-        }
+    /// Authorizes requests carrying HTTP Basic Auth with `rpc_username` and `rpc_password`.
+    ///
+    /// Fails when the credentials do not pass [`validate_rpc_credentials`].
+    pub fn basic(rpc_username: &str, rpc_password: &str) -> Result<Self, String> {
+        validate_rpc_credentials(rpc_username, rpc_password)?;
+        let expected = format!(
+            "Basic {}",
+            BASE64_STANDARD.encode(format!("{}:{}", rpc_username, rpc_password).as_bytes())
+        );
+        Ok(Self {
+            mode: AuthMode::Basic(expected.into_bytes().into()),
+        })
+    }
+
+    /// Whether this middleware can authorize any request, i.e. whether it guards the indexer
+    /// methods with credentials rather than rejecting them outright.
+    pub fn requires_credentials(&self) -> bool {
+        matches!(self.mode, AuthMode::Basic(_))
     }
 
     fn is_authorized<B>(&self, request: &hyper::Request<B>) -> bool {
         match &self.mode {
-            AuthMode::AllowAll => true,
             AuthMode::DenyAll => false,
             AuthMode::Basic(expected) => {
-                request
+                let Some(provided) = request
                     .headers()
-                    .get("Authorization")
+                    .get(hyper::header::AUTHORIZATION)
                     .and_then(|header| header.to_str().ok())
-                    == Some(expected.as_str())
+                else {
+                    return false;
+                };
+                // A length mismatch is unequal; equal-length values compare in constant time.
+                provided.as_bytes().ct_eq(expected).into()
             }
         }
     }
@@ -202,6 +212,82 @@ mod tests {
 
     use super::*;
 
+    const TEST_USER: &str = "indexer";
+    const TEST_PASSWORD: &str = "3f9c2a7e5b1d48c6a0e7f2b9d4c1a8e6";
+
+    fn test_auth() -> HttpNonBlockingAuth {
+        HttpNonBlockingAuth::basic(TEST_USER, TEST_PASSWORD).unwrap()
+    }
+
+    fn test_header() -> String {
+        format!(
+            "Basic {}",
+            BASE64_STANDARD.encode(format!("{}:{}", TEST_USER, TEST_PASSWORD))
+        )
+    }
+
+    fn authorizes(auth: &HttpNonBlockingAuth, header: Option<&[u8]>) -> bool {
+        let mut builder = hyper::Request::builder();
+        if let Some(header) = header {
+            builder = builder.header(
+                hyper::header::AUTHORIZATION,
+                hyper::header::HeaderValue::from_bytes(header).unwrap(),
+            );
+        }
+        let mut request = builder.body(HttpBody::empty()).unwrap();
+        assert!(auth.clone().validate(&mut request).is_ok());
+        request.extensions().get::<Authorized>().is_some()
+    }
+
+    #[test]
+    fn test_basic_rejects_weak_credentials() {
+        assert!(HttpNonBlockingAuth::basic("user", "password").is_err());
+        assert!(HttpNonBlockingAuth::basic("", TEST_PASSWORD).is_err());
+        assert!(HttpNonBlockingAuth::basic(TEST_USER, "").is_err());
+        assert!(HttpNonBlockingAuth::basic(TEST_USER, TEST_PASSWORD).is_ok());
+    }
+
+    #[test]
+    fn test_requires_credentials() {
+        assert!(test_auth().requires_credentials());
+        assert!(!HttpNonBlockingAuth::deny().requires_credentials());
+    }
+
+    #[test]
+    fn test_basic_header_comparison() {
+        let auth = test_auth();
+        let header = test_header();
+
+        assert!(authorizes(&auth, Some(header.as_bytes())));
+        // Missing header
+        assert!(!authorizes(&auth, None));
+        // Empty header
+        assert!(!authorizes(&auth, Some(b"")));
+        // Prefix and extension of the expected value (length mismatch)
+        assert!(!authorizes(
+            &auth,
+            Some(&header.as_bytes()[..header.len() - 1])
+        ));
+        assert!(!authorizes(&auth, Some(format!("{header}=").as_bytes())));
+        // Same length, one byte different
+        let mut flipped = header.clone().into_bytes();
+        let last = flipped.len() - 1;
+        flipped[last] = if flipped[last] == b'A' { b'B' } else { b'A' };
+        assert!(!authorizes(&auth, Some(&flipped)));
+        // Non-UTF-8 header value
+        let mut non_utf8 = header.clone().into_bytes();
+        non_utf8[last] = 0xff;
+        assert!(!authorizes(&auth, Some(&non_utf8)));
+        // Wrong password, wrong scheme
+        let wrong = format!(
+            "Basic {}",
+            BASE64_STANDARD.encode(format!("{}:{}x", TEST_USER, TEST_PASSWORD))
+        );
+        assert!(!authorizes(&auth, Some(wrong.as_bytes())));
+        let bearer = header.replacen("Basic", "Bearer", 1);
+        assert!(!authorizes(&auth, Some(bearer.as_bytes())));
+    }
+
     pub struct MockRpcService;
 
     impl RpcServiceT for MockRpcService {
@@ -241,7 +327,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rpc_auth_unauthorized_eth_success() {
-        let mut auth = HttpNonBlockingAuth::new(&"user".to_string(), &"password".to_string());
+        let mut auth = test_auth();
         let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
         let mut request = hyper::Request::builder()
             .header("Authorization", "Basic asdfgh==")
@@ -260,10 +346,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_rpc_auth_authorized_eth_success() {
-        let mut auth = HttpNonBlockingAuth::new(&"user".to_string(), &"password".to_string());
+        let mut auth = test_auth();
         let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
         let mut request = hyper::Request::builder()
-            .header("Authorization", "Basic dXNlcjpwYXNzd29yZA==")
+            .header("Authorization", test_header())
             .body(HttpBody::empty())
             .unwrap();
 
@@ -280,10 +366,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_rpc_auth_authorized_brc20_success() {
-        let mut auth = HttpNonBlockingAuth::new(&"user".to_string(), &"password".to_string());
+        let mut auth = test_auth();
         let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
         let mut request = hyper::Request::builder()
-            .header("Authorization", "Basic dXNlcjpwYXNzd29yZA==")
+            .header("Authorization", test_header())
             .body(HttpBody::empty())
             .unwrap();
 
@@ -300,7 +386,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rpc_auth_wrong_credentials_brc20_error() {
-        let mut auth = HttpNonBlockingAuth::new(&"user".to_string(), &"password".to_string());
+        let mut auth = test_auth();
         let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
         let mut request = hyper::Request::builder()
             .header("Authorization", "Basic asdfgh==")
@@ -319,7 +405,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rpc_auth_no_header_brc20_error() {
-        let mut auth = HttpNonBlockingAuth::new(&"user".to_string(), &"password".to_string());
+        let mut auth = test_auth();
         let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
         let mut request = hyper::Request::builder().body(HttpBody::empty()).unwrap();
 
@@ -335,7 +421,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rpc_auth_no_header_eth_success() {
-        let mut auth = HttpNonBlockingAuth::new(&"user".to_string(), &"password".to_string());
+        let mut auth = test_auth();
         let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
         let mut request = hyper::Request::builder().body(HttpBody::empty()).unwrap();
 
@@ -350,27 +436,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_allow_all() {
-        let mut auth = HttpNonBlockingAuth::allow();
-        let mut request = hyper::Request::builder().body(HttpBody::empty()).unwrap();
-
-        assert!(auth.validate(&mut request).is_ok());
-
-        let mut rpc_request =
-            jsonrpsee::types::Request::owned("brc20_hello".into(), None, Id::Number(1));
-
-        rpc_request.extensions = request.extensions().clone();
-
-        assert!(request.extensions().get::<Authorized>().is_some());
-        assert!(rpc_request.extensions.get::<Authorized>().is_some());
-    }
-
-    #[tokio::test]
     async fn test_deny_all_rejects_correct_credentials() {
         let mut auth = HttpNonBlockingAuth::deny();
         let validator = RpcAuthMiddleware::new(MockRpcService, &vec!["brc20_hello".to_string()]);
         let mut request = hyper::Request::builder()
-            .header("Authorization", "Basic dXNlcjpwYXNzd29yZA==")
+            .header("Authorization", test_header())
             .body(HttpBody::empty())
             .unwrap();
 

@@ -1438,7 +1438,7 @@ dependencies = [
 
 [[package]]
 name = "brc20-prog"
-version = "0.16.8"
+version = "0.17.0"
 dependencies = [
  "alloy",
  "alloy-consensus",
@@ -1477,6 +1477,7 @@ dependencies = [
  "serde_either",
  "serde_json",
  "sha256",
+ "subtle",
  "tempfile",
  "test-utils",
  "tokio",

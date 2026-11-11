@@ -5,18 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.16.8 (2026-11-02)
+## 0.17.0 (2026-11-07)
 
-### Chore
+Server mode requires HTTP basic auth for the indexer methods (`brc20_*` and `debug_getBlockTrace*`). Library mode keeps them off the network and needs no credentials. See [Authorization](docs/configuration.md#authorization).
 
- - <csr-id-e478b662ae413aa1b62b62beed5cd1d789f2f6cf/> update changelog
+### Breaking Changes
+
+ - The server refuses to start, before opening the database, without `BRC20_PROG_RPC_SERVER_USER` and a strong `BRC20_PROG_RPC_SERVER_PASSWORD` (at least 32 characters, not a sample value, not the username, not one repeated character).
+ - `BRC20_PROG_RPC_SERVER_ENABLE_AUTH` is retired: it defaults to `true`, and `false` is a startup error.
+ - A listener that serves the indexer methods sends no CORS headers and serves HTTP only (no WebSocket). Browser apps that call `eth_*` from another origin need a split setup with `BRC20_PROG_ADMIN_RPC_SERVER_URL`.
+
+### Security
+
+ - The `Authorization` header is compared in constant time.
+ - Public listeners (`start_public_rpc_server`, and the public side of a split setup) do not register the indexer methods, and answer calls to them with a 401 error.
+ - `Brc20ProgConfig` implements `Debug`, with both passwords redacted.
+ - `env.sample` ships empty credentials.
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 3 commits contributed to the release over the course of 3 calendar days.
- - 3 days passed between releases.
+ - 6 commits contributed to the release.
+ - 5 days passed between releases.
+ - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 1 unique issue was worked on: [#33](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/33)
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **[#33](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/33)**
+    - Require HTTP basic auth for the indexer methods in server mode ([`d4f50ca`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d4f50ca0dc07247d5d0573164812d8d55413877c))
+ * **Uncategorized**
+    - Summarize the brc20-prog 0.17.0 release in the changelog ([`f2abc54`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/f2abc547e37e4e4a5b4ec745df637506280b5fc7))
+    - Adjusting changelogs prior to release of brc20-prog v0.17.0 ([`7e9e65e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/7e9e65e93bc438e0d1dba9dad31cbf2205e8cff1))
+    - Fix changelog ([`67307db`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/67307db6e8885242017827bf28767f40b78f3ca3))
+    - Document brc20-prog 0.17.0 changes ([`759f216`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/759f2165129c596ed4e98f5868fa75318cb7b53c))
+    - Adjusting changelogs prior to release of brc20-prog v0.17.0 ([`2af7102`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/2af71029d847f7bce56ee0402e419f61b8555793))
+</details>
+
+## 0.16.8 (2026-11-02)
+
+<csr-id-e478b662ae413aa1b62b62beed5cd1d789f2f6cf/>
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 4 commits contributed to the release over the course of 3 calendar days.
+ - 4 days passed between releases.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 1 unique issue was worked on: [#32](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/32)
 
@@ -29,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * **[#32](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/32)**
     - Record traces and genesis state at their own block in reorg history ([`2b281e4`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/2b281e477b8b617af8325bb329c37a242e80ff6e))
  * **Uncategorized**
+    - Release brc20-prog v0.16.8 ([`ecb6143`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/ecb6143b3bf9e03c67f4f2de724bc4d960fd154d))
     - Update changelog ([`e478b66`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/e478b662ae413aa1b62b62beed5cd1d789f2f6cf))
     - Adjusting changelogs prior to release of brc20-prog v0.16.8 ([`93a3a3b`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/93a3a3bfea8e7432713cf8c00f91c9c42682fafa))
 </details>
@@ -61,6 +102,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    * A commit syncs the WAL of every database it writes, 20 syncs for a signet block of
      five deposits. The on-disk layout is unchanged.
    * v0.16.6 and earlier ignore the rollback marker: open a store that crashed under this
+     version with this version or a later one.
+* Each database writes its changes as whole synced batches: a cached database writes
+     its histories, then its values, then the deletion of old histories. The state
+     databases go first, and `block_number_to_hash`, which sets the reported height, goes
+     last.
+* When the first commit into an empty database was interrupted, or an interrupted
+     commit or reorg has a target more than 10 blocks below the highest finalised block,
+     opening wipes the module's databases with a warning, and the indexer replays from its
+     activation height. Other files in the data directory stay, and an interrupted wipe
+     finishes on the next open.
+* After a commit or reorg fails partway, the same process refuses every read and write
+     except clearing caches until the database is reopened.
+* The highest finalised block only ever rises, so a reorg after a replay of a lower
+     chain stays within the pruned history. It is stored with each commit's rollback
+     marker, so blocks finalised but lost in a crash do not narrow the reorgs allowed.
+* A database directory that is a symbolic link to a database is emptied by a wipe, and
+     the link kept. A link to anything else stops the wipe before anything is deleted.
+* A commit syncs the WAL of every database it writes, 20 syncs for a signet block of
+     five deposits. The on-disk layout is unchanged.
+* v0.16.6 and earlier ignore the rollback marker: open a store that crashed under this
+     version with this version or a later one.
+* Each database writes its changes as whole synced batches: a cached database writes
+     its histories, then its values, then the deletion of old histories. The state
+     databases go first, and `block_number_to_hash`, which sets the reported height, goes
+     last.
+* When the first commit into an empty database was interrupted, or an interrupted
+     commit or reorg has a target more than 10 blocks below the highest finalised block,
+     opening wipes the module's databases with a warning, and the indexer replays from its
+     activation height. Other files in the data directory stay, and an interrupted wipe
+     finishes on the next open.
+* After a commit or reorg fails partway, the same process refuses every read and write
+     except clearing caches until the database is reopened.
+* The highest finalised block only ever rises, so a reorg after a replay of a lower
+     chain stays within the pruned history. It is stored with each commit's rollback
+     marker, so blocks finalised but lost in a crash do not narrow the reorgs allowed.
+* A database directory that is a symbolic link to a database is emptied by a wipe, and
+     the link kept. A link to anything else stops the wipe before anything is deleted.
+* A commit syncs the WAL of every database it writes, 20 syncs for a signet block of
+     five deposits. The on-disk layout is unchanged.
+* v0.16.6 and earlier ignore the rollback marker: open a store that crashed under this
+     version with this version or a later one.
+* Each database writes its changes as whole synced batches: a cached database writes
+     its histories, then its values, then the deletion of old histories. The state
+     databases go first, and `block_number_to_hash`, which sets the reported height, goes
+     last.
+* When the first commit into an empty database was interrupted, or an interrupted
+     commit or reorg has a target more than 10 blocks below the highest finalised block,
+     opening wipes the module's databases with a warning, and the indexer replays from its
+     activation height. Other files in the data directory stay, and an interrupted wipe
+     finishes on the next open.
+* After a commit or reorg fails partway, the same process refuses every read and write
+     except clearing caches until the database is reopened.
+* The highest finalised block only ever rises, so a reorg after a replay of a lower
+     chain stays within the pruned history. It is stored with each commit's rollback
+     marker, so blocks finalised but lost in a crash do not narrow the reorgs allowed.
+* A database directory that is a symbolic link to a database is emptied by a wipe, and
+     the link kept. A link to anything else stops the wipe before anything is deleted.
+* A commit syncs the WAL of every database it writes, 20 syncs for a signet block of
+     five deposits. The on-disk layout is unchanged.
+* v0.16.6 and earlier ignore the rollback marker: open a store that crashed under this
+     version with this version or a later one.
+* Each database writes its changes as whole synced batches: a cached database writes
+     its histories, then its values, then the deletion of old histories. The state
+     databases go first, and `block_number_to_hash`, which sets the reported height, goes
+     last.
+* When the first commit into an empty database was interrupted, or an interrupted
+     commit or reorg has a target more than 10 blocks below the highest finalised block,
+     opening wipes the module's databases with a warning, and the indexer replays from its
+     activation height. Other files in the data directory stay, and an interrupted wipe
+     finishes on the next open.
+* After a commit or reorg fails partway, the same process refuses every read and write
+     except clearing caches until the database is reopened.
+* The highest finalised block only ever rises, so a reorg after a replay of a lower
+     chain stays within the pruned history. It is stored with each commit's rollback
+     marker, so blocks finalised but lost in a crash do not narrow the reorgs allowed.
+* A database directory that is a symbolic link to a database is emptied by a wipe, and
+     the link kept. A link to anything else stops the wipe before anything is deleted.
+* A commit syncs the WAL of every database it writes, 20 syncs for a signet block of
+     five deposits. The on-disk layout is unchanged.
+* v0.16.6 and earlier ignore the rollback marker: open a store that crashed under this
      version with this version or a later one.
 * Each database writes its changes as whole synced batches: a cached database writes
      its histories, then its values, then the deletion of old histories. The state
@@ -182,23 +303,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-c011ca0f1ecb1e99fcfce95c12d60d9afbebec32/> let an embedding indexer supply Bitcoin data via BitcoinRpc
 
-### Other
-
- - <csr-id-bcfb1dd2dfc2b8eeb8d56879460fe6eb83d30f6f/> run checks in parallel jobs with a build cache
-   * ci: run checks in parallel jobs with a build cache
-   
-   The single job built with all features, built with no default features and
-   then ran the tests, all from a cold build. It is now three parallel jobs,
-   each with a Swatinem/rust-cache build cache:
-   
-   - check-no-default-features: cargo check --no-default-features
-   - test: every test except public_api
-   - public-api: the public API snapshot, which builds the crate a second time
-     with a nightly toolchain for rustdoc JSON
-   
-   The separate cargo build --all-features step is dropped; cargo test compiles
-   the same code. Superseded pull request runs are cancelled.
-
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
@@ -237,28 +341,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <csr-id-ecdeb17fcafbfc10a5594eb6c4eeaef902bbdb09/>
 <csr-id-4fb06c727782e47c94f6891a4d4ad9e41de2e836/>
 
-### Chore
-
- - <csr-id-f930fc57c86f3eaa11366f9b496295797f976372/> bump non-EVM dependencies to their latest majors
-   base64 0.23, zstd-safe 8 (libzstd stays 1.5.7), rocksdb 0.25 (RocksDB 11.8),
-   rlimit 0.11, tower-http 0.7, public-api 0.52, rustdoc-json 0.9.10, rand 0.10.
-   The consensus fixtures and the inscription decoding corpus are unchanged.
-   
-   public-api 0.52 renders signatures without parameter names and lists the
-   jsonrpsee-generated client methods under TypeJsonRpseeInternal; the API itself
-   is unchanged.
-   
-   bip322 stays at 0.0.11: 0.0.12 enforces LOW_S, adds variant prefixes and an
-   inconclusive outcome, so adopting it needs its own activation height.
- - <csr-id-b6c8bef08f88fae99fe189bed88ef9e045d22e10/> update dependencies within their semver ranges
-   cargo update: alloy 1.1 -> 1.8, alloy-core 1.4 -> 1.7, revm-inspectors
-   0.33.0 -> 0.33.2, bitcoin 0.32.7 -> 0.32.102, blst 0.3.17, c-kzg 2.1.8,
-   aurora-engine-modexp 1.3, jsonrpsee 0.26.1, serde_json 1.0.154 and
-   transitive crates. alloy 1.8 requires rustc 1.91, so rust-version and the
-   Docker builder image move to 1.91.
-   
-   Consensus fixtures and the inscription corpus are unchanged.
-
 ### Documentation
 
  - <csr-id-4c013176eb55996a3ea4227b2084421216005d88/> split the README into docs/ pages, add Differences from Ethereum
@@ -292,87 +374,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    The inscription corpus snapshot records the empty and raw_only_padding
    cases as rejected, and a focused unit test covers "" and "=".
 
-### Style
-
- - <csr-id-91e0519f76dcdf00cad25d7d9fb844157bcf9ff0/> rustfmt the consensus fixture and inscription corpus test
-
-### Test
-
- - <csr-id-c4ee12940d1ba6a2022fb36c86188f5f80310dd7/> regenerate the public API snapshot on top of Brc20Prog
-   public-api 0.52 renders signatures without parameter names and lists
-   default trait methods on impls, so the Brc20Prog server methods with
-   default bodies now appear. The API is unchanged.
- - <csr-id-b31ec9ccfa6d9c7c8b3f509379177e38f9992e38/> run each Bitcoin RPC network in its own binary, refresh expected gas
-   The Bitcoin RPC client is process-wide and only rebuilt when the RPC status
-   is validated, so loading .env.signet after .env.mainnet in one process kept
-   the mainnet client and the signet precompile calls failed. The mainnet and
-   signet tests now live in tests/btc_rpc_{mainnet,signet}.rs with shared
-   helpers in test_utils, and the bench is split into
-   btc_precompiles_{mainnet,signet}. Moving them out of tests/precompiles.rs
-   also stops them reloading CONFIG under the signet precompile tests there.
-   
-   Expected gas values were stale; the old and new dependency sets both
-   estimate 0xc8b36, 0x18c463 and 0x24fd91 for the mainnet calls and 0xc8b36
-   for both signet calls.
- - <csr-id-5ac1b9f6c671a6beb9d826a675d9eb3787d207e7/> pin a newer nightly for the public API snapshot
-   public-api's MINIMUM_NIGHTLY_RUST_VERSION (nightly-2025-11-22) is older than
-   the rustc 1.94.1 that alloy 2 requires. nightly-2026-10-01 builds the crate
-   and its rustdoc JSON still parses; the snapshot is unchanged.
- - <csr-id-ad6a6caef8a4adccf9ead3e4e0dcc7f8c4b471cf/> pin inactive opcodes and post-selfdestruct state
-   opcodeProbe deploys runtimes using CLZ, DUPN/SWAPN/EXCHANGE and EOF opcodes,
-   which must stay invalid under CANCUN and PRAGUE, next to active controls
-   (PUSH0, BLOBHASH, BLOBBASEFEE, MCOPY). probeDestroyedChild reads a contract
-   created and self-destructed in an earlier transaction: the engine keeps its
-   code and storage, and the fixture pins that.
- - <csr-id-0bef1d7cca5204ac4ba529373c68cccb13e5532a/> cover logs emitted before top-level and nested failures
-   Receipts of reverted, invalid and out-of-gas transactions carry no logs, and
-   a reverted subcall's logs are dropped while the caller's survive. The fixture
-   now pins all four.
- - <csr-id-cd21cb389d61fd8fc7fc700d9c741f30cb4bae3a/> cover precompiles reached by DELEGATECALL/CALLCODE and top-level calls
-   The engine resolves precompiles by target address, so DELEGATECALL and
-   CALLCODE to a precompile run the empty code at that address. The fixture now
-   pins that, plus transactions sent straight to sha256 and to the point
-   evaluation precompile with a rejected input.
- - <csr-id-d3f8f5c33a288d7a55e68ce14dd34a82b998ceaf/> cover precompile out-of-gas and the EIP-7823 modexp limit
-   Adds ecrecover and sha256 calls with too little gas, and a modexp with a
-   1025-byte modulus, as separate fixture transactions. Like a rejected input, a
-   precompile running out of gas aborts the whole transaction (status 0, no gas
-   used). The modexp succeeds: EIP-7823 is an Osaka rule and stays off under
-   PRAGUE. The per-transaction precompile cases are now labelled precompileEdge.
- - <csr-id-878dba55ba080ecd9d093bc007a666df283789e7/> pin raw header and receipt RLP in the consensus fixture
-   The fixture now also records debug_getRawHeader and the debug_getRawReceipts
-   encodings per block. Receipts are sorted because the raw block lists
-   transactions in storage iteration order, which varies between runs; the raw
-   block itself is left out for the same reason.
- - <csr-id-ecdeb17fcafbfc10a5594eb6c4eeaef902bbdb09/> pin inscription data decoding over a base64/nada/zstd corpus
-   Inscription payloads decide transaction calldata, so their decoding is
-   consensus. test_inscription_data_corpus snapshots the outcome of
-   src/api/testdata/inscription_corpus.txt: canonical and non-canonical base64,
-   padding variants, zstd frames with and without content size, checksums,
-   skippable and concatenated frames, the 1 MB limit, dictionary and legacy
-   headers. The corpus records the current behaviour as-is, including the panic
-   on empty payloads.
- - <csr-id-4fb06c727782e47c94f6891a4d4ad9e41de2e836/> consensus fixture pinning gas, traces, receipts and trace hashes
-   Adds tests/consensus_fixture_{signet,mainnet}.rs, which drive a fixed workload
-   (test_utils/data/consensus_fixture/Fixture.sol plus pre-signed legacy txs) through
-   the engine and snapshot every block's trace hash, receipts, logs, blooms and full
-   call traces with insta. Signet covers CANCUN, the PRAGUE activation and RLP tx
-   hashes; mainnet covers CANCUN with signing-hash tx hashes.
-   
-   The workload covers SSTORE/transient/memory/log opcodes, nested and failing
-   frames, CREATE/CREATE2 collisions, oversized code, SELFDESTRUCT, EIP-7623
-   calldata floor, every Ethereum and BRC20 precompile (including rejected inputs,
-   which abort the whole transaction), BRC20 deposit/withdraw, and brc20_transact
-   with nonce gaps, a high-s signature, a wrong chain id and malformed bytes.
-   
-   Inputs are pre-encoded by build.sh so the workload does not depend on the
-   crates under test. Any snapshot diff is a consensus change.
-
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
  - 19 commits contributed to the release.
+ - 1 day passed between releases.
  - 18 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 4 unique issues were worked on: [#21](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/21), [#22](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/22), [#23](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/23), [#24](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/24)
 
@@ -424,6 +431,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <csr-read-only-do-not-edit/>
 
  - 2 commits contributed to the release.
+ - 3 days passed between releases.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 1 unique issue was worked on: [#20](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/20)
 
@@ -459,7 +467,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <csr-read-only-do-not-edit/>
 
  - 3 commits contributed to the release over the course of 3 calendar days.
- - 7 days passed between releases.
+ - 8 days passed between releases.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 2 unique issues were worked on: [#14](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/14), [#15](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/15)
 
@@ -492,7 +500,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <csr-read-only-do-not-edit/>
 
  - 2 commits contributed to the release.
- - 2 days passed between releases.
+ - 3 days passed between releases.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 1 unique issue was worked on: [#13](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/13)
 
@@ -525,18 +533,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    height 960847 (first block indexed by v0.16.0 on the reference node) and
    with bip322 v0.0.11 from that height on. The v0.0.10 verify path is
    vendored as bip322_legacy since the crate version is yanked.
-
-### Other
-
- - <csr-id-4c9e63e1d1311c9046b168bc860a73c4144ca62f/> drive latest tag via latest=auto, drop dead is_default_branch line
-   The `type=raw,value=latest,enable={{is_default_branch}}` line never fired:
-   docker-publish runs only on tag pushes, where {{is_default_branch}} is
-   always false. `latest` was actually emitted by metadata-action's default
-   `latest=auto` flavor on non-prerelease semver tags, so behavior was correct
-   but the line was misleading dead code (flagged in review of #10).
-   
-   Make it explicit with `flavor: latest=auto`, which also correctly keeps
-   `latest` off prerelease tags (e.g. v1.2.3-rc.1).
 
 ### Commit Statistics
 
@@ -667,32 +663,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <csr-id-1e8c50cdba837afada7c1f2ea7345507686ff2d7/>
 <csr-id-541d41c7c3e1c104364c2f24e250f2a8eb6da45f/>
 
-### Chore
-
- - <csr-id-b0d89c889b60ba9d795beb24f71366a874a2c951/> update dependencies and tests for bip322
- - <csr-id-4b9eaf7329012eae0233b553b85ebcf069d04ae6/> Update API
- - <csr-id-970a4f5fdfe22a66f70e86cfd7f329cb4a98c1d0/> Update dependencies and add new packages
-   - Updated `alloy` to version 1.1.2 and related packages to their latest versions.
-   - Updated `hyper` to version 1.8.1 and `jsonrpsee` to version 0.26.0.
-   - Updated `revm` and related packages to their latest versions.
-   - Updated `criterion` and `insta` to their latest versions.
-   - Updated `tower-http`, `tracing`, and `tracing-subscriber` to their latest versions.
-   - Updated `test-utils` dependencies to match the main project.
- - <csr-id-feed95e42977b71315d5b4e4789c82074ef3aaef/> cargo fmt
- - <csr-id-bb3d7cd23dbb679265464b1143fec786332a6aba/> add release configuration file for versioning and changelog generation
- - <csr-id-15b415064506ece80e623ca56723125d16fc29f2/> Release brc20-prog version 0.11.5
- - <csr-id-fdeb14ed7ae4b25f060ba938b51e6f7323d411b9/> cargo fmt
- - <csr-id-f5619cb44f0bdf537cdb3ee06934eeefeb92b6d9/> Cargo fmt
- - <csr-id-2e6a84684a38b18f7aca7a3eb7d3780b62ba68a9/> Run cargo fmt
- - <csr-id-e2deec2661cfc1c500f43ff356d8d25fca9afc89/> Bump version to 0.6.2
- - <csr-id-f9e87704b189773605876ab92b46bd374d474107/> Update package metadata in Cargo.toml
- - <csr-id-d5edb5a9cbfeb2d094889ebbc9fe04e5686ee6c3/> Move documentation for Brc20ProgApi to top-level module
- - <csr-id-8a163e075c13c78ecab560ef51e2c8dc1e1e3472/> Move super:: imports to crates
- - <csr-id-495186d6cce4bf8ec92f4408d995bdcc1de8dc66/> Run cargo fmt
- - <csr-id-4a894c6c04c7f01917fa614f51221ad3848bdb92/> Update dependencies and update RPC authorization middleware to latest jsonrpsee library
- - <csr-id-3de713dc4c78562a7cb290bf292cde66d0642575/> Bump version of brc20_prog to 0.2.0
- - <csr-id-492065ff749fd418983fb51eb4f1b54a80eb1dc7/> Bump version of brc20_prog to 0.1.1 in Cargo files
-
 ### Documentation
 
  - <csr-id-af79d9c3eeb635e8f6f7d5db667eee0fc3525229/> Add description for txpool_content method in README.md
@@ -819,6 +789,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - tokio to 1.48.0
    - criterion to 0.7.0
    - tempfile to 3.23.0
+   - revm to 31.0.0
+   - serde to 1.0.228
+   - tokio to 1.48.0
+   - criterion to 0.7.0
+   - tempfile to 3.23.0
+   - revm to 31.0.0
+   - serde to 1.0.228
+   - tokio to 1.48.0
+   - criterion to 0.7.0
+   - tempfile to 3.23.0
+   - revm to 31.0.0
+   - serde to 1.0.228
+   - tokio to 1.48.0
+   - criterion to 0.7.0
+   - tempfile to 3.23.0
+   - revm to 31.0.0
+   - serde to 1.0.228
+   - tokio to 1.48.0
+   - criterion to 0.7.0
+   - tempfile to 3.23.0
+ - revm to 31.0.0
+ - serde to 1.0.228
+ - tokio to 1.48.0
+ - criterion to 0.7.0
+ - tempfile to 3.23.0
+ - revm to 31.0.0
+ - serde to 1.0.228
+ - tokio to 1.48.0
+ - criterion to 0.7.0
+ - tempfile to 3.23.0
+ - revm to 31.0.0
+ - serde to 1.0.228
+ - tokio to 1.48.0
+ - criterion to 0.7.0
+ - tempfile to 3.23.0
+ - revm to 31.0.0
+ - serde to 1.0.228
+ - tokio to 1.48.0
+ - criterion to 0.7.0
+ - tempfile to 3.23.0
  - revm to 31.0.0
  - serde to 1.0.228
  - tokio to 1.48.0
@@ -955,140 +965,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - <csr-id-f221717beefa9de50df5eac62ae6c390c0c195e6/> Replace "DB Error" with a static error message and panic instead of returning an error, as it's not recoverable
  - <csr-id-3d156588df34b9b79aaca65414411aeda1acd349/> Couple of bug fixes for reorg handling on database
    - Use get_next_block_height method in DatabaseCommit methods to fix an off-by-one error in reorgs, which might incorrectly keep old values
-
-### Other
-
- - <csr-id-6fa1bf4e150151996a88af5310695a68fe33c11f/> Add changelog file (generated by cargo smart-release)
- - <csr-id-0b0ae25ebc1308475b19d0b72967acd5b69b88fa/> remove release configuration file and associated pre-release hooks to allow regeneration
- - <csr-id-2ffeb5b5f2c5046b85d463fc9eb46ee51cb791d3/> Add support for raw signed transaction inscriptions and update relevant methods in README
-
-### Refactor
-
- - <csr-id-c38c7b06ad3a2067872e64071f9362d00eefc4be/> Do a first run on eth_estimateGasMany and eth_estimateGas for an early exit in case calls fail
- - <csr-id-c9178ef3b704b02404b6b30477d4e01f5f54339c/> change inscription_id and inscription_byte_len from Option to required fields in API and update database structures
- - <csr-id-f268486b9584f377395fbbc940a12783505af471/> remove legacy fields from TxReceiptED struct
- - <csr-id-834e75c56bd35c27fdd439837f3c3392f3f55560/> generate receipts for invalid transactions
- - <csr-id-d00d3c2771628c06dec713fc6c6cd18c0f326ca9/> Update public api and fix a visibility error
- - <csr-id-3c088b9a8e328e344c81df24a30f4835ca7ebb08/> Add configurable request/response size limits and batch request settings to RPC server
- - <csr-id-ce01730b9951c1ca3cfe01e331b65a54c2b3af07/> Remove batch request limit from RPC server configuration
- - <csr-id-7347175402e12c2a9413a98a26ab09c466ae86e3/> ditto, improve error message for Bitcoin RPC status check failure
- - <csr-id-5a85fd8596f0513ae78927ec3578375a3ff02edd/> Improve error handling in Bitcoin RPC status check
- - <csr-id-663c929ae910af58eb32788f8f3620d22c29bc14/> Rename DB_PATH to BRC20_PROG_DB_PATH for consistency in env.sample
- - <csr-id-b1d3f3a2f973e94acad4cc1a5d241fed50f4058f/> Enhance RPC server configuration with request/response size limits and batch request settings
- - <csr-id-68dfbed0c7dc9e30d4b2dc93d57d176419f12762/> Print the error message in get_brc20_balance function when it fails
- - <csr-id-74341ad293809caae1583bc7835d8c2a7e097b13/> Bump version to 0.11.1 and update binary name in Cargo.toml
- - <csr-id-c57ac662947c524bcda68a1c456b227d6980a431/> Update eth_getCode to return 0x if there's no code present for compliance
- - <csr-id-0ffa6304546d3103ef94ac653104847c1273d348/> Modify eth_call in RpcServer to return 0x or the revert reason for compliance
- - <csr-id-32162127551206dd663df412d4fdd5ff8b3a2246/> Add legacy fields back in BlockResponseED and TxReceiptED for backwards compatibility
- - <csr-id-0ae78d41a0688a76b363eca883b28b8456c7f6c3/> Add input size limit warning for bip322_verify_precompile to prevent excessive resource usage
- - <csr-id-c0051151b20ab1002b9e90287b6ac3cd0f7ed431/> Enhance ConfigDatabase by adding caching and implementing flush functionality
- - <csr-id-cec0ccb7de02ba0e3ab76c1bcb41daedd8a5a516/> Use catch_unwind for BRC20 balance server checks to handle potential panics gracefully
- - <csr-id-f537928db53a9581b4321edca7dff67703ffb473/> update public api
- - <csr-id-4d98b447a20d2cb0060e2da66924f20536bdcac9/> Simplify balance retrieval by removing error handling from get_brc20_balance function, it now panics when balance server is unreachable or provides invalid data instead of silencing it
- - <csr-id-45b1f50610a1d26f1f035fc0a481542ffea88d8e/> Remove brc20 event simulator test
- - <csr-id-ceb5be8416a21165ab3df9f1073aa47d5e154fc0/> Replace CHAIN_ID with Brc20ProgConfig.chain_id in various modules to enable using different chain IDs for signet and mainnet
- - <csr-id-90862fbb3ba4e7c5a08b65ac3967e25a71628445/> Update raw tx handling to use alloy TxLegacy type
- - <csr-id-6a93ee05efab15719cf7547461be3996834c80e5/> Fix cargo doc
- - <csr-id-8c401a9b1c1b2ffce878a04b6ccc06849a189271/> Move conditional compilation for Brc20ProgDatabase to a separate line
- - <csr-id-1b8f1f5a6b63490636fd66c3c47c99137b1b2d67/> Disable logging for common block retrieval calls to reduce noise
- - <csr-id-7977ab01c9e77e632b7e706d1e65afbd48783d0c/> Update database version from 3 to 4 in configuration, as previous gas values need adjustment
- - <csr-id-be926645f55fb2f2b53351fc1ee7006ab405ba49/> Move gas usage and history size constants to the global package, adjust gas usage for precompiles sending an RPC
- - <csr-id-0c8fcca035b00524e1a471ce34e6d89a6ba9276f/> Update BRC20 types to replace EncodedBytes with InscriptionBytes and EthBytes for improved clarity and functionality
- - <csr-id-795598b52862a308b83628f10358765b8c55e354/> Update decompression buffer to use dynamic Vec instead of fixed array
- - <csr-id-4cf9d212069459292af08297aa100fa9c3fc616a/> Update benchmark functions by removing unused transaction detail cases, add min stack requirement to readme
- - <csr-id-d1968eed7ec8dab87f52c590524107e1d1d1906b/> Add more test cases for bitcoin mainnet rpc tests and run bitcoin rpc tests sequentially
- - <csr-id-3163cd4f42e4ba5c5e3e66719101e9ae809b5402/> Update BTC precompiles to use faster transaction and block height retrieval methods
- - <csr-id-3bd0d87ad463857150a4e0a9f1df92f68d8818e3/> Refactor to use a "Transaction" instance instead of "GetRawTransactionResult" in BTC precompiles
- - <csr-id-8d5d7b8a280ce7d744a448a332fb3f48cc08a823/> Remove redundant names from instrument attributes in Brc20ProgApiServer implementation
- - <csr-id-7e22c4554510615cf46bdaa2fe2830e686eeee48/> Refactor Brc20ProgApiClient methods to include 'brc20_' and 'eth_' prefixes and update related client calls
-   - Adjusted public API snapshot to match the updated API method signatures.
- - <csr-id-41daefdd27df528f496bc14fbaa6f7470ddfe578/> Reorganise engine into its own package alongside the evm, and public api types into the API package, add a public_api test to check for changes in the API
- - <csr-id-42efe3e72360a946974daabf3d46fdb497887b24/> Replace Wrapper types with ED types in API and RPC server
- - <csr-id-6bcbe483599ad3a6eb6d459927e5fa9ff2da4309/> Handle JSON-RPC error code -5 without panicking
- - <csr-id-efc0083fca2c77cebb4cbef05ebfe4f1cd61dcb8/> Remove minimum gas limit constant and handle inscription byte length in tests
- - <csr-id-bf970685dd9d5e0e5698cdd358adb641a74a492f/> Move dotenv call to Brc20ProgConfig
- - <csr-id-26f7b5f16e23912dd3458c27e4d7aa31e6f1d93c/> Update BRC20Precompiles initialization to use a constructor
- - <csr-id-5181b9c28c5fd07033977bbd5da1a3c86401df4a/> Simplify revm integration
-   - Add a TracingInspector to use later
-   - block.prevrandao is now set to current block hash
- - <csr-id-1a5ae117cade1814280651f8b9438215b91b4953/> Simplify EVM setup
- - <csr-id-843c4646b73ed3e7f66064a06fa816eed401df58/> Make tests ignore the result of .initialise(...)
- - <csr-id-75d6a133af28a90fceaf9e9a43a83b463b96c71e/> Remove unused test imports, use alloy_primitives instead of revm re-exports
- - <csr-id-f1570b4da72e1bcd8ba00a271b5c56d3e2b16cee/> Split db/mod.rs into db.rs / mod.rs, rename server_instance.rs to engine.rs
- - <csr-id-4cff9941c50e43fea647630f81834644234a1465/> Use read/write locks for evm database and propagate errors into the RPC layer to wrap and display
-   - Renamed ServerInstance to BRC20ProgEngine (will rename the file in a follow-up to keep the diff)
-   - Refactored error handling for various operations e.g. transaction validation and block finalization.
-   - Created a shared data structure for access to database and block information, RwLocks now allow faster/parallelised reads
- - <csr-id-add636a06c7accbdecd2c6375a0b5c5bcde01492/> Update module visibility across various files
- - <csr-id-1ae91676a99b5c5733276dfdd4776e229c3ed34b/> Rename variables for clarity in various modules
- - <csr-id-15e16503608425a7d9af0ba0752a171f9c11e1c0/> Simplify data decoding in decode_brc20_balance_result function
- - <csr-id-8c19cd08292bf568d3209c72f2fa160262e95063/> Refactor calls to unwrap() for Result/Options to avoid unnecessary panics
-   Use rust-bitcoincore-rpc library for precompiles
- - <csr-id-f2f18c4bcd1dd654d8a67d4c0ba9cab587e7f2c6/> remove unused FromHex import in brc20_controller
- - <csr-id-c4efb097b7a55b973632faf1b09c6252f292ccfc/> rename verify_block_does_not_exist to require_block_does_not_exist
- - <csr-id-912dfefc8d93a0ad39d1d788acc93083a0907f8d/> change account parameter type to AddressWrapper in get_transaction_count method
- - <csr-id-fb475d44cbed75d3254061e25cf0ff6fde238e88/> add chain_id and tx_type fields to TxED and update related structures, run cargo fmt
- - <csr-id-4045ddbfa1c736529daa6f2fc79ba9482716f0df/> change transaction index parameter to be optional
- - <csr-id-c02d3714fc22b376d0a1913f7f5806f65618de53/> update EthCall struct to make 'from' field optional and use zero in contract calls if from is empty
- - <csr-id-67f5b48efbf985abdb2138442c3deae2b71c88da/> Use LogResponse for eth_getTransactionReceipt for correct eth JSON-RPC format and add v,r,s fields to eth_getTransaction* methods
- - <csr-id-1ca98dcd0c689200218c297c38cec2d4ce29c3c3/> streamline byte, string and address conversions to use into() and parse() for type flexibility and consistency
- - <csr-id-ac703fd54431b45f481e401129b648a0f3561d0f/> simplify encode method to return Vec<u8> directly instead of Result, as it never fails
- - <csr-id-48a52bd4f4db178f9095958ad6b0576158225709/> update Brc20ProgApi call and estimate_gas methods to use EthCall struct and optional input data
- - <csr-id-0eae24b7bd1b6c742853822adacd89a6c2793f8e/> Rename block count variables for clarity
-
-### Test
-
- - <csr-id-e99469e09cfebb59fb6cbd4b113c147b1eec5c1c/> opt-in live signet getTxDetails precompile test
-   * test(btc): opt-in live signet getTxDetails precompile test
-   
-   Exercises the getTxDetails Bitcoin-RPC precompile end to end against a
-   real signet node (no mocking). Opt-in via BRC20_RUN_BTC_RPC_TESTS=1 plus
-   signet RPC env; skips cleanly otherwise so it is safe in CI.
- - <csr-id-234d87431db12d60464dce099fbe22deaf079dec/> cover validate_config and from_env
-   * test(config): cover validate_config and from_env logic
-   
-   Config parsing/validation had zero coverage. Adds tests for
-   validate_config (valid config, auth-without-credentials rejection,
-   empty RPC URL, Bitcoin-URL requirement gated on fail_on_bitcoin_rpc_error)
-   and from_env (mainnet vs testnet chain-id selection, malformed numeric
-   env falling back to default).
- - <csr-id-2dc9d3a795e089783949c5943082f67726d88262/> cover controller helpers and deposit/withdraw/balance
-   * test(brc20_controller): cover address verification and balance decoding
-   
-   Unit tests for verify_brc20_contract_address (accepts canonical
-   address, rejects other/unparseable) and decode_brc20_balance_result
-   (None and malformed data decode to zero, valid ABI word decodes to its
-   value).
- - <csr-id-b6446739a51fa5c440209dd7687299ed939ff911/> cover block/tx/code/storage reads and eth_getLogs filtering
-   * test(eth): cover block/tx/code/storage read methods
-   
-   Integration test exercising the eth_* read surface that lacked
-   coverage: eth_getBlockByNumber/ByHash, eth_getBlockTransactionCountBy*,
-   eth_getTransactionByHash/ByBlockNumberAndIndex/ByBlockHashAndIndex,
-   eth_getTransactionCount, eth_getCode and eth_getStorageAt, all
-   cross-checked after a deploy + finalise.
- - <csr-id-ca651492a512c47ebc8345851cd9118d76465ec1/> cover reorg, commit_to_db, clear_caches
-   * test(engine): cover reorg happy-path, no-op, and rejection cases
-   
-   reorg() had zero coverage despite being a correctness-critical state
-   rollback path. Adds inline tests for: rollback discarding blocks above
-   the valid height, reorg-to-tip being a no-op, and rejection of
-   future/too-far-behind targets without mutating the chain.
- - <csr-id-3e9e395c7bac26cb3a747cb2fc35d2bb1586eec8/> Update tests
- - <csr-id-b46ec70af7120595c547a032772c7f656e5594bf/> add unit test for Prague spec BLS precompiles inclusion
- - <csr-id-4472824b035db9c6822cf06fe4fb2bed824548e3/> Change out of order test to send 3 transactions
- - <csr-id-3af32341c61b424b28838c26765c31a1188cb006/> Split benchmark for BTC precompiles
- - <csr-id-34b6d4188ad8f9b5581b74ffbb87d563adc3ae35/> Split env setup in tests into .env.mainnet and .env.signet
- - <csr-id-c37b2ef18f4bf9c6263d0a95d086d52cf6a6bdb4/> Add mainnet precompile tests (works with a .env setup)
- - <csr-id-fb09f2751ad1c46d89c93545eb2fab83dac72dd1/> Add microsecond and second tests for gas processing times in opcode generator test
- - <csr-id-d40c627fe60c2d8da9d57497801dab26977afa91/> Migrate precompile benchmarks to Rust
- - <csr-id-a8ceb606d3456a24221b1345ad329596944888cf/> Move test utilities to their own package, add a benchmark for calling the bip322_verify precompile
-   Refactored test files to utilize the new test-utils crate for loading files and spawning test servers.
- - <csr-id-2166b8bc70d1c5eeb6b3bdf34d6437fbb16c42f0/> Add BRC20 balance test and a deploy/call test
- - <csr-id-b4ea3f2f9f7ec6e855fd087da84b2e128142ac62/> Update test cases to use a non-zero value for inscription byte length
- - <csr-id-3a82185ae1ee37bbd072db2f2d45d979bf7c8d02/> Add serialization test for BlockResponseED
- - <csr-id-1e8c50cdba837afada7c1f2ea7345507686ff2d7/> Add unit tests for BRC20ProgEngine and RpcServer methods
- - <csr-id-541d41c7c3e1c104364c2f24e250f2a8eb6da45f/> Add unit test for HttpNonBlockingAuth allow_all method
 
 ### New Features (BREAKING)
 
@@ -1581,9 +1457,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Added cache with mutexes ([`504828c`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/504828cd4f89c0f586ff4e6ca2eaa341402ee7a9))
     - Initial commit, no reorg protection, only code memory cache ([`8a3494e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/8a3494ec688e84374f9d6217072d244def32e773))
 </details>
-
-<csr-unknown>
-revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0revm to 31.0.0serde to 1.0.228tokio to 1.48.0criterion to 0.7.0tempfile to 3.23.0<csr-unknown/>
 
 ## v0.15.13 (2026-02-27)
 

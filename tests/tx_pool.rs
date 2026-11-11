@@ -14,7 +14,9 @@ use jsonrpsee::http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuild
 use jsonrpsee::server::ServerHandle;
 use revm::primitives::Address;
 use tempfile::TempDir;
-use test_utils::{get_free_port, load_file_as_string, spawn_test_server};
+use test_utils::{
+    get_free_port, load_file_as_string, spawn_test_server, test_client, with_test_credentials,
+};
 
 const INVALID_PARAMS: i32 = -32602;
 const RATE_LIMITED: i32 = -32005;
@@ -431,21 +433,16 @@ async fn pool_methods_are_public() {
     let db_path = TempDir::new().unwrap();
     let public_address = format!("127.0.0.1:{}", get_free_port());
     let admin_address = format!("127.0.0.1:{}", get_free_port());
-    let handle = start(Brc20ProgConfig {
+    let handle = start(with_test_credentials(Brc20ProgConfig {
         db_path: db_path.path().to_str().unwrap().to_string(),
         brc20_prog_rpc_server_url: public_address.clone(),
         brc20_prog_admin_rpc_server_url: Some(admin_address),
-        brc20_prog_rpc_server_enable_auth: true,
-        brc20_prog_rpc_server_user: Some("user".to_string()),
-        brc20_prog_rpc_server_password: Some("password".to_string()),
         fail_on_bitcoin_rpc_error: false,
         ..Default::default()
-    })
+    }))
     .await
     .expect("Failed to start server");
-    let public = HttpClientBuilder::default()
-        .build(format!("http://{}", public_address))
-        .unwrap();
+    let public = test_client(&public_address, false);
 
     let wallet = EthereumWallet::new(PrivateKeySigner::random());
     let tx = sign_legacy(
@@ -475,13 +472,13 @@ async fn pool_methods_are_public() {
 async fn spawn_rate_limit_server(trust_forwarded_for: bool) -> (ServerHandle, String, TempDir) {
     let db_path = TempDir::new().unwrap();
     let address = format!("127.0.0.1:{}", get_free_port());
-    let handle = start(Brc20ProgConfig {
+    let handle = start(with_test_credentials(Brc20ProgConfig {
         db_path: db_path.path().to_str().unwrap().to_string(),
         brc20_prog_rpc_server_url: address.clone(),
         brc20_prog_rpc_trust_forwarded_for: trust_forwarded_for,
         fail_on_bitcoin_rpc_error: false,
         ..Default::default()
-    })
+    }))
     .await
     .expect("Failed to start server");
     (handle, address, db_path)

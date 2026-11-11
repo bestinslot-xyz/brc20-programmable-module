@@ -1,6 +1,6 @@
 [package]
 name = "brc20-prog"
-version = "0.16.8"
+version = "0.17.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "BRC20 programmable module - Smart contract execution engine compatible with BRC20 standard"
@@ -43,6 +43,7 @@ rust-embed = { version = "8.9.0", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_either = "0.2.1"
 serde_json = "1.0.145"
+subtle = { version = "2.6.1", optional = true }
 tokio = { version = "1.48.0", optional = true }
 tower = { version = "0.5.2", optional = true }
 tower-http = { version = "0.7.1", features = [
@@ -95,6 +96,7 @@ server = [
     "rocksdb",
     "rs_merkle",
     "rust-embed",
+    "subtle",
     "tower",
     "tower-http",
     "tokio",

@@ -8,14 +8,10 @@ use alloy_signer_local::PrivateKeySigner;
 use brc20_prog::types::RawBytes;
 use brc20_prog::{start, Brc20ProgApiClient, Brc20ProgConfig};
 use jsonrpsee::core::client::Error as ClientError;
-use jsonrpsee::http_client::{HeaderMap, HttpClient, HttpClientBuilder};
 use jsonrpsee::server::ServerHandle;
 use revm::primitives::Address;
 use tempfile::TempDir;
-use test_utils::get_free_port;
-
-// "user:password" in base64
-const BASIC_AUTH_HEADER: &str = "Basic dXNlcjpwYXNzd29yZA==";
+use test_utils::{get_free_port, test_client as client, with_test_credentials};
 
 struct SplitServer {
     handle: ServerHandle,
@@ -24,20 +20,17 @@ struct SplitServer {
     _db_path: TempDir,
 }
 
-async fn spawn_split_server(enable_auth: bool) -> SplitServer {
+async fn spawn_split_server() -> SplitServer {
     let db_path = TempDir::new().unwrap();
     let public_address = format!("127.0.0.1:{}", get_free_port());
     let admin_address = format!("127.0.0.1:{}", get_free_port());
-    let handle = start(Brc20ProgConfig {
+    let handle = start(with_test_credentials(Brc20ProgConfig {
         db_path: db_path.path().to_str().unwrap().to_string(),
         brc20_prog_rpc_server_url: public_address.clone(),
         brc20_prog_admin_rpc_server_url: Some(admin_address.clone()),
-        brc20_prog_rpc_server_enable_auth: enable_auth,
-        brc20_prog_rpc_server_user: Some("user".to_string()),
-        brc20_prog_rpc_server_password: Some("password".to_string()),
         fail_on_bitcoin_rpc_error: false,
         ..Default::default()
-    })
+    }))
     .await
     .expect("Failed to start server");
 
@@ -49,20 +42,9 @@ async fn spawn_split_server(enable_auth: bool) -> SplitServer {
     }
 }
 
-fn client(address: &str, with_credentials: bool) -> HttpClient {
-    let mut headers = HeaderMap::new();
-    if with_credentials {
-        headers.insert("Authorization", BASIC_AUTH_HEADER.parse().unwrap());
-    }
-    HttpClientBuilder::default()
-        .set_headers(headers)
-        .build(format!("http://{}", address))
-        .expect("Failed to create client")
-}
-
 #[tokio::test]
 async fn test_public_server_rejects_indexer_methods_with_credentials() {
-    let server = spawn_split_server(true).await;
+    let server = spawn_split_server().await;
     let public = client(&server.public_address, true);
 
     assert!(public.brc20_mine(1, 0).await.is_err());
@@ -74,7 +56,7 @@ async fn test_public_server_rejects_indexer_methods_with_credentials() {
 
 #[tokio::test]
 async fn test_public_server_rejects_indexer_methods_without_auth() {
-    let server = spawn_split_server(false).await;
+    let server = spawn_split_server().await;
     let public = client(&server.public_address, false);
 
     assert!(public.brc20_mine(1, 0).await.is_err());
@@ -85,7 +67,7 @@ async fn test_public_server_rejects_indexer_methods_without_auth() {
 
 #[tokio::test]
 async fn test_admin_server_serves_indexer_methods() {
-    let server = spawn_split_server(true).await;
+    let server = spawn_split_server().await;
     let admin = client(&server.admin_address, true);
 
     admin.brc20_mine(1, 0).await.unwrap();
@@ -99,18 +81,19 @@ async fn test_admin_server_serves_indexer_methods() {
 }
 
 #[tokio::test]
-async fn test_admin_server_requires_credentials_when_auth_enabled() {
-    let server = spawn_split_server(true).await;
+async fn test_admin_server_requires_credentials() {
+    let server = spawn_split_server().await;
     let admin = client(&server.admin_address, false);
 
     assert!(admin.brc20_mine(1, 0).await.is_err());
+    assert!(admin.eth_block_number().await.is_ok());
 
     server.handle.stop().unwrap();
 }
 
 #[tokio::test]
 async fn test_only_public_server_rate_limits_send_raw() {
-    let server = spawn_split_server(false).await;
+    let server = spawn_split_server().await;
     let public = client(&server.public_address, false);
     let admin = client(&server.admin_address, false);
 
@@ -154,7 +137,7 @@ async fn test_only_public_server_rate_limits_send_raw() {
 
 #[tokio::test]
 async fn test_stop_releases_both_ports() {
-    let server = spawn_split_server(false).await;
+    let server = spawn_split_server().await;
 
     server.handle.stop().unwrap();
     server.handle.clone().stopped().await;

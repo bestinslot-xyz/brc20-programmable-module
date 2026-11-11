@@ -297,6 +297,8 @@ pub fn brc20_prog::Brc20ProgConfig::from_env() -> Self
 pub fn brc20_prog::Brc20ProgConfig::new(alloc::string::String, bool, core::option::Option<alloc::string::String>, core::option::Option<alloc::string::String>, bool, u64, alloc::string::String, alloc::string::String, alloc::string::String, alloc::string::String, u64, bool, alloc::string::String, u32, u32, u32) -> Self
 impl core::default::Default for brc20_prog::Brc20ProgConfig
 pub fn brc20_prog::Brc20ProgConfig::default() -> Self
+impl core::fmt::Debug for brc20_prog::Brc20ProgConfig
+pub fn brc20_prog::Brc20ProgConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub trait brc20_prog::BitcoinRpc: core::marker::Send + core::marker::Sync
 pub fn brc20_prog::BitcoinRpc::get_block_height(&self, &bitcoin::blockdata::block::BlockHash) -> core::result::Result<usize, brc20_prog::BitcoinRpcError>
 pub fn brc20_prog::BitcoinRpc::get_transaction(&self, &bitcoin::blockdata::transaction::Txid) -> core::result::Result<core::option::Option<bitcoin::blockdata::transaction::Transaction>, brc20_prog::BitcoinRpcError>
