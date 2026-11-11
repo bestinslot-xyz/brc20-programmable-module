@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.17.1 (2026-11-11)
 
+A mistyped transact inscription is skipped like any other transaction the engine does not run. Indexers that stop on a transact with an engine error should upgrade.
+
+### Bug Fixes
+
+ - `brc20_transact` returns an empty receipt list, and `get_info_from_raw_tx` returns `Ok(None)`, for raw transaction data that does not decode as a signed legacy transaction or whose signature does not recover. Both returned an error. The skipped transaction takes no tx index.
+
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
