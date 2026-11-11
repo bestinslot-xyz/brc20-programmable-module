@@ -14,6 +14,7 @@ Precompiled contracts require the Bitcoin RPC variables to work properly, otherw
 | `BRC20_PROG_RPC_SERVER_USER` | unset | Username for HTTP basic auth on the indexer methods. Required by the server. See [Authorization](#authorization). |
 | `BRC20_PROG_RPC_SERVER_PASSWORD` | unset | Password for HTTP basic auth on the indexer methods. Required by the server, and must be strong. See [Authorization](#authorization). |
 | `BRC20_PROG_RPC_SERVER_ENABLE_AUTH` | `true` | Retired. Authentication is mandatory, so `false` stops the server at startup; any other value is ignored. |
+| `BRC20_PROG_RPC_TX_POOL` | `false` | Serves the [pending raw transaction pool](eth-api.md#pending-raw-transaction-pool), its rate limits, and block JSON without `baseFeePerGas`. When `false`, the pool methods return "method not found". |
 | `BRC20_PROG_RPC_TRUST_FORWARDED_FOR` | `false` | Rate limits each client by the first `X-Forwarded-For` hop. See [Rate limits](#rate-limits). |
 | `EVM_RECORD_TRACES` | `false` | Records transaction traces for `debug_traceTransaction`. |
 | `EVM_CALL_GAS_LIMIT` | `1000000000` | Gas limit for `eth_call` and `eth_estimateGas`. |
@@ -98,6 +99,6 @@ The server logs a warning at startup when the admin listener binds to a non-loop
 
 ## Rate limits
 
-The listener on `BRC20_PROG_RPC_SERVER_URL` allows each client 30 calls per 60 seconds to `eth_sendRawTransaction`, and a separate 30 calls per 60 seconds to `brc20_unsentRawTransactions`. Each entry of a batch counts as one call. A call over the limit returns JSON-RPC error `-32005`. Notifications are not counted, since the server runs no method for them. The admin listener has no rate limit.
+Rate limits apply when `BRC20_PROG_RPC_TX_POOL=true` enables the [pending raw transaction pool](eth-api.md#pending-raw-transaction-pool). The listener on `BRC20_PROG_RPC_SERVER_URL` then allows each client 30 calls per 60 seconds to `eth_sendRawTransaction`, and a separate 30 calls per 60 seconds to `brc20_unsentRawTransactions`. Each entry of a batch counts as one call. A call over the limit returns JSON-RPC error `-32005`. Notifications are not counted, since the server runs no method for them. The admin listener has no rate limit.
 
 With `BRC20_PROG_RPC_TRUST_FORWARDED_FOR=true`, the first comma-separated value of the `X-Forwarded-For` header identifies the client. An IPv6 address counts as its /64 prefix, an IPv4-mapped IPv6 address counts as its IPv4 address, and a trailing port is ignored. Otherwise every caller shares one limit. Enable it only behind a reverse proxy that replaces any `X-Forwarded-For` header from the client with the client's address, since a client can put any value first in that header.

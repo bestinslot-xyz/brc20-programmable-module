@@ -21,6 +21,10 @@ struct SplitServer {
 }
 
 async fn spawn_split_server() -> SplitServer {
+    spawn_split_server_with(Default::default()).await
+}
+
+async fn spawn_split_server_with(config: Brc20ProgConfig) -> SplitServer {
     let db_path = TempDir::new().unwrap();
     let public_address = format!("127.0.0.1:{}", get_free_port());
     let admin_address = format!("127.0.0.1:{}", get_free_port());
@@ -29,7 +33,7 @@ async fn spawn_split_server() -> SplitServer {
         brc20_prog_rpc_server_url: public_address.clone(),
         brc20_prog_admin_rpc_server_url: Some(admin_address.clone()),
         fail_on_bitcoin_rpc_error: false,
-        ..Default::default()
+        ..config
     }))
     .await
     .expect("Failed to start server");
@@ -93,7 +97,11 @@ async fn test_admin_server_requires_credentials() {
 
 #[tokio::test]
 async fn test_only_public_server_rate_limits_send_raw() {
-    let server = spawn_split_server().await;
+    let server = spawn_split_server_with(Brc20ProgConfig {
+        brc20_prog_rpc_tx_pool: true,
+        ..Default::default()
+    })
+    .await;
     let public = client(&server.public_address, false);
     let admin = client(&server.admin_address, false);
 

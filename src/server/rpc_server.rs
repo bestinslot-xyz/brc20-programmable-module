@@ -10,10 +10,11 @@ use alloy::consensus::TxLegacy;
 use alloy::primitives::{keccak256, Bytes};
 use hyper::Method;
 use jsonrpsee::core::middleware::RpcServiceBuilder;
-use jsonrpsee::core::{async_trait, RpcResult};
+use jsonrpsee::core::{async_trait, RegisterMethodError, RpcResult};
 use jsonrpsee::server::{
     stop_channel, BatchRequestConfig, Server, ServerConfigBuilder, ServerHandle,
 };
+use jsonrpsee::types::{ErrorCode, ErrorObject};
 use jsonrpsee::Methods;
 use revm::primitives::TxKind;
 use revm::state::Bytecode;
@@ -60,7 +61,8 @@ use crate::Brc20ProgConfig;
 /// JSON-RPC sees every change made through another.
 ///
 /// Clones also share one in-memory pool of signed raw transactions that wallets submit with
-/// `eth_sendRawTransaction` and that wait there to be inscribed.
+/// `eth_sendRawTransaction` and that wait there to be inscribed. The pool serves only with
+/// `brc20_prog_rpc_tx_pool`.
 ///
 /// Configuration is process-wide, so open one instance per process.
 #[derive(Clone)]
@@ -132,8 +134,9 @@ impl Brc20Prog {
     ///
     /// The listener does not register the indexer methods, and rejects calls to them with a 401
     /// error for every caller, credentials or not, since the process that opened the instance
-    /// drives them by calling [`Brc20ProgApiServer`] directly. It allows requests from any origin,
-    /// and rate limits each client's calls to the transaction pool methods.
+    /// drives them by calling [`Brc20ProgApiServer`] directly. It allows requests from any origin.
+    /// With `brc20_prog_rpc_tx_pool`, it rate limits each client's calls to the transaction pool
+    /// methods.
     pub async fn start_public_rpc_server(&self) -> Result<ServerHandle, Box<dyn Error>> {
         start_listener(
             self,
@@ -146,14 +149,47 @@ impl Brc20Prog {
 
     /// Returns the JSON-RPC methods of this instance, without the indexer methods unless
     /// `with_indexer_methods` is true.
-    fn rpc_methods(&self, with_indexer_methods: bool) -> Methods {
+    ///
+    /// With `brc20_prog_rpc_tx_pool`, the block methods return block JSON without
+    /// `baseFeePerGas`, so wallets see no EIP-1559 support and sign legacy transactions.
+    /// Without it, the transaction pool methods are absent.
+    fn rpc_methods(&self, with_indexer_methods: bool) -> Result<Methods, RegisterMethodError> {
         let mut module = self.clone().into_rpc();
         if !with_indexer_methods {
             for method in INDEXER_METHODS.iter() {
                 module.remove_method(method.as_str());
             }
         }
-        module.into()
+        if self.config.brc20_prog_rpc_tx_pool {
+            module.remove_method("eth_getBlockByNumber");
+            module.register_async_method("eth_getBlockByNumber", |params, prog, _| async move {
+                let mut params = params.sequence();
+                let block: String = params.next()?;
+                let is_full: Option<bool> = params.optional_next()?;
+                block_without_base_fee(prog.eth_get_block_by_number(block, is_full).await?)
+            })?;
+            module.remove_method("eth_getBlockByHash");
+            module.register_async_method("eth_getBlockByHash", |params, prog, _| async move {
+                let mut params = params.sequence();
+                let block: B256ED = params.next()?;
+                let is_full: Option<bool> = params.optional_next()?;
+                block_without_base_fee(prog.eth_get_block_by_hash(block, is_full).await?)
+            })?;
+        } else {
+            for method in TX_POOL_METHODS {
+                module.remove_method(method);
+            }
+        }
+        Ok(module.into())
+    }
+
+    /// Fails with JSON-RPC "method not found" unless `brc20_prog_rpc_tx_pool` is enabled.
+    fn require_tx_pool(&self) -> RpcResult<()> {
+        if self.config.brc20_prog_rpc_tx_pool {
+            Ok(())
+        } else {
+            Err(ErrorObject::from(ErrorCode::MethodNotFound))
+        }
     }
 
     fn parse_block_number(&self, number: &str) -> Result<u64, Box<dyn Error>> {
@@ -191,6 +227,22 @@ impl Brc20Prog {
 
 fn log_call() {
     info!("rpc.request");
+}
+
+/// Methods of the pending raw transaction pool, served with `brc20_prog_rpc_tx_pool`.
+const TX_POOL_METHODS: [&str; 3] = [
+    "eth_sendRawTransaction",
+    "eth_getRawTransactionByHash",
+    "brc20_unsentRawTransactions",
+];
+
+/// Returns the JSON of `block` without `baseFeePerGas`.
+fn block_without_base_fee(block: BlockResponseED) -> RpcResult<serde_json::Value> {
+    let mut value = serde_json::to_value(block).map_err(|error| wrap_rpc_error(error.into()))?;
+    if let Some(fields) = value.as_object_mut() {
+        fields.remove("baseFeePerGas");
+    }
+    Ok(value)
 }
 
 fn new_tx_pool() -> Arc<Mutex<TxPool>> {
@@ -505,7 +557,9 @@ impl Brc20ProgApiServer for Brc20Prog {
             .map_err(wrap_rpc_error)?;
 
         // The transaction is inscribed, so the pool no longer offers it
-        self.tx_pool().remove(&raw_tx_hash);
+        if self.config.brc20_prog_rpc_tx_pool {
+            self.tx_pool().remove(&raw_tx_hash);
+        }
         Ok(receipts)
     }
 
@@ -609,7 +663,7 @@ impl Brc20ProgApiServer for Brc20Prog {
             .get_transaction_count(account.address, block_number)
             .map_err(wrap_rpc_error)?;
         // The pending count also covers the sender's pooled transactions
-        if block == "pending" {
+        if block == "pending" && self.config.brc20_prog_rpc_tx_pool {
             if let Some(max_nonce) = self
                 .tx_pool()
                 .max_nonce_from(&account.address, Instant::now())
@@ -1159,6 +1213,7 @@ impl Brc20ProgApiServer for Brc20Prog {
     #[instrument(name = "eth_sendRawTransaction", skip(self, raw), level = "error")]
     async fn eth_send_raw_transaction(&self, raw: RawBytes) -> RpcResult<B256ED> {
         log_call();
+        self.require_tx_pool()?;
         let Some(raw_tx) = raw.value() else {
             return Err(invalid_params("invalid raw transaction"));
         };
@@ -1230,6 +1285,7 @@ impl Brc20ProgApiServer for Brc20Prog {
     #[instrument(name = "eth_getRawTransactionByHash", skip(self), level = "error")]
     async fn eth_get_raw_transaction_by_hash(&self, hash: B256ED) -> RpcResult<Option<RawBytes>> {
         log_call();
+        self.require_tx_pool()?;
         Ok(self
             .tx_pool()
             .get(&hash.bytes, Instant::now())
@@ -1239,6 +1295,7 @@ impl Brc20ProgApiServer for Brc20Prog {
     #[instrument(name = "brc20_unsentRawTransactions", skip(self), level = "error")]
     async fn brc20_unsent_raw_transactions(&self) -> RpcResult<Vec<PooledTxED>> {
         log_call();
+        self.require_tx_pool()?;
         let now = Instant::now();
         let txs = self.tx_pool().list(now, UNSENT_LIST_MAX_BYTES);
         Ok(txs
@@ -1341,9 +1398,9 @@ impl Brc20ProgApiServer for Brc20Prog {
 ///
 /// Without an admin URL, a single listener serves every method and HTTP basic auth gates the
 /// indexer methods. With an admin URL, the public listener does not register the indexer
-/// methods, and the admin listener serves every method behind HTTP basic auth. The listener that
-/// serves the public rate limits the transaction pool methods; the admin listener does not. The
-/// returned handle controls both listeners.
+/// methods, and the admin listener serves every method behind HTTP basic auth. With
+/// `brc20_prog_rpc_tx_pool`, the listener that serves the public rate limits the transaction pool
+/// methods; the admin listener does not. The returned handle controls both listeners.
 ///
 /// Fails before binding any port when the credentials are missing or weak, or when
 /// `brc20_prog_rpc_server_enable_auth` is false.
@@ -1413,7 +1470,8 @@ fn join_server_handles(first: ServerHandle, second: ServerHandle) -> ServerHandl
 ///
 /// `RpcAuthMiddleware` rejects unauthorized calls to the indexer methods on both kinds.
 ///
-/// `rate_limited` limits each client's calls to the transaction pool methods.
+/// `rate_limited` limits each client's calls to the transaction pool methods, when
+/// `brc20_prog_rpc_tx_pool` serves them.
 async fn start_listener(
     prog: &Brc20Prog,
     url: &str,
@@ -1422,7 +1480,7 @@ async fn start_listener(
 ) -> Result<ServerHandle, Box<dyn Error>> {
     let config = &prog.config;
     let serves_indexer_methods = auth.requires_credentials();
-    let module = prog.rpc_methods(serves_indexer_methods);
+    let module = prog.rpc_methods(serves_indexer_methods)?;
     let cors = if serves_indexer_methods {
         CorsLayer::new()
     } else {
@@ -1445,8 +1503,8 @@ async fn start_listener(
         server_config = server_config.http_only();
     }
 
-    let rate_limiter =
-        rate_limited.then(|| Arc::new(RateLimiter::new(SEND_RAW_TX_LIMIT, SEND_RAW_TX_WINDOW)));
+    let rate_limiter = (rate_limited && config.brc20_prog_rpc_tx_pool)
+        .then(|| Arc::new(RateLimiter::new(SEND_RAW_TX_LIMIT, SEND_RAW_TX_WINDOW)));
     let http_middleware = ServiceBuilder::new()
         .layer(cors)
         .layer(ValidateRequestHeaderLayer::custom(auth))
@@ -1482,11 +1540,18 @@ mod tests {
     use super::*;
 
     fn create_test_server() -> Brc20Prog {
+        create_test_server_with_tx_pool(false)
+    }
+
+    fn create_test_server_with_tx_pool(tx_pool: bool) -> Brc20Prog {
         let temp_dir = TempDir::new().unwrap();
         let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
         Brc20Prog {
             engine: Arc::new(BRC20ProgEngine::new(db)),
-            config: Arc::new(Brc20ProgConfig::default()),
+            config: Arc::new(Brc20ProgConfig {
+                brc20_prog_rpc_tx_pool: tx_pool,
+                ..Brc20ProgConfig::default()
+            }),
             tx_pool: new_tx_pool(),
         }
     }
@@ -1572,8 +1637,8 @@ mod tests {
     #[test]
     fn test_rpc_methods_without_indexer_methods() {
         let server = create_test_server();
-        let all = server.rpc_methods(true);
-        let public = server.rpc_methods(false);
+        let all = server.rpc_methods(true).unwrap();
+        let public = server.rpc_methods(false).unwrap();
 
         // Every listed indexer method is a registered name, so removing it takes effect
         for method in INDEXER_METHODS.iter() {
@@ -1585,6 +1650,26 @@ mod tests {
             all.method_names().count(),
             public.method_names().count() + INDEXER_METHODS.len()
         );
+    }
+
+    #[test]
+    fn test_rpc_methods_tx_pool_methods_follow_config() {
+        let disabled = create_test_server_with_tx_pool(false);
+        let enabled = create_test_server_with_tx_pool(true);
+        for with_indexer_methods in [false, true] {
+            let without_pool = disabled.rpc_methods(with_indexer_methods).unwrap();
+            let with_pool = enabled.rpc_methods(with_indexer_methods).unwrap();
+            for method in TX_POOL_METHODS {
+                assert!(without_pool.method(method).is_none(), "{method} is served");
+                assert!(with_pool.method(method).is_some(), "{method} is not served");
+            }
+            assert!(with_pool.method("eth_getBlockByNumber").is_some());
+            assert!(with_pool.method("eth_getBlockByHash").is_some());
+            assert_eq!(
+                with_pool.method_names().count(),
+                without_pool.method_names().count() + TX_POOL_METHODS.len()
+            );
+        }
     }
 
     #[test]

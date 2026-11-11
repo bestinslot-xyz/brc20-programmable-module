@@ -5,6 +5,7 @@ expression: report
 ======== block 1 (signet cancun) ========
 trace_hash: d54f898635838f24a34ff5b0e4fe094991ef943096cfaf68da5d505f62be0971
 block: {
+  "baseFeePerGas": "0x0",
   "blobGasUsed": "0x0",
   "difficulty": "0x0",
   "excessBlobGas": "0x0",
@@ -960,6 +961,7 @@ trace: {
 ======== block 2 (signet cancun) ========
 trace_hash: 1b83fef124f068ce185850b0b26cb98b7b0f79b4707891d345d4aea77bc47e1b
 block: {
+  "baseFeePerGas": "0x0",
   "blobGasUsed": "0x0",
   "difficulty": "0x0",
   "excessBlobGas": "0x0",
@@ -4462,6 +4464,7 @@ trace: {
 ======== block 275000 (signet prague) ========
 trace_hash: 94b12b29ac435aa4a4390978f12d657fa875cd18771d0bef7de5c9e80d4ec871
 block: {
+  "baseFeePerGas": "0x0",
   "blobGasUsed": "0x0",
   "difficulty": "0x0",
   "excessBlobGas": "0x0",
@@ -5379,6 +5382,7 @@ trace: {
 ======== block 275001 (signet prague) ========
 trace_hash: 27ca3d0878e39cb081d968c805b1cec08fb47f1afceeb4275ceec636052618e0
 block: {
+  "baseFeePerGas": "0x0",
   "blobGasUsed": "0x0",
   "difficulty": "0x0",
   "excessBlobGas": "0x0",
@@ -8797,6 +8801,7 @@ trace: {
 ======== block 275002 (signet prague) ========
 trace_hash: b55ee1aea7d4a459e01f62bd3c9224ed9d9fc5ed68cf2ba919032d3c962e7ccc
 block: {
+  "baseFeePerGas": "0x0",
   "blobGasUsed": "0x0",
   "difficulty": "0x0",
   "excessBlobGas": "0x0",

@@ -32,6 +32,8 @@ BRC2.0 maintains a pending transaction pool for transactions that are sent out o
 
 EVM wallets can hand a signed transaction to the RPC server, and a Bitcoin payer can then inscribe it as a `transact` operation. The server keeps the signed transactions in a pool until they are inscribed or expire. Any BRC2.0 RPC operator can implement `eth_sendRawTransaction`, `eth_getRawTransactionByHash` and `brc20_unsentRawTransactions` the same way, so that wallets and payers work across operators.
 
+The pool and everything in this section require `BRC20_PROG_RPC_TX_POOL=true`. When it is `false`, the default, the three pool methods return JSON-RPC error `-32601` (method not found), `eth_getTransactionCount(address, "pending")` returns the on-chain count, and blocks include `baseFeePerGas`. See [Configuration](configuration.md).
+
 ### eth_sendRawTransaction
 
 Adds a signed raw transaction to the pool and returns its hash, `keccak256(raw)`.
@@ -123,4 +125,4 @@ Each client may make 30 calls per 60 seconds to `eth_sendRawTransaction`, counte
 
 ### Blocks without baseFeePerGas
 
-Blocks returned by `eth_getBlockByNumber` and `eth_getBlockByHash` have no `baseFeePerGas` field. Wallets such as MetaMask then see no EIP-1559 support and sign legacy transactions, the only kind the engine decodes. Only the JSON response changes; stored data and block hashes are unaffected.
+With `BRC20_PROG_RPC_TX_POOL=true`, blocks returned by `eth_getBlockByNumber` and `eth_getBlockByHash` have no `baseFeePerGas` field. Wallets such as MetaMask then see no EIP-1559 support and sign legacy transactions, the only kind the engine decodes. Only the JSON response changes; stored data and block hashes are unaffected.

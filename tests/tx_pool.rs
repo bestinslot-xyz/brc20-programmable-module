@@ -23,6 +23,24 @@ const RATE_LIMITED: i32 = -32005;
 const CALLDATA_LIMIT: usize = 1024 * 1024;
 const RATE_LIMIT: usize = 30;
 
+const METHOD_NOT_FOUND: i32 = -32601;
+
+/// Returns the default configuration with the transaction pool enabled.
+fn pool_config() -> Brc20ProgConfig {
+    Brc20ProgConfig {
+        brc20_prog_rpc_tx_pool: true,
+        ..Default::default()
+    }
+}
+
+/// Returns the default configuration with the transaction pool disabled.
+fn no_pool_config() -> Brc20ProgConfig {
+    Brc20ProgConfig {
+        brc20_prog_rpc_tx_pool: false,
+        ..Default::default()
+    }
+}
+
 async fn chain_id(client: &HttpClient) -> u64 {
     let chain_id = client.eth_chain_id().await.unwrap();
     u64::from_str_radix(chain_id.trim_start_matches("0x"), 16).unwrap()
@@ -64,7 +82,7 @@ fn error_code(error: ClientError) -> i32 {
 
 #[tokio::test]
 async fn send_raw_returns_keccak_and_get_returns_raw() {
-    let (server, client) = spawn_test_server(Default::default()).await;
+    let (server, client) = spawn_test_server(pool_config()).await;
     let wallet = EthereumWallet::new(PrivateKeySigner::random());
     let tx = sign_legacy(
         &wallet,
@@ -96,7 +114,7 @@ async fn send_raw_returns_keccak_and_get_returns_raw() {
 
 #[tokio::test]
 async fn send_raw_rejects_wrong_chain_id() {
-    let (server, client) = spawn_test_server(Default::default()).await;
+    let (server, client) = spawn_test_server(pool_config()).await;
     let wallet = EthereumWallet::new(PrivateKeySigner::random());
     let tx = sign_legacy(
         &wallet,
@@ -115,7 +133,7 @@ async fn send_raw_rejects_wrong_chain_id() {
 
 #[tokio::test]
 async fn send_raw_rejects_nonce_below_account_nonce() {
-    let (server, client) = spawn_test_server(Default::default()).await;
+    let (server, client) = spawn_test_server(pool_config()).await;
     let chain_id = chain_id(&client).await;
     let wallet = EthereumWallet::new(PrivateKeySigner::random());
     let deploy_data =
@@ -150,7 +168,7 @@ async fn send_raw_rejects_nonce_below_account_nonce() {
 
 #[tokio::test]
 async fn send_raw_rejects_nonce_beyond_future_window() {
-    let (server, client) = spawn_test_server(Default::default()).await;
+    let (server, client) = spawn_test_server(pool_config()).await;
     let chain_id = chain_id(&client).await;
     let wallet = EthereumWallet::new(PrivateKeySigner::random());
 
@@ -172,7 +190,7 @@ async fn send_raw_rejects_nonce_beyond_future_window() {
 
 #[tokio::test]
 async fn send_raw_rejects_oversize() {
-    let (server, client) = spawn_test_server(Default::default()).await;
+    let (server, client) = spawn_test_server(pool_config()).await;
 
     let oversize = vec![0u8; CALLDATA_LIMIT + 1];
     let error = client
@@ -186,7 +204,7 @@ async fn send_raw_rejects_oversize() {
 
 #[tokio::test]
 async fn send_raw_rejects_type2_tx() {
-    let (server, client) = spawn_test_server(Default::default()).await;
+    let (server, client) = spawn_test_server(pool_config()).await;
     let wallet = EthereumWallet::new(PrivateKeySigner::random());
 
     let tx_builder = TransactionRequest::default()
@@ -209,7 +227,7 @@ async fn send_raw_rejects_type2_tx() {
 
 #[tokio::test]
 async fn send_raw_rejects_nonzero_value() {
-    let (server, client) = spawn_test_server(Default::default()).await;
+    let (server, client) = spawn_test_server(pool_config()).await;
     let wallet = EthereumWallet::new(PrivateKeySigner::random());
     let tx = sign_legacy(
         &wallet,
@@ -233,7 +251,7 @@ async fn send_raw_rejects_nonzero_value() {
 
 #[tokio::test]
 async fn send_raw_rejects_trailing_bytes() {
-    let (server, client) = spawn_test_server(Default::default()).await;
+    let (server, client) = spawn_test_server(pool_config()).await;
     let wallet = EthereumWallet::new(PrivateKeySigner::random());
     let mut tx = sign_legacy(
         &wallet,
@@ -253,7 +271,7 @@ async fn send_raw_rejects_trailing_bytes() {
 
 #[tokio::test]
 async fn send_raw_rejects_high_s_signature() {
-    let (server, client) = spawn_test_server(Default::default()).await;
+    let (server, client) = spawn_test_server(pool_config()).await;
     let wallet = EthereumWallet::new(PrivateKeySigner::random());
     let tx = sign_legacy(
         &wallet,
@@ -290,7 +308,7 @@ async fn send_raw_rejects_high_s_signature() {
 
 #[tokio::test]
 async fn send_raw_rejects_fifth_tx_for_same_nonce() {
-    let (server, client) = spawn_test_server(Default::default()).await;
+    let (server, client) = spawn_test_server(pool_config()).await;
     let chain_id = chain_id(&client).await;
     let wallet = EthereumWallet::new(PrivateKeySigner::random());
 
@@ -329,7 +347,7 @@ async fn send_raw_rejects_fifth_tx_for_same_nonce() {
 
 #[tokio::test]
 async fn unsent_list_contains_pooled_tx() {
-    let (server, client) = spawn_test_server(Default::default()).await;
+    let (server, client) = spawn_test_server(pool_config()).await;
     let signer = PrivateKeySigner::random();
     let from = signer.address();
     let wallet = EthereumWallet::new(signer);
@@ -361,7 +379,7 @@ async fn unsent_list_contains_pooled_tx() {
 
 #[tokio::test]
 async fn pending_nonce_follows_pooled_txs() {
-    let (server, client) = spawn_test_server(Default::default()).await;
+    let (server, client) = spawn_test_server(pool_config()).await;
     let signer = PrivateKeySigner::random();
     let from = signer.address();
     let wallet = EthereumWallet::new(signer);
@@ -391,7 +409,7 @@ async fn pending_nonce_follows_pooled_txs() {
 
 #[tokio::test]
 async fn transact_removes_tx_from_pool() {
-    let (server, client) = spawn_test_server(Default::default()).await;
+    let (server, client) = spawn_test_server(pool_config()).await;
     let wallet = EthereumWallet::new(PrivateKeySigner::random());
     let deploy_data =
         Bytes::from_str(&load_file_as_string("brc20_prog_helper_deploy_tx_data").unwrap()).unwrap();
@@ -438,7 +456,7 @@ async fn pool_methods_are_public() {
         brc20_prog_rpc_server_url: public_address.clone(),
         brc20_prog_admin_rpc_server_url: Some(admin_address),
         fail_on_bitcoin_rpc_error: false,
-        ..Default::default()
+        ..pool_config()
     }))
     .await
     .expect("Failed to start server");
@@ -468,6 +486,24 @@ async fn pool_methods_are_public() {
     handle.stop().unwrap();
 }
 
+#[tokio::test]
+async fn pool_methods_absent_when_disabled() {
+    let (server, client) = spawn_test_server(no_pool_config()).await;
+    let tx = signed_tx(&client).await;
+
+    let error = client.eth_send_raw_transaction(tx).await.unwrap_err();
+    assert_eq!(error_code(error), METHOD_NOT_FOUND);
+    let error = client
+        .eth_get_raw_transaction_by_hash([0u8; 32].into())
+        .await
+        .unwrap_err();
+    assert_eq!(error_code(error), METHOD_NOT_FOUND);
+    let error = client.brc20_unsent_raw_transactions().await.unwrap_err();
+    assert_eq!(error_code(error), METHOD_NOT_FOUND);
+
+    server.stop().unwrap();
+}
+
 /// Starts a server on a free port and returns its handle, its address and its database folder.
 async fn spawn_rate_limit_server(trust_forwarded_for: bool) -> (ServerHandle, String, TempDir) {
     let db_path = TempDir::new().unwrap();
@@ -477,7 +513,7 @@ async fn spawn_rate_limit_server(trust_forwarded_for: bool) -> (ServerHandle, St
         brc20_prog_rpc_server_url: address.clone(),
         brc20_prog_rpc_trust_forwarded_for: trust_forwarded_for,
         fail_on_bitcoin_rpc_error: false,
-        ..Default::default()
+        ..pool_config()
     }))
     .await
     .expect("Failed to start server");
