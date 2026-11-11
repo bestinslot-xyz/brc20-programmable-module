@@ -402,16 +402,22 @@ impl BRC20ProgEngine {
         mut raw_tx: Vec<u8>,
         use_rlp_hash: bool,
     ) -> Result<Option<TxInfo>, Box<dyn Error>> {
-        let (decoded_raw_tx, signature) =
+        // A transaction that does not decode, targets another chain, or carries an unrecoverable
+        // signature is a mistyped inscription, and is skipped.
+        let Ok((decoded_raw_tx, signature)) =
             TxLegacy::rlp_decode_with_signature(&mut raw_tx.as_mut_slice().as_ref())
-                .map_err(|_| "Failed to decode legacy transaction")?;
+        else {
+            return Ok(None);
+        };
 
         if decoded_raw_tx.chain_id != Some(CONFIG.read().chain_id) {
             return Ok(None);
         }
 
         let signing_hash = keccak256(decoded_raw_tx.encoded_for_signing());
-        let recovered_address = signature.recover_address_from_prehash(&signing_hash)?;
+        let Ok(recovered_address) = signature.recover_address_from_prehash(&signing_hash) else {
+            return Ok(None);
+        };
 
         // Signing hash is not the tx hash (as it can collide), so compute the correct one
         // This was an oversight in earlier versions
@@ -1836,6 +1842,80 @@ mod tests {
             hex::encode(result.pre_hash.unwrap().0),
             "e591d2cd4e58a3fa496324f525942ff9a03a4b07a77d9d6b31ca14728331aeee"
         );
+    }
+
+    #[test]
+    fn test_decode_raw_tx_skips_undecodable_bytes() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+
+        for raw_tx in [vec![], vec![0xde, 0xad, 0xbe, 0xef], vec![0xc0]] {
+            assert!(engine
+                .get_info_from_raw_tx(raw_tx, true)
+                .unwrap()
+                .is_none());
+        }
+    }
+
+    #[test]
+    fn test_decode_raw_tx_skips_unrecoverable_signature() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+        CONFIG.write_fn_unchecked(|config| {
+            config.chain_id = 0x4252433230;
+        });
+
+        // The signed transaction from `test_decode_raw_tx`, with `r` set to
+        // 0xff..ff, above the secp256k1 group order.
+        let raw_tx = hex::decode(format!(
+            "f875098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a764000084deadbeef8584a4866483a0{}a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83",
+            "ff".repeat(32)
+        ))
+        .unwrap();
+
+        assert!(engine
+            .get_info_from_raw_tx(raw_tx, true)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn test_add_raw_tx_to_block_skips_undecodable_bytes() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Brc20ProgDatabase::new(temp_dir.path()).unwrap();
+        let engine = BRC20ProgEngine::new(db);
+        let block_hash = B256::from_slice([1; 32].as_ref());
+        let timestamp = 1622547800;
+
+        let receipts = engine
+            .add_raw_tx_to_block(
+                timestamp,
+                vec![0xde, 0xad, 0xbe, 0xef],
+                0,
+                0,
+                block_hash,
+                "junk_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
+            )
+            .unwrap();
+        assert!(receipts.is_empty());
+
+        // The skipped transaction takes no slot: the next one is still tx 0.
+        engine
+            .add_tx_to_block(
+                timestamp,
+                &TxInfo::from_inscription(*INDEXER_ADDRESS, TxKind::Create, vec![].into()),
+                0,
+                0,
+                block_hash,
+                "test_inscription_id".to_string(),
+                1000,
+                [0u8; 32].into(),
+            )
+            .unwrap();
     }
 
     #[tokio::test]
