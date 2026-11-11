@@ -10,7 +10,7 @@ use alloy::consensus::TxLegacy;
 use alloy::primitives::{keccak256, Bytes};
 use hyper::Method;
 use jsonrpsee::core::middleware::RpcServiceBuilder;
-use jsonrpsee::core::{async_trait, RegisterMethodError, RpcResult};
+use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::server::{
     stop_channel, BatchRequestConfig, Server, ServerConfigBuilder, ServerHandle,
 };
@@ -150,37 +150,20 @@ impl Brc20Prog {
     /// Returns the JSON-RPC methods of this instance, without the indexer methods unless
     /// `with_indexer_methods` is true.
     ///
-    /// With `brc20_prog_rpc_tx_pool`, the block methods return block JSON without
-    /// `baseFeePerGas`, so wallets see no EIP-1559 support and sign legacy transactions.
-    /// Without it, the transaction pool methods are absent.
-    fn rpc_methods(&self, with_indexer_methods: bool) -> Result<Methods, RegisterMethodError> {
+    /// Without `brc20_prog_rpc_tx_pool`, the transaction pool methods are absent.
+    fn rpc_methods(&self, with_indexer_methods: bool) -> Methods {
         let mut module = self.clone().into_rpc();
         if !with_indexer_methods {
             for method in INDEXER_METHODS.iter() {
                 module.remove_method(method.as_str());
             }
         }
-        if self.config.brc20_prog_rpc_tx_pool {
-            module.remove_method("eth_getBlockByNumber");
-            module.register_async_method("eth_getBlockByNumber", |params, prog, _| async move {
-                let mut params = params.sequence();
-                let block: String = params.next()?;
-                let is_full: Option<bool> = params.optional_next()?;
-                block_without_base_fee(prog.eth_get_block_by_number(block, is_full).await?)
-            })?;
-            module.remove_method("eth_getBlockByHash");
-            module.register_async_method("eth_getBlockByHash", |params, prog, _| async move {
-                let mut params = params.sequence();
-                let block: B256ED = params.next()?;
-                let is_full: Option<bool> = params.optional_next()?;
-                block_without_base_fee(prog.eth_get_block_by_hash(block, is_full).await?)
-            })?;
-        } else {
+        if !self.config.brc20_prog_rpc_tx_pool {
             for method in TX_POOL_METHODS {
                 module.remove_method(method);
             }
         }
-        Ok(module.into())
+        module.into()
     }
 
     /// Fails with JSON-RPC "method not found" unless `brc20_prog_rpc_tx_pool` is enabled.
@@ -235,15 +218,6 @@ const TX_POOL_METHODS: [&str; 3] = [
     "eth_getRawTransactionByHash",
     "brc20_unsentRawTransactions",
 ];
-
-/// Returns the JSON of `block` without `baseFeePerGas`.
-fn block_without_base_fee(block: BlockResponseED) -> RpcResult<serde_json::Value> {
-    let mut value = serde_json::to_value(block).map_err(|error| wrap_rpc_error(error.into()))?;
-    if let Some(fields) = value.as_object_mut() {
-        fields.remove("baseFeePerGas");
-    }
-    Ok(value)
-}
 
 fn new_tx_pool() -> Arc<Mutex<TxPool>> {
     Arc::new(Mutex::new(TxPool::new(
@@ -1480,7 +1454,7 @@ async fn start_listener(
 ) -> Result<ServerHandle, Box<dyn Error>> {
     let config = &prog.config;
     let serves_indexer_methods = auth.requires_credentials();
-    let module = prog.rpc_methods(serves_indexer_methods)?;
+    let module = prog.rpc_methods(serves_indexer_methods);
     let cors = if serves_indexer_methods {
         CorsLayer::new()
     } else {
@@ -1637,8 +1611,8 @@ mod tests {
     #[test]
     fn test_rpc_methods_without_indexer_methods() {
         let server = create_test_server();
-        let all = server.rpc_methods(true).unwrap();
-        let public = server.rpc_methods(false).unwrap();
+        let all = server.rpc_methods(true);
+        let public = server.rpc_methods(false);
 
         // Every listed indexer method is a registered name, so removing it takes effect
         for method in INDEXER_METHODS.iter() {
@@ -1657,14 +1631,12 @@ mod tests {
         let disabled = create_test_server_with_tx_pool(false);
         let enabled = create_test_server_with_tx_pool(true);
         for with_indexer_methods in [false, true] {
-            let without_pool = disabled.rpc_methods(with_indexer_methods).unwrap();
-            let with_pool = enabled.rpc_methods(with_indexer_methods).unwrap();
+            let without_pool = disabled.rpc_methods(with_indexer_methods);
+            let with_pool = enabled.rpc_methods(with_indexer_methods);
             for method in TX_POOL_METHODS {
                 assert!(without_pool.method(method).is_none(), "{method} is served");
                 assert!(with_pool.method(method).is_some(), "{method} is not served");
             }
-            assert!(with_pool.method("eth_getBlockByNumber").is_some());
-            assert!(with_pool.method("eth_getBlockByHash").is_some());
             assert_eq!(
                 with_pool.method_names().count(),
                 without_pool.method_names().count() + TX_POOL_METHODS.len()

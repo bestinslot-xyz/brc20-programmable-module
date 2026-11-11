@@ -137,7 +137,7 @@ pub struct Brc20ProgConfig {
     /// Whether the JSON-RPC server serves the pending raw transaction pool:
     /// `eth_sendRawTransaction`, `eth_getRawTransactionByHash` and
     /// `brc20_unsentRawTransactions`, a pool-aware `eth_getTransactionCount(addr, "pending")`,
-    /// rate limits on the pool methods, and block JSON without `baseFeePerGas`.
+    /// and rate limits on the pool methods.
     /// When disabled, the pool methods return JSON-RPC "method not found".
     pub brc20_prog_rpc_tx_pool: bool,
     /// Whether to record EVM traces

@@ -2,7 +2,7 @@ use std::error::Error;
 
 use alloy::primitives::U64;
 use brc20_prog::types::{RawBytes, U64ED};
-use brc20_prog::{Brc20ProgApiClient, Brc20ProgConfig};
+use brc20_prog::Brc20ProgApiClient;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::HttpClient;
 use jsonrpsee::rpc_params;
@@ -118,15 +118,11 @@ async fn latest_block_json(
     Ok((by_number, by_hash))
 }
 
-/// With `BRC20_PROG_RPC_TX_POOL=true`, block JSON omits `baseFeePerGas` so wallets see no
-/// EIP-1559 support and sign legacy transactions.
+/// Block JSON omits `baseFeePerGas` so wallets see no EIP-1559 support and sign legacy
+/// transactions.
 #[tokio::test]
 async fn block_response_has_no_base_fee() -> Result<(), Box<dyn Error>> {
-    let (server, client) = spawn_test_server(Brc20ProgConfig {
-        brc20_prog_rpc_tx_pool: true,
-        ..Default::default()
-    })
-    .await;
+    let (server, client) = spawn_test_server(Default::default()).await;
     client.brc20_finalise_block(42, [0u8; 32].into(), 0).await?;
 
     let (by_number, by_hash) = latest_block_json(&client).await?;
@@ -143,19 +139,3 @@ async fn block_response_has_no_base_fee() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[tokio::test]
-async fn block_response_has_base_fee_when_disabled() -> Result<(), Box<dyn Error>> {
-    let (server, client) = spawn_test_server(Brc20ProgConfig {
-        brc20_prog_rpc_tx_pool: false,
-        ..Default::default()
-    })
-    .await;
-    client.brc20_finalise_block(42, [0u8; 32].into(), 0).await?;
-
-    let (by_number, by_hash) = latest_block_json(&client).await?;
-    assert_eq!(by_number["baseFeePerGas"], "0x0");
-    assert_eq!(by_hash["baseFeePerGas"], "0x0");
-
-    server.stop()?;
-    Ok(())
-}

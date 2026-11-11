@@ -14,7 +14,7 @@ Precompiled contracts require the Bitcoin RPC variables to work properly, otherw
 | `BRC20_PROG_RPC_SERVER_USER` | unset | Username for HTTP basic auth on the indexer methods. Required by the server. See [Authorization](#authorization). |
 | `BRC20_PROG_RPC_SERVER_PASSWORD` | unset | Password for HTTP basic auth on the indexer methods. Required by the server, and must be strong. See [Authorization](#authorization). |
 | `BRC20_PROG_RPC_SERVER_ENABLE_AUTH` | `true` | Retired. Authentication is mandatory, so `false` stops the server at startup; any other value is ignored. |
-| `BRC20_PROG_RPC_TX_POOL` | `false` | Serves the [pending raw transaction pool](eth-api.md#pending-raw-transaction-pool), its rate limits, and block JSON without `baseFeePerGas`. When `false`, the pool methods return "method not found". |
+| `BRC20_PROG_RPC_TX_POOL` | `false` | Serves the [pending raw transaction pool](eth-api.md#pending-raw-transaction-pool) and its rate limits. When `false`, the pool methods return "method not found". |
 | `BRC20_PROG_RPC_TRUST_FORWARDED_FOR` | `false` | Rate limits each client by the first `X-Forwarded-For` hop. See [Rate limits](#rate-limits). |
 | `EVM_RECORD_TRACES` | `false` | Records transaction traces for `debug_traceTransaction`. |
 | `EVM_CALL_GAS_LIMIT` | `1000000000` | Gas limit for `eth_call` and `eth_estimateGas`. |
