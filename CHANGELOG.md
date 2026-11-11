@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.17.2 (2026-11-11)
+
+### New Features
+
+ - <csr-id-cf4cacad8ff2baf67e0178243a9f3baf9d04a121/> eth_sendRawTransaction pool for wallet-signed transactions
+   * feat(rpc): bounded in-memory pool for signed raw transactions
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 1 commit contributed to the release.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 1 unique issue was worked on: [#35](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/35)
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **[#35](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/35)**
+    - Eth_sendRawTransaction pool for wallet-signed transactions ([`cf4caca`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/cf4cacad8ff2baf67e0178243a9f3baf9d04a121))
+</details>
+
 ## 0.17.1 (2026-11-11)
 
 A mistyped transact inscription is skipped like any other transaction the engine does not run. Indexers that stop on a transact with an engine error should upgrade.
@@ -17,7 +42,7 @@ A mistyped transact inscription is skipped like any other transaction the engine
 
 <csr-read-only-do-not-edit/>
 
- - 3 commits contributed to the release.
+ - 4 commits contributed to the release.
  - 4 days passed between releases.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 1 unique issue was worked on: [#34](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/34)
@@ -31,6 +56,7 @@ A mistyped transact inscription is skipped like any other transaction the engine
  * **[#34](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/34)**
     - Return Ok(None) for mistyped raw transactions ([`366ce82`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/366ce82da16869ba332c83276a937c29603f8339))
  * **Uncategorized**
+    - Release brc20-prog v0.17.1 ([`00f956b`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/00f956bdfad75d0a5d6d6adb1beebb40180b2cd9))
     - Document brc20-prog 0.17.1 changes ([`2c9f35e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/2c9f35eb39121af323b72e91922813a3c486b715))
     - Adjusting changelogs prior to release of brc20-prog v0.17.1 ([`702ebcb`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/702ebcbd6e7d330968e742069b0201fb98c21ce0))
 </details>
