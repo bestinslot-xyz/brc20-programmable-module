@@ -1197,15 +1197,6 @@ impl Brc20ProgApiServer for Brc20Prog {
                 CALLDATA_LIMIT
             )));
         }
-        let tx_info = match self.engine.get_info_from_raw_tx(raw_tx.to_vec(), true) {
-            Ok(Some(tx_info)) => tx_info,
-            Ok(None) => return Err(invalid_params("invalid chain id")),
-            Err(_) => return Err(invalid_params("invalid raw transaction")),
-        };
-        let Some(nonce) = tx_info.nonce else {
-            return Err(invalid_params("invalid raw transaction"));
-        };
-
         // Bytes after the RLP list and a high-s signature give the same signed transaction a
         // different hash, so either would let a third party fill the sender's per-nonce cap
         let mut buf = raw_tx.as_ref();
@@ -1214,6 +1205,17 @@ impl Brc20ProgApiServer for Brc20Prog {
         if !buf.is_empty() || signature.normalize_s().is_some() {
             return Err(invalid_params("invalid raw transaction"));
         }
+
+        // The transaction decodes, so the engine skipping it means another chain id or a
+        // signature that does not recover
+        let tx_info = match self.engine.get_info_from_raw_tx(raw_tx.to_vec(), true) {
+            Ok(Some(tx_info)) => tx_info,
+            Ok(None) => return Err(invalid_params("invalid chain id or signature")),
+            Err(_) => return Err(invalid_params("invalid raw transaction")),
+        };
+        let Some(nonce) = tx_info.nonce else {
+            return Err(invalid_params("invalid raw transaction"));
+        };
         // The engine executes every transaction with zero value, so a nonzero value is
         // rejected at send time
         if !legacy_tx.value.is_zero() {
