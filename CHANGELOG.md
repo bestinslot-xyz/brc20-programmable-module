@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.17.1 (2026-11-11)
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 1 commit contributed to the release.
+ - 4 days passed between releases.
+ - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 1 unique issue was worked on: [#34](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/34)
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **[#34](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/34)**
+    - Return Ok(None) for mistyped raw transactions ([`366ce82`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/366ce82da16869ba332c83276a937c29603f8339))
+</details>
+
 ## 0.17.0 (2026-11-07)
 
 Server mode requires HTTP basic auth for the indexer methods (`brc20_*` and `debug_getBlockTrace*`). Library mode keeps them off the network and needs no credentials. See [Authorization](docs/configuration.md#authorization).
@@ -26,7 +47,7 @@ Server mode requires HTTP basic auth for the indexer methods (`brc20_*` and `deb
 
 <csr-read-only-do-not-edit/>
 
- - 6 commits contributed to the release.
+ - 7 commits contributed to the release.
  - 5 days passed between releases.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 1 unique issue was worked on: [#33](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/33)
@@ -40,6 +61,7 @@ Server mode requires HTTP basic auth for the indexer methods (`brc20_*` and `deb
  * **[#33](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/33)**
     - Require HTTP basic auth for the indexer methods in server mode ([`d4f50ca`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/d4f50ca0dc07247d5d0573164812d8d55413877c))
  * **Uncategorized**
+    - Release brc20-prog v0.17.0 ([`42ec131`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/42ec131a8fe6048bfd3e3208221ea55fed81a081))
     - Summarize the brc20-prog 0.17.0 release in the changelog ([`f2abc54`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/f2abc547e37e4e4a5b4ec745df637506280b5fc7))
     - Adjusting changelogs prior to release of brc20-prog v0.17.0 ([`7e9e65e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/7e9e65e93bc438e0d1dba9dad31cbf2205e8cff1))
     - Fix changelog ([`67307db`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/67307db6e8885242017827bf28767f40b78f3ca3))
