@@ -17,7 +17,7 @@ A mistyped transact inscription is skipped like any other transaction the engine
 
 <csr-read-only-do-not-edit/>
 
- - 1 commit contributed to the release.
+ - 3 commits contributed to the release.
  - 4 days passed between releases.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 1 unique issue was worked on: [#34](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/34)
@@ -30,6 +30,9 @@ A mistyped transact inscription is skipped like any other transaction the engine
 
  * **[#34](https://github.com/bestinslot-xyz/brc20-programmable-module/issues/34)**
     - Return Ok(None) for mistyped raw transactions ([`366ce82`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/366ce82da16869ba332c83276a937c29603f8339))
+ * **Uncategorized**
+    - Document brc20-prog 0.17.1 changes ([`2c9f35e`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/2c9f35eb39121af323b72e91922813a3c486b715))
+    - Adjusting changelogs prior to release of brc20-prog v0.17.1 ([`702ebcb`](https://github.com/bestinslot-xyz/brc20-programmable-module/commit/702ebcbd6e7d330968e742069b0201fb98c21ce0))
 </details>
 
 ## 0.17.0 (2026-11-07)
