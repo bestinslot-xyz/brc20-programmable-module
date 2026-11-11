@@ -8849,7 +8849,7 @@ raw_receipts: [
 ]
 rejected: transact:futureNonceLogOps: no receipt
 rejected: transact:wrongChainId: no receipt
-rejected: transact:malformed: rpc error
+rejected: transact:malformed: no receipt
 -------- tx transact:deploy --------
 receipt: {
   "status": "0x1",
