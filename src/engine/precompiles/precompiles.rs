@@ -9,8 +9,8 @@ use revm::primitives::{AddressSet, B256, U256};
 
 use crate::engine::precompiles::btc_utils::{BitcoinDataUnavailable, BitcoinLookup};
 use crate::engine::precompiles::{
-    bip322_verify_precompile, btc_tx_details_precompile, get_locked_pkscript_precompile,
-    get_op_return_tx_id_precompile, last_sat_location_precompile,
+    bip322_verify_precompile, btc_tx_details_precompile, btc_tx_witness_precompile,
+    get_locked_pkscript_precompile, get_op_return_tx_id_precompile, last_sat_location_precompile,
 };
 use crate::types::PrecompileData;
 
@@ -20,6 +20,7 @@ lazy_static::lazy_static! {
     static ref LAST_SAT_LOCATION_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fc".parse().expect("Invalid last sat location precompile address");
     static ref GET_LOCKED_PK_SCRIPT_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fb".parse().expect("Invalid get locked pk script precompile address");
     static ref GET_OP_RETURN_TX_ID_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000fa".parse().expect("Invalid get op return tx id precompile address");
+    static ref BTC_TX_WITNESS_PRECOMPILE_ADDRESS: Address = "0x00000000000000000000000000000000000000f9".parse().expect("Invalid BTC transaction witness precompile address");
 }
 
 pub struct PrecompileCall {
@@ -51,6 +52,7 @@ pub struct BRC20Precompiles {
 impl BRC20Precompiles {
     pub fn new(
         precompile_spec: PrecompileSpecId,
+        btc_tx_witness_active: bool,
         op_return_tx_id: B256,
         precompile_data: &Option<PrecompileData>,
         bitcoin_lookup: BitcoinLookup,
@@ -81,6 +83,15 @@ impl BRC20Precompiles {
             custom_precompiles.insert(*GET_OP_RETURN_TX_ID_PRECOMPILE_ADDRESS, |call| {
                 Ok(get_op_return_tx_id_precompile(call))
             });
+        }
+
+        // Gated on height so that 0xf9 stays an empty, cold account before activation
+        if btc_tx_witness_active {
+            all_addresses.insert(*BTC_TX_WITNESS_PRECOMPILE_ADDRESS);
+            custom_precompiles.insert(
+                *BTC_TX_WITNESS_PRECOMPILE_ADDRESS,
+                btc_tx_witness_precompile,
+            );
         }
 
         let btc_tx_hexes_data = if let Some(data) = precompile_data {
@@ -212,6 +223,7 @@ mod tests {
         // A sanity test to ensure that the Prague spec includes the BLS precompiles.
         let precompiles = BRC20Precompiles::new(
             PrecompileSpecId::PRAGUE,
+            false,
             [0u8; 32].into(),
             &None,
             BitcoinLookup::BlockExecution,
@@ -242,5 +254,21 @@ mod tests {
         assert!(!precompiles
             .all_addresses
             .contains(&Address::from_str("0x0000000000000000000000000000000000000012").unwrap()));
+    }
+
+    #[test]
+    fn test_btc_tx_witness_address_is_gated() {
+        let address = Address::from_str("0x00000000000000000000000000000000000000f9").unwrap();
+        for active in [false, true] {
+            let precompiles = BRC20Precompiles::new(
+                PrecompileSpecId::PRAGUE,
+                active,
+                [0u8; 32].into(),
+                &None,
+                BitcoinLookup::BlockExecution,
+            );
+            assert_eq!(precompiles.all_addresses.contains(&address), active);
+            assert_eq!(precompiles.custom_precompiles.contains_key(&address), active);
+        }
     }
 }

@@ -5,6 +5,9 @@ pub use bip322_verify_precompile::bip322_verify_precompile;
 mod btc_tx_details_precompile;
 pub use btc_tx_details_precompile::btc_tx_details_precompile;
 
+mod btc_tx_witness_precompile;
+pub use btc_tx_witness_precompile::btc_tx_witness_precompile;
+
 mod btc_last_sat_loc_precompile;
 pub use btc_last_sat_loc_precompile::last_sat_location_precompile;
 
