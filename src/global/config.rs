@@ -97,6 +97,7 @@ pub const MAX_FUTURE_TRANSACTION_BLOCKS: u64 = 10; // Maximum future transaction
 
 pub const GAS_PER_OP_RETURN_TX_ID: u64 = 40; // 40 gas for fetching the op return tx id
 pub const GAS_PER_BITCOIN_RPC_CALL: u64 = 400000; // 400K gas per Bitcoin RPC call
+pub const GAS_PER_WITNESS_TX_BYTE: u64 = 16; // 16 gas per serialized byte of the transaction read by BTC_TxWitness
 pub const GAS_PER_BIP_322_VERIFY: u64 = 20000; // 20K gas per BIP-322 verify call
 pub const GAS_PER_LOCKED_PKSCRIPT: u64 = 20000; // 20K gas per locked pkscript call
 

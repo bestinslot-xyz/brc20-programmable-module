@@ -57,6 +57,25 @@ fn bip322_v0_0_11_active(network: Network, block_number: u64) -> bool {
     }
 }
 
+// BTC_TxWitness precompile at 0xf9. The mainnet and signet heights are placeholders that keep it
+// inactive until the maintainers choose activation heights.
+const BTC_TX_WITNESS_ACTIVATION_HEIGHT_MAINNET: u64 = u64::MAX;
+const BTC_TX_WITNESS_ACTIVATION_HEIGHT_SIGNET: u64 = u64::MAX;
+const BTC_TX_WITNESS_ACTIVATION_HEIGHT_REGTEST: u64 = 0;
+
+pub fn btc_tx_witness_active(block_number: u64) -> bool {
+    btc_tx_witness_active_on(get_bitcoin_network(), block_number)
+}
+
+fn btc_tx_witness_active_on(network: Network, block_number: u64) -> bool {
+    match network {
+        Network::Bitcoin => block_number >= BTC_TX_WITNESS_ACTIVATION_HEIGHT_MAINNET,
+        Network::Signet => block_number >= BTC_TX_WITNESS_ACTIVATION_HEIGHT_SIGNET,
+        Network::Regtest => block_number >= BTC_TX_WITNESS_ACTIVATION_HEIGHT_REGTEST,
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,5 +89,13 @@ mod tests {
         assert!(!bip322_v0_0_11_active(Network::Signet, 328_056));
         assert!(bip322_v0_0_11_active(Network::Signet, 328_057));
         assert!(bip322_v0_0_11_active(Network::Regtest, 0));
+    }
+
+    #[test]
+    fn test_btc_tx_witness_activation() {
+        assert!(btc_tx_witness_active_on(Network::Regtest, 0));
+        assert!(!btc_tx_witness_active_on(Network::Bitcoin, 2_000_000));
+        assert!(!btc_tx_witness_active_on(Network::Signet, 2_000_000));
+        assert!(!btc_tx_witness_active_on(Network::Testnet4, 2_000_000));
     }
 }

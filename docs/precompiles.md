@@ -94,6 +94,32 @@ interface IBTC_Transaction {
 }
 ```
 
+### Transaction witness
+
+`BTC_TxWitness` at `0x00000000000000000000000000000000000000f9` returns the witness stack of one input of a confirmed transaction, unmodified, including any annex and control block. It also returns the confirming block height and the number of inputs.
+
+**Contract interface**:
+
+```solidity
+/**
+ * Get the witness stack of one input of a confirmed Bitcoin transaction.
+ */
+interface IBTC_TxWitness {
+    function getTxWitness(
+        bytes32 txid,
+        uint256 vin
+    )
+        external
+        view
+        returns (uint256 block_height, uint256 vin_count, bytes[] memory stack);
+}
+```
+
+The call fails if the transaction is unknown, unconfirmed, above the current EVM height, or if `vin` is out of bounds. It costs 400,000 gas plus 16 gas per byte of the full serialized transaction.
+
+> [!WARNING]
+> This precompile is active from height 0 on regtest. Mainnet and signet activation heights are not set.
+
 ### Last sat location
 
 `BTC_LastSatLoc` contract can be used to retrieve previous location of a satoshi at given `txid`, `vout` and `sat` number using the rules detailed at [ordinals/ord/blob/master/bip.mediawiki](https://github.com/ordinals/ord/blob/master/bip.mediawiki).

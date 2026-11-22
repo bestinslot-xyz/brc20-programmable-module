@@ -8,7 +8,7 @@ use revm::{Context, Journal, JournalEntry};
 use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 
 use crate::db::Brc20ProgDatabase;
-use crate::engine::hardforks::get_evm_spec;
+use crate::engine::hardforks::{btc_tx_witness_active, get_evm_spec};
 use crate::engine::precompiles::{BRC20Precompiles, BitcoinLookup};
 use crate::global::CONFIG;
 use crate::types::PrecompileData;
@@ -66,6 +66,7 @@ pub fn get_evm(
         EthInstructions::new_mainnet_with_spec(evm_spec),
         BRC20Precompiles::new(
             evm_spec.into(),
+            btc_tx_witness_active(block_number),
             current_op_return_tx_id,
             precompile_data,
             bitcoin_lookup,
